@@ -1101,8 +1101,8 @@ func BuildGetOrgCommitteeSeatsPayload(committeeServiceGetOrgCommitteeSeatsUID st
 			if *pageSize < 1 {
 				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 1, true))
 			}
-			if *pageSize > 500 {
-				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 500, false))
+			if *pageSize > 5000 {
+				err = goa.MergeErrors(err, goa.InvalidRangeError("page_size", *pageSize, 5000, false))
 			}
 			if err != nil {
 				return nil, err

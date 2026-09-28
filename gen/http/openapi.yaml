@@ -2806,10 +2806,10 @@ paths:
                   collectionFormat: multi
                 - name: page_size
                   in: query
-                  description: Maximum seats to return in this page (default 100, max 500)
+                  description: Maximum seats to return in this page (default 100, max 5000)
                   required: false
                   type: integer
-                  maximum: 500
+                  maximum: 5000
                   minimum: 1
                 - name: page_token
                   in: query
