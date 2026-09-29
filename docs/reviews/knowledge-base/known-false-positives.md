@@ -201,9 +201,13 @@ each contradiction by stealth, in the direction of whichever side wrote it. Unti
 learnings reviewer nor the GitHub PR surface emits **or** suppresses a finding on either, in either direction,
 and neither may be cited as authority. The general reviewer does not read this file, so the same status is
 written in place, as a dated "Not enforced in review pending a decision" note directly under each rule in
-`.claude/skills/committee-service-dev/SKILL.md`; when a human rules, remove that note and this section
-together. Everything else in the files named below remains fully enforceable. See also the README's
-quarantine section.
+`.claude/skills/committee-service-dev/SKILL.md`. The status is recorded in five places, and when a human
+rules all five change in the same commit: the in-place notes in `.claude/skills/committee-service-dev/SKILL.md`
+(under the layering bullet and the `nats-messaging.md` bullet), this section, the README's "Two
+contradictions quarantined for a human decision" section, the learnings reviewer's "Two quarantined
+contradictions — no finding either way" section in `.claude/skills/committee-service-learnings-reviewer/SKILL.md`,
+and the Quarantined exclusion sentence in `.github/skills/committee-service-code-review/SKILL.md`. Everything
+else in the files named below remains fully enforceable.
 
 ### Layering: invite/application state machine in the presentation layer
 
