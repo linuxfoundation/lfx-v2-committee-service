@@ -8,7 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
@@ -191,4 +194,142 @@ func TestStorage_ListMembersByOrganization_StaleIndexEntrySkipped(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, members, 1, "the stale cross-org entry must be skipped")
 	assert.Equal(t, "m-match", members[0].UID)
+}
+
+// TestStorage_ListMembersByOrganization_ConcurrentFetchSkipsBadEntries verifies that, with more index
+// keys than the fetch concurrency bound, a malformed key, a failed Get and a stale cross-org entry are
+// all skipped while every valid member is still returned.
+func TestStorage_ListMembersByOrganization_ConcurrentFetchSkipsBadEntries(t *testing.T) {
+	const reqOrg = "001B000000IqhSLIAZ"
+	const otherOrg = "001C000000AbCdEFGH"
+
+	kv := &mockKV{
+		getEntries: map[string]jetstream.KeyValueEntry{},
+		getErrs:    map[string]error{"m-bad": errors.New("get boom")},
+	}
+	var wantUIDs []string
+	for i := range 3 * orgMemberGetConcurrency {
+		uid := fmt.Sprintf("m-%03d", i)
+		b, err := json.Marshal(orgMember(uid, reqOrg))
+		require.NoError(t, err)
+		kv.getEntries[uid] = &mockEntry{value: b, rev: 1}
+		kv.listKeys = append(kv.listKeys, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, reqOrg, uid))
+		wantUIDs = append(wantUIDs, uid)
+	}
+	staleBytes, err := json.Marshal(orgMember("m-stale", otherOrg))
+	require.NoError(t, err)
+	kv.getEntries["m-stale"] = &mockEntry{value: staleBytes, rev: 1}
+	kv.listKeys = append(kv.listKeys,
+		fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, reqOrg, "m-bad"),
+		fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, reqOrg, "m-stale"),
+		"lookup/committee-members-by-organization/"+reqOrg+".", // malformed: empty member UID suffix
+	)
+
+	members, err := newTestStorageWithKV(kv).ListMembersByOrganization(context.Background(), reqOrg)
+	require.NoError(t, err)
+
+	gotUIDs := make([]string, 0, len(members))
+	for _, m := range members {
+		gotUIDs = append(gotUIDs, m.UID)
+	}
+	assert.ElementsMatch(t, wantUIDs, gotUIDs, "only the valid members are returned; bad, stale and malformed entries are skipped")
+}
+
+// blockingGetKV holds each Get until orgMemberGetConcurrency gets are in flight at once (or a timeout
+// passes, after which all gets proceed), recording the peak, so the test proves member reads run
+// concurrently and never exceed the bound without hanging if they regress to sequential.
+type blockingGetKV struct {
+	*mockKV
+	mu       sync.Mutex
+	inFlight int
+	peak     int
+	full     chan struct{}
+	release  sync.Once
+}
+
+func (b *blockingGetKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	b.mu.Lock()
+	b.inFlight++
+	b.peak = max(b.peak, b.inFlight)
+	if b.inFlight == orgMemberGetConcurrency {
+		b.release.Do(func() { close(b.full) })
+	}
+	b.mu.Unlock()
+	defer func() {
+		b.mu.Lock()
+		b.inFlight--
+		b.mu.Unlock()
+	}()
+
+	select {
+	case <-b.full:
+	case <-time.After(2 * time.Second):
+		b.release.Do(func() { close(b.full) })
+	}
+	return b.mockKV.Get(ctx, key)
+}
+
+// TestStorage_ListMembersByOrganization_FetchesWithBoundedConcurrency verifies member records are read
+// in parallel up to, and never beyond, orgMemberGetConcurrency.
+func TestStorage_ListMembersByOrganization_FetchesWithBoundedConcurrency(t *testing.T) {
+	const org = "001B000000IqhSLIAZ"
+	kv := &blockingGetKV{mockKV: &mockKV{getEntries: map[string]jetstream.KeyValueEntry{}}, full: make(chan struct{})}
+	for i := range 2 * orgMemberGetConcurrency {
+		uid := fmt.Sprintf("m-%03d", i)
+		b, err := json.Marshal(orgMember(uid, org))
+		require.NoError(t, err)
+		kv.getEntries[uid] = &mockEntry{value: b, rev: 1}
+		kv.listKeys = append(kv.listKeys, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, org, uid))
+	}
+
+	members, err := newTestStorageWithKV(kv).ListMembersByOrganization(context.Background(), org)
+	require.NoError(t, err)
+	assert.Len(t, members, 2*orgMemberGetConcurrency)
+	assert.Equal(t, orgMemberGetConcurrency, kv.peak, "gets must run concurrently up to the bound and never exceed it")
+}
+
+// cancelDuringGetKV signals on the first Get, then holds every Get until its context is cancelled,
+// counting how many Gets were issued.
+type cancelDuringGetKV struct {
+	*mockKV
+	started     chan struct{}
+	startedOnce sync.Once
+	gets        atomic.Int32
+}
+
+func (c *cancelDuringGetKV) Get(ctx context.Context, _ string) (jetstream.KeyValueEntry, error) {
+	c.gets.Add(1)
+	c.startedOnce.Do(func() { close(c.started) })
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(5 * time.Second):
+		return nil, errors.New("context was never cancelled")
+	}
+}
+
+// TestStorage_ListMembersByOrganization_CancelledDuringFetchReturnsError verifies that cancelling the
+// request while member gets are in flight returns the context error (not a silently truncated seat
+// list) and stops issuing the gets still queued behind the concurrency bound.
+func TestStorage_ListMembersByOrganization_CancelledDuringFetchReturnsError(t *testing.T) {
+	const org = "001B000000IqhSLIAZ"
+	kv := &cancelDuringGetKV{mockKV: &mockKV{}, started: make(chan struct{})}
+	total := 3 * orgMemberGetConcurrency
+	for i := range total {
+		kv.listKeys = append(kv.listKeys, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, org, fmt.Sprintf("m-%03d", i)))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-kv.started
+		cancel()
+	}()
+
+	members, err := newTestStorageWithKV(kv).ListMembersByOrganization(ctx, org)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, members)
+	assert.LessOrEqual(t, int(kv.gets.Load()), orgMemberGetConcurrency,
+		"only gets already in flight at cancellation may run; queued gets must not be issued")
 }
