@@ -66,7 +66,9 @@ with it. They live in:
   `known-false-positives.md` recording what the team has already rejected. Use
   the category files as a checklist of known shapes and the false-positive file
   as a floor: a finding that matches something the team has explicitly rejected
-  does not get posted.
+  does not get posted. The floor excludes that file's "Quarantined — not
+  enforced pending a human decision" section: on those rules, post nothing and
+  suppress nothing, in either direction, until a human rules.
 
 Enforcement runs in both directions: code that violates a documented standard is
 a finding, and a documented standard the code has visibly outgrown is a finding
