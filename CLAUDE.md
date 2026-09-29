@@ -119,7 +119,8 @@ curl -s "https://go.dev/dl/?mode=json&include=all" \
 >    commit(s), as many as it takes, and rerun it — never the reviewers.
 > 3. **Open the PR.** From then on there are **no local reviews of any
 >    kind** — iterate only on the PR's bot and human feedback, still running
->    tests and checks.
+>    tests and checks. Where a `PR driver` is named below, load that skill and
+>    follow it for that iteration instead of `/lfx-skills:lfx-pr-resolve`.
 
 - KB review skill: `/committee-service-learnings-reviewer`
 - Preflight: `/committee-service-pr-readiness origin/main`, then `/committee-service-preflight origin/main --report-only`
