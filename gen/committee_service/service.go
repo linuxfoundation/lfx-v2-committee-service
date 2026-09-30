@@ -1187,7 +1187,7 @@ type GetOrgCommitteeSeatsPayload struct {
 	// Resolved project-family UIDs (foundation root + descendants) the BFF scopes
 	// seats to
 	ProjectUids []string
-	// Maximum seats to return in this page (default 100, max 500)
+	// Maximum seats to return in this page (default 100, max 5000)
 	PageSize *int
 	// Opaque cursor returned by a previous call to fetch the next page
 	PageToken *string

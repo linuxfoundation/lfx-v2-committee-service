@@ -409,7 +409,7 @@ func uidOf(m *model.CommitteeMember) string {
 // org-committee-seat pagination defaults (LFXV2-1865).
 const (
 	defaultOrgSeatPageSize = 100
-	maxOrgSeatPageSize     = 500
+	maxOrgSeatPageSize     = 5000
 )
 
 // seatCursorKey signs page tokens so clients treat them as opaque and cannot forge or hand-construct a
