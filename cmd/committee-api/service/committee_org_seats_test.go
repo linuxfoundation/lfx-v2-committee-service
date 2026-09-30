@@ -378,6 +378,7 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 
 		// Old member deleted exactly once at the read revision.
 		require.Len(t, writer.deleteCalls, 1)
+		assert.Equal(t, "c-1", writer.deleteCalls[0].committeeUID)
 		assert.Equal(t, "m-1", writer.deleteCalls[0].uid)
 		assert.Equal(t, uint64(7), writer.deleteCalls[0].revision)
 	})
@@ -430,6 +431,8 @@ func TestReassignOrgCommitteeSeat(t *testing.T) {
 		// Created the new member, then attempted both the original delete and the rollback delete.
 		require.Len(t, writer.createMemberCalls, 1)
 		require.Len(t, writer.deleteCalls, 2)
+		assert.Equal(t, "c-1", writer.deleteCalls[0].committeeUID)
+		assert.Equal(t, "c-1", writer.deleteCalls[1].committeeUID)
 		assert.Equal(t, "m-1", writer.deleteCalls[0].uid)   // old member
 		assert.Equal(t, "m-new", writer.deleteCalls[1].uid) // rollback of created member
 	})

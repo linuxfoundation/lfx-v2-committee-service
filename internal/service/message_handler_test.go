@@ -789,7 +789,7 @@ func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member 
 	}
 	return member, s.updateMemberErr
 }
-func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _ string, _ uint64, _ bool, _ bool) error {
+func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _, _ string, _ uint64, _ bool, _ bool) error {
 	return nil
 }
 func (s *spyCommitteeWriterOrchestrator) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {

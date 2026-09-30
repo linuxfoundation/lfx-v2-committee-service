@@ -762,8 +762,9 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 }
 
 // DeleteMember removes a committee member
-func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error {
+func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, committeeUID, uid string, revision uint64, sync bool, skipNotification bool) error {
 	slog.DebugContext(ctx, "executing delete committee member use case",
+		"committee_uid", committeeUID,
 		"member_uid", uid,
 		"revision", revision,
 	)
@@ -776,6 +777,11 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, uid str
 			"member_uid", uid,
 		)
 		return errGet
+	}
+
+	// The path committee is the authorization target; do not mutate a member of another committee.
+	if existing.CommitteeUID != committeeUID {
+		return errs.NewNotFound("committee member not found")
 	}
 
 	// Verify revision matches to ensure optimistic locking
@@ -896,7 +902,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 	}
 
 	// Delete the old holder. On success the reassign is complete.
-	if errDelete := uc.DeleteMember(ctx, oldMemberUID, oldRevision, sync, false); errDelete != nil {
+	if errDelete := uc.DeleteMember(ctx, newMember.CommitteeUID, oldMemberUID, oldRevision, sync, false); errDelete != nil {
 		// DeleteMember can fail after the old seat is already gone (e.g. a post-commit indexer publish
 		// failed). Re-read the old seat to decide what to do: we only roll back the new seat when we can
 		// POSITIVELY confirm the old holder still exists. If the re-read itself fails we cannot tell
@@ -932,7 +938,7 @@ func (uc *committeeWriterOrchestrator) ReassignMember(ctx context.Context, oldMe
 		var errRollback error
 		if created != nil && created.UID != "" {
 			if _, createdRev, errGet := uc.committeeReader.GetMember(ctx, created.UID); errGet == nil {
-				errRollback = uc.DeleteMember(ctx, created.UID, createdRev, sync, false)
+				errRollback = uc.DeleteMember(ctx, newMember.CommitteeUID, created.UID, createdRev, sync, false)
 			} else {
 				errRollback = errGet
 			}
