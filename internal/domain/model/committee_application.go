@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // CommitteeApplication represents a committee application business entity
@@ -93,4 +94,24 @@ func (ca *CommitteeApplication) Tags() []string {
 	}
 
 	return tags
+}
+
+// IndexingConfig returns the indexer metadata for a committee application create/update message.
+// Both the API service (publishApplicationIndexerMessage) and the CLI reindex command
+// (reindex-applications) call this method so the indexer payload stays in sync automatically
+// whenever it is updated.
+// Do not call this for delete actions; the indexer expects no IndexingConfig on deletes.
+func (ca *CommitteeApplication) IndexingConfig() *indexerTypes.IndexingConfig {
+	public := false
+	return &indexerTypes.IndexingConfig{
+		ObjectID:             ca.UID,
+		AccessCheckObject:    fmt.Sprintf("committee_application:%s", ca.UID),
+		AccessCheckRelation:  "viewer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", ca.CommitteeUID),
+		HistoryCheckRelation: "auditor",
+		ParentRefs:           []string{fmt.Sprintf("committee:%s", ca.CommitteeUID)},
+		Fulltext:             ca.Message,
+		Tags:                 ca.Tags(),
+		Public:               &public,
+	}
 }

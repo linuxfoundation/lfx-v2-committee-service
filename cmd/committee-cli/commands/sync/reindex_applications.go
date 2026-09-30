@@ -16,7 +16,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
-	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // reindexApplicationsSubcommand re-publishes all committee applications from NATS KV to both the
@@ -142,26 +141,14 @@ func (s *reindexApplicationsSubcommand) Run(ctx context.Context, rc commands.Run
 	return nil
 }
 
-// publishApplicationIndexerMsg re-publishes an application to the indexer (OpenSearch) with
-// AccessCheckObject pointing to the committee_application FGA type.
+// publishApplicationIndexerMsg re-publishes an application to the indexer (OpenSearch).
+// IndexingConfig is sourced from application.IndexingConfig() — the same method used by
+// the API service — so this command always stays in sync with the canonical payload.
 func publishApplicationIndexerMsg(ctx context.Context, rc commands.RunContext, application *model.CommitteeApplication) error {
-	public := false
-	indexingConfig := &indexerTypes.IndexingConfig{
-		ObjectID:             application.UID,
-		AccessCheckObject:    fmt.Sprintf("committee_application:%s", application.UID),
-		AccessCheckRelation:  "viewer",
-		HistoryCheckObject:   fmt.Sprintf("committee:%s", application.CommitteeUID),
-		HistoryCheckRelation: "auditor",
-		ParentRefs:           []string{fmt.Sprintf("committee:%s", application.CommitteeUID)},
-		Fulltext:             application.Message,
-		Tags:                 application.Tags(),
-		Public:               &public,
-	}
-
 	indexerMessage := model.CommitteeIndexerMessage{
 		Action:         model.ActionUpdated,
 		Tags:           application.Tags(),
-		IndexingConfig: indexingConfig,
+		IndexingConfig: application.IndexingConfig(),
 	}
 
 	built, err := indexerMessage.Build(ctx, application)

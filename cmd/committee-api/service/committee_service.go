@@ -1800,32 +1800,22 @@ func (s *committeeServicesrvc) publishApplicationAccessControlMessage(ctx contex
 
 // publishApplicationIndexerMessage publishes an indexer message for application operations.
 // Publishing is best-effort: failures are logged but do not fail the request.
-// IndexingConfig is required because the indexer is data-agnostic; publishers supply all indexing metadata.
+// IndexingConfig is sourced from application.IndexingConfig() so that both this function
+// and the CLI reindex command share a single definition of the indexer payload.
 func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication, sync bool) {
-	tags := application.Tags()
-	indexingConfig := &indexerTypes.IndexingConfig{
-		ObjectID:             application.UID,
-		AccessCheckObject:    fmt.Sprintf("committee_application:%s", application.UID),
-		AccessCheckRelation:  "viewer",
-		HistoryCheckObject:   fmt.Sprintf("committee:%s", application.CommitteeUID),
-		HistoryCheckRelation: "auditor",
-		ParentRefs:           []string{fmt.Sprintf("committee:%s", application.CommitteeUID)},
-		Fulltext:             application.Message,
-		Tags:                 tags,
-	}
-
 	var data any
+	var indexingConfig *indexerTypes.IndexingConfig
 	if action == model.ActionDeleted {
+		// Delete messages carry only the UID; no IndexingConfig is needed.
 		data = application.UID
 	} else {
-		public := false
-		indexingConfig.Public = &public
 		data = application
+		indexingConfig = application.IndexingConfig()
 	}
 
 	indexerMessage := model.CommitteeIndexerMessage{
 		Action:         action,
-		Tags:           tags,
+		Tags:           application.Tags(),
 		IndexingConfig: indexingConfig,
 	}
 
