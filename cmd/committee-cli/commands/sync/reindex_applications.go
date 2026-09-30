@@ -59,15 +59,25 @@ func (s *reindexApplicationsSubcommand) Run(ctx context.Context, rc commands.Run
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	var applications []*model.CommitteeApplication
-	var listErr error
-	if *committeeUID != "" {
-		applications, listErr = rc.CommitteeApplicationReader.ListApplications(ctx, *committeeUID)
-	} else {
-		applications, listErr = rc.CommitteeApplicationReader.ListAllApplications(ctx)
-	}
+	// Always use ListAllApplications so that any record-read failure in the underlying
+	// bucket scan is counted and returned as an error rather than silently skipped.
+	// ListApplications is intentionally not used here because it swallows per-record
+	// read failures and can return a successful result even when some applications were
+	// not read, which would silently leave them un-migrated.
+	allApplications, listErr := rc.CommitteeApplicationReader.ListAllApplications(ctx)
 	if listErr != nil {
 		return errs.NewUnexpected("failed to list applications", listErr)
+	}
+
+	var applications []*model.CommitteeApplication
+	if *committeeUID != "" {
+		for _, a := range allApplications {
+			if a.CommitteeUID == *committeeUID {
+				applications = append(applications, a)
+			}
+		}
+	} else {
+		applications = allApplications
 	}
 
 	stats := commands.NewStats()

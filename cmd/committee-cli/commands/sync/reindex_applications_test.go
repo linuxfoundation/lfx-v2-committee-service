@@ -167,6 +167,34 @@ func TestReindexApplications_FilterByCommitteeUID(t *testing.T) {
 	assert.Equal(t, 1, pub.updateAccessCalls)
 }
 
+func TestReindexApplications_IndexerMessagePayload(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	pub := &mockPublisher{}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: &mockApplicationReader{
+			applications: []*model.CommitteeApplication{
+				makeTestApplication("app-uid-42", "comm-uid-42", "first.last@example.com", "pending"),
+			},
+		},
+		Publisher: pub,
+	}
+	err := sub.Run(context.Background(), rc)
+	require.NoError(t, err)
+	require.Len(t, pub.indexerMsgs, 1)
+	msg, ok := pub.indexerMsgs[0].(*model.CommitteeIndexerMessage)
+	require.True(t, ok, "indexer message should be *model.CommitteeIndexerMessage")
+	assert.Equal(t, model.ActionUpdated, msg.Action)
+	require.NotNil(t, msg.IndexingConfig)
+	assert.Equal(t, "committee_application:app-uid-42", msg.IndexingConfig.AccessCheckObject)
+	assert.Equal(t, "viewer", msg.IndexingConfig.AccessCheckRelation)
+	assert.Equal(t, "committee:comm-uid-42", msg.IndexingConfig.HistoryCheckObject)
+	assert.Equal(t, "auditor", msg.IndexingConfig.HistoryCheckRelation)
+	assert.Equal(t, []string{"committee:comm-uid-42"}, msg.IndexingConfig.ParentRefs)
+	require.NotNil(t, msg.IndexingConfig.Public, "Public must be set (not nil) to prevent public exposure")
+	assert.False(t, *msg.IndexingConfig.Public, "applications must never be indexed as public")
+}
+
 func TestReindexApplications_FGATupleUsesCommitteeApplicationType(t *testing.T) {
 	t.Parallel()
 	sub := &reindexApplicationsSubcommand{}

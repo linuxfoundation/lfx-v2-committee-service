@@ -45,12 +45,14 @@ type mockPublisher struct {
 	memberCalls       int
 	updateAccessCalls int
 	updateAccessMsgs  []any
+	indexerMsgs       []any
 	indexerErr        error
 	accessErr         error
 }
 
-func (p *mockPublisher) Indexer(_ context.Context, _ string, _ any, _ bool) error {
+func (p *mockPublisher) Indexer(_ context.Context, _ string, msg any, _ bool) error {
 	p.indexerCalls++
+	p.indexerMsgs = append(p.indexerMsgs, msg)
 	return p.indexerErr
 }
 func (p *mockPublisher) UpdateAccess(_ context.Context, message any) error {
