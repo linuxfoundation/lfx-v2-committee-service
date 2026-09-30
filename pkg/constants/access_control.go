@@ -18,4 +18,6 @@ const (
 	RelationCommittee = "committee"
 	// RelationInvitee is the relation name for the invitee of a committee_invite.
 	RelationInvitee = "invitee"
+	// RelationApplicant is the relation name for the applicant of a committee_application.
+	RelationApplicant = "applicant"
 )

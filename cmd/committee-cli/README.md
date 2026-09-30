@@ -101,6 +101,46 @@ NATS_URL=nats://localhost:4222 \
   committee-cli sync members-by-committee-index --committee-uid=abc-123
 ```
 
+#### `sync reindex-applications`
+
+Re-publishes all committee applications from NATS KV to OpenSearch (via the indexer) and OpenFGA (via fga-sync). This command is required after deploying the `committee_application` FGA type to migrate existing applications from the old `committee:{uid}#viewer` access-check object to the new per-application `committee_application:{uid}#viewer` object. Run once per environment immediately after deploying the service version that introduces the new FGA type.
+
+For each application the command publishes two messages:
+- An indexer `ActionUpdated` message with `AccessCheckObject: committee_application:{uid}` so query-service search enforces the correct applicant/auditor boundary.
+- An `update_access` FGA message writing `committee_application:{uid}#committee@committee:{committeeUID}` and (when the applicant email resolves to an LFID) `committee_application:{uid}#applicant@user:{username}`.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit reindex to applications of a single committee |
+| `--sleep` | `0` | Wait between each application publish (e.g. `200ms`, `1s`) |
+| `--dry-run` | `false` | Log what would be published without writing |
+
+**Exit code:** `0` if no applications failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**Examples**
+
+Dry-run to preview scope (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync reindex-applications --dry-run
+```
+
+Full reindex with a 200ms pause between applications:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync reindex-applications --sleep=200ms
+```
+
+Reindex a single committee's applications:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync reindex-applications --committee-uid=abc-123
+```
+
 #### `sync reindex-invites`
 
 Re-publishes all committee invites from NATS KV to OpenSearch (via the indexer) and OpenFGA (via fga-sync). For each invite, the command fetches the parent committee's base and settings, backfills `committee_name` (if missing) and recomputes `organization_required` (`enable_voting || business_email_required`), persists any changed fields back to NATS KV, then publishes the updated invite to the indexer and access-control subjects.

@@ -1231,6 +1231,55 @@ func (s *storage) ListApplications(ctx context.Context, committeeUID string) ([]
 	return applications, nil
 }
 
+// ListAllApplications retrieves every application across all committees via a full bucket scan.
+// It is intended only for backfill/repair operations (e.g. the reindex-applications CLI subcommand)
+// that need to read all applications without relying on a secondary index.
+func (s *storage) ListAllApplications(ctx context.Context) ([]*model.CommitteeApplication, error) {
+	slog.DebugContext(ctx, "listing all committee applications from NATS storage")
+
+	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeApplications].ListKeys(ctx)
+	if errKeys != nil {
+		return nil, errs.NewUnexpected("failed to list keys from committee applications bucket", errKeys)
+	}
+
+	var applications []*model.CommitteeApplication
+	failedReads := 0
+
+	for key := range keys.Keys() {
+		// Skip all secondary-index keys.
+		if strings.HasPrefix(key, "lookup/") {
+			continue
+		}
+
+		application := &model.CommitteeApplication{}
+		_, errGet := s.get(ctx, constants.KVBucketNameCommitteeApplications, key, application, false)
+		if errGet != nil {
+			slog.WarnContext(ctx, "failed to get application while listing all",
+				"key", key,
+				"error", errGet,
+			)
+			failedReads++
+			continue
+		}
+
+		applications = append(applications, application)
+	}
+
+	slog.DebugContext(ctx, "retrieved all committee applications from NATS storage",
+		"application_count", len(applications),
+		"failed_reads", failedReads,
+	)
+
+	if failedReads > 0 {
+		return applications, errs.NewUnexpected(
+			"failed to load one or more applications while listing all",
+			fmt.Errorf("failed_reads=%d", failedReads),
+		)
+	}
+
+	return applications, nil
+}
+
 // ================== CommitteeApplicationWriter implementation ==================
 
 // CreateApplication creates a new committee application

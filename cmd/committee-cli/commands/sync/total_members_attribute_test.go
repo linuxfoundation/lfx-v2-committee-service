@@ -121,6 +121,10 @@ func (r *mockReader) GetApplication(_ context.Context, _ string) (*model.Committ
 func (r *mockReader) ListApplications(_ context.Context, _ string) ([]*model.CommitteeApplication, error) {
 	return nil, nil
 }
+
+func (r *mockReader) ListAllApplications(_ context.Context) ([]*model.CommitteeApplication, error) {
+	return nil, nil
+}
 func (r *mockReader) GetSettings(_ context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
 	if err, ok := r.settingsErr[uid]; ok {
 		return nil, 0, err

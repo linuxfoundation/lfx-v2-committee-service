@@ -133,6 +133,54 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 
 ---
 
+## Committee Application
+
+**Source struct:** `internal/domain/model/CommitteeApplication`
+
+**Synced on:** submit (create or reapply), approve, and reject of a committee application.
+
+### update_access (Submit / Approve / Reject)
+
+Published to `lfx.fga-sync.update_access` whenever a `committee_application` object is created or updated.
+
+#### Message Envelope
+
+| Field | Value |
+|---|---|
+| `object_type` | `committee_application` |
+| `operation` | `update_access` |
+
+#### Data Fields
+
+| Field | Value |
+|---|---|
+| `uid` | `CommitteeApplication.UID` |
+
+#### Relations
+
+| Relation | Value | Condition |
+|---|---|---|
+| `applicant` | LFID username resolved from `CommitteeApplication.ApplicantEmail` | Only when email resolves to an LFID username |
+
+> When the application is submitted and the applicant has no LFID yet, the `applicant` relation is omitted. `exclude_relations: ["applicant"]` is set so fga-sync does not delete a previously-written tuple on a transient auth-service outage.
+
+#### References
+
+| Reference | Value | Condition |
+|---|---|---|
+| `committee` | `CommitteeApplication.CommitteeUID` | Always |
+
+### Event Summary
+
+| Event | Object Type | Subject | Notes |
+|---|---|---|---|
+| Submit committee application | `committee_application` | `lfx.fga-sync.update_access` | `applicant` relation omitted when applicant has no LFID yet |
+| Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic |
+| Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their approved application |
+| Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their rejected application |
+
+---
+
 ## Committee Invite
 
 **Source struct:** `internal/domain/model/CommitteeInvite`

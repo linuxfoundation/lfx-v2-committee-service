@@ -648,7 +648,7 @@ spec:
           config:
             values:
               relation: viewer
-              object: "committee:{{ "{{- .Request.URL.Captures.uid -}}" }}"
+              object: "committee_application:{{ "{{- .Request.URL.Captures.application_uid -}}" }}"
         {{- else }}
         - authorizer: allow_all
         {{- end }}

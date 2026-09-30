@@ -394,6 +394,10 @@ func (r *TestMockCommitteeReader) ListApplications(ctx context.Context, committe
 	return []*model.CommitteeApplication{}, nil
 }
 
+func (r *TestMockCommitteeReader) ListAllApplications(_ context.Context) ([]*model.CommitteeApplication, error) {
+	return []*model.CommitteeApplication{}, nil
+}
+
 func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 	tests := []struct {
 		name           string

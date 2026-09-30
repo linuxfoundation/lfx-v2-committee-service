@@ -130,6 +130,7 @@ func run() error {
 		UserReader:                  userReader,
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
+		CommitteeApplicationReader:  storage,
 		Args:                        parsed.SubArgs,
 	}
 
