@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -631,9 +632,11 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 		name           string
 		setupMock      func(*mock.MockRepository, *TestMockCommitteeMemberWriter)
 		memberUID      string
+		committeeUID   string
 		revision       uint64
 		expectError    bool
 		expectedError  string
+		expectNotFound bool
 		validateResult func(*testing.T, *TestMockCommitteeMemberWriter)
 	}{
 		{
@@ -655,9 +658,10 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 				// Add member to mock repo which will set revision automatically
 				mockRepo.AddCommitteeMember("committee-123", member)
 			},
-			memberUID:   "member-123",
-			revision:    1,
-			expectError: false,
+			memberUID:    "member-123",
+			committeeUID: "committee-123",
+			revision:     1,
+			expectError:  false,
 			validateResult: func(t *testing.T, memberWriter *TestMockCommitteeMemberWriter) {
 				// Verify member was deleted
 				_, exists := memberWriter.members["member-123"]
@@ -670,6 +674,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 				// Don't add any member
 			},
 			memberUID:     "nonexistent-member",
+			committeeUID:  "committee-123",
 			revision:      1,
 			expectError:   true,
 			expectedError: "member not found",
@@ -696,9 +701,33 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 				memberWriter.SetMemberRevision("member-456", 2)
 			},
 			memberUID:     "member-456",
+			committeeUID:  "committee-123",
 			revision:      1, // Wrong revision
 			expectError:   true,
 			expectedError: "committee member has been modified by another process",
+		},
+		{
+			name: "member belongs to another committee",
+			setupMock: func(mockRepo *mock.MockRepository, memberWriter *TestMockCommitteeMemberWriter) {
+				member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-foreign",
+					CommitteeUID: "committee-foreign",
+					Email:        "first.last@example.com",
+					Username:     "first-last",
+				}}
+				memberWriter.members[member.UID] = member
+				mockRepo.AddCommitteeMember(member.CommitteeUID, member)
+			},
+			memberUID:      "member-foreign",
+			committeeUID:   "committee-123",
+			revision:       1,
+			expectError:    true,
+			expectedError:  "committee member not found",
+			expectNotFound: true,
+			validateResult: func(t *testing.T, memberWriter *TestMockCommitteeMemberWriter) {
+				assert.Contains(t, memberWriter.members, "member-foreign")
+				assert.Empty(t, memberWriter.deletedKeys)
+			},
 		},
 	}
 
@@ -706,13 +735,25 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
 			tt.setupMock(mockRepo, memberWriter)
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator.committeePublisher = publisher
 
 			ctx := context.Background()
-			err := orchestrator.DeleteMember(ctx, tt.memberUID, tt.revision, false, false)
+			err := orchestrator.DeleteMember(ctx, tt.committeeUID, tt.memberUID, tt.revision, false, false)
 
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
+				if tt.expectNotFound {
+					var notFound errs.NotFound
+					assert.True(t, errors.As(err, &notFound))
+					assert.Nil(t, publisher.LastIndexerMessage)
+					assert.Nil(t, publisher.LastEvent)
+					assert.Zero(t, publisher.MemberRemoveCallCount)
+				}
+				if tt.validateResult != nil {
+					tt.validateResult(t, memberWriter)
+				}
 			} else {
 				require.NoError(t, err)
 				if tt.validateResult != nil {
@@ -846,7 +887,7 @@ func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
 
 	orchestrator.committeeReader = memberWriter
 
-	err := orchestrator.DeleteMember(ctx, "member-del-idx", 1, false, false)
+	err := orchestrator.DeleteMember(ctx, "committee-del-idx", "member-del-idx", 1, false, false)
 	require.NoError(t, err)
 
 	// Primary record must be gone.
@@ -1769,7 +1810,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	memberWriter.keys[lookupKey] = member.UID
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-complete", 1, false, false)
+	err := orchestrator.DeleteMember(ctx, "committee-123", "member-complete", 1, false, false)
 
 	// Should succeed
 	require.NoError(t, err)
@@ -1811,7 +1852,7 @@ func TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure(t *te
 	mockRepo.AddCommitteeMember("committee-123", member)
 
 	ctx := context.Background()
-	err := orchestrator.DeleteMember(ctx, "member-msg-fail", 1, false, false)
+	err := orchestrator.DeleteMember(ctx, "committee-123", "member-msg-fail", 1, false, false)
 
 	require.Error(t, err, "a member_remove publish failure must still be returned after the record is deleted")
 

@@ -50,7 +50,7 @@ func (s *stubCommitteeWriter) UpdateMember(_ context.Context, member *model.Comm
 	s.updated = append(s.updated, member)
 	return member, nil
 }
-func (s *stubCommitteeWriter) DeleteMember(_ context.Context, _ string, _ uint64, _ bool, _ bool) error {
+func (s *stubCommitteeWriter) DeleteMember(_ context.Context, _, _ string, _ uint64, _ bool, _ bool) error {
 	return nil
 }
 func (s *stubCommitteeWriter) ReassignMember(_ context.Context, _ string, _ uint64, _ *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
