@@ -11,6 +11,7 @@ The full OpenFGA type definitions (relations, schema) for all object types are d
 ## Object Types
 
 - [Committee](#committee)
+- [Committee Application](#committee-application)
 - [Committee Invite](#committee-invite)
 
 ---
@@ -133,6 +134,61 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 
 ---
 
+## Committee Application
+
+**Source struct:** `internal/domain/model/CommitteeApplication`
+
+**Synced on:** submit (create or reapply), approve, and reject of a committee application.
+
+### update_access (Submit / Approve / Reject)
+
+Published to `lfx.fga-sync.update_access` whenever a `committee_application` object is created or updated.
+
+#### Message Envelope
+
+| Field | Value |
+|---|---|
+| `object_type` | `committee_application` |
+| `operation` | `update_access` |
+
+#### Data Fields
+
+| Field | Value |
+|---|---|
+| `uid` | `CommitteeApplication.UID` |
+
+#### Relations
+
+| Relation | Value | Condition |
+|---|---|---|
+| `applicant` | LFID username resolved from `CommitteeApplication.ApplicantEmail` | Only when email resolves to an LFID username |
+
+> When the application is submitted and the applicant has no LFID yet, the `applicant` relation is omitted. `exclude_relations: ["applicant"]` is set so fga-sync does not delete a previously-written tuple on a transient auth-service outage.
+
+#### References
+
+| Reference | Value | Condition |
+|---|---|---|
+| `committee` | `CommitteeApplication.CommitteeUID` | Always |
+
+### Delete
+
+**`delete_access` is not currently emitted for `committee_application`.** There is no withdraw or delete endpoint, and deleting the parent committee does not cascade to its applications. As a result, KV records, index documents, and FGA tuples for applications of a deleted committee survive indefinitely. This is a pre-existing gap that predates this object type.
+
+A follow-up is tracked to add committee-delete cascade: emit `delete_access` for every `committee_application` whose `committee_application:{uid}#committee` tuple references the deleted committee, and emit the corresponding indexer `ActionDeleted` message. `publishApplicationIndexerMessage` already handles `ActionDeleted` but has no caller.
+
+### Event Summary
+
+| Event | Object Type | Subject | Notes |
+|---|---|---|---|
+| Submit committee application | `committee_application` | `lfx.fga-sync.update_access` | `applicant` relation omitted when applicant has no LFID yet |
+| Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic |
+| Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their approved application |
+| Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their rejected application |
+| Delete committee application | — | — | Not implemented; `delete_access` is never sent (see [Delete](#delete-1) above) |
+
+---
+
 ## Committee Invite
 
 **Source struct:** `internal/domain/model/CommitteeInvite`
@@ -192,3 +248,8 @@ The invite access helper retains a defensive `delete_access` branch that publish
 | Accept committee invite (HTTP) | `committee_invite` | `lfx.fga-sync.update_access` | Re-publishes to ensure `invitee` tuple is present after acceptance |
 | Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Defensive branch only; no current production callsite invokes it (see [delete_access](#delete_access-delete)) |
 | LFID registered (`lfx.invite-service.invite_accepted`) | `committee_invite` | `lfx.fga-sync.update_access` | Publishes `invitee` relation for every `committee_invite` (any status) whose `InviteeEmail` matches the accepted email — grants visibility to all invites, including already-accepted ones |
+| Submit committee application | `committee_application` | `lfx.fga-sync.update_access` | `applicant` relation omitted when applicant has no LFID yet |
+| Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic as submit |
+| Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their approved application |
+| Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their rejected application |
+| Delete committee application | — | — | Not implemented; no delete endpoint and no committee-delete cascade (see [Delete](#delete-1)) |

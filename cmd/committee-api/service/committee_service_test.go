@@ -350,6 +350,82 @@ func TestPublishInviteAccessControlMessage(t *testing.T) {
 	}
 }
 
+func TestPublishApplicationAccessControlMessage(t *testing.T) {
+	application := &model.CommitteeApplication{
+		UID:            "app-1",
+		CommitteeUID:   "committee-1",
+		ApplicantEmail: "first.last@example.com",
+	}
+	tests := []struct {
+		name             string
+		userReader       *mockUserReader
+		wantRelation     map[string][]string
+		wantExclusions   []string
+		wantUpdateAccess int
+	}{
+		{
+			name:             "resolved username",
+			userReader:       newMockUserReader().withUsernames(application.ApplicantEmail, "first-last"),
+			wantRelation:     map[string][]string{constants.RelationApplicant: {"first-last"}},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "missing username",
+			userReader:       newMockUserReader().withUsernames(application.ApplicantEmail, ""),
+			wantExclusions:   []string{constants.RelationApplicant},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "username lookup failure",
+			userReader:       newMockUserReader(), // no mapping → NotFound
+			wantExclusions:   []string{constants.RelationApplicant},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "nil userReader",
+			userReader:       nil,
+			wantExclusions:   []string{constants.RelationApplicant},
+			wantUpdateAccess: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			publisher := &mock.MockCommitteePublisher{}
+			// Explicitly set to nil interface (not nil typed pointer) when no reader is provided,
+			// otherwise a nil *mockUserReader assigned to a port.UserReader field is a non-nil interface.
+			var userReaderForTest port.UserReader
+			if tt.userReader != nil {
+				userReaderForTest = tt.userReader
+			}
+			svc := &committeeServicesrvc{
+				publisher:  publisher,
+				userReader: userReaderForTest,
+			}
+
+			svc.publishApplicationAccessControlMessage(context.Background(), application)
+
+			assert.Equal(t, tt.wantUpdateAccess, publisher.UpdateAccessCallCount)
+			assert.Zero(t, publisher.DeleteAccessCallCount)
+			assert.Zero(t, publisher.MemberPutCallCount)
+			assert.Zero(t, publisher.MemberRemoveCallCount)
+
+			msg, ok := publisher.LastUpdateAccessMessage.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			assert.Equal(t, "committee_application", msg.ObjectType)
+			assert.Equal(t, "update_access", msg.Operation)
+			data, ok := msg.Data.(fgatypes.GenericAccessData)
+			require.True(t, ok)
+			assert.Equal(t, application.UID, data.UID)
+			assert.Equal(t, map[string][]string{
+				constants.RelationCommittee: {application.CommitteeUID},
+			}, data.References)
+			assert.Equal(t, tt.wantRelation, data.Relations)
+			assert.Equal(t, tt.wantExclusions, data.ExcludeRelations)
+		})
+	}
+}
+
 func TestDeleteCommitteeMember(t *testing.T) {
 	tests := []struct {
 		name          string
