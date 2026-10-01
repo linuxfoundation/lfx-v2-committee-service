@@ -139,7 +139,7 @@ func TestReindexApplications_DryRun_NoPublishes(t *testing.T) {
 		CommitteeApplicationReader: &mockApplicationReader{
 			applications: []*model.CommitteeApplication{
 				makeTestApplication("app-1", "comm-1", "first.last@example.com", "pending"),
-				makeTestApplication("app-2", "comm-1", "second.last@example.com", "approved"),
+				makeTestApplication("app-2", "comm-1", "first.last@example.com", "approved"),
 			},
 		},
 		Publisher: pub,
@@ -193,7 +193,7 @@ func TestReindexApplications_FilterByCommitteeUID(t *testing.T) {
 	reader := &mockApplicationReader{
 		applications: []*model.CommitteeApplication{
 			makeTestApplication("app-1", "comm-1", "first.last@example.com", "pending"),
-			makeTestApplication("app-2", "comm-2", "second.last@example.com", "pending"),
+			makeTestApplication("app-2", "comm-2", "first.last@example.com", "pending"),
 		},
 	}
 	rc := commands.RunContext{
