@@ -13,8 +13,49 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 )
+
+// mockCLIUserReader is a minimal UserReader for CLI tests, covering only UsernameByEmail.
+type mockCLIUserReader struct {
+	usernames map[string]string // email → username
+	err       error             // if non-nil, returned for all lookups
+}
+
+func newMockCLIUserReader() *mockCLIUserReader {
+	return &mockCLIUserReader{usernames: make(map[string]string)}
+}
+
+// withUsername registers an email → username mapping.
+func (m *mockCLIUserReader) withUsername(email, username string) *mockCLIUserReader {
+	m.usernames[email] = username
+	return m
+}
+
+// withErr configures a global error returned for every UsernameByEmail call.
+func (m *mockCLIUserReader) withErr(err error) *mockCLIUserReader {
+	m.err = err
+	return m
+}
+
+func (m *mockCLIUserReader) UsernameByEmail(_ context.Context, email string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+	if username, ok := m.usernames[email]; ok {
+		return username, nil
+	}
+	return "", errs.NewNotFound("mock: username not found for email: " + email)
+}
+
+func (m *mockCLIUserReader) EmailsByAuthToken(_ context.Context, _ string) (*model.UserEmails, error) {
+	return nil, nil
+}
+
+func (m *mockCLIUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*model.UserMetadata, error) {
+	return nil, nil
+}
 
 // mockApplicationReader records application list calls.
 type mockApplicationReader struct {
@@ -220,4 +261,96 @@ func TestReindexApplications_FGATupleUsesCommitteeApplicationType(t *testing.T) 
 	refs := data.References["committee"]
 	require.Len(t, refs, 1)
 	assert.Equal(t, "comm-uid-1", refs[0])
+}
+
+// TestReindexApplications_ListAllErr_ReturnsError verifies that a failure to list applications
+// from the KV bucket is surfaced as an error (not silently swallowed).
+func TestReindexApplications_ListAllErr_ReturnsError(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: &mockApplicationReader{
+			listAllErr: errors.New("kv scan failed"),
+		},
+		Publisher: &mockPublisher{},
+	}
+	err := sub.Run(context.Background(), rc)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to list applications")
+}
+
+// TestReindexApplications_UserReaderResolvesUsername verifies that when the UserReader resolves
+// the applicant email to a username, the applicant relation is written in the FGA message.
+func TestReindexApplications_UserReaderResolvesUsername(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	pub := &mockPublisher{}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: &mockApplicationReader{
+			applications: []*model.CommitteeApplication{
+				makeTestApplication("app-1", "comm-1", "first.last@example.com", "pending"),
+			},
+		},
+		Publisher:  pub,
+		UserReader: newMockCLIUserReader().withUsername("first.last@example.com", "first-last"),
+	}
+	err := sub.Run(context.Background(), rc)
+	require.NoError(t, err)
+	require.Len(t, pub.updateAccessMsgs, 1)
+	msg, ok := pub.updateAccessMsgs[0].(fgatypes.GenericFGAMessage)
+	require.True(t, ok)
+	data, ok := msg.Data.(fgatypes.GenericAccessData)
+	require.True(t, ok)
+	// Applicant relation should be written.
+	assert.Equal(t, map[string][]string{"applicant": {"first-last"}}, data.Relations)
+	assert.Nil(t, data.ExcludeRelations, "ExcludeRelations must be nil when applicant tuple is written")
+}
+
+// TestReindexApplications_UserReaderNotFound verifies that when the applicant email has no LFID,
+// ExcludeRelations is set and the applicant relation is not written.
+func TestReindexApplications_UserReaderNotFound(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	pub := &mockPublisher{}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: &mockApplicationReader{
+			applications: []*model.CommitteeApplication{
+				makeTestApplication("app-1", "comm-1", "first.last@example.com", "pending"),
+			},
+		},
+		Publisher: pub,
+		// newMockCLIUserReader without a registered mapping returns NotFound for any email.
+		UserReader: newMockCLIUserReader(),
+	}
+	err := sub.Run(context.Background(), rc)
+	require.NoError(t, err) // NotFound is not an error; item is not counted as failed.
+	require.Len(t, pub.updateAccessMsgs, 1)
+	msg, ok := pub.updateAccessMsgs[0].(fgatypes.GenericFGAMessage)
+	require.True(t, ok)
+	data, ok := msg.Data.(fgatypes.GenericAccessData)
+	require.True(t, ok)
+	assert.Nil(t, data.Relations, "applicant relation must not be written when email has no LFID")
+	assert.Equal(t, []string{"applicant"}, data.ExcludeRelations)
+}
+
+// TestReindexApplications_UserReaderTransientError verifies that a transient (non-NotFound)
+// username lookup error causes the application to be counted as failed, returning a non-zero exit.
+func TestReindexApplications_UserReaderTransientError(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	pub := &mockPublisher{}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: &mockApplicationReader{
+			applications: []*model.CommitteeApplication{
+				makeTestApplication("app-1", "comm-1", "first.last@example.com", "pending"),
+			},
+		},
+		Publisher:  pub,
+		UserReader: newMockCLIUserReader().withErr(errors.New("auth-service timeout")),
+	}
+	err := sub.Run(context.Background(), rc)
+	require.Error(t, err, "transient UserReader error must cause non-zero exit")
+	assert.Contains(t, err.Error(), "failed to reindex")
+	// FGA message should not have been published for the failed application.
+	assert.Equal(t, 0, pub.updateAccessCalls)
 }
