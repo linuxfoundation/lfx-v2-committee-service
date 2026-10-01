@@ -11,6 +11,7 @@ The full OpenFGA type definitions (relations, schema) for all object types are d
 ## Object Types
 
 - [Committee](#committee)
+- [Committee Application](#committee-application)
 - [Committee Invite](#committee-invite)
 
 ---
