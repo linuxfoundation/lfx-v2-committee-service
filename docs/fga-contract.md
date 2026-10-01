@@ -111,7 +111,7 @@ The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UI
 
 ### member_remove (Committee Member Delete)
 
-Published to `lfx.fga-sync.member_remove` when a committee member is deleted and the member has a non-empty `Username`. Sends an empty `relations` array, which instructs fga-sync to remove all tuples for that user on the committee object.
+Published to `lfx.fga-sync.member_remove` when a committee member is deleted and the member has a non-empty `Username`. The service first verifies that the stored member belongs to the requested committee; a mismatch returns not found without deleting the member or publishing messages. Sends an empty `relations` array, which instructs fga-sync to remove all tuples for that user on the committee object.
 
 #### Message Envelope
 

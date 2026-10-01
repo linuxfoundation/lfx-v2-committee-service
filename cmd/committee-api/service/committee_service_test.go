@@ -130,8 +130,9 @@ type updateMemberCall struct {
 }
 
 type deleteCall struct {
-	uid      string
-	revision uint64
+	committeeUID string
+	uid          string
+	revision     uint64
 }
 
 func (m *mockCommitteeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error) {
@@ -175,8 +176,8 @@ func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, memb
 	return m.updateMember, nil
 }
 
-func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error {
-	m.deleteCalls = append(m.deleteCalls, deleteCall{uid: uid, revision: revision})
+func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, committeeUID, uid string, revision uint64, sync bool, skipNotification bool) error {
+	m.deleteCalls = append(m.deleteCalls, deleteCall{committeeUID: committeeUID, uid: uid, revision: revision})
 	return m.deleteError
 }
 
@@ -187,9 +188,9 @@ func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, ol
 	if err != nil {
 		return nil, err
 	}
-	if errDelete := m.DeleteMember(ctx, oldMemberUID, oldRevision, sync, false); errDelete != nil {
+	if errDelete := m.DeleteMember(ctx, newMember.CommitteeUID, oldMemberUID, oldRevision, sync, false); errDelete != nil {
 		if created != nil && created.UID != "" {
-			_ = m.DeleteMember(ctx, created.UID, 0, sync, false) // rollback attempt
+			_ = m.DeleteMember(ctx, newMember.CommitteeUID, created.UID, 0, sync, false) // rollback attempt
 		}
 		return nil, errDelete
 	}
@@ -447,6 +448,7 @@ func TestDeleteCommitteeMember(t *testing.T) {
 			expectError: false,
 			validateCall: func(t *testing.T, calls []deleteCall) {
 				require.Len(t, calls, 1)
+				assert.Equal(t, "committee-123", calls[0].committeeUID)
 				assert.Equal(t, "member-456", calls[0].uid)
 				assert.Equal(t, uint64(1), calls[0].revision)
 			},
@@ -2657,6 +2659,7 @@ func TestLeaveCommittee(t *testing.T) {
 				// Verify the orchestrator was called with the correct member UID
 				require.Len(t, mockOrch.deleteCalls, 1)
 				assert.Equal(t, tt.seedMemberUID, mockOrch.deleteCalls[0].uid)
+				assert.Equal(t, "committee-1", mockOrch.deleteCalls[0].committeeUID)
 			}
 		})
 	}
