@@ -15,7 +15,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // reindexSettingsSubcommand re-publishes all committee settings documents from NATS KV to
@@ -134,22 +133,9 @@ func (s *reindexSettingsSubcommand) Run(ctx context.Context, rc commands.RunCont
 	return nil
 }
 
-// publishSettingsIndexerMessage publishes a committee_settings indexer message with public=false,
-// matching the corrected behaviour of buildCommitteeSettingsIndexingConfig in the service layer.
+// publishSettingsIndexerMessage publishes a committee_settings indexer message with public=false.
 func publishSettingsIndexerMessage(ctx context.Context, rc commands.RunContext, base *model.CommitteeBase, settings *model.CommitteeSettings) error {
-	committee := &model.Committee{CommitteeBase: *base}
-	tags := committee.Tags()
-
-	notPublic := false
-	indexingConfig := &indexerTypes.IndexingConfig{
-		ObjectID:             base.UID,
-		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", base.UID),
-		AccessCheckRelation:  "auditor",
-		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", base.UID),
-		HistoryCheckRelation: "auditor",
-		Tags:                 tags,
-		Public:               &notPublic,
-	}
+	tags := (&model.Committee{CommitteeBase: *base}).Tags()
 
 	// Strip the webhook URL — bearer credential that must not enter the search index.
 	indexSettings := *settings
@@ -158,7 +144,7 @@ func publishSettingsIndexerMessage(ctx context.Context, rc commands.RunContext, 
 	msg := model.CommitteeIndexerMessage{
 		Action:         model.ActionUpdated,
 		Tags:           tags,
-		IndexingConfig: indexingConfig,
+		IndexingConfig: settings.IndexingConfig(tags),
 	}
 
 	built, err := msg.Build(ctx, &indexSettings)

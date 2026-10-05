@@ -4,7 +4,10 @@
 package model
 
 import (
+	"fmt"
 	"time"
+
+	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
 // CommitteeUser represents a user stored in the writers or auditors lists.
@@ -29,6 +32,23 @@ func (s *CommitteeSettings) GetAuditors() []CommitteeUser {
 		return nil
 	}
 	return s.Auditors
+}
+
+// IndexingConfig returns the indexer access-control configuration for a committee_settings document.
+// Settings are always indexed as non-public regardless of the parent committee's visibility,
+// because they carry writer/auditor emails and are gated by the auditor relation at the API layer.
+// tags should be the parent committee's Tags() output so search facets stay consistent.
+func (s *CommitteeSettings) IndexingConfig(tags []string) *indexerTypes.IndexingConfig {
+	notPublic := false
+	return &indexerTypes.IndexingConfig{
+		ObjectID:             s.UID,
+		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", s.UID),
+		AccessCheckRelation:  "auditor",
+		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", s.UID),
+		HistoryCheckRelation: "auditor",
+		Tags:                 tags,
+		Public:               &notPublic,
+	}
 }
 
 // CommitteeSettings represents sensitive committee settings

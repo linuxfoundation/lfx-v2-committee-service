@@ -3077,7 +3077,8 @@ func TestBuildCommitteeSettingsIndexingConfig(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			committee := &model.Committee{CommitteeBase: tc.committeeBase}
-			cfg := buildCommitteeSettingsIndexingConfig(committee)
+			settings := &model.CommitteeSettings{UID: tc.committeeBase.UID}
+			cfg := settings.IndexingConfig(committee.Tags())
 			require.NotNil(t, cfg.Public, "Public must be set (not nil) to prevent indexer defaulting to public")
 			assert.False(t, *cfg.Public, "committee_settings must never be indexed as public — writer/auditor emails would be exposed")
 			assert.Equal(t, "auditor", cfg.AccessCheckRelation)
