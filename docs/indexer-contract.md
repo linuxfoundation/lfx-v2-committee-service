@@ -180,7 +180,7 @@ Same tag set as the parent [Committee](#committee).
 | `fulltext` | _(none)_ |
 | `name_and_aliases` | _(none)_ |
 | `sort_name` | _(none)_ |
-| `public` | value of parent committee's `public` field |
+| `public` | `false` (always — settings carry writer/auditor emails; auditor access check is required regardless of committee visibility) |
 
 ### Parent References
 
