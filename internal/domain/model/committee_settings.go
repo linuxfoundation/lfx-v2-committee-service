@@ -38,6 +38,7 @@ func (s *CommitteeSettings) GetAuditors() []CommitteeUser {
 // Settings are always indexed as non-public regardless of the parent committee's visibility,
 // because they carry writer/auditor emails and are gated by the auditor relation at the API layer.
 // tags should be the parent committee's Tags() output so search facets stay consistent.
+// Precondition: s.UID must be set (populated by storage on create/read) before calling this method.
 func (s *CommitteeSettings) IndexingConfig(tags []string) *indexerTypes.IndexingConfig {
 	notPublic := false
 	return &indexerTypes.IndexingConfig{
