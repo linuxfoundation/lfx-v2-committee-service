@@ -103,7 +103,9 @@ func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.Inde
 
 // buildCommitteeSettingsIndexingConfig constructs an IndexingConfig for a CommitteeSettings document.
 func buildCommitteeSettingsIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
-	public := committee.Public
+	// Settings carry writer/auditor emails and are auditor-gated at the API layer; never public
+	// regardless of the committee's own visibility, matching the migration script behaviour.
+	notPublic := false
 	return &indexerTypes.IndexingConfig{
 		ObjectID:             committee.CommitteeBase.UID,
 		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", committee.CommitteeBase.UID),
@@ -111,7 +113,7 @@ func buildCommitteeSettingsIndexingConfig(committee *model.Committee) *indexerTy
 		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", committee.CommitteeBase.UID),
 		HistoryCheckRelation: "auditor",
 		Tags:                 committee.Tags(),
-		Public:               &public,
+		Public:               &notPublic,
 	}
 }
 
