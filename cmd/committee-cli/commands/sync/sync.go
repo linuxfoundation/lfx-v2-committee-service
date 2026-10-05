@@ -26,6 +26,7 @@ func (c *command) Subcommands() map[string]commands.Subcommand {
 		"members-by-username-index":     &membersByUsernameIndexSubcommand{},
 		"reindex-invites":               &reindexInvitesSubcommand{},
 		"reindex-applications":          &reindexApplicationsSubcommand{},
+		"reindex-settings":              &reindexSettingsSubcommand{},
 		"document-audit-users":          &documentAuditUsersSubcommand{},
 		"member-cdp-org-id":             &memberCDPOrgIDSubcommand{},
 		"backfill-weekly-brief-index":   &backfillWeeklyBriefIndexSubcommand{},
