@@ -5,6 +5,7 @@ package sync
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -83,15 +84,16 @@ func (s *reindexSettingsSubcommand) Run(ctx context.Context, rc commands.RunCont
 
 		settings, _, getSettingsErr := rc.CommitteeReader.GetSettings(ctx, uid)
 		if getSettingsErr != nil {
+			var notFound errs.NotFound
+			if errors.As(getSettingsErr, &notFound) {
+				slog.DebugContext(ctx, "reindex-settings: no settings record — skipping",
+					"committee_uid", uid)
+				stats.Skipped++
+				continue
+			}
 			slog.WarnContext(ctx, "reindex-settings: failed to fetch committee settings — skipping",
 				"committee_uid", uid, "error", getSettingsErr)
 			stats.Failed++
-			continue
-		}
-		if settings == nil {
-			slog.DebugContext(ctx, "reindex-settings: no settings record — skipping",
-				"committee_uid", uid)
-			stats.Skipped++
 			continue
 		}
 
@@ -99,7 +101,8 @@ func (s *reindexSettingsSubcommand) Run(ctx context.Context, rc commands.RunCont
 			slog.InfoContext(ctx, "dry-run: would reindex settings",
 				"committee_uid", uid,
 				"committee_name", base.Name,
-				"public", base.Public,
+				"committee_public", base.Public,
+				"indexed_public", false, // settings are always indexed as non-public regardless of committee visibility
 			)
 			stats.Updated++
 			continue

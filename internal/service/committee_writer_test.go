@@ -3051,6 +3051,41 @@ func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.
 	}
 }
 
+func TestBuildCommitteeSettingsIndexingConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		committeeBase model.CommitteeBase
+	}{
+		{
+			name: "public committee — settings must not be indexed as public",
+			committeeBase: model.CommitteeBase{
+				UID:        "uid-public",
+				ProjectUID: "proj-1",
+				Public:     true,
+			},
+		},
+		{
+			name: "private committee — settings must not be indexed as public",
+			committeeBase: model.CommitteeBase{
+				UID:        "uid-private",
+				ProjectUID: "proj-2",
+				Public:     false,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			committee := &model.Committee{CommitteeBase: tc.committeeBase}
+			cfg := buildCommitteeSettingsIndexingConfig(committee)
+			require.NotNil(t, cfg.Public, "Public must be set (not nil) to prevent indexer defaulting to public")
+			assert.False(t, *cfg.Public, "committee_settings must never be indexed as public — writer/auditor emails would be exposed")
+			assert.Equal(t, "auditor", cfg.AccessCheckRelation)
+			assert.Equal(t, fmt.Sprintf("committee_settings:%s", tc.committeeBase.UID), cfg.AccessCheckObject)
+		})
+	}
+}
+
 func TestBuildCommitteeIndexingConfig_DisplayNameDedup(t *testing.T) {
 	tests := []struct {
 		name               string
