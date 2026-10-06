@@ -101,20 +101,6 @@ func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.Inde
 	}
 }
 
-// buildCommitteeSettingsIndexingConfig constructs an IndexingConfig for a CommitteeSettings document.
-func buildCommitteeSettingsIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
-	public := committee.Public
-	return &indexerTypes.IndexingConfig{
-		ObjectID:             committee.CommitteeBase.UID,
-		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", committee.CommitteeBase.UID),
-		AccessCheckRelation:  "auditor",
-		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", committee.CommitteeBase.UID),
-		HistoryCheckRelation: "auditor",
-		Tags:                 committee.Tags(),
-		Public:               &public,
-	}
-}
-
 // CommitteeWriter defines the interface for committee write operations
 type CommitteeWriter interface {
 	CommitteeDataWriter
@@ -140,7 +126,7 @@ type CommitteeMemberDataWriter interface {
 	// UpdateMember modifies an existing committee member in the storage
 	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error)
 	// DeleteMember removes a committee member
-	DeleteMember(ctx context.Context, uid string, revision uint64, sync bool, skipNotification bool) error
+	DeleteMember(ctx context.Context, committeeUID, uid string, revision uint64, sync bool, skipNotification bool) error
 	// ReassignMember atomically replaces the holder of an existing seat: it creates newMember (the
 	// replacement holder) and deletes the old member (oldMemberUID at oldRevision), rolling back the
 	// newly-created member if the delete fails so no duplicate seat is left. It returns the created
@@ -608,7 +594,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		if errBuildSettingsMsg != nil {
 			return nil, errs.NewUnexpected("failed to build indexer message", errBuildSettingsMsg)
 		}
-		settingsMsg.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
+		settingsMsg.IndexingConfig = indexSettings.IndexingConfig(committee.Tags())
 		messages = append(messages, func() error {
 			return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeSettingsSubject, settingsMsg, sync)
 		})
@@ -987,7 +973,7 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		)
 		return nil, errs.NewUnexpected("failed to build indexer message", errBuildIndexerMessage)
 	}
-	messageIndexer.IndexingConfig = buildCommitteeSettingsIndexingConfig(committee)
+	messageIndexer.IndexingConfig = indexSettings.IndexingConfig(committee.Tags())
 
 	// Build and publish access control message
 	accessControlMessage := uc.buildAccessControlMessage(ctx, committee)

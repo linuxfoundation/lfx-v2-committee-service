@@ -180,7 +180,7 @@ Same tag set as the parent [Committee](#committee).
 | `fulltext` | _(none)_ |
 | `name_and_aliases` | _(none)_ |
 | `sort_name` | _(none)_ |
-| `public` | value of parent committee's `public` field |
+| `public` | `false` (always — settings carry writer/auditor emails; auditor access check is required regardless of committee visibility) |
 
 ### Parent References
 
@@ -446,10 +446,12 @@ _(none)_
 
 | Field | Value |
 |---|---|
-| `access_check_object` | `committee:{committee_uid}` |
+| `access_check_object` | `committee_application:{uid}` |
 | `access_check_relation` | `viewer` |
 | `history_check_object` | `committee:{committee_uid}` |
 | `history_check_relation` | `auditor` |
+
+The `viewer` relation on `committee_application:{uid}` resolves to the applicant (`committee_application#applicant`) and any committee auditor (`committee_application#committee → committee#auditor`). Plain committee members and anonymous callers do not satisfy it.
 
 ### Search Behavior
 

@@ -983,6 +983,24 @@ func (m *MockRepository) ListApplications(ctx context.Context, committeeUID stri
 	return applications, nil
 }
 
+// ListAllApplications retrieves every application across all committees.
+func (m *MockRepository) ListAllApplications(ctx context.Context) ([]*model.CommitteeApplication, error) {
+	slog.DebugContext(ctx, "mock repository: listing all committee applications")
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var applications []*model.CommitteeApplication
+	for _, application := range m.committeeApplications {
+		applicationCopy := *application
+		applications = append(applications, &applicationCopy)
+	}
+	if applications == nil {
+		applications = []*model.CommitteeApplication{}
+	}
+	return applications, nil
+}
+
 // ================== CommitteeInviteWriter implementation ==================
 
 // CreateInvite creates a new committee invite

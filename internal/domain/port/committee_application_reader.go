@@ -15,4 +15,7 @@ type CommitteeApplicationReader interface {
 	GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error)
 	// ListApplications retrieves all applications for a given committee UID
 	ListApplications(ctx context.Context, committeeUID string) ([]*model.CommitteeApplication, error)
+	// ListAllApplications retrieves every application across all committees.
+	// Intended only for backfill/repair operations (e.g. the reindex-applications CLI subcommand).
+	ListAllApplications(ctx context.Context) ([]*model.CommitteeApplication, error)
 }

@@ -651,7 +651,7 @@ func (s *committeeServicesrvc) DeleteCommitteeMember(ctx context.Context, p *com
 	}
 
 	// Execute delete use case
-	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.MemberUID, parsedRevision, p.XSync, p.SkipNotification)
+	errDelete := s.committeeWriterOrchestrator.DeleteMember(ctx, p.UID, p.MemberUID, parsedRevision, p.XSync, p.SkipNotification)
 	if errDelete != nil {
 		return wrapError(ctx, errDelete)
 	}
@@ -1307,6 +1307,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 
 		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, rejectedApp, p.XSync)
+		s.publishApplicationAccessControlMessage(ctx, rejectedApp)
 		if p.Notify {
 			s.publishApplicationEvent(ctx, model.ActionCreated, rejectedApp)
 		}
@@ -1319,6 +1320,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)
+	s.publishApplicationAccessControlMessage(ctx, application)
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionCreated, application)
 	}
@@ -1391,6 +1393,7 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+	s.publishApplicationAccessControlMessage(ctx, application)
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
@@ -1428,6 +1431,7 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+	s.publishApplicationAccessControlMessage(ctx, application)
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
@@ -1525,7 +1529,7 @@ func (s *committeeServicesrvc) LeaveCommittee(ctx context.Context, p *committees
 	}
 
 	// Use orchestrator (not direct storage) to ensure event publishing and cleanup
-	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, memberToRemove.UID, rev, p.XSync, false); err != nil {
+	if err := s.committeeWriterOrchestrator.DeleteMember(ctx, p.UID, memberToRemove.UID, rev, p.XSync, false); err != nil {
 		return wrapError(ctx, err)
 	}
 
@@ -1741,34 +1745,77 @@ func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Con
 	}
 }
 
-// publishApplicationIndexerMessage publishes an indexer message for application operations.
+// publishApplicationAccessControlMessage publishes an FGA access control message for a committee
+// application. For create/update it writes update_access tuples so that:
+//   - the parent committee relation is set (enables auditor from committee visibility), and
+//   - the applicant relation is set when the email resolves to an LFID username.
+//
 // Publishing is best-effort: failures are logged but do not fail the request.
-// IndexingConfig is required because the indexer is data-agnostic; publishers supply all indexing metadata.
-func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication, sync bool) {
-	tags := application.Tags()
-	indexingConfig := &indexerTypes.IndexingConfig{
-		ObjectID:             application.UID,
-		AccessCheckObject:    fmt.Sprintf("committee:%s", application.CommitteeUID),
-		AccessCheckRelation:  "viewer",
-		HistoryCheckObject:   fmt.Sprintf("committee:%s", application.CommitteeUID),
-		HistoryCheckRelation: "auditor",
-		ParentRefs:           []string{fmt.Sprintf("committee:%s", application.CommitteeUID)},
-		Fulltext:             application.Message,
-		Tags:                 tags,
+func (s *committeeServicesrvc) publishApplicationAccessControlMessage(ctx context.Context, application *model.CommitteeApplication) {
+	data := fgatypes.GenericAccessData{
+		UID: application.UID,
+		// References the parent committee so that auditor from committee resolves.
+		References: map[string][]string{
+			constants.RelationCommittee: {application.CommitteeUID},
+		},
 	}
 
+	// Resolve the applicant email to an LFID username and, if found, include the
+	// applicant relation tuple. Mirrors the invite pattern: unresolved emails
+	// (no LFID account yet) skip the tuple; it will be written on next reindex.
+	if s.userReader != nil {
+		if username, err := s.userReader.UsernameByEmail(ctx, application.ApplicantEmail); err == nil && username != "" {
+			data.Relations = map[string][]string{
+				constants.RelationApplicant: {username},
+			}
+		} else if err != nil {
+			slog.DebugContext(ctx, "application access control: username lookup failed, applicant tuple skipped",
+				"error", err,
+				"application_uid", application.UID,
+				"email", redaction.RedactEmail(application.ApplicantEmail),
+			)
+		}
+	}
+
+	// ExcludeRelations prevents fga-sync from deleting a previously-written applicant
+	// tuple when we have no resolved username (e.g. transient user-service outage).
+	// Mirrors the committee member and invite ExcludeRelations pattern.
+	if data.Relations == nil {
+		data.ExcludeRelations = []string{constants.RelationApplicant}
+	}
+
+	msg := fgatypes.GenericFGAMessage{
+		ObjectType: "committee_application",
+		Operation:  "update_access",
+		Data:       data,
+	}
+
+	if err := s.publisher.UpdateAccess(ctx, msg); err != nil {
+		slog.WarnContext(ctx, "failed to publish application access control message",
+			"error", err,
+			"application_uid", application.UID,
+		)
+	}
+}
+
+// publishApplicationIndexerMessage publishes an indexer message for application operations.
+// Publishing is best-effort: failures are logged but do not fail the request.
+// IndexingConfig is sourced from application.IndexingConfig() so that both this function
+// and the CLI reindex command share a single definition of the indexer payload.
+func (s *committeeServicesrvc) publishApplicationIndexerMessage(ctx context.Context, action model.MessageAction, application *model.CommitteeApplication, sync bool) {
 	var data any
+	var indexingConfig *indexerTypes.IndexingConfig
 	if action == model.ActionDeleted {
+		// Delete messages carry only the UID; no IndexingConfig is needed.
 		data = application.UID
 	} else {
-		public := false
-		indexingConfig.Public = &public
 		data = application
+		indexingConfig = application.IndexingConfig()
 	}
 
 	indexerMessage := model.CommitteeIndexerMessage{
 		Action:         action,
-		Tags:           tags,
+		Tags:           application.Tags(),
 		IndexingConfig: indexingConfig,
 	}
 
