@@ -58,33 +58,40 @@ func (r *B2BOrgResolver) ResolveSFID(ctx context.Context, name, website string) 
 	name = strings.TrimSpace(name)
 
 	if domain != "" {
-		sfid, ok, err := r.searchTerm(ctx, "data.primary_domain", domain)
-		if err != nil || ok {
+		// An ambiguous result at any tier stops resolution entirely rather
+		// than falling through to a lower-priority matcher: a less specific
+		// matcher (website, then name) could otherwise resolve to a
+		// different, incorrect organization than the one the ambiguous,
+		// more specific matcher couldn't safely identify.
+		sfid, ok, ambiguous, err := r.searchTerm(ctx, "data.primary_domain", domain)
+		if err != nil || ok || ambiguous {
 			return sfid, ok, err
 		}
 		// Anchor with scheme separator so "hat.com" cannot match "redhat.com".
 		// searchWildcard independently verifies each hit's exact hostname against
 		// domain, since the wildcard pattern alone would also match subdomains
 		// and unrelated suffixes (e.g. "example.com.evil.com").
-		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://"+domain+"*", domain)
-		if err != nil || ok {
+		sfid, ok, ambiguous, err = r.searchWildcard(ctx, "data.website", "*://"+domain+"*", domain)
+		if err != nil || ok || ambiguous {
 			return sfid, ok, err
 		}
-		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://www."+domain+"*", domain)
-		if err != nil || ok {
+		sfid, ok, ambiguous, err = r.searchWildcard(ctx, "data.website", "*://www."+domain+"*", domain)
+		if err != nil || ok || ambiguous {
 			return sfid, ok, err
 		}
 	}
 
 	if name != "" {
-		return r.searchTerm(ctx, "data.name", name)
+		sfid, ok, _, err := r.searchTerm(ctx, "data.name", name)
+		return sfid, ok, err
 	}
 	return "", false, nil
 }
 
-func (r *B2BOrgResolver) searchTerm(ctx context.Context, field, value string) (string, bool, error) {
+func (r *B2BOrgResolver) searchTerm(ctx context.Context, field, value string) (string, bool, bool, error) {
+	const pageSize = 2
 	query := map[string]any{
-		"size": 2,
+		"size": pageSize,
 		"query": map[string]any{
 			"bool": map[string]any{
 				"must": []any{
@@ -96,7 +103,7 @@ func (r *B2BOrgResolver) searchTerm(ctx context.Context, field, value string) (s
 		},
 		"_source": []string{"object_id", "data.uid"},
 	}
-	return r.searchFirstSFID(ctx, query, "")
+	return r.searchFirstSFID(ctx, query, "", pageSize)
 }
 
 // searchWildcard runs a wildcard query and additionally requires each hit's
@@ -104,9 +111,10 @@ func (r *B2BOrgResolver) searchTerm(ctx context.Context, field, value string) (s
 // not sufficient proof of a match: OpenSearch wildcard queries are unanchored
 // substring matches, so "*://example.com*" also matches
 // "https://example.com.evil.com" and "https://notexample.com".
-func (r *B2BOrgResolver) searchWildcard(ctx context.Context, field, pattern, wantDomain string) (string, bool, error) {
+func (r *B2BOrgResolver) searchWildcard(ctx context.Context, field, pattern, wantDomain string) (string, bool, bool, error) {
+	const pageSize = 10
 	query := map[string]any{
-		"size": 10,
+		"size": pageSize,
 		"query": map[string]any{
 			"bool": map[string]any{
 				"must": []any{
@@ -118,13 +126,18 @@ func (r *B2BOrgResolver) searchWildcard(ctx context.Context, field, pattern, wan
 		},
 		"_source": []string{"object_id", "data.uid", "data.website"},
 	}
-	return r.searchFirstSFID(ctx, query, wantDomain)
+	return r.searchFirstSFID(ctx, query, wantDomain, pageSize)
 }
 
-func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]any, wantDomain string) (string, bool, error) {
+// searchFirstSFID returns (sfid, found, ambiguous, err). ambiguous is true
+// when the result set could not be safely reduced to a single match, either
+// because more than one hit matched or because the result page was full
+// (pageSize hits returned), meaning additional matches may exist beyond the
+// page and filtering by wantDomain cannot prove uniqueness.
+func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]any, wantDomain string, pageSize int) (string, bool, bool, error) {
 	body, err := json.Marshal(query)
 	if err != nil {
-		return "", false, errors.NewUnexpected("marshal OpenSearch query", err)
+		return "", false, false, errors.NewUnexpected("marshal OpenSearch query", err)
 	}
 
 	res, err := r.client.Search(
@@ -133,13 +146,13 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 		r.client.Search.WithBody(bytes.NewReader(body)),
 	)
 	if err != nil {
-		return "", false, errors.NewUnexpected("OpenSearch search request failed", err)
+		return "", false, false, errors.NewUnexpected("OpenSearch search request failed", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 
 	if res.IsError() {
 		raw, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return "", false, errors.NewUnexpected(fmt.Sprintf("OpenSearch search error %s: %s", res.Status(), raw))
+		return "", false, false, errors.NewUnexpected(fmt.Sprintf("OpenSearch search error %s: %s", res.Status(), raw))
 	}
 
 	var parsed struct {
@@ -156,10 +169,21 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 		} `json:"hits"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
-		return "", false, errors.NewUnexpected("decode OpenSearch search response", err)
+		return "", false, false, errors.NewUnexpected("decode OpenSearch search response", err)
 	}
 
 	hits := parsed.Hits.Hits
+
+	// A full page of raw hits means additional matches may exist beyond the
+	// page boundary. Filtering by wantDomain on a truncated page cannot prove
+	// the result is a true miss (the real match may be off-page) or a true
+	// unique match (other off-page hits could also match), so treat it as
+	// ambiguous before filtering.
+	if len(hits) >= pageSize {
+		slog.WarnContext(ctx, "b2b_org resolution skipped: result page full, cannot verify uniqueness", "hits", len(hits))
+		return "", false, true, nil
+	}
+
 	if wantDomain != "" {
 		filtered := hits[:0]
 		for _, h := range hits {
@@ -171,12 +195,12 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 	}
 
 	if len(hits) == 0 {
-		return "", false, nil
+		return "", false, false, nil
 	}
 	// More than one hit means ambiguous match — skip to avoid misattribution.
 	if len(hits) > 1 {
 		slog.WarnContext(ctx, "b2b_org resolution skipped: ambiguous match (multiple results)", "hits", len(hits))
-		return "", false, nil
+		return "", false, true, nil
 	}
 
 	hit := hits[0].Source
@@ -185,9 +209,9 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 		sfid = utils.NormalizeAccountSFID(strings.TrimSpace(hit.Data.UID))
 	}
 	if sfid == "" || len(sfid) != 18 {
-		return "", false, nil
+		return "", false, false, nil
 	}
-	return sfid, true, nil
+	return sfid, true, false, nil
 }
 
 // validHostname matches a conservative subset of legal hostname characters.

@@ -6,6 +6,7 @@ package opensearch
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -66,7 +67,7 @@ func TestSearchFirstSFID_noHits(t *testing.T) {
 	})
 
 	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Acme Corp")
+	sfid, ok, _, err := resolver.searchTerm(context.Background(), "data.name", "Acme Corp")
 	require.NoError(t, err)
 	assert.False(t, ok)
 	assert.Empty(t, sfid)
@@ -79,7 +80,7 @@ func TestSearchFirstSFID_singleHitFromObjectID(t *testing.T) {
 	})
 
 	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "The Linux Foundation")
+	sfid, ok, _, err := resolver.searchTerm(context.Background(), "data.name", "The Linux Foundation")
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, wantSFID, sfid)
@@ -93,7 +94,7 @@ func TestSearchFirstSFID_normalizes15CharSFID(t *testing.T) {
 	})
 
 	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Acme Corp")
+	sfid, ok, _, err := resolver.searchTerm(context.Background(), "data.name", "Acme Corp")
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, want18, sfid)
@@ -109,7 +110,7 @@ func TestSearchFirstSFID_ambiguousMultipleHitsSkipped(t *testing.T) {
 	})
 
 	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Ambiguous Org")
+	sfid, ok, _, err := resolver.searchTerm(context.Background(), "data.name", "Ambiguous Org")
 	require.NoError(t, err)
 	assert.False(t, ok, "ambiguous matches must not resolve to an SFID")
 	assert.Empty(t, sfid)
@@ -121,7 +122,7 @@ func TestSearchFirstSFID_rejectsMalformedSFID(t *testing.T) {
 	})
 
 	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Bad Org")
+	sfid, ok, _, err := resolver.searchTerm(context.Background(), "data.name", "Bad Org")
 	require.NoError(t, err)
 	assert.False(t, ok)
 	assert.Empty(t, sfid)
@@ -134,7 +135,7 @@ func TestSearchFirstSFID_fallbackToDataUID(t *testing.T) {
 	})
 
 	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "UID-only Org")
+	sfid, ok, _, err := resolver.searchTerm(context.Background(), "data.name", "UID-only Org")
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, wantSFID, sfid)
@@ -195,6 +196,55 @@ func TestB2BOrgResolver_ResolveSFID_wildcardHitVerifiedByExactDomain(t *testing.
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, wantSFID, sfid)
+}
+
+func TestB2BOrgResolver_ResolveSFID_ambiguousPrimaryDomainStopsResolution(t *testing.T) {
+	// Two orgs share the same primary_domain -> ambiguous. ResolveSFID must
+	// not fall through to the website wildcard matcher, which would
+	// otherwise resolve a different org than the one causing the ambiguity.
+	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "wildcard") {
+			writeOpenSearchSearchResponse(w, []map[string]any{
+				b2bOrgHitWithWebsite("001B000000IqhSLIAZ", "https://example.com"),
+			}, 1)
+			return
+		}
+		writeOpenSearchSearchResponse(w, []map[string]any{
+			b2bOrgHit("0014100000Te2ovAAB", ""),
+			b2bOrgHit("001B000000IqhSLIAZ", ""),
+		}, 2)
+	})
+
+	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
+	sfid, ok, err := resolver.ResolveSFID(context.Background(), "", "https://example.com")
+	require.NoError(t, err)
+	assert.False(t, ok, "ambiguous primary_domain match must stop resolution, not fall through to the website matcher")
+	assert.Empty(t, sfid)
+}
+
+func TestB2BOrgResolver_ResolveSFID_fullWildcardPageTreatedAsAmbiguous(t *testing.T) {
+	// The wildcard search's result page is capped at 10. A full page means
+	// additional matches may exist beyond it, so filtering by exact domain
+	// cannot prove the (apparent) result is a true miss or a true unique match.
+	hits := make([]map[string]any, 10)
+	for i := range hits {
+		hits[i] = b2bOrgHitWithWebsite(fmt.Sprintf("0014100000Te2ov%03d", i), "https://example.com")
+	}
+	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "wildcard") {
+			writeOpenSearchSearchResponse(w, hits, 10)
+			return
+		}
+		writeOpenSearchSearchResponse(w, nil, 0)
+	})
+
+	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
+	sfid, ok, err := resolver.ResolveSFID(context.Background(), "", "https://example.com")
+	require.NoError(t, err)
+	assert.False(t, ok, "a full result page must be treated as ambiguous, not a confident unique match")
+	assert.Empty(t, sfid)
 }
 
 func TestB2BOrgResolver_ResolveSFID_byName(t *testing.T) {
