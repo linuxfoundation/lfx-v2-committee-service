@@ -204,14 +204,17 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 	}
 
 	hit := hits[0].Source
-	sfid := utils.NormalizeAccountSFID(strings.TrimSpace(hit.ObjectID))
-	if sfid == "" {
-		sfid = utils.NormalizeAccountSFID(strings.TrimSpace(hit.Data.UID))
+	sfid := strings.TrimSpace(hit.ObjectID)
+	if !utils.IsSFIDShaped(sfid) {
+		// object_id is either empty or not a well-formed SFID (e.g. contains
+		// punctuation); fall back to data.uid rather than writing a malformed
+		// id into organization.id.
+		sfid = strings.TrimSpace(hit.Data.UID)
 	}
-	if sfid == "" || len(sfid) != 18 {
+	if !utils.IsSFIDShaped(sfid) {
 		return "", false, false, nil
 	}
-	return sfid, true, false, nil
+	return utils.NormalizeAccountSFID(sfid), true, false, nil
 }
 
 // validHostname matches a conservative subset of legal hostname characters.

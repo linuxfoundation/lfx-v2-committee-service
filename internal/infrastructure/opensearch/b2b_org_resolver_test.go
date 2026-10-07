@@ -141,6 +141,25 @@ func TestSearchFirstSFID_fallbackToDataUID(t *testing.T) {
 	assert.Equal(t, wantSFID, sfid)
 }
 
+func TestSearchFirstSFID_malformedButRightLengthObjectIDFallsBackToDataUID(t *testing.T) {
+	// object_id is present (not empty) and happens to be 18 characters, but
+	// contains punctuation and is not a well-formed SFID. A length-only check
+	// would wrongly accept it instead of falling back to data.uid.
+	const malformed = "not-a-valid-sfid!!"
+	const wantSFID = "001B000000IqhSLIAZ"
+	require.Len(t, malformed, 18)
+
+	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
+		writeOpenSearchSearchResponse(w, []map[string]any{b2bOrgHit(malformed, wantSFID)}, 1)
+	})
+
+	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
+	sfid, ok, _, err := resolver.searchTerm(context.Background(), "data.name", "Malformed ObjectID Org")
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, wantSFID, sfid)
+}
+
 func TestExtractPrimaryDomain(t *testing.T) {
 	assert.Equal(t, "linuxfoundation.org", extractPrimaryDomain("https://www.linuxfoundation.org/about"))
 	assert.Equal(t, "example.com", extractPrimaryDomain("example.com"))
