@@ -99,8 +99,12 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 	if s.resolver != nil {
 		resolver = s.resolver
 	} else {
+		url := strings.TrimSpace(*openSearchURL)
+		if url == "" {
+			url = defaultOpenSearchURL
+		}
 		var err error
-		osClient, err = opensearch.NewClient(*openSearchURL)
+		osClient, err = opensearch.NewClient(url)
 		if err != nil {
 			return err
 		}

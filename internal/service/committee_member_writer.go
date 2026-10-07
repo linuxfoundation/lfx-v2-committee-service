@@ -1031,10 +1031,13 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 	if org.ID == "" {
 		return nil
 	}
-	// Pre-filter: clear ids that aren't SFID-shaped before the lookup.
-	// Callers fail-open on lookup error (warn + keep org.ID), so only SFID-shaped
-	// ids may be retained through a transient NATS error (FR-005 / T017).
+	// Pre-filter: ids that aren't SFID-shaped (e.g. legacy CDP UUIDs) cannot be
+	// looked up against b2b_org directly, but may still resolve via the
+	// name/website fallback before being cleared.
 	if !utils.IsSFIDShaped(org.ID) {
+		if uc.tryB2BOrgFallback(ctx, org) {
+			return nil
+		}
 		slog.InfoContext(ctx, "clearing organization id that is not SFID-shaped",
 			"organization_id", org.ID,
 			"organization_name", org.Name,
@@ -1056,25 +1059,8 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
 	}
 	if !found {
-		if uc.b2bOrgFallbackResolver != nil {
-			fallbackSFID, fallbackFound, fallbackErr := uc.b2bOrgFallbackResolver.ResolveSFID(lookupCtx, org.Name, org.Website)
-			if fallbackErr != nil {
-				slog.WarnContext(ctx, "b2b org fallback resolution failed; clearing organization id",
-					"organization_id", org.ID,
-					"organization_name", org.Name,
-					"organization_website", org.Website,
-					"error", fallbackErr,
-				)
-			} else if fallbackFound {
-				slog.InfoContext(ctx, "resolved organization id via name/website fallback",
-					"legacy_organization_id", org.ID,
-					"organization_name", org.Name,
-					"organization_website", org.Website,
-					"resolved_organization_id", fallbackSFID,
-				)
-				org.ID = utils.NormalizeAccountSFID(fallbackSFID)
-				return nil
-			}
+		if uc.tryB2BOrgFallback(ctx, org) {
+			return nil
 		}
 
 		slog.InfoContext(ctx, "clearing organization id that does not resolve to a b2b_org",
@@ -1088,6 +1074,41 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 
 	org.ID = utils.NormalizeAccountSFID(sfid)
 	return nil
+}
+
+// tryB2BOrgFallback attempts to resolve org.ID via the name/website fallback
+// resolver. It returns true and sets org.ID when the fallback resolves a
+// b2b_org SFID; false otherwise (resolver unconfigured, miss, or error).
+func (uc *committeeWriterOrchestrator) tryB2BOrgFallback(ctx context.Context, org *model.CommitteeMemberOrganization) bool {
+	if uc.b2bOrgFallbackResolver == nil {
+		return false
+	}
+
+	lookupCtx, cancel := context.WithTimeout(ctx, b2bOrgLookupTimeout)
+	defer cancel()
+
+	fallbackSFID, found, err := uc.b2bOrgFallbackResolver.ResolveSFID(lookupCtx, org.Name, org.Website)
+	if err != nil {
+		slog.WarnContext(ctx, "b2b org fallback resolution failed; clearing organization id",
+			"organization_id", org.ID,
+			"organization_name", org.Name,
+			"organization_website", org.Website,
+			"error", err,
+		)
+		return false
+	}
+	if !found {
+		return false
+	}
+
+	slog.InfoContext(ctx, "resolved organization id via name/website fallback",
+		"legacy_organization_id", org.ID,
+		"organization_name", org.Name,
+		"organization_website", org.Website,
+		"resolved_organization_id", fallbackSFID,
+	)
+	org.ID = utils.NormalizeAccountSFID(fallbackSFID)
+	return true
 }
 
 // addOrganizationUserEngagement adds user engagement to organization

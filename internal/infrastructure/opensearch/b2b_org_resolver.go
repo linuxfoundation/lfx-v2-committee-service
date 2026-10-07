@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"regexp"
 	"strings"
 
 	opensearchgo "github.com/opensearch-project/opensearch-go/v2"
@@ -62,11 +63,14 @@ func (r *B2BOrgResolver) ResolveSFID(ctx context.Context, name, website string) 
 			return sfid, ok, err
 		}
 		// Anchor with scheme separator so "hat.com" cannot match "redhat.com".
-		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://"+domain+"*")
+		// searchWildcard independently verifies each hit's exact hostname against
+		// domain, since the wildcard pattern alone would also match subdomains
+		// and unrelated suffixes (e.g. "example.com.evil.com").
+		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://"+domain+"*", domain)
 		if err != nil || ok {
 			return sfid, ok, err
 		}
-		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://www."+domain+"*")
+		sfid, ok, err = r.searchWildcard(ctx, "data.website", "*://www."+domain+"*", domain)
 		if err != nil || ok {
 			return sfid, ok, err
 		}
@@ -92,12 +96,17 @@ func (r *B2BOrgResolver) searchTerm(ctx context.Context, field, value string) (s
 		},
 		"_source": []string{"object_id", "data.uid"},
 	}
-	return r.searchFirstSFID(ctx, query)
+	return r.searchFirstSFID(ctx, query, "")
 }
 
-func (r *B2BOrgResolver) searchWildcard(ctx context.Context, field, pattern string) (string, bool, error) {
+// searchWildcard runs a wildcard query and additionally requires each hit's
+// data.website to parse to exactly wantDomain. The wildcard pattern alone is
+// not sufficient proof of a match: OpenSearch wildcard queries are unanchored
+// substring matches, so "*://example.com*" also matches
+// "https://example.com.evil.com" and "https://notexample.com".
+func (r *B2BOrgResolver) searchWildcard(ctx context.Context, field, pattern, wantDomain string) (string, bool, error) {
 	query := map[string]any{
-		"size": 2,
+		"size": 10,
 		"query": map[string]any{
 			"bool": map[string]any{
 				"must": []any{
@@ -107,12 +116,12 @@ func (r *B2BOrgResolver) searchWildcard(ctx context.Context, field, pattern stri
 				},
 			},
 		},
-		"_source": []string{"object_id", "data.uid"},
+		"_source": []string{"object_id", "data.uid", "data.website"},
 	}
-	return r.searchFirstSFID(ctx, query)
+	return r.searchFirstSFID(ctx, query, wantDomain)
 }
 
-func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]any) (string, bool, error) {
+func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]any, wantDomain string) (string, bool, error) {
 	body, err := json.Marshal(query)
 	if err != nil {
 		return "", false, errors.NewUnexpected("marshal OpenSearch query", err)
@@ -139,7 +148,8 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 				Source struct {
 					ObjectID string `json:"object_id"`
 					Data     struct {
-						UID string `json:"uid"`
+						UID     string `json:"uid"`
+						Website string `json:"website"`
 					} `json:"data"`
 				} `json:"_source"`
 			} `json:"hits"`
@@ -148,16 +158,28 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
 		return "", false, errors.NewUnexpected("decode OpenSearch search response", err)
 	}
-	if len(parsed.Hits.Hits) == 0 {
+
+	hits := parsed.Hits.Hits
+	if wantDomain != "" {
+		filtered := hits[:0]
+		for _, h := range hits {
+			if extractPrimaryDomain(h.Source.Data.Website) == wantDomain {
+				filtered = append(filtered, h)
+			}
+		}
+		hits = filtered
+	}
+
+	if len(hits) == 0 {
 		return "", false, nil
 	}
 	// More than one hit means ambiguous match — skip to avoid misattribution.
-	if len(parsed.Hits.Hits) > 1 {
-		slog.WarnContext(ctx, "b2b_org resolution skipped: ambiguous match (multiple results)", "hits", len(parsed.Hits.Hits))
+	if len(hits) > 1 {
+		slog.WarnContext(ctx, "b2b_org resolution skipped: ambiguous match (multiple results)", "hits", len(hits))
 		return "", false, nil
 	}
 
-	hit := parsed.Hits.Hits[0].Source
+	hit := hits[0].Source
 	sfid := utils.NormalizeAccountSFID(strings.TrimSpace(hit.ObjectID))
 	if sfid == "" {
 		sfid = utils.NormalizeAccountSFID(strings.TrimSpace(hit.Data.UID))
@@ -167,6 +189,12 @@ func (r *B2BOrgResolver) searchFirstSFID(ctx context.Context, query map[string]a
 	}
 	return sfid, true, nil
 }
+
+// validHostname matches a conservative subset of legal hostname characters.
+// url.Parse does not validate Hostname() against RFC 1123, so without this
+// check an attacker-controlled website value (e.g. containing "*", "?", or
+// "\") would flow unescaped into an OpenSearch wildcard query pattern.
+var validHostname = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`)
 
 func extractPrimaryDomain(website string) string {
 	website = strings.TrimSpace(website)
@@ -182,5 +210,8 @@ func extractPrimaryDomain(website string) string {
 	}
 	host := strings.ToLower(u.Hostname())
 	host = strings.TrimPrefix(host, "www.")
+	if !validHostname.MatchString(host) {
+		return ""
+	}
 	return host
 }

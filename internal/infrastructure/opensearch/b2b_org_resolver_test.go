@@ -6,6 +6,7 @@ package opensearch
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,6 +45,15 @@ func b2bOrgHit(objectID, uid string) map[string]any {
 		"_source": map[string]any{
 			"object_id": objectID,
 			"data":      map[string]any{"uid": uid},
+		},
+	}
+}
+
+func b2bOrgHitWithWebsite(objectID, website string) map[string]any {
+	return map[string]any{
+		"_source": map[string]any{
+			"object_id": objectID,
+			"data":      map[string]any{"website": website},
 		},
 	}
 }
@@ -134,6 +144,57 @@ func TestExtractPrimaryDomain(t *testing.T) {
 	assert.Equal(t, "linuxfoundation.org", extractPrimaryDomain("https://www.linuxfoundation.org/about"))
 	assert.Equal(t, "example.com", extractPrimaryDomain("example.com"))
 	assert.Equal(t, "", extractPrimaryDomain(""))
+}
+
+func TestExtractPrimaryDomain_rejectsWildcardMetacharacters(t *testing.T) {
+	// url.Parse does not validate hostname characters, so "*" flows straight
+	// through Hostname() unescaped (unlike "?"/"#", which url.Parse treats as
+	// delimiters). Without explicit rejection it would reach an OpenSearch
+	// wildcard query pattern and broaden the match arbitrarily.
+	assert.Equal(t, "", extractPrimaryDomain("https://a*b.com"))
+}
+
+func TestB2BOrgResolver_ResolveSFID_wildcardHitWithMismatchedDomainRejected(t *testing.T) {
+	// Primary-domain term search misses; the wildcard website search returns a
+	// hit whose actual website is a different, longer domain that happens to
+	// contain "example.com" as a suffix. Without exact-hostname verification
+	// this would incorrectly resolve.
+	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "wildcard") {
+			writeOpenSearchSearchResponse(w, []map[string]any{
+				b2bOrgHitWithWebsite("0014100000Te2ovAAB", "https://example.com.evil.com"),
+			}, 1)
+			return
+		}
+		writeOpenSearchSearchResponse(w, nil, 0)
+	})
+
+	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
+	sfid, ok, err := resolver.ResolveSFID(context.Background(), "", "https://example.com")
+	require.NoError(t, err)
+	assert.False(t, ok, "wildcard hit with a mismatched exact hostname must not resolve")
+	assert.Empty(t, sfid)
+}
+
+func TestB2BOrgResolver_ResolveSFID_wildcardHitVerifiedByExactDomain(t *testing.T) {
+	const wantSFID = "0014100000Te2ovAAB"
+	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), "wildcard") {
+			writeOpenSearchSearchResponse(w, []map[string]any{
+				b2bOrgHitWithWebsite(wantSFID, "https://example.com"),
+			}, 1)
+			return
+		}
+		writeOpenSearchSearchResponse(w, nil, 0)
+	})
+
+	resolver := &B2BOrgResolver{client: client, index: testOpenSearchIndex}
+	sfid, ok, err := resolver.ResolveSFID(context.Background(), "", "https://example.com")
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, wantSFID, sfid)
 }
 
 func TestB2BOrgResolver_ResolveSFID_byName(t *testing.T) {

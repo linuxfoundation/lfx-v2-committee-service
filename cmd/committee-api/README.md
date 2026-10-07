@@ -251,6 +251,8 @@ The service relies on some resources and external services being spun up prior t
 |JWT_AUDIENCE|the audience of the app that the JWT token should have set - for verification of the JWT token|lfx-v2-committee-service|required when `AUTH_SOURCE=jwt`|
 |JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL|a mocked auth principal for local development (bypasses JWT validation when set; mirrors project-service). Works with the default `AUTH_SOURCE=jwt`. Also used when `AUTH_SOURCE=mock`||false|
 |JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL|optional email returned with the mock principal for audit stamps and invite flows||false|
+|OPENSEARCH_URL|OpenSearch base URL; enables the optional name/website b2b_org fallback resolver used when organization.id does not resolve directly. Disabled when unset.||false|
+|OPENSEARCH_INDEX|OpenSearch resources index queried by the fallback resolver above (only used when `OPENSEARCH_URL` is set)|resources|false|
 
 #### 4. Development Workflow
 

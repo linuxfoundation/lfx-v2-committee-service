@@ -1338,6 +1338,18 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDCleared(t
 	}
 }
 
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackResolves(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	// Primary resolver is ID-keyed and must not be consulted for a non-SFID id.
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("should not call primary resolver")}
+	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
+}
+
 func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_fallbackResolves(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses

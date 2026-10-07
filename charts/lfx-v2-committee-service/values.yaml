@@ -580,6 +580,16 @@ app:
     # participation counts only.
     QUERY_VOTE_RESULT_TYPE:
       value: ""
+    # OPENSEARCH_URL — enables the optional name/website b2b_org fallback
+    # resolver used when organization.id does not resolve directly (e.g. a
+    # legacy, non-SFID id for an organization that exists under a different
+    # SFID). Disabled by default; leave unset to keep prior behavior.
+    OPENSEARCH_URL:
+      value: ""
+    # OPENSEARCH_INDEX — index queried by the fallback resolver above.
+    # Only used when OPENSEARCH_URL is set.
+    OPENSEARCH_INDEX:
+      value: "resources"
     # WEEKLY_BRIEF_PROMPT_DIR — directory where the weekly-brief prompt ConfigMap
     # is mounted. Injected by the Deployment template from
     # weeklyBriefPrompts.promptDir so the env var and the volume mountPath always
