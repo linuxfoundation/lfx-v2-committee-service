@@ -1056,6 +1056,27 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
 	}
 	if !found {
+		if uc.b2bOrgFallbackResolver != nil {
+			fallbackSFID, fallbackFound, fallbackErr := uc.b2bOrgFallbackResolver.ResolveSFID(lookupCtx, org.Name, org.Website)
+			if fallbackErr != nil {
+				slog.WarnContext(ctx, "b2b org fallback resolution failed; clearing organization id",
+					"organization_id", org.ID,
+					"organization_name", org.Name,
+					"organization_website", org.Website,
+					"error", fallbackErr,
+				)
+			} else if fallbackFound {
+				slog.InfoContext(ctx, "resolved organization id via name/website fallback",
+					"legacy_organization_id", org.ID,
+					"organization_name", org.Name,
+					"organization_website", org.Website,
+					"resolved_organization_id", fallbackSFID,
+				)
+				org.ID = utils.NormalizeAccountSFID(fallbackSFID)
+				return nil
+			}
+		}
+
 		slog.InfoContext(ctx, "clearing organization id that does not resolve to a b2b_org",
 			"organization_id", org.ID,
 			"organization_name", org.Name,

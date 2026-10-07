@@ -85,12 +85,6 @@ func TestIsCDPUUID(t *testing.T) {
 	}
 }
 
-func TestExtractPrimaryDomain(t *testing.T) {
-	assert.Equal(t, "linuxfoundation.org", extractPrimaryDomain("https://www.linuxfoundation.org/about"))
-	assert.Equal(t, "example.com", extractPrimaryDomain("example.com"))
-	assert.Equal(t, "", extractPrimaryDomain(""))
-}
-
 func TestMemberCDPOrgID_DryRunCountsResolved(t *testing.T) {
 	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
 		UID:          "m1",

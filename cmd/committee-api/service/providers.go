@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,9 +22,11 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/opensearch"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/env"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 
 	"github.com/auth0/go-auth0/authentication"
@@ -253,6 +256,25 @@ func B2BOrgResolverImpl(ctx context.Context) port.B2BOrgResolver {
 	}
 
 	return nil
+}
+
+// B2BOrgFallbackResolverImpl initializes the name/website b2b_org resolver consulted when
+// B2BOrgResolverImpl cannot resolve organization.id. Returns nil (feature disabled) unless
+// OPENSEARCH_URL is explicitly set.
+func B2BOrgFallbackResolverImpl(ctx context.Context) port.B2BOrgFallbackResolver {
+	openSearchURL := strings.TrimSpace(os.Getenv("OPENSEARCH_URL"))
+	if openSearchURL == "" {
+		slog.InfoContext(ctx, "OPENSEARCH_URL not set; b2b org fallback resolver disabled")
+		return nil
+	}
+
+	client, err := opensearch.NewClient(openSearchURL)
+	if err != nil {
+		log.Fatalf("failed to initialize b2b org fallback resolver: %v", err)
+	}
+
+	index := strings.TrimSpace(env.Get("OPENSEARCH_INDEX", "resources"))
+	return opensearch.NewB2BOrgResolver(client, index)
 }
 
 // AuthServiceImpl initializes the authentication service implementation

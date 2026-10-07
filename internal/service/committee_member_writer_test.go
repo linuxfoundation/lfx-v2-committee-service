@@ -1283,6 +1283,19 @@ func (s stubB2BOrgResolver) ResolveByUID(_ context.Context, _ string) (string, b
 	return s.sfid, s.ok, nil
 }
 
+type stubB2BOrgFallbackResolver struct {
+	sfid string
+	ok   bool
+	err  error
+}
+
+func (s stubB2BOrgFallbackResolver) ResolveSFID(_ context.Context, _, _ string) (string, bool, error) {
+	if s.err != nil {
+		return "", false, s.err
+	}
+	return s.sfid, s.ok, nil
+}
+
 func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
@@ -1323,6 +1336,50 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDCleared(t
 			assert.Empty(t, org.ID, "non-SFID id %q must be cleared before lookup", tc.id)
 		})
 	}
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_fallbackResolves(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses
+	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{sfid: "0014100000Te2ovAAB", ok: true}
+
+	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_fallbackMissClearsID(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{}                 // primary lookup misses
+	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{} // fallback also misses
+
+	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Empty(t, org.ID)
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_fallbackErrorClearsID(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses
+	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{err: fmt.Errorf("fallback lookup failed")}
+
+	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Empty(t, org.ID)
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nilFallbackClearsID(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses
+	orchestrator.b2bOrgFallbackResolver = nil
+
+	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err)
+	assert.Empty(t, org.ID)
 }
 
 func TestCommitteeWriterOrchestrator_CreateMember_UnresolvedOrgIDClearsID(t *testing.T) {
