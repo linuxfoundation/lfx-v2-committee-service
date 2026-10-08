@@ -15,7 +15,7 @@ For each non-`lookup/` and non-`slug/` key in the bucket:
 - If `role.name == "Counsel"`: sets `role.name = "None"`, sets `updated_at` to the current time, and writes the record back with an optimistic-concurrency `Update` (up to 3 attempts, re-reading the record between attempts; if a concurrent writer already changed the role, the record is counted as skipped).
 - Otherwise: skipped.
 
-After a successful write it publishes the updated member JSON to the index subject (default `lfx.index.committee_member`). The message is the bare record, not the full indexer envelope that the service publishes, and publish failures are counted as a failed record.
+After a successful write it publishes the updated member JSON to the index subject (default `lfx.index.committee_member`). The message is the bare record, not the full indexer envelope that the service publishes, and publish failures are counted as a failed record. Index publishing is best-effort: the script does not call `Flush`, so a connection failure after `Publish` returns but before the server receives the message can lose the index update while the record still counts as updated.
 
 ## Prerequisites
 

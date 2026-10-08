@@ -12,10 +12,10 @@ Use `--force-reindex` when KV is already migrated but OpenSearch still holds old
 
 For each non-`lookup/` and non-`slug/` key in `committee-settings`:
 
-- A field needs migration when it is a non-empty array whose first element is a string. Each non-empty string becomes `{"username": <string>}`; `email`, `name` and `avatar` are not populated. `writers` and `auditors` are checked and converted independently.
+- A field needs migration when it is a non-empty array whose first element is a string. Each non-empty string becomes `{"username": <string>}`; `email`, `name` and `avatar` are not populated. `writers` and `auditors` are checked and converted independently. The check looks only at the first element, and the conversion keeps only non-empty strings, so any non-string or empty elements in a field that starts with a string are discarded. The migration assumes stored arrays are homogeneous lists of strings; confirm that holds for your data before running.
 - Sets `updated_at` and writes with optimistic-concurrency `Update` (up to 3 attempts, re-reading between attempts).
 - **Webhook credential warning:** the indexer message carries the raw settings record, so a persisted `chat_webhook_url` is sent to the indexer. Normal settings writes and `sync reindex-settings` strip that field; this script does not. Check whether any settings record has `chat_webhook_url` set before running (including with `--force-reindex`).
-- Publishes a full indexer envelope (`action: updated`, an `Authorization` header from `AUTH_TOKEN`, and an `IndexingConfig` with `public=false`, `auditor` access relation, and tags built from the `committees` base record: `project_uid`, `project_slug`, `parent_uid`, `category`, uid) to `lfx.index.committee_settings`. If the base record cannot be read, only the uid tags are used. Envelope build or publish failures are logged as warnings and the record still counts as updated.
+- Publishes a full indexer envelope (`action: updated`, an `Authorization` header from `AUTH_TOKEN`, and an `IndexingConfig` with `public=false`, `auditor` access relation, and tags built from the `committees` base record: `project_uid`, `project_slug`, `parent_uid`, `category`, plus both the bare `uid` and `committee_uid:<uid>`) to `lfx.index.committee_settings`. If the base record cannot be read or parsed, only the two uid tags (`uid` and `committee_uid:<uid>`) are used. Envelope build or publish failures are logged as warnings and the record still counts as updated.
 
 With `--force-reindex`, no migration check or KV write happens: every settings record is republished to the indexer as-is.
 
@@ -52,7 +52,7 @@ export NATS_URL=nats://nats.example:4222 AUTH_TOKEN='<bearer-token>'  # replace 
 
 ## Output and verification
 
-JSON logs on stdout, a progress line every 10 records, then a summary (Total, Updated, Skipped "already migrated", Failed, Success rate, Duration, Rate). Exits non-zero if any record failed. Success means `Failed: 0` and a second run reporting `Updated: 0`. In dry-run, `Updated` counts records that *would* change. Spot-check a settings key in KV: `writers`/`auditors` should be arrays of objects.
+JSON logs on stdout, a progress line every 10 records, then a summary (Total, Updated, Skipped "already migrated", Failed, Success rate, Duration, Rate). Exits non-zero if any record failed. Success means `Failed: 0` and a second run reporting `Updated: 0`, but these confirm the KV conversion only: an indexer-message build or publish failure is logged as a warning and the record still counts as updated, and a later run skips the already-migrated record. Verify separately that the search index reflects the migrated records, and use `--force-reindex` if it is stale. In dry-run, `Updated` counts records that *would* change. Spot-check a settings key in KV: `writers`/`auditors` should be arrays of objects.
 
 ## Risks
 
