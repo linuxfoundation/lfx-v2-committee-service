@@ -298,6 +298,243 @@ OPENSEARCH_URL=http://localhost:9200 \
   committee-cli sync member-cdp-org-id --dry-run=false --sleep=200ms
 ```
 
+#### `sync member-avatar-attribute`
+
+Backfills or refreshes the `avatar` field on committee member records from the auth-service `user_metadata.picture` attribute. Use `--sleep` to respect Auth0 rate limits when running across large committees. The command is idempotent — re-running updates the stored avatar to the current auth-service value. Pass `--missing-only` to skip members who already have an avatar.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit backfill to members of a single committee |
+| `--missing-only` | `false` | Only enrich members whose avatar is currently empty |
+| `--sleep` | `0` | Wait between each auth-service lookup (e.g. `200ms`, `1s`) |
+| `--dry-run` | `true` | Compute what would be written without writing (pass `--dry-run=false` to apply) |
+
+**Exit code:** `0` if no members failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**Examples**
+
+Dry-run across all committees (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync member-avatar-attribute
+```
+
+Apply only to members with missing avatars, rate-limited:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync member-avatar-attribute --dry-run=false --missing-only --sleep=200ms
+```
+
+Refresh all avatars for a single committee:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync member-avatar-attribute --dry-run=false --committee-uid=abc-123
+```
+
+#### `sync member-project-attribute`
+
+Reconciles each committee member's denormalized `project_uid` and `project_slug` against the parent committee's stored values. Members created before the denormalization was introduced (LFXV2-1442) carry empty `project_uid` fields, which the Org Lens by-organization read silently drops from the project-family filter. Re-running is safe; members already matching their committee are skipped.
+
+`--committee-uid` and `--project-uid` are mutually exclusive.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit repair to members of a single committee |
+| `--project-uid` | `""` | Limit repair to members whose committee belongs to this project |
+| `--sleep` | `0` | Wait between each member write (e.g. `200ms`, `1s`) |
+| `--dry-run` | `true` | Compute what would be written without writing (pass `--dry-run=false` to apply) |
+
+**Exit code:** `0` if no members failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**Examples**
+
+Dry-run across all committees (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync member-project-attribute
+```
+
+Apply to all members with a 200ms pause:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync member-project-attribute --dry-run=false --sleep=200ms
+```
+
+Repair members for a single committee:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync member-project-attribute --dry-run=false --committee-uid=abc-123
+```
+
+#### `sync members-by-email-index`
+
+Backfills the email→member secondary index (`lookup/committee-members-by-email/<email_hash>.<member_uid>`) for members that carry an email address. Members without an email are skipped. Required when deploying a service version that relies on this index for the first time (LFXV2-2521). The command is idempotent — re-running is safe.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--sleep` | `0` | Wait between each write (e.g. `200ms`, `1s`) |
+| `--dry-run` | `true` | Compute what would be written without writing (pass `--dry-run=false` to apply) |
+
+**Exit code:** `0` if no members failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**Examples**
+
+Dry-run to preview scope (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync members-by-email-index
+```
+
+Full backfill with a 100ms pause between writes:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync members-by-email-index --dry-run=false --sleep=100ms
+```
+
+#### `sync members-by-organization-index`
+
+Backfills the organization→member secondary index (`lookup/committee-members-by-organization/<org_sfid>.<member_uid>`) for members that carry an `organization.id` (Salesforce SFID). Members without an organization ID are skipped. Required for the Org Lens board-and-committee read (LFXV2-1865). The command is idempotent — re-running is safe.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--org-sfid` | `""` | Limit backfill to members of a single organization SFID |
+| `--sleep` | `0` | Wait between each write (e.g. `200ms`, `1s`) |
+| `--dry-run` | `true` | Compute what would be written without writing (pass `--dry-run=false` to apply) |
+
+**Exit code:** `0` if no members failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**Examples**
+
+Dry-run to preview scope (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync members-by-organization-index
+```
+
+Full backfill with a 100ms pause between writes:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync members-by-organization-index --dry-run=false --sleep=100ms
+```
+
+Backfill a single organization:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync members-by-organization-index --dry-run=false --org-sfid=001XXXXXXXXXXXXXXXXX
+```
+
+#### `sync members-by-username-index`
+
+Backfills the username→member secondary index (`lookup/committee-members-by-username/<username_hash>.<member_uid>`) for members that carry a username. Members without a username are skipped. Required when deploying a service version that relies on this index (LFXV2-2645). The command is idempotent — re-running is safe.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--sleep` | `0` | Wait between each write (e.g. `200ms`, `1s`) |
+| `--dry-run` | `true` | Compute what would be written without writing (pass `--dry-run=false` to apply) |
+
+**Exit code:** `0` if no members failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**Examples**
+
+Dry-run to preview scope (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync members-by-username-index
+```
+
+Full backfill with a 100ms pause between writes:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync members-by-username-index --dry-run=false --sleep=100ms
+```
+
+#### `sync promote-email-only-members`
+
+Scans all committee member seats with an email but no username (email-only seats), resolves the LFID username from the auth service once per unique email, and promotes each resolvable seat via `UpdateMember`. Intended to catch up seats that were synced before their user had an LFID (LFXV2-2521). Already-promoted seats are skipped; the command is safe to re-run.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--sleep` | `0` | Wait between each auth-service lookup (e.g. `200ms`, `1s`) |
+| `--dry-run` | `true` | Resolve usernames and log what would be promoted without writing (pass `--dry-run=false` to apply) |
+
+**Exit code:** `0` if no members failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**Examples**
+
+Dry-run to preview how many seats would be promoted (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync promote-email-only-members
+```
+
+Apply promotions with rate limiting:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync promote-email-only-members --dry-run=false --sleep=200ms
+```
+
+#### `sync reindex-settings`
+
+Re-publishes all committee settings documents from NATS KV to OpenSearch (via the indexer) with `public=false`, correcting any settings documents that were previously indexed with `public=true` (inherited from the committee's own visibility). Run once per environment after deploying the service version that introduced the settings-visibility fix. The command is idempotent — republishing a correctly-indexed settings document is safe.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit reindex to settings of a single committee |
+| `--sleep` | `0` | Wait between each publish (e.g. `200ms`, `1s`) |
+| `--dry-run` | `false` | Log what would be published without actually publishing |
+
+**Exit code:** `0` if no committees failed, `1` otherwise.
+
+**Output:** Structured JSON log line on completion with fields `total`, `updated`, `skipped`, `failed`, `duration_ms`, `rate_per_sec`.
+
+**When to run:** once, against each environment, after deploying the service version that fixed committee settings indexing visibility. Use `--dry-run` first to verify scope.
+
+**Examples**
+
+Dry-run to preview scope (safe first step):
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=info \
+  committee-cli sync reindex-settings --dry-run
+```
+
+Full reindex with a 200ms pause between publishes:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync reindex-settings --sleep=200ms
+```
+
+Reindex settings for a single committee:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli sync reindex-settings --committee-uid=abc-123
+```
+
 ## Building
 
 ### Local binary

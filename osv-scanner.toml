@@ -60,3 +60,51 @@ reason = "stdlib/net/url: quadratic complexity in resolvePath; fixed in go 1.26.
 [[IgnoredVulns]]
 id = "GO-2026-5856"
 reason = "stdlib/crypto/tls: ECH pre-shared key identity disclosure; fixed in go 1.26.5; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6599"
+reason = "stdlib/html/template: context tracking not reset on consecutive template expressions; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6600"
+reason = "stdlib/html/template: yield not recognized as regexp preceder keyword; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6603"
+reason = "stdlib/net/http: HTTP/2 server memory exhaustion due to Trailer headers; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6605"
+reason = "stdlib/net/http: HTTP/1 client connection desynchronization after CONNECT rejection; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6607"
+reason = "stdlib/crypto/tls: malformed ECH outer extension references not rejected; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6608"
+reason = "stdlib/net/textproto, mime/multipart: memory limit bypass when parsing MIME headers; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6609"
+reason = "stdlib/net/http: no limit on size of parsed Range headers; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6610"
+reason = "stdlib/net/http: HTTP/2 transport accepts malformed framing-related headers; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6611"
+reason = "stdlib/net/http: excessive CPU consumption from repeated initial window changes; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6612"
+reason = "stdlib/net/http: double flow control refund on HTTP/2 server streams; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6613"
+reason = "stdlib/net/http: HTTP/1 server connection desynchronization after 2xx CONNECT response; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6617"
+reason = "stdlib/net/http: HTTP/2 server crash due to HPACK encoder race; fixed in go 1.26.9; go.mod capped at 1.26.3 by MegaLinter toolchain"
