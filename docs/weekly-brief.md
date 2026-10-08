@@ -7,7 +7,7 @@ The weekly brief is an AI-written summary of a committee's activity over one
 UTC week: meetings, meeting AI summaries, votes, surveys, mailing-list threads,
 member joins/updates, and project memberships. This page is the entry point for
 contributors. It explains the end-to-end pipeline and how to extend it. For
-per-source query details see [weekly-brief-sources.md](weekly-brief-sources.md);
+per-source query details see [Source reference](#source-reference);
 for the prompt eval harness see
 [evals/weekly-brief/README.md](../evals/weekly-brief/README.md).
 
@@ -91,8 +91,8 @@ Each query-service source lives in `internal/infrastructure/m2m/` and is bundled
 into `ActivitySources` in the generator. The member reader plus meetings,
 mailing lists, and votes are required; AI summaries, vote results, surveys,
 and project memberships are optional and degrade to zero when not wired.
-Resource types, tag filters, and date fields are listed in
-[weekly-brief-sources.md](weekly-brief-sources.md).
+Resource types, tag filters, and date fields are listed in the
+[Source reference](#source-reference) below.
 
 Two behaviors to keep in mind when a brief looks empty:
 
@@ -102,6 +102,92 @@ Two behaviors to keep in mind when a brief looks empty:
 - The mailing-list source filters on the `committee:` tag, not `committee_uid:`.
   This matches what the mailing-list service emits; do not change one side
   without a coordinated re-index.
+
+### Source reference
+
+#### Meetings — `meeting_source.go`
+
+| Field | Value |
+|-------|-------|
+| Resource type | `v1_past_meeting` |
+| Committee tag | `committee_uid:{uid}` |
+| Date filter | `date_field=start_time` + `date_from`/`date_to` |
+| Date field | `start_time` |
+
+#### Meeting AI Summaries — `meeting_ai_summary_source.go`
+
+| Field | Value |
+|-------|-------|
+| Resource type | `v1_past_meeting_summary` |
+| Committee tag | `committee_uid:{uid}` |
+| Date filter | `date_field=summary_start_time` + `date_from`/`date_to` |
+
+#### Votes — `vote_source.go`
+
+| Field | Value |
+|-------|-------|
+| Resource type | `vote` |
+| Committee tag | `committee_uid:{uid}` |
+| Date filter | `date_field=end_time` + `date_from`/`date_to` |
+
+#### Vote Results — `vote_result_source.go`
+
+| Field | Value |
+|-------|-------|
+| Resource type | `vote_result` |
+| Tag | `vote_uid:{uid}` (not committee-scoped; looked up per vote) |
+
+#### Surveys — `survey_source.go`
+
+| Field | Value |
+|-------|-------|
+| Resource type | `survey` |
+| Committee tag | `committee_uid:{uid}` |
+| Date filter | `date_field=survey_cutoff_date` + `date_from`/`date_to` |
+
+#### Project Membership — `project_membership_source.go`
+
+| Field | Value |
+|-------|-------|
+| Resource type | `project_membership` |
+| Tag | `project_uid:{uid}` (project-scoped; resolved from committee) |
+| Date filter | `date_field=purchase_date` + `date_from`/`date_to` |
+
+#### Mailing List Messages — `mailing_list_source.go`
+
+| Field | Value |
+|-------|-------|
+| Resource type | `groupsio_mailing_list_message` |
+| Committee tag | `committee:{uid}` |
+| Date filter | `date_field=created_at` + `date_from`/`date_to` |
+
+Records are per-message; the adapter groups them by `topic_id` and returns one
+`MailingListActivity` per thread with subject/excerpt from the earliest in-window message.
+
+**Tag prefix difference:** this source uses `committee:` while all other committee-scoped
+sources use `committee_uid:`. This matches the tag emitted by `lfx-v2-mailing-list-service`
+(`grpsio_message.go` — `Tags()` method), which chose `committee:` to align with the broader
+LFX tag convention for this resource type. Changing either side would require a coordinated
+re-index.
+
+**Known limitation:** if a thread's true opener was posted before the brief window, the
+earliest in-window message is used as the thread representative. This is acceptable for a
+7-day window and documented in `mailing_list_source.go`.
+
+
+### Date filter styles
+
+All sources that filter by a date window use the field+range style:
+
+| Style | Params | Used by |
+|-------|--------|---------|
+| Field + range | `date_field=<field>`, `date_from`, `date_to` | All window-filtered sources |
+
+`date_field` names a key inside the resource's `data` blob; `date_from`/`date_to` are
+ISO 8601 datetime strings. Query-service normalizes them to second precision internally
+(`parseDateFilter` re-formats parsed values with `time.RFC3339`), so sub-second
+components are not forwarded to OpenSearch. Vote Results has no date-window filter —
+it is looked up per-vote, not by time range.
 
 ## AI adapter
 
@@ -201,7 +287,7 @@ The hermetic suite runs with plain `go test ./evals/weekly-brief/...`.
    `QUERY_*_TYPE` env var for the resource type only if it must be overridable,
    and document it in the API README.
 6. Add or extend a fixture under `evals/weekly-brief/fixtures/`.
-7. Update [weekly-brief-sources.md](weekly-brief-sources.md) in the same PR.
+7. Add the source to the [Source reference](#source-reference) in the same PR.
 8. Run `go test ./evals/weekly-brief/...` and, if prompts or evidence format
    changed, `make eval-live`.
 
