@@ -31,7 +31,8 @@ type b2bOrgFallbackResolver struct {
 var _ port.B2BOrgFallbackResolver = (*b2bOrgFallbackResolver)(nil)
 
 // NewB2BOrgFallbackResolver creates a NATS-backed b2b_org name/website resolver,
-// consulted when b2bOrgResolver.ResolveByUID cannot resolve organization.id directly.
+// consulted only for legacy, non-SFID-shaped organization.id values, before
+// b2bOrgResolver.ResolveByUID is attempted.
 func NewB2BOrgFallbackResolver(client *NATSClient) port.B2BOrgFallbackResolver {
 	return &b2bOrgFallbackResolver{client: client}
 }

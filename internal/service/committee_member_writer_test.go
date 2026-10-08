@@ -1366,10 +1366,13 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_SFIDShapedMissCl
 
 func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nilFallbackClearsID(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
-	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("should not call primary resolver")}
 	orchestrator.b2bOrgFallbackResolver = nil
 
-	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
+	// Non-SFID-shaped id: fallback would be consulted here if configured, so this
+	// exercises the nil-fallback branch. A SFID-shaped id never reaches fallback
+	// at all, regardless of whether it's nil.
+	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
 	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
 	require.NoError(t, err)
 	assert.Empty(t, org.ID)

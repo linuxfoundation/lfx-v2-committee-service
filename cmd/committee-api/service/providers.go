@@ -257,8 +257,9 @@ func B2BOrgResolverImpl(ctx context.Context) port.B2BOrgResolver {
 	return nil
 }
 
-// B2BOrgFallbackResolverImpl initializes the name/website b2b_org resolver consulted when
-// B2BOrgResolverImpl cannot resolve organization.id. Returns nil in mock mode.
+// B2BOrgFallbackResolverImpl initializes the name/website b2b_org resolver consulted
+// only for legacy, non-SFID-shaped organization.id values, before B2BOrgResolverImpl
+// is attempted. Returns nil in mock mode.
 func B2BOrgFallbackResolverImpl(ctx context.Context) port.B2BOrgFallbackResolver {
 	repoSource := os.Getenv("REPOSITORY_SOURCE")
 	if repoSource == "" {

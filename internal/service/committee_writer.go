@@ -179,8 +179,9 @@ func WithB2BOrgResolver(resolver port.B2BOrgResolver) committeeWriterOrchestrato
 	}
 }
 
-// WithB2BOrgFallbackResolver sets the name/website b2b_org resolver consulted when
-// B2BOrgResolver cannot resolve organization.id.
+// WithB2BOrgFallbackResolver sets the name/website b2b_org resolver consulted
+// only for legacy, non-SFID-shaped organization.id values, before B2BOrgResolver
+// is attempted.
 func WithB2BOrgFallbackResolver(resolver port.B2BOrgFallbackResolver) committeeWriterOrchestratorOption {
 	return func(u *committeeWriterOrchestrator) {
 		u.b2bOrgFallbackResolver = resolver

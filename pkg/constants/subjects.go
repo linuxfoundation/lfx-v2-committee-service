@@ -58,7 +58,10 @@ const (
 	MemberB2BOrgLookupSubject = "lfx.member.b2b_org_lookup"
 
 	// MemberB2BOrgLookupByWebsiteSubject resolves a b2b_org by name/website via member-service,
-	// consulted when MemberB2BOrgLookupSubject cannot resolve organization.id directly.
+	// consulted only for legacy, non-SFID-shaped organization ids, before MemberB2BOrgLookupSubject
+	// is attempted. member-service must register a subscriber on this subject before
+	// committee-service ships code that sends requests on it, or requests will fail with no
+	// responders and legacy ids will be cleared instead of migrated.
 	// Request: {"name":"...","website":"..."}. Reply: {"id":"<canonical-18-char-sfid>"} or {"error":"..."}.
 	MemberB2BOrgLookupByWebsiteSubject = "lfx.member.b2b_org_lookup_by_website"
 

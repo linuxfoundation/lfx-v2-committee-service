@@ -13,9 +13,9 @@ type B2BOrgResolver interface {
 }
 
 // B2BOrgFallbackResolver resolves a b2b_org SFID by organization name/website.
-// It is consulted when B2BOrgResolver.ResolveByUID cannot find a b2b_org for the
-// stored id — e.g. when the id is a legacy, non-SFID identifier for an
-// organization that does have a b2b_org record under a different id.
+// It is consulted only for legacy, non-SFID-shaped organization ids, before
+// B2BOrgResolver.ResolveByUID is attempted. A SFID-shaped id that misses
+// B2BOrgResolver.ResolveByUID is not retried here — see sanitizeMemberOrganization.
 type B2BOrgFallbackResolver interface {
 	ResolveSFID(ctx context.Context, name, website string) (sfid string, found bool, err error)
 }
