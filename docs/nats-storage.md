@@ -44,7 +44,9 @@ Weekly-brief keys pass through `sanitizeKVKey`, which rewrites `/`, `:`, and spa
 
 These keys live in the same bucket as the record they protect. They are created with KV `Create`
 (fails if present) so a duplicate write returns a conflict. The value is the owning record's UID.
-`<hash>` is a lowercase SHA-256 hex digest of the normalized inputs joined with `|`.
+`<hash>` is a lowercase SHA-256 hex digest of the inputs joined with `|`. Normalization is per row, as
+stated in the "Hash input" column: only the email-bearing rows are trimmed and lowercased; committee,
+folder, and document names are hashed verbatim and stay case-sensitive.
 
 | Bucket | Key | Hash input | Enforces |
 |---|---|---|---|
@@ -71,7 +73,7 @@ keeps keys dot-free and avoids storing raw emails or usernames in key names.
 | Prefix | Segment | Semantics | Written on | Backfill / repair |
 |---|---|---|---|---|
 | `lookup/committee-members-by-committee/` | `<committee_uid>` | All members of a committee (list members) | Member create | `committee-cli sync members-by-committee-index` |
-| `lookup/committee-members-by-organization/` | `<org_sfid>` (`organization.id`) | All seats held by an organization (Org Lens, LFXV2-1865) | Member create; re-keyed when `organization.id` changes | `committee-cli sync members-by-organization-index` |
+| `lookup/committee-members-by-organization/` | `<org_sfid>` (`organization.id`; 15-char Salesforce IDs are canonicalized to the 18-char form) | All seats held by an organization (Org Lens, LFXV2-1865) | Member create; re-keyed when `organization.id` changes | `committee-cli sync members-by-organization-index` |
 | `lookup/committee-members-by-email/` | `<email_hash>` | All seats held by an email; used to react to alternate-email changes and user merges (LFXV2-2521) | Member create; re-keyed when email changes | `committee-cli sync members-by-email-index` |
 | `lookup/committee-members-by-username/` | `<username_hash>` | All seats held by an LFID username; used by the user-deleted scrub flow (LFXV2-2645) | Member create when a username is set; re-keyed when it changes | `committee-cli sync members-by-username-index` |
 
@@ -92,7 +94,7 @@ removed after the new ones are written; on delete, all of the member's index key
 ## Incident tips
 
 - **Scanning a bucket:** `ListKeys` on `committees`, `committee-members`, `committee-invites`,
-  `committee-links`, `committee-folders`, and `committee-documents-metadata` also returns `lookup/`
+  `committee-applications`, `committee-links`, `committee-folders`, and `committee-documents-metadata` also returns `lookup/`
   keys. The service filters those out (and `slug/` in `committees`); do the same in scripts and
   one-off repairs, or you will try to unmarshal a UID string as a record.
 - **"Member exists but is missing from a list or lookup":** the secondary index is probably absent.
