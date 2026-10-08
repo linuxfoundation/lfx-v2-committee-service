@@ -69,41 +69,9 @@ This service contains the following API endpoints:
 
 ## NATS Messaging Interface
 
-In addition to HTTP endpoints, this service provides NATS messaging capabilities for inter-service communication. Other LFX services can send requests via NATS subjects to retrieve committee data.
+In addition to HTTP endpoints, this service answers synchronous NATS request-reply subjects used by other LFX services to query committee state.
 
-### Supported NATS Subjects
-
-| Subject | Purpose | Request Format | Response Format |
-|---------|---------|----------------|----------------|
-| `lfx.committee-api.get_name` | Get committee name by UID | Committee UID (string) | Committee name (string) |
-| `lfx.committee-api.list_members` | List all members of a committee | Committee UID (string) | JSON array of committee members |
-
-### Usage Examples
-
-#### Get Committee Name
-```bash
-# Send request with committee UID as message data
-nats request lfx.committee-api.get_name "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
-# Response: "Technical Steering Committee"
-```
-
-#### List Committee Members
-```bash
-# Send request with committee UID as message data
-nats request lfx.committee-api.list_members "061a110a-7c38-4cd3-bfcf-fc8511a37f35"
-# Response: JSON array of CommitteeMember objects
-```
-
-### Error Handling
-
-NATS message responses follow this format:
-- **Success**: Direct data response (string for name, JSON for members)
-- **Error**: JSON object with error message: `{"error": "error description"}`
-
-Common error scenarios:
-- Invalid UUID format: `{"error": "invalid UUID format"}`
-- Committee not found: `{"error": "committee with UID <uid> not found"}`
-- Committee has no members: `[]` (empty array for list_members)
+For the full subject reference — request/response schemas, typed Go import examples, and error handling — see [docs/nats-request-reply.md](../../docs/nats-request-reply.md).
 
 ## File Structure
 
@@ -240,17 +208,79 @@ The service relies on some resources and external services being spun up prior t
 
 #### 3. Export environment variables
 
-|Environment Variable Name|Description|Default|Required|
-|-----------------------|--------------------|-----------|-----|
-|PORT|the port for http requests to the committee service API|8080|false|
-|NATS_URL|the URL of the nats server instance|nats://localhost:4222|false|
-|LOG_LEVEL|the log level for outputted logs|info|false|
-|LOG_ADD_SOURCE|whether to add the source field to outputted logs|false|false|
-|AUTH_SOURCE|the authentication service implementation to use: `jwt` (verify real JWTs) or `mock` (bypass auth for local development)|jwt|false|
-|JWKS_URL|the URL to the endpoint for verifying ID tokens and JWT access tokens||required when `AUTH_SOURCE=jwt`|
-|JWT_AUDIENCE|the audience of the app that the JWT token should have set - for verification of the JWT token|lfx-v2-committee-service|required when `AUTH_SOURCE=jwt`|
-|JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL|a mocked auth principal for local development (bypasses JWT validation when set; mirrors project-service). Works with the default `AUTH_SOURCE=jwt`. Also used when `AUTH_SOURCE=mock`||false|
-|JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL|optional email returned with the mock principal for audit stamps and invite flows||false|
+**Core**
+
+The listen port and bind interface are set with the `-p` (default `8080`) and `--bind` (default `*`) command-line flags, not environment variables.
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `LOG_LEVEL` | `info` | no | Log verbosity (`debug`, `info`, `warn`; any other value falls back to `info`) |
+| `LOG_ADD_SOURCE` | `false` | no | Include source file/line in structured log output |
+
+**NATS**
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `NATS_URL` | `nats://localhost:4222` | no | NATS server address |
+| `NATS_TIMEOUT` | `10s` | no | NATS dial/connection timeout |
+| `NATS_MAX_RECONNECT` | `3` | no | Maximum NATS reconnect attempts |
+| `NATS_RECONNECT_WAIT` | `2s` | no | Delay between NATS reconnect attempts |
+| `REPOSITORY_SOURCE` | `nats` | no | Storage backend: `nats` or `mock` (mock is for local dev/testing only) |
+| `MESSAGING_SOURCE` | `nats` | no | Messaging backend for the committee publisher (indexer, FGA/access, member and domain events) and the email/invite senders: `nats` or `mock`. `mock` captures publishes in memory and skips notifications, so events never reach NATS; use it for local/test only. |
+
+**Authentication**
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `AUTH_SOURCE` | `jwt` | no | Auth backend: `jwt` (verify real tokens) or `mock` (bypass auth for local dev) |
+| `JWKS_URL` | — | when `AUTH_SOURCE=jwt` | Endpoint for verifying ID tokens and JWT access tokens |
+| `JWT_AUDIENCE` | — | when `AUTH_SOURCE=jwt` | Expected audience claim on incoming JWTs. No runtime default; startup fails if empty (the Helm chart supplies it for deployments). |
+| `JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL` | — | no | Mock auth principal for local development (bypasses JWT validation when set; works with `AUTH_SOURCE=jwt` and `AUTH_SOURCE=mock`) |
+| `JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL` | — | no | Email returned with the mock principal (used for audit stamps and invite flows) |
+
+**Feature flags**
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `EMAILS_ENABLED` | — | no | Set to `true` to enable outbound email dispatch. Disabled by default. |
+| `INVITES_ENABLED` | — | no | Set to `true` to enable the invite sender. Disabled by default. |
+
+**Weekly brief / AI**
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `AI_SOURCE` | `fake` | no | Weekly-brief AI backend: `fake` (deterministic stub, no credentials needed) or `live` (calls LiteLLM) |
+| `LITELLM_BASE_URL` | — | when `AI_SOURCE=live` | LiteLLM endpoint URL (e.g. `https://litellm.example.com`) |
+| `LITELLM_API_KEY` | — | when `AI_SOURCE=live` | API key for the LiteLLM endpoint |
+| `LITELLM_MODEL` | — | when `AI_SOURCE=live` | Model identifier (e.g. `anthropic/claude-sonnet-4-6`) |
+| `WEEKLY_BRIEF_PROMPT_DIR` | — | when `AI_SOURCE=live` | Path to the ConfigMap-mounted directory containing `system_prompt` and `user_prompt_template`. If unset or the files cannot be loaded, the service starts but every live weekly-brief generation fails. |
+
+**Query service (weekly brief sources)**
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `QUERY_SERVICE_URL` | — | no | Base URL of the query service. Set it to include query-service activity in weekly briefs. When unset, all weekly-brief data sources return zero results. |
+| `QUERY_VOTE_TYPE` | `vote` | no | Resource type name for votes in the query service |
+| `QUERY_VOTE_RESULT_TYPE` | `vote_result` | no | Resource type name for vote results |
+| `QUERY_MAILING_LIST_TYPE` | `groupsio_mailing_list_message` | no | Resource type name for mailing list activity |
+| `QUERY_SURVEY_TYPE` | `survey` | no | Resource type name for survey activity |
+| `QUERY_PROJECT_MEMBERSHIP_TYPE` | `project_membership` | no | Resource type name for project membership events |
+
+**M2M authentication (required when `QUERY_SERVICE_URL` is set)**
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `M2M_AUTH_CLIENT_ID` | — | when `QUERY_SERVICE_URL` set | Auth0 M2M client ID |
+| `M2M_AUTH_PRIVATE_KEY` | — | when `QUERY_SERVICE_URL` set | RSA private key in PEM format for M2M client-assertion JWT |
+| `M2M_AUTH_DOMAIN` | — | when `QUERY_SERVICE_URL` set | Auth0 tenant domain (e.g. `linuxfoundation-dev.auth0.com`) |
+| `M2M_AUTH_AUDIENCE` | — | no | Auth0 M2M audience. The service provides no default; when unset, it sends an empty audience to Auth0. Set the query service's audience explicitly when required by your Auth0 configuration. |
+
+**Deployment**
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `LFX_ENVIRONMENT` | `production` | no | Deployment environment: `production`/`prod`, `staging`/`stg`/`stage`, or `development`/`dev`; unrecognized values fall back to production. Controls the self-serve base URL default used in notification deep-links. |
+| `LFX_SELF_SERVE_BASE_URL` | *(derived from `LFX_ENVIRONMENT`)* | no | Override for the self-serve front-end URL. Takes precedence over `LFX_ENVIRONMENT`. |
 
 #### 4. Development Workflow
 
