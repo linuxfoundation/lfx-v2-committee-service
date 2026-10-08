@@ -94,21 +94,23 @@ func (s *memberCDPOrgIDSubcommand) Run(ctx context.Context, rc commands.RunConte
 	rc.DryRun = *dryRun
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	var osClient *opensearchgo.Client
 	var resolver b2bOrgSFIDResolver
 	if s.resolver != nil {
 		resolver = s.resolver
 	} else {
-		url := strings.TrimSpace(*openSearchURL)
-		if url == "" {
-			url = defaultOpenSearchURL
+		if rc.B2BOrgFallbackResolver == nil {
+			return errors.NewUnexpected("B2BOrgFallbackResolver is not wired in RunContext")
 		}
-		var err error
-		osClient, err = opensearch.NewClient(url)
-		if err != nil {
-			return err
-		}
-		resolver = opensearch.NewB2BOrgResolver(osClient, *openSearchIndex)
+		resolver = rc.B2BOrgFallbackResolver
+	}
+
+	url := strings.TrimSpace(*openSearchURL)
+	if url == "" {
+		url = defaultOpenSearchURL
+	}
+	osClient, err := opensearch.NewClient(url)
+	if err != nil {
+		return err
 	}
 
 	members, err := collectMembersForRepair(ctx, rc, osClient, *openSearchIndex, *committeeUID, *memberUID, s.memberUIDs)

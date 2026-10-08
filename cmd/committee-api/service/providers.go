@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,11 +21,9 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/opensearch"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/env"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
 
 	"github.com/auth0/go-auth0/authentication"
@@ -35,11 +32,12 @@ import (
 )
 
 var (
-	natsStorage        port.CommitteeReaderWriter
-	natsMessaging      port.ProjectReader
-	natsUserReader     port.UserReader
-	natsB2BOrgResolver port.B2BOrgResolver
-	natsPublisher      port.CommitteePublisher
+	natsStorage                port.CommitteeReaderWriter
+	natsMessaging              port.ProjectReader
+	natsUserReader             port.UserReader
+	natsB2BOrgResolver         port.B2BOrgResolver
+	natsB2BOrgFallbackResolver port.B2BOrgFallbackResolver
+	natsPublisher              port.CommitteePublisher
 
 	// expose the NATS client for direct access in subscriptions
 	natsClient *nats.NATSClient
@@ -98,6 +96,7 @@ func natsInit(ctx context.Context) {
 		natsMessaging = nats.NewMessageRequest(client)
 		natsUserReader = nats.NewUserRequest(client)
 		natsB2BOrgResolver = nats.NewB2BOrgResolver(client)
+		natsB2BOrgFallbackResolver = nats.NewB2BOrgFallbackResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
 }
@@ -259,22 +258,24 @@ func B2BOrgResolverImpl(ctx context.Context) port.B2BOrgResolver {
 }
 
 // B2BOrgFallbackResolverImpl initializes the name/website b2b_org resolver consulted when
-// B2BOrgResolverImpl cannot resolve organization.id. Returns nil (feature disabled) unless
-// OPENSEARCH_URL is explicitly set.
+// B2BOrgResolverImpl cannot resolve organization.id. Returns nil in mock mode.
 func B2BOrgFallbackResolverImpl(ctx context.Context) port.B2BOrgFallbackResolver {
-	openSearchURL := strings.TrimSpace(os.Getenv("OPENSEARCH_URL"))
-	if openSearchURL == "" {
-		slog.InfoContext(ctx, "OPENSEARCH_URL not set; b2b org fallback resolver disabled")
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
 		return nil
+	case "nats":
+		natsInit(ctx)
+		return natsB2BOrgFallbackResolver
+	default:
+		log.Fatalf("unsupported b2b org fallback resolver implementation: %s", repoSource)
 	}
 
-	client, err := opensearch.NewClient(openSearchURL)
-	if err != nil {
-		log.Fatalf("failed to initialize b2b org fallback resolver: %v", err)
-	}
-
-	index := strings.TrimSpace(env.Get("OPENSEARCH_INDEX", "resources"))
-	return opensearch.NewB2BOrgResolver(client, index)
+	return nil
 }
 
 // AuthServiceImpl initializes the authentication service implementation

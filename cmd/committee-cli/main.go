@@ -131,6 +131,7 @@ func run() error {
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
 		CommitteeApplicationReader:  storage,
+		B2BOrgFallbackResolver:      nats.NewB2BOrgFallbackResolver(client),
 		Args:                        parsed.SubArgs,
 	}
 
