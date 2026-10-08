@@ -1350,37 +1350,18 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackR
 	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
 }
 
-func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_fallbackResolves(t *testing.T) {
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_SFIDShapedMissClearsIDWithoutFallback(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses
+	// Fallback is configured to resolve successfully; it must not be consulted
+	// for a SFID-shaped id, since a well-formed but unknown SFID is a stronger
+	// misattribution risk than a legacy id in need of migration.
 	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{sfid: "0014100000Te2ovAAB", ok: true}
 
 	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
 	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
 	require.NoError(t, err)
-	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
-}
-
-func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_fallbackMissClearsID(t *testing.T) {
-	orchestrator, _, _ := setupMemberWriterTest()
-	orchestrator.b2bOrgResolver = stubB2BOrgResolver{}                 // primary lookup misses
-	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{} // fallback also misses
-
-	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
-	require.NoError(t, err)
-	assert.Empty(t, org.ID)
-}
-
-func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_fallbackErrorClearsID(t *testing.T) {
-	orchestrator, _, _ := setupMemberWriterTest()
-	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses
-	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{err: fmt.Errorf("fallback lookup failed")}
-
-	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
-	require.NoError(t, err)
-	assert.Empty(t, org.ID)
+	assert.Empty(t, org.ID, "SFID-shaped id that misses primary lookup must be cleared, not fallback-resolved")
 }
 
 func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nilFallbackClearsID(t *testing.T) {

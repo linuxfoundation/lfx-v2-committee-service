@@ -1022,6 +1022,13 @@ const b2bOrgLookupTimeout = 10 * time.Second
 // When the id is not found, it clears organization.id and returns nil so create/update continues
 // with organization name and website only (LFXV2-2400). Infrastructure lookup errors are returned
 // to callers, which fail-open (warn and keep the submitted id).
+//
+// The name/website fallback is only consulted for ids that are not SFID-shaped (legacy ids, e.g.
+// CDP UUIDs, that inherently cannot be looked up against b2b_org). A submitted id that is
+// SFID-shaped but does not resolve is cleared directly, without a fallback attempt: a well-formed
+// but unknown SFID is a stronger signal of a stale or mistaken reference than a legacy id in need
+// of migration, and retrying it via a name/website match risks silently attaching an unrelated
+// organization to the member.
 func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization) error {
 	if org == nil {
 		return nil
@@ -1059,10 +1066,6 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
 	}
 	if !found {
-		if uc.tryB2BOrgFallback(ctx, org) {
-			return nil
-		}
-
 		slog.InfoContext(ctx, "clearing organization id that does not resolve to a b2b_org",
 			"organization_id", org.ID,
 			"organization_name", org.Name,

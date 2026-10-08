@@ -110,6 +110,7 @@ func run() error {
 	storage := nats.NewStorageBackend(client)
 	publisher := nats.NewMessagePublisher(client)
 	userReader := nats.NewUserRequest(client)
+	b2bOrgFallbackResolver := nats.NewB2BOrgFallbackResolver(client)
 
 	writerOrchestrator := usecaseSvc.NewCommitteeWriterOrchestrator(
 		usecaseSvc.WithCommitteeRetriever(storage),
@@ -118,6 +119,7 @@ func run() error {
 		usecaseSvc.WithUserReader(userReader),
 		usecaseSvc.WithCommitteePublisher(publisher),
 		usecaseSvc.WithB2BOrgResolver(nats.NewB2BOrgResolver(client)),
+		usecaseSvc.WithB2BOrgFallbackResolver(b2bOrgFallbackResolver),
 	)
 
 	rc := commands.RunContext{
@@ -131,7 +133,7 @@ func run() error {
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
 		CommitteeApplicationReader:  storage,
-		B2BOrgFallbackResolver:      nats.NewB2BOrgFallbackResolver(client),
+		B2BOrgFallbackResolver:      b2bOrgFallbackResolver,
 		Args:                        parsed.SubArgs,
 	}
 

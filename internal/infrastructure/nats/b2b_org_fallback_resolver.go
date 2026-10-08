@@ -11,6 +11,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 type b2bOrgLookupByWebsiteRequest struct {
@@ -64,8 +65,12 @@ func (r *b2bOrgFallbackResolver) ResolveSFID(ctx context.Context, name, website 
 		}
 		return "", false, fmt.Errorf("b2b_org lookup by website: %s", errMsg)
 	}
-	if strings.TrimSpace(resp.ID) == "" {
+	id := strings.TrimSpace(resp.ID)
+	if id == "" {
 		return "", false, nil
 	}
-	return strings.TrimSpace(resp.ID), true, nil
+	if !utils.IsSFIDShaped(id) {
+		return "", false, fmt.Errorf("b2b_org lookup by website: malformed sfid %q in response", id)
+	}
+	return id, true, nil
 }

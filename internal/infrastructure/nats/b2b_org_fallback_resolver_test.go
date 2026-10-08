@@ -59,6 +59,16 @@ func TestB2BOrgFallbackResolver_ResolveSFID_notFound(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestB2BOrgFallbackResolver_ResolveSFID_malformedSFID(t *testing.T) {
+	resolver := setupB2BOrgFallbackResolverTest(t, func(_ *nats.Msg) []byte {
+		return []byte(`{"id":"not-a-real-sfid!"}`)
+	})
+
+	_, ok, err := resolver.ResolveSFID(context.Background(), "Example Inc", "example.com")
+	require.Error(t, err, "a malformed sfid in the reply must be treated as an error, not a resolution")
+	require.False(t, ok)
+}
+
 func TestB2BOrgFallbackResolver_ResolveSFID_lookupFailed(t *testing.T) {
 	resolver := setupB2BOrgFallbackResolverTest(t, func(_ *nats.Msg) []byte {
 		return []byte(`{"error":"b2b org lookup failed"}`)
