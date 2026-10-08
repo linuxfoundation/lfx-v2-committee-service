@@ -14,13 +14,14 @@ For each non-`lookup/` and non-`slug/` key in `committee-settings`:
 
 - A field needs migration when it is a non-empty array whose first element is a string. Each non-empty string becomes `{"username": <string>}`; `email`, `name` and `avatar` are not populated. `writers` and `auditors` are checked and converted independently.
 - Sets `updated_at` and writes with optimistic-concurrency `Update` (up to 3 attempts, re-reading between attempts).
+- **Webhook credential warning:** the indexer message carries the raw settings record, so a persisted `chat_webhook_url` is sent to the indexer. Normal settings writes and `sync reindex-settings` strip that field; this script does not. Check whether any settings record has `chat_webhook_url` set before running (including with `--force-reindex`).
 - Publishes a full indexer envelope (`action: updated`, an `Authorization` header from `AUTH_TOKEN`, and an `IndexingConfig` with `public=false`, `auditor` access relation, and tags built from the `committees` base record: `project_uid`, `project_slug`, `parent_uid`, `category`, uid) to `lfx.index.committee_settings`. If the base record cannot be read, only the uid tags are used. Envelope build or publish failures are logged as warnings and the record still counts as updated.
 
 With `--force-reindex`, no migration check or KV write happens: every settings record is republished to the indexer as-is.
 
 ## Prerequisites
 
-- Network access to NATS (credentials, if needed, go in `NATS_URL`).
+- Network access to NATS (credentials, if needed, go in `NATS_URL`). The script logs the NATS URL and `nc.ConnectedUrl()` unredacted, so credentials embedded in the URL appear in the logs; avoid embedding them or treat the logs as sensitive.
 - The `committee-settings` and `committees` KV buckets must exist (the bucket names are not configurable).
 - `AUTH_TOKEN` set to a bearer token the indexer accepts for the `Authorization` header. It is deliberately an env var, not a flag. If it is empty, the messages carry an empty header.
 
@@ -42,7 +43,7 @@ With `--force-reindex`, no migration check or KV write happens: every settings r
 go build -o scripts/migrations/migrate_writers_auditors_to_user_objects/bin/migrate_writers_auditors \
   ./scripts/migrations/migrate_writers_auditors_to_user_objects
 
-export NATS_URL=nats://nats.example:4222 AUTH_TOKEN=<bearer-token>
+export NATS_URL=nats://nats.example:4222 AUTH_TOKEN='<bearer-token>'  # replace with your token
 ./scripts/migrations/migrate_writers_auditors_to_user_objects/bin/migrate_writers_auditors --dry-run
 ./scripts/migrations/migrate_writers_auditors_to_user_objects/bin/migrate_writers_auditors
 # only if KV is already migrated but search is stale:

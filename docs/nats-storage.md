@@ -7,7 +7,7 @@ secondary indexes are maintained.
 Sources of truth:
 
 - Bucket, prefix, stream, and consumer names: `pkg/constants/storage.go`
-- Bucket creation at startup: `internal/infrastructure/nats/client.go`
+- Bucket handle binding at startup (buckets are created by the chart, not the service): `internal/infrastructure/nats/client.go`
 - Provisioning parameters (history, size, replicas): `charts/lfx-v2-committee-service/values.yaml`
 - Index maintenance: `internal/infrastructure/nats/storage.go`, `internal/service/committee_member_writer.go`
 
@@ -30,7 +30,7 @@ so confirm against the live bucket (`nats kv status <bucket>`) during an inciden
 | `committee-documents-metadata` | `<document_uid>` | `CommitteeDocument` JSON | Document metadata, plus a unique lookup key. File bytes live in the Object Store. |
 | `group-weekly-briefs` | `<brief_uid>` | `GroupWeeklyBrief` JSON | Full weekly briefs |
 | `group-weekly-brief-uid-index` | `<committee_uid>.<yyyymmdd>` | `<brief_uid>` | Maps a (committee, window start) pair to its brief |
-| `group-weekly-brief-throttle` | `<committee_uid>.<yyyymmdd>` | throttle counter JSON | Per-window regeneration throttle. Currently read best-effort only; see `constants.KVBucketNameGroupWeeklyBriefThrottle`. |
+| `group-weekly-brief-throttle` | `<committee_uid>.<yyyymmdd>` | throttle counter JSON | Per-window generation and regeneration counters. `Claim` reads the counters and must write the increment successfully before it saves the brief, so a throttle-bucket failure can block generation. Only the read endpoint treats throttle data as optional. |
 
 Weekly-brief keys pass through `sanitizeKVKey`, which rewrites `/`, `:`, and spaces to `.`.
 
@@ -106,7 +106,7 @@ removed after the new ones are written; on delete, all of the member's index key
   segment. Confirm against the member record, then purge it.
 - **Weekly brief missing for a window:** look up `<committee_uid>.<yyyymmdd>` in
   `group-weekly-brief-uid-index`, then fetch the UID from `group-weekly-briefs`. If the index key is
-  missing but briefs exist, see `committee-cli sync backfill-weekly-brief-index`.
+  missing but the brief exists in `group-weekly-briefs`, the API cannot find it. `committee-cli sync backfill-weekly-brief-index` does not fix this: it walks the existing index keys and republishes search updates, so it never rebuilds the KV index. Restore the mapping by writing `<committee_uid>.<yyyymmdd>` -> `<brief_uid>` into `group-weekly-brief-uid-index`, then run the backfill to refresh search.
 - **Do not hand-edit** primary records without going through the CLI or API; updates use optimistic
   concurrency (KV revision), and the indexer and FGA events are emitted by the service, not by the
   bucket.

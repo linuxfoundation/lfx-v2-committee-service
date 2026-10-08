@@ -19,7 +19,7 @@ After a successful write it publishes the updated member JSON to the index subje
 
 ## Prerequisites
 
-- Network access to the NATS server and credentials if it requires them (embed them in `NATS_URL`; the URL is redacted in logs).
+- Network access to the NATS server and credentials if it requires them (the startup log redacts the URL, but the successful-connection log prints `nc.ConnectedUrl()` unredacted, so avoid embedding credentials in `NATS_URL`).
 - The `committee-members` KV bucket must exist.
 
 ## Configuration
@@ -61,5 +61,6 @@ The process exits non-zero if any record failed. Re-run it after a failure: alre
 ## Risks
 
 - **Irreversible.** The original role is not recorded. To undo, restore the bucket from a backup or snapshot; take one before running.
+- **Search repair is not automatic.** The KV write happens before the search publish. If the publish fails, the member already has role `None`, so a re-run skips it and can report `Failed: 0` without sending the missing search update. Check the logs for publish warnings; repairing them means republishing the affected member records to the indexer by other means (this script will not do it).
 - Dry-run is the only preview; there is no per-committee scoping.
 - Writes go straight to KV, bypassing the service's validation, FGA and event publishing.

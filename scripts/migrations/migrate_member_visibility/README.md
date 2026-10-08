@@ -19,7 +19,7 @@ After a successful write it publishes the updated settings JSON to the index sub
 
 ## Prerequisites
 
-- Network access to NATS (credentials, if needed, go in `NATS_URL`).
+- Network access to NATS (credentials, if needed, go in `NATS_URL`). The script logs the NATS URL and `nc.ConnectedUrl()` unredacted, so credentials embedded in the URL appear in the logs; avoid embedding them or treat the logs as sensitive.
 - The `committee-settings` KV bucket must exist.
 
 ## Configuration

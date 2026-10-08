@@ -205,7 +205,7 @@ directory in `WEEKLY_BRIEF_PROMPT_DIR` (a ConfigMap mount in deployments):
 `system_prompt` and `user_prompt_template`. The `prompt_version` stored on each
 brief is an 8-character sha256 prefix of those files. If the directory is unset
 or a file is missing, empty, or fails to parse, the service still starts, but
-every live generation fails until the prompts load. Default prompt text lives
+every live generation fails. Prompts are loaded once when the adapter is created and the load error is kept, so fixing or mounting the files requires restarting or redeploying the service. Default prompt text lives
 in `charts/lfx-v2-committee-service/values.yaml` under `weeklyBriefPrompts`.
 
 ### Required env vars
