@@ -1287,9 +1287,21 @@ type stubB2BOrgFallbackResolver struct {
 	sfid string
 	ok   bool
 	err  error
+
+	// gotName and gotWebsite, when non-nil, capture the arguments ResolveSFID
+	// was called with, so tests can assert the service forwards the org's
+	// actual name/website rather than empty or swapped values.
+	gotName    *string
+	gotWebsite *string
 }
 
-func (s stubB2BOrgFallbackResolver) ResolveSFID(_ context.Context, _, _ string) (string, bool, error) {
+func (s stubB2BOrgFallbackResolver) ResolveSFID(_ context.Context, name, website string) (string, bool, error) {
+	if s.gotName != nil {
+		*s.gotName = name
+	}
+	if s.gotWebsite != nil {
+		*s.gotWebsite = website
+	}
 	if s.err != nil {
 		return "", false, s.err
 	}
@@ -1342,11 +1354,17 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackR
 	orchestrator, _, _ := setupMemberWriterTest()
 	// Primary resolver is ID-keyed and must not be consulted for a non-SFID id.
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("should not call primary resolver")}
-	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{sfid: "0014100000Te2ovAAB", ok: true}
+	var gotName, gotWebsite string
+	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{
+		sfid: "0014100000Te2ovAAB", ok: true,
+		gotName: &gotName, gotWebsite: &gotWebsite,
+	}
 
 	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
 	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
 	require.NoError(t, err)
+	assert.Equal(t, "Acme", gotName, "fallback must be called with the org's actual name")
+	assert.Equal(t, "https://acme.com", gotWebsite, "fallback must be called with the org's actual website")
 	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
 }
 

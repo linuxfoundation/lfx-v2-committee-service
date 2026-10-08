@@ -5,6 +5,7 @@ package nats
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -38,15 +39,21 @@ func setupB2BOrgFallbackResolverTest(t *testing.T, responder func(*nats.Msg) []b
 
 func TestB2BOrgFallbackResolver_ResolveSFID(t *testing.T) {
 	const wantSFID = "0014100000Te2ovAAB"
+	const wantName = "Example Inc"
+	const wantWebsite = "example.com"
 
-	resolver := setupB2BOrgFallbackResolverTest(t, func(_ *nats.Msg) []byte {
+	var gotReq b2bOrgLookupByWebsiteRequest
+	resolver := setupB2BOrgFallbackResolverTest(t, func(msg *nats.Msg) []byte {
+		_ = json.Unmarshal(msg.Data, &gotReq)
 		return []byte(`{"id":"` + wantSFID + `"}`)
 	})
 
-	sfid, ok, err := resolver.ResolveSFID(context.Background(), "Example Inc", "example.com")
+	sfid, ok, err := resolver.ResolveSFID(context.Background(), wantName, wantWebsite)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, wantSFID, sfid)
+	require.Equal(t, wantName, gotReq.Name, "resolver must serialize the org name into the lookup request")
+	require.Equal(t, wantWebsite, gotReq.Website, "resolver must serialize the org website into the lookup request")
 }
 
 func TestB2BOrgFallbackResolver_ResolveSFID_notFound(t *testing.T) {
