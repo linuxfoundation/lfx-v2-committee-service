@@ -1350,6 +1350,30 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackR
 	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
 }
 
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackMissClearsID(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("should not call primary resolver")}
+	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{ok: false}
+
+	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err, "a fallback miss must fail open, not return an error")
+	assert.Empty(t, org.ID)
+	assert.Equal(t, "Acme", org.Name, "org name/website must be preserved when only the id is cleared")
+}
+
+func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackErrorClearsID(t *testing.T) {
+	orchestrator, _, _ := setupMemberWriterTest()
+	orchestrator.b2bOrgResolver = stubB2BOrgResolver{err: fmt.Errorf("should not call primary resolver")}
+	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{err: fmt.Errorf("nats request failed")}
+
+	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	require.NoError(t, err, "a fallback resolver error must fail open, not propagate")
+	assert.Empty(t, org.ID)
+	assert.Equal(t, "Acme", org.Name, "org name/website must be preserved when only the id is cleared")
+}
+
 func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_SFIDShapedMissClearsIDWithoutFallback(t *testing.T) {
 	orchestrator, _, _ := setupMemberWriterTest()
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{} // primary lookup misses
