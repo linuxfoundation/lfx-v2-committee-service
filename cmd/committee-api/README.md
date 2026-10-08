@@ -210,10 +210,11 @@ The service relies on some resources and external services being spun up prior t
 
 **Core**
 
+The listen port and bind interface are set with the `-p` (default `8080`) and `--bind` (default `*`) command-line flags, not environment variables.
+
 | Environment Variable | Default | Required | Description |
 |---|---|---|---|
-| `PORT` | `8080` | no | HTTP listen port |
-| `LOG_LEVEL` | `info` | no | Log verbosity (`debug`, `info`, `warn`, `error`) |
+| `LOG_LEVEL` | `info` | no | Log verbosity (`debug`, `info`, `warn`; any other value falls back to `info`) |
 | `LOG_ADD_SOURCE` | `false` | no | Include source file/line in structured log output |
 
 **NATS**
@@ -225,7 +226,7 @@ The service relies on some resources and external services being spun up prior t
 | `NATS_MAX_RECONNECT` | `3` | no | Maximum NATS reconnect attempts |
 | `NATS_RECONNECT_WAIT` | `2s` | no | Delay between NATS reconnect attempts |
 | `REPOSITORY_SOURCE` | `nats` | no | Storage backend: `nats` or `mock` (mock is for local dev/testing only) |
-| `MESSAGING_SOURCE` | `nats` | no | Messaging backend for notifications: `nats` or `mock` |
+| `MESSAGING_SOURCE` | `nats` | no | Messaging backend for the committee publisher (indexer, FGA/access, member and domain events) and the email/invite senders: `nats` or `mock`. `mock` captures publishes in memory and skips notifications, so events never reach NATS; use it for local/test only. |
 
 **Authentication**
 
@@ -233,7 +234,7 @@ The service relies on some resources and external services being spun up prior t
 |---|---|---|---|
 | `AUTH_SOURCE` | `jwt` | no | Auth backend: `jwt` (verify real tokens) or `mock` (bypass auth for local dev) |
 | `JWKS_URL` | — | when `AUTH_SOURCE=jwt` | Endpoint for verifying ID tokens and JWT access tokens |
-| `JWT_AUDIENCE` | `lfx-v2-committee-service` | when `AUTH_SOURCE=jwt` | Expected audience claim on incoming JWTs |
+| `JWT_AUDIENCE` | — | when `AUTH_SOURCE=jwt` | Expected audience claim on incoming JWTs. No runtime default; startup fails if empty (the Helm chart supplies it for deployments). |
 | `JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL` | — | no | Mock auth principal for local development (bypasses JWT validation when set; works with `AUTH_SOURCE=jwt` and `AUTH_SOURCE=mock`) |
 | `JWT_AUTH_DISABLED_MOCK_LOCAL_EMAIL` | — | no | Email returned with the mock principal (used for audit stamps and invite flows) |
 
@@ -252,16 +253,16 @@ The service relies on some resources and external services being spun up prior t
 | `LITELLM_BASE_URL` | — | when `AI_SOURCE=live` | LiteLLM endpoint URL (e.g. `https://litellm.example.com`) |
 | `LITELLM_API_KEY` | — | when `AI_SOURCE=live` | API key for the LiteLLM endpoint |
 | `LITELLM_MODEL` | — | when `AI_SOURCE=live` | Model identifier (e.g. `anthropic/claude-sonnet-4-6`) |
-| `WEEKLY_BRIEF_PROMPT_DIR` | — | no | Path to a directory containing the system and user prompt template files (mounted from a ConfigMap). Unset disables prompt loading and logs a warning; generation still runs with the built-in defaults. |
+| `WEEKLY_BRIEF_PROMPT_DIR` | — | when `AI_SOURCE=live` | Path to the ConfigMap-mounted directory containing `system_prompt` and `user_prompt_template`. If unset or the files cannot be loaded, the service starts but every live weekly-brief generation fails. |
 
 **Query service (weekly brief sources)**
 
 | Environment Variable | Default | Required | Description |
 |---|---|---|---|
-| `QUERY_SERVICE_URL` | — | when `AI_SOURCE=live` | Base URL of the query service. When unset, all weekly-brief data sources return zero results (graceful degrade). |
+| `QUERY_SERVICE_URL` | — | no | Base URL of the query service. Set it to include query-service activity in weekly briefs. When unset, all weekly-brief data sources return zero results. |
 | `QUERY_VOTE_TYPE` | `vote` | no | Resource type name for votes in the query service |
 | `QUERY_VOTE_RESULT_TYPE` | `vote_result` | no | Resource type name for vote results |
-| `QUERY_MAILING_LIST_TYPE` | `mailing_list_event` | no | Resource type name for mailing list activity |
+| `QUERY_MAILING_LIST_TYPE` | `groupsio_mailing_list_message` | no | Resource type name for mailing list activity |
 | `QUERY_SURVEY_TYPE` | `survey` | no | Resource type name for survey activity |
 | `QUERY_PROJECT_MEMBERSHIP_TYPE` | `project_membership` | no | Resource type name for project membership events |
 
@@ -272,13 +273,13 @@ The service relies on some resources and external services being spun up prior t
 | `M2M_AUTH_CLIENT_ID` | — | when `QUERY_SERVICE_URL` set | Auth0 M2M client ID |
 | `M2M_AUTH_PRIVATE_KEY` | — | when `QUERY_SERVICE_URL` set | RSA private key in PEM format for M2M client-assertion JWT |
 | `M2M_AUTH_DOMAIN` | — | when `QUERY_SERVICE_URL` set | Auth0 tenant domain (e.g. `linuxfoundation-dev.auth0.com`) |
-| `M2M_AUTH_AUDIENCE` | *(query service URL)* | no | Auth0 M2M audience. Defaults to `QUERY_SERVICE_URL` when unset. |
+| `M2M_AUTH_AUDIENCE` | — | no | Auth0 M2M audience. The service provides no default; when unset, it sends an empty audience to Auth0. Set the query service's audience explicitly when required by your Auth0 configuration. |
 
 **Deployment**
 
 | Environment Variable | Default | Required | Description |
 |---|---|---|---|
-| `LFX_ENVIRONMENT` | `production` | no | Deployment environment: `production`/`prod`, `staging`/`stg`, or `development`/`dev`. Controls the self-serve base URL default used in notification deep-links. |
+| `LFX_ENVIRONMENT` | `production` | no | Deployment environment: `production`/`prod`, `staging`/`stg`/`stage`, or `development`/`dev`; unrecognized values fall back to production. Controls the self-serve base URL default used in notification deep-links. |
 | `LFX_SELF_SERVE_BASE_URL` | *(derived from `LFX_ENVIRONMENT`)* | no | Override for the self-serve front-end URL. Takes precedence over `LFX_ENVIRONMENT`. |
 
 #### 4. Development Workflow
