@@ -50,8 +50,12 @@ type RunContext struct {
 	// CommitteeBaseWriter provides direct storage-layer access to committee base write operations
 	// (e.g. UpdateTotalMembers). Bypasses the business-logic orchestrator.
 	CommitteeBaseWriter port.CommitteeBaseWriter
-	DryRun              bool
-	Args                []string // remaining args after command + subcommand, for subcommand flag parsing
+	// B2BOrgFallbackResolver resolves a b2b_org SFID by name/website via member-service,
+	// used by data-repair subcommands that need to resolve an organization identity
+	// without a direct SFID (e.g. member-cdp-org-id).
+	B2BOrgFallbackResolver port.B2BOrgFallbackResolver
+	DryRun                 bool
+	Args                   []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

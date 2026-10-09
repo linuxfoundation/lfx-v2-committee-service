@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	opensearchgo "github.com/opensearch-project/opensearch-go/v2"
@@ -51,15 +50,6 @@ func writeOpenSearchSearchResponse(w http.ResponseWriter, hits []map[string]any,
 	})
 }
 
-func b2bOrgHit(objectID, uid string) map[string]any {
-	return map[string]any{
-		"_source": map[string]any{
-			"object_id": objectID,
-			"data":      map[string]any{"uid": uid},
-		},
-	}
-}
-
 func memberDiscoveryHit(uid string) map[string]any {
 	return map[string]any{
 		"_source": map[string]any{
@@ -67,88 +57,6 @@ func memberDiscoveryHit(uid string) map[string]any {
 			"data":      map[string]any{"uid": uid},
 		},
 	}
-}
-
-func TestSearchFirstSFID_noHits(t *testing.T) {
-	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodPost, r.Method)
-		require.Contains(t, r.URL.Path, "_search")
-		writeOpenSearchSearchResponse(w, nil, 0)
-	})
-
-	resolver := &openSearchB2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Acme Corp")
-	require.NoError(t, err)
-	assert.False(t, ok)
-	assert.Empty(t, sfid)
-}
-
-func TestSearchFirstSFID_singleHitFromObjectID(t *testing.T) {
-	const wantSFID = "0014100000Te2ovAAB"
-	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
-		writeOpenSearchSearchResponse(w, []map[string]any{b2bOrgHit(wantSFID, "")}, 1)
-	})
-
-	resolver := &openSearchB2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "The Linux Foundation")
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, wantSFID, sfid)
-}
-
-func TestSearchFirstSFID_normalizes15CharSFID(t *testing.T) {
-	const fifteen = "0017000000abcde"
-	const want18 = "0017000000abcdeAAA"
-	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
-		writeOpenSearchSearchResponse(w, []map[string]any{b2bOrgHit(fifteen, "")}, 1)
-	})
-
-	resolver := &openSearchB2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Acme Corp")
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, want18, sfid)
-	assert.Len(t, sfid, 18)
-}
-
-func TestSearchFirstSFID_ambiguousMultipleHitsSkipped(t *testing.T) {
-	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
-		writeOpenSearchSearchResponse(w, []map[string]any{
-			b2bOrgHit("0014100000Te2ovAAB", ""),
-			b2bOrgHit("001B000000IqhSLIAZ", ""),
-		}, 2)
-	})
-
-	resolver := &openSearchB2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Ambiguous Org")
-	require.NoError(t, err)
-	assert.False(t, ok, "ambiguous matches must not resolve to an SFID")
-	assert.Empty(t, sfid)
-}
-
-func TestSearchFirstSFID_rejectsMalformedSFID(t *testing.T) {
-	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
-		writeOpenSearchSearchResponse(w, []map[string]any{b2bOrgHit("not-a-valid-sfid", "")}, 1)
-	})
-
-	resolver := &openSearchB2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "Bad Org")
-	require.NoError(t, err)
-	assert.False(t, ok)
-	assert.Empty(t, sfid)
-}
-
-func TestSearchFirstSFID_fallbackToDataUID(t *testing.T) {
-	const wantSFID = "001B000000IqhSLIAZ"
-	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
-		writeOpenSearchSearchResponse(w, []map[string]any{b2bOrgHit("", wantSFID)}, 1)
-	})
-
-	resolver := &openSearchB2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.searchTerm(context.Background(), "data.name", "UID-only Org")
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, wantSFID, sfid)
 }
 
 func TestSearchMemberUIDPage_singlePage(t *testing.T) {
@@ -205,21 +113,4 @@ func TestSearchMemberUIDsWithCDPOrgID_paginates(t *testing.T) {
 	assert.Equal(t, "member-0499", uids[memberDiscoveryPageSize-1])
 	assert.Equal(t, "member-0500", uids[memberDiscoveryPageSize])
 	assert.Equal(t, "member-0501", uids[memberDiscoveryPageSize+1])
-}
-
-func TestOpenSearchB2BOrgResolver_ResolveSFID_byName(t *testing.T) {
-	const wantSFID = "0014100000Te2ovAAB"
-	client := newTestOpenSearchClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.URL.Path, "_search") {
-			http.NotFound(w, r)
-			return
-		}
-		writeOpenSearchSearchResponse(w, []map[string]any{b2bOrgHit(wantSFID, "")}, 1)
-	})
-
-	resolver := &openSearchB2BOrgResolver{client: client, index: testOpenSearchIndex}
-	sfid, ok, err := resolver.ResolveSFID(context.Background(), "The Linux Foundation", "")
-	require.NoError(t, err)
-	require.True(t, ok)
-	assert.Equal(t, wantSFID, sfid)
 }

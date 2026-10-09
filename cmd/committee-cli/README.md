@@ -264,7 +264,7 @@ NATS_URL=nats://nats.lfx.svc:4222 \
 
 #### `sync member-cdp-org-id`
 
-Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Discovers affected members via OpenSearch (`committee_member` docs with UUID `data.organization.id`), loads each from NATS KV, resolves the canonical **b2b_org Salesforce SFID** from OpenSearch (`object_type=b2b_org`, matched by `data.primary_domain` / `data.website` / `data.name`), and updates through the writer orchestrator (reindexes + fixes the by-organization secondary index).
+Repairs committee members that store a **CDP organization UUID** in `organization.id` (self-serve PR #779). Discovers affected members via OpenSearch (`committee_member` docs with UUID `data.organization.id`), loads each from NATS KV, resolves the canonical **b2b_org Salesforce SFID** via member-service (NATS `lfx.member.b2b_org_lookup_by_website`, matched by organization name/website), and updates through the writer orchestrator (reindexes + fixes the by-organization secondary index).
 
 Use `--committee-uid` or `--member-uid` to scope via indexed NATS reads instead of the OpenSearch discovery query.
 
