@@ -200,10 +200,13 @@ func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, ol
 func setupServiceTest() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator) {
 	mockOrchestrator := &mockCommitteeWriterOrchestrator{}
 	mockRepo := mock.NewMockRepository()
+	readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+		internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+	)
 
 	service := &committeeServicesrvc{
 		committeeWriterOrchestrator: mockOrchestrator,
-		committeeReaderOrchestrator: nil, // Not needed for delete member test
+		committeeReaderOrchestrator: readerOrchestrator,
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
 		publisher:                   mock.NewMockCommitteePublisher(),
@@ -232,10 +235,13 @@ func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInvit
 func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator, *mock.MockRepository) {
 	mockOrchestrator := &mockCommitteeWriterOrchestrator{}
 	mockRepo := mock.NewMockRepository()
+	readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+		internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+	)
 
 	svc := &committeeServicesrvc{
 		committeeWriterOrchestrator: mockOrchestrator,
-		committeeReaderOrchestrator: nil,
+		committeeReaderOrchestrator: readerOrchestrator,
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
 		publisher:                   mock.NewMockCommitteePublisher(),
@@ -3874,49 +3880,149 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 	}
 }
 
-// TestGetCommitteeMember_StripsContactFields verifies that GetCommitteeMember omits email
-// and LinkedIn from the response for all member_visibility values. Stripping is fail-closed:
-// it applies regardless of visibility to prevent contact PII leaking to viewers.
-// UpdateCommitteeMember compensates with a read-before-write that restores stored email when
-// the request carries an empty value (BFF read-then-PUT flow).
-func TestGetCommitteeMember_StripsContactFields(t *testing.T) {
+// TestGetCommitteeMember_MemberVisibility verifies that GetCommitteeMember enforces
+// member_visibility when returning contact fields:
+//   - basic_profile: email and linkedin_profile are stripped (viewers access search but not PII)
+//   - hidden (or no settings, fail-closed): full data is returned; Heimdall gates the endpoint
+//     via committee#viewer so only authorised callers reach it
+func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
 	const committeeUID = "committee-visibility-test"
 	const memberUID = "member-visibility-test"
+
+	tests := []struct {
+		name             string
+		memberVisibility string // "" = no settings stored
+		wantEmail        bool
+		wantLinkedIn     bool
+	}{
+		{
+			name:             "hidden: full data returned (Heimdall gates access)",
+			memberVisibility: "hidden",
+			wantEmail:        true,
+			wantLinkedIn:     true,
+		},
+		{
+			name:             "no settings (fail-closed): full data returned",
+			memberVisibility: "",
+			wantEmail:        true,
+			wantLinkedIn:     true,
+		},
+		{
+			name:             "basic_profile: contact fields stripped",
+			memberVisibility: "basic_profile",
+			wantEmail:        false,
+			wantLinkedIn:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{UID: committeeUID},
+				CommitteeSettings: func() *model.CommitteeSettings {
+					if tt.memberVisibility == "" {
+						return nil
+					}
+					return &model.CommitteeSettings{UID: committeeUID, MemberVisibility: tt.memberVisibility}
+				}(),
+			})
+			mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:             memberUID,
+					CommitteeUID:    committeeUID,
+					Email:           "first.last@example.com",
+					Username:        "first-last",
+					FirstName:       "First",
+					LastName:        "Last",
+					LinkedInProfile: "https://linkedin.com/in/first-last",
+				},
+			})
+
+			readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+				internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+			)
+			svc := &committeeServicesrvc{committeeReaderOrchestrator: readerOrchestrator}
+
+			res, err := svc.GetCommitteeMember(context.Background(), &committeeservice.GetCommitteeMemberPayload{
+				UID:       committeeUID,
+				MemberUID: memberUID,
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.NotNil(t, res.Member)
+			if tt.wantEmail {
+				require.NotNil(t, res.Member.Email, "email must be present for member_visibility=%q", tt.memberVisibility)
+				assert.Equal(t, "first.last@example.com", *res.Member.Email)
+			} else {
+				assert.Nil(t, res.Member.Email, "email must be stripped for member_visibility=%q", tt.memberVisibility)
+			}
+			if tt.wantLinkedIn {
+				require.NotNil(t, res.Member.LinkedinProfile, "linkedin_profile must be present for member_visibility=%q", tt.memberVisibility)
+			} else {
+				assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be stripped for member_visibility=%q", tt.memberVisibility)
+			}
+			// Non-contact fields must always be present.
+			assert.NotNil(t, res.Member.FirstName)
+			assert.NotNil(t, res.Member.LastName)
+		})
+	}
+}
+
+// TestUpdateCommitteeMember_BasicProfile_RestoresContactFields verifies that for basic_profile
+// committees, UpdateCommitteeMember restores email and linkedin_profile from storage when the
+// request carries empty values (BFF read-then-PUT after GET stripped them).
+func TestUpdateCommitteeMember_BasicProfile_RestoresContactFields(t *testing.T) {
+	const committeeUID = "committee-bp-restore"
+	const memberUID = "member-bp-restore"
 
 	mockRepo := mock.NewMockRepository()
 	mockRepo.AddCommittee(&model.Committee{
 		CommitteeBase:     model.CommitteeBase{UID: committeeUID},
-		CommitteeSettings: &model.CommitteeSettings{UID: committeeUID, MemberVisibility: "hidden"},
+		CommitteeSettings: &model.CommitteeSettings{UID: committeeUID, MemberVisibility: "basic_profile"},
 	})
 	mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:             memberUID,
 			CommitteeUID:    committeeUID,
 			Email:           "first.last@example.com",
-			Username:        "first-last",
+			LinkedInProfile: "https://linkedin.com/in/first-last",
 			FirstName:       "First",
 			LastName:        "Last",
-			LinkedInProfile: "https://linkedin.com/in/first-last",
+			Status:          "active",
 		},
 	})
 
 	readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
 		internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
 	)
-	svc := &committeeServicesrvc{committeeReaderOrchestrator: readerOrchestrator}
+	writerMock := &mockCommitteeWriterOrchestrator{
+		updateMember: &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{UID: memberUID, CommitteeUID: committeeUID},
+		},
+	}
+	svc := &committeeServicesrvc{
+		committeeReaderOrchestrator: readerOrchestrator,
+		committeeWriterOrchestrator: writerMock,
+	}
 
-	res, err := svc.GetCommitteeMember(context.Background(), &committeeservice.GetCommitteeMemberPayload{
-		UID:       committeeUID,
-		MemberUID: memberUID,
+	_, err := svc.UpdateCommitteeMember(context.Background(), &committeeservice.UpdateCommitteeMemberPayload{
+		UID:             committeeUID,
+		MemberUID:       memberUID,
+		Email:           "",  // BFF sends empty after GET stripped it
+		LinkedinProfile: nil, // BFF omits field after GET stripped it
+		AppointedBy:     "admin",
+		Status:          "active",
+		SkipEnrichment:  true,
+		IfMatch:         stringPtr("1"),
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.NotNil(t, res.Member)
-	// Contact fields must be absent — the GET layer strips them unconditionally.
-	assert.Nil(t, res.Member.Email, "email must be stripped from GET response")
-	assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be stripped from GET response")
-	// Non-contact fields must still be present.
-	assert.NotNil(t, res.Member.FirstName)
-	assert.NotNil(t, res.Member.LastName)
+	require.Len(t, writerMock.updateMemberCalls, 1)
+	got := writerMock.updateMemberCalls[0].member
+	assert.Equal(t, "first.last@example.com", got.Email,
+		"stored email must be restored when request email is empty")
+	assert.Equal(t, "https://linkedin.com/in/first-last", got.LinkedInProfile,
+		"stored LinkedIn must be restored when request LinkedIn is nil")
 }
