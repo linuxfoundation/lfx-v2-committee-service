@@ -1337,6 +1337,45 @@ func (s *storage) UpdateApplication(ctx context.Context, application *model.Comm
 	return nil
 }
 
+// DeleteApplication removes a committee application from NATS KV storage.
+// No LastRevision check is used because this is called from cascade deletion where
+// optimistic locking on the child record is unnecessary.
+func (s *storage) DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error {
+
+	if application == nil {
+		return errs.NewValidation("committee application cannot be nil")
+	}
+
+	errDelete := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Delete(ctx, application.UID)
+	if errDelete != nil {
+		if !errors.Is(errDelete, jetstream.ErrKeyNotFound) {
+			return errs.NewUnexpected("failed to delete committee application", errDelete)
+		}
+		slog.WarnContext(ctx, "committee application not found during cascade delete — already removed?",
+			"application_uid", application.UID,
+		)
+	}
+
+	// Remove the uniqueness index key; best-effort — a stale lookup key only blocks re-creation,
+	// which cannot happen once the parent committee is gone.
+	lookupKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
+	if errLookup := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Delete(ctx, lookupKey); errLookup != nil {
+		if !errors.Is(errLookup, jetstream.ErrKeyNotFound) {
+			slog.WarnContext(ctx, "failed to delete committee application lookup key during cascade",
+				"lookup_key", lookupKey,
+				"application_uid", application.UID,
+			)
+		}
+	}
+
+	slog.DebugContext(ctx, "committee application deleted from NATS storage",
+		"application_uid", application.UID,
+		"committee_uid", application.CommitteeUID,
+	)
+
+	return nil
+}
+
 // UniqueApplication verifies if an application from the same user exists for the committee
 func (s *storage) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
 	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))

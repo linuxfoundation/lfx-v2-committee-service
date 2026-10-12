@@ -15,6 +15,9 @@ type CommitteeApplicationWriter interface {
 	CreateApplication(ctx context.Context, application *model.CommitteeApplication) error
 	// UpdateApplication updates an existing committee application
 	UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error
+	// DeleteApplication removes a committee application record and its uniqueness index key from storage.
+	// Intended for cascade deletion when the parent committee is deleted; no revision check is performed.
+	DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error
 
 	// Checkers for uniqueness
 	UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error)

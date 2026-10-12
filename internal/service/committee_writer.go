@@ -1098,6 +1098,17 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	// and access control, which must be executed successfully to avoid data inconsistency in the following steps
 	uc.deleteKeys(ctx, indicesToDelete, false)
 
+	// List applications for cascade cleanup; best-effort — proceed even if listing fails.
+	applications, errListApps := uc.committeeReader.ListApplications(ctx, uid)
+	if errListApps != nil {
+		slog.WarnContext(ctx, "failed to list applications for cascade delete — skipping cascade",
+			"error", errListApps,
+			"committee_uid", uid,
+			log.PriorityCritical(),
+		)
+		applications = nil
+	}
+
 	// Prepare messages for publishing
 	messages := []func() error{}
 
@@ -1138,6 +1149,49 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	messages = append(messages, func() error {
 		return uc.committeePublisher.DeleteAccess(ctx, deleteMsg)
 	})
+
+	// Cascade: emit indexer ActionDeleted and delete_access for each child application.
+	for _, app := range applications {
+		localApp := app
+
+		appIndexerMsg := model.CommitteeIndexerMessage{
+			Action: model.ActionDeleted,
+			Tags:   localApp.Tags(),
+		}
+		built, errBuild := appIndexerMsg.Build(ctx, localApp.UID)
+		if errBuild != nil {
+			slog.WarnContext(ctx, "failed to build application indexer delete message — skipping",
+				"error", errBuild,
+				"application_uid", localApp.UID,
+				log.PriorityCritical(),
+			)
+		} else {
+			localBuilt := built
+			messages = append(messages, func() error {
+				return uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeApplicationSubject, localBuilt, false)
+			})
+		}
+
+		appDeleteMsg := fgatypes.GenericFGAMessage{
+			ObjectType: "committee_application",
+			Operation:  "delete_access",
+			Data:       fgatypes.GenericDeleteData{UID: localApp.UID},
+		}
+		messages = append(messages, func() error {
+			return uc.committeePublisher.DeleteAccess(ctx, appDeleteMsg)
+		})
+
+		messages = append(messages, func() error {
+			if errKV := uc.committeeWriter.DeleteApplication(ctx, localApp); errKV != nil {
+				slog.WarnContext(ctx, "failed to delete application KV record during cascade — skipping",
+					"error", errKV,
+					"application_uid", localApp.UID,
+					log.PriorityCritical(),
+				)
+			}
+			return nil
+		})
+	}
 
 	// Execute all messages concurrently
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
