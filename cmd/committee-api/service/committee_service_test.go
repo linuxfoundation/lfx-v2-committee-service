@@ -2226,7 +2226,8 @@ func TestSubmitApplication_WithoutOrganization(t *testing.T) {
 func TestSubmitApplication_UsernameStoredOnApplication(t *testing.T) {
 	svc, _, repo := setupServiceTestWithRepo()
 	repo.SetJoinMode("committee-1", "application")
-	svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com")
+	svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+		withUsernames("first.last@example.com", "first-last")
 
 	ctx := testCtx("first-last")
 	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
@@ -2238,23 +2239,26 @@ func TestSubmitApplication_UsernameStoredOnApplication(t *testing.T) {
 
 	stored, _, err := repo.GetApplication(ctx, *result.UID)
 	require.NoError(t, err)
-	assert.Equal(t, "first-last", stored.ApplicantUsername, "username from PrincipalContextID should be stored")
+	assert.Equal(t, "first-last", stored.ApplicantUsername, "canonical LFID username should be stored")
 }
 
 func TestSubmitApplication_RejectedApp_UsernameUpdatedOnReinstatement(t *testing.T) {
 	svc, _, repo := setupServiceTestWithRepo()
 	repo.SetJoinMode("committee-1", "application")
 
+	// Seed with a stale username to prove the reinstatement path overwrites it.
 	rejected := &model.CommitteeApplication{
-		UID:            "rejected-app-no-username",
-		CommitteeUID:   "committee-1",
-		ApplicantEmail: "first.last@example.com",
-		Status:         "rejected",
-		CreatedAt:      time.Now(),
+		UID:               "rejected-app-stale-username",
+		CommitteeUID:      "committee-1",
+		ApplicantEmail:    "first.last@example.com",
+		ApplicantUsername: "old-username",
+		Status:            "rejected",
+		CreatedAt:         time.Now(),
 	}
 	repo.AddCommitteeApplication(rejected)
 
-	svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com")
+	svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+		withUsernames("first.last@example.com", "first-last")
 	ctx := testCtx("first-last")
 	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
 		UID: "committee-1",
@@ -2266,7 +2270,7 @@ func TestSubmitApplication_RejectedApp_UsernameUpdatedOnReinstatement(t *testing
 
 	stored, _, err := repo.GetApplication(ctx, rejected.UID)
 	require.NoError(t, err)
-	assert.Equal(t, "first-last", stored.ApplicantUsername, "username should be written on reinstatement")
+	assert.Equal(t, "first-last", stored.ApplicantUsername, "stale username should be overwritten on reinstatement")
 }
 
 func TestSubmitApplication_RejectedApp_OrgReplaced(t *testing.T) {

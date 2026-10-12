@@ -47,6 +47,9 @@ type RunContext struct {
 	// CommitteeApplicationReader provides direct storage-layer access to application read operations
 	// (e.g. listing all applications during reindex). Bypasses the business-logic orchestrator.
 	CommitteeApplicationReader port.CommitteeApplicationReader
+	// CommitteeApplicationWriter provides direct storage-layer access to application write operations
+	// (e.g. backfilling fields during reindex). Bypasses the business-logic orchestrator.
+	CommitteeApplicationWriter port.CommitteeApplicationWriter
 	// CommitteeBaseWriter provides direct storage-layer access to committee base write operations
 	// (e.g. UpdateTotalMembers). Bypasses the business-logic orchestrator.
 	CommitteeBaseWriter port.CommitteeBaseWriter

@@ -75,6 +75,10 @@ func TestCommitteeApplication_Tags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tags := tt.app.Tags()
 
+			if tt.app == nil {
+				assert.Nil(t, tags)
+				return
+			}
 			for _, want := range tt.wantTags {
 				assert.Contains(t, tags, want, "expected tag %q to be present", want)
 			}

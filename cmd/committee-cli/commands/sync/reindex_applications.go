@@ -90,9 +90,29 @@ func (s *reindexApplicationsSubcommand) Run(ctx context.Context, rc commands.Run
 				"committee_uid", application.CommitteeUID,
 				"status", application.Status,
 				"applicant_email_redacted", application.ApplicantEmail != "",
+				"has_username", application.ApplicantUsername != "",
 			)
 			stats.Updated++
 			continue
+		}
+
+		// Backfill ApplicantUsername when the KV record pre-dates this field.
+		// Resolves email → LFID and persists the result so future republishes
+		// (approve, reject) carry the correct tag without another lookup.
+		if application.ApplicantUsername == "" && rc.UserReader != nil && rc.CommitteeApplicationWriter != nil {
+			username, lookupErr := rc.UserReader.UsernameByEmail(ctx, application.ApplicantEmail)
+			if lookupErr == nil && username != "" {
+				_, rev, getErr := rc.CommitteeApplicationReader.GetApplication(ctx, application.UID)
+				if getErr == nil {
+					application.ApplicantUsername = username
+					if updateErr := rc.CommitteeApplicationWriter.UpdateApplication(ctx, application, rev); updateErr != nil {
+						slog.WarnContext(ctx, "reindex-applications: failed to backfill applicant username",
+							"application_uid", application.UID,
+							"error", updateErr,
+						)
+					}
+				}
+			}
 		}
 
 		failed := false
