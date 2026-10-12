@@ -110,6 +110,33 @@ func makeTestApplication(uid, committeeUID, email, status string) *model.Committ
 	}
 }
 
+// mockApplicationWriter records UpdateApplication calls and optionally returns an error.
+type mockApplicationWriter struct {
+	updated []*model.CommitteeApplication
+	err     error
+}
+
+func (w *mockApplicationWriter) UpdateApplication(_ context.Context, app *model.CommitteeApplication, _ uint64) error {
+	if w.err != nil {
+		return w.err
+	}
+	cp := *app
+	w.updated = append(w.updated, &cp)
+	return nil
+}
+
+func (w *mockApplicationWriter) CreateApplication(_ context.Context, _ *model.CommitteeApplication) error {
+	return nil
+}
+
+func (w *mockApplicationWriter) DeleteApplication(_ context.Context, _ *model.CommitteeApplication) error {
+	return nil
+}
+
+func (w *mockApplicationWriter) UniqueApplication(_ context.Context, _ *model.CommitteeApplication) (string, error) {
+	return "", nil
+}
+
 func TestReindexApplications_NoApplications_Succeeds(t *testing.T) {
 	t.Parallel()
 	sub := &reindexApplicationsSubcommand{}
@@ -352,5 +379,81 @@ func TestReindexApplications_UserReaderTransientError(t *testing.T) {
 	require.Error(t, err, "transient UserReader error must cause non-zero exit")
 	assert.Contains(t, err.Error(), "failed to reindex")
 	// FGA message should not have been published for the failed application.
+	assert.Equal(t, 0, pub.updateAccessCalls)
+}
+
+// TestReindexApplications_BackfillUsername_Succeeds verifies that when an application has no
+// stored username, the backfill path resolves email → LFID, persists it to KV, and publishes
+// the updated record (with the username tag) to the indexer.
+func TestReindexApplications_BackfillUsername_Succeeds(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	pub := &mockPublisher{}
+	writer := &mockApplicationWriter{}
+	app := makeTestApplication("app-bf-1", "comm-1", "first.last@example.com", "pending")
+	reader := &mockApplicationReader{applications: []*model.CommitteeApplication{app}}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: reader,
+		CommitteeApplicationWriter: writer,
+		Publisher:                  pub,
+		UserReader:                 newMockCLIUserReader().withUsername("first.last@example.com", "first-last"),
+	}
+	err := sub.Run(context.Background(), rc)
+	require.NoError(t, err)
+	// Writer should have been called once with the username set.
+	require.Len(t, writer.updated, 1)
+	assert.Equal(t, "first-last", writer.updated[0].ApplicantUsername)
+	// The published indexer message must carry the username tag.
+	require.Len(t, pub.indexerMsgs, 1)
+	msg, ok := pub.indexerMsgs[0].(*model.CommitteeIndexerMessage)
+	require.True(t, ok)
+	assert.Contains(t, msg.Tags, "username:first-last")
+}
+
+// TestReindexApplications_BackfillUsername_LookupFailure verifies that when UsernameByEmail
+// returns NotFound for an application with no stored username, the application is still
+// indexed without a username tag and is NOT counted as failed.
+func TestReindexApplications_BackfillUsername_LookupFailure(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	pub := &mockPublisher{}
+	writer := &mockApplicationWriter{}
+	app := makeTestApplication("app-bf-2", "comm-1", "first.last@example.com", "pending")
+	reader := &mockApplicationReader{applications: []*model.CommitteeApplication{app}}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: reader,
+		CommitteeApplicationWriter: writer,
+		Publisher:                  pub,
+		// No username registered → NotFound for this email.
+		UserReader: newMockCLIUserReader(),
+	}
+	err := sub.Run(context.Background(), rc)
+	require.NoError(t, err, "NotFound on lookup must not cause a failure")
+	// Writer must NOT have been called (nothing to persist).
+	assert.Empty(t, writer.updated)
+	// Application is still indexed.
+	assert.Equal(t, 1, pub.indexerCalls)
+}
+
+// TestReindexApplications_BackfillUsername_UpdateFailure verifies that when the KV update
+// fails during username backfill, the application is counted as failed and NOT published.
+func TestReindexApplications_BackfillUsername_UpdateFailure(t *testing.T) {
+	t.Parallel()
+	sub := &reindexApplicationsSubcommand{}
+	pub := &mockPublisher{}
+	writer := &mockApplicationWriter{err: errors.New("kv: revision conflict")}
+	app := makeTestApplication("app-bf-3", "comm-1", "first.last@example.com", "pending")
+	reader := &mockApplicationReader{applications: []*model.CommitteeApplication{app}}
+	rc := commands.RunContext{
+		CommitteeApplicationReader: reader,
+		CommitteeApplicationWriter: writer,
+		Publisher:                  pub,
+		UserReader:                 newMockCLIUserReader().withUsername("first.last@example.com", "first-last"),
+	}
+	err := sub.Run(context.Background(), rc)
+	require.Error(t, err, "update failure must cause non-zero exit")
+	assert.Contains(t, err.Error(), "failed to reindex")
+	// Application must NOT have been published to indexer or FGA.
+	assert.Equal(t, 0, pub.indexerCalls)
 	assert.Equal(t, 0, pub.updateAccessCalls)
 }
