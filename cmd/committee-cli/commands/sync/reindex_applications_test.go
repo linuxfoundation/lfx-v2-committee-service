@@ -62,9 +62,18 @@ type mockApplicationReader struct {
 	applications []*model.CommitteeApplication
 	listAllErr   error
 	listErr      error
+	// getOverrides lets tests substitute a different record for GetApplication without
+	// changing the list snapshot, so regression tests can prove the fresh record is used.
+	getOverrides map[string]*model.CommitteeApplication
 }
 
 func (r *mockApplicationReader) GetApplication(_ context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+	if r.getOverrides != nil {
+		if override, ok := r.getOverrides[uid]; ok {
+			cp := *override
+			return &cp, 1, nil
+		}
+	}
 	for _, a := range r.applications {
 		if a.UID == uid {
 			cp := *a
@@ -390,8 +399,14 @@ func TestReindexApplications_BackfillUsername_Succeeds(t *testing.T) {
 	sub := &reindexApplicationsSubcommand{}
 	pub := &mockPublisher{}
 	writer := &mockApplicationWriter{}
-	app := makeTestApplication("app-bf-1", "comm-1", "first.last@example.com", "pending")
-	reader := &mockApplicationReader{applications: []*model.CommitteeApplication{app}}
+	// List snapshot has status "pending"; GetApplication returns "approved" to prove the
+	// code uses the fresh record (not the stale list snapshot) as the write base.
+	listApp := makeTestApplication("app-bf-1", "comm-1", "first.last@example.com", "pending")
+	freshApp := makeTestApplication("app-bf-1", "comm-1", "first.last@example.com", "approved")
+	reader := &mockApplicationReader{
+		applications: []*model.CommitteeApplication{listApp},
+		getOverrides: map[string]*model.CommitteeApplication{"app-bf-1": freshApp},
+	}
 	rc := commands.RunContext{
 		CommitteeApplicationReader: reader,
 		CommitteeApplicationWriter: writer,
@@ -400,9 +415,11 @@ func TestReindexApplications_BackfillUsername_Succeeds(t *testing.T) {
 	}
 	err := sub.Run(context.Background(), rc)
 	require.NoError(t, err)
-	// Writer should have been called once with the username set.
+	// Writer should have been called once with the username set on the FRESH record.
 	require.Len(t, writer.updated, 1)
 	assert.Equal(t, "first-last", writer.updated[0].ApplicantUsername)
+	// The status must come from the fresh record ("approved"), not the list snapshot ("pending").
+	assert.Equal(t, "approved", writer.updated[0].Status)
 	// The published indexer message must carry the username tag.
 	require.Len(t, pub.indexerMsgs, 1)
 	msg, ok := pub.indexerMsgs[0].(*model.CommitteeIndexerMessage)

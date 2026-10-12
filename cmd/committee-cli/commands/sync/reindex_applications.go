@@ -105,7 +105,12 @@ func (s *reindexApplicationsSubcommand) Run(ctx context.Context, rc commands.Run
 			username, lookupErr := rc.UserReader.UsernameByEmail(ctx, application.ApplicantEmail)
 			if lookupErr == nil && username != "" {
 				current, rev, getErr := rc.CommitteeApplicationReader.GetApplication(ctx, application.UID)
-				if getErr == nil {
+				if getErr != nil {
+					slog.WarnContext(ctx, "reindex-applications: failed to read application for username backfill",
+						"application_uid", application.UID,
+						"error", getErr,
+					)
+				} else {
 					current.ApplicantUsername = username
 					if updateErr := rc.CommitteeApplicationWriter.UpdateApplication(ctx, current, rev); updateErr != nil {
 						slog.WarnContext(ctx, "reindex-applications: failed to backfill applicant username",
@@ -113,6 +118,9 @@ func (s *reindexApplicationsSubcommand) Run(ctx context.Context, rc commands.Run
 							"error", updateErr,
 						)
 						stats.Failed++
+						if *sleep > 0 {
+							time.Sleep(*sleep)
+						}
 						continue
 					}
 					// Publish the persisted record so the index matches KV.

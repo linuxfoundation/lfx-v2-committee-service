@@ -1302,33 +1302,35 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 			return nil, wrapError(ctx, errUnique)
 		}
 
-		// Reinstate the rejected application by setting it back to pending
-		_, rev, errGet := s.storage.GetApplication(ctx, rejectedApp.UID)
+		// Reinstate the rejected application by setting it back to pending.
+		// Use the fresh record from GetApplication as the write base to avoid
+		// overwriting concurrent status/notes changes with the stale list snapshot.
+		current, rev, errGet := s.storage.GetApplication(ctx, rejectedApp.UID)
 		if errGet != nil {
 			return nil, wrapError(ctx, errGet)
 		}
-		rejectedApp.Status = "pending"
-		rejectedApp.ReviewerNotes = ""
+		current.Status = "pending"
+		current.ReviewerNotes = ""
 		if applicantUsername != "" {
-			rejectedApp.ApplicantUsername = applicantUsername
+			current.ApplicantUsername = applicantUsername
 		}
 		if p.Message != nil {
-			rejectedApp.Message = *p.Message
+			current.Message = *p.Message
 		}
 		if p.Organization != nil {
-			rejectedApp.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
+			current.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
 		}
-		if errUpdate := s.storage.UpdateApplication(ctx, rejectedApp, rev); errUpdate != nil {
+		if errUpdate := s.storage.UpdateApplication(ctx, current, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
 
-		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, rejectedApp, p.XSync)
-		s.publishApplicationAccessControlMessage(ctx, rejectedApp)
+		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, current, p.XSync)
+		s.publishApplicationAccessControlMessage(ctx, current)
 		if p.Notify {
-			s.publishApplicationEvent(ctx, model.ActionCreated, rejectedApp)
+			s.publishApplicationEvent(ctx, model.ActionCreated, current)
 		}
 
-		return s.convertApplicationDomainToResponse(rejectedApp), nil
+		return s.convertApplicationDomainToResponse(current), nil
 	}
 
 	if err := s.storage.CreateApplication(ctx, application); err != nil {
