@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -1181,23 +1182,29 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 			accessRelation = "viewer"
 		}
 
-		// sanitizedMember is a shallow copy with contact fields removed for indexing when
-		// the record is viewer-accessible — email and LinkedIn must not reach plain viewers.
+		// Tags and Fulltext never carry email or LinkedIn regardless of visibility.
+		// Use a copy with contact fields cleared so Tags() and Fulltext are always safe.
 		sanitizedMember := *data.Member
 		sanitizedMember.Email = ""
 		sanitizedMember.LinkedInProfile = ""
+		tags := sanitizedMember.Tags()
 
-		// indexedMember is what goes into the Data payload: full details for auditor-only
-		// records, contact-stripped for viewer-accessible ones.
-		var indexedMember *model.CommitteeMember
+		// indexedMember is what goes into the Data payload.
+		// For auditor-only records the full member (with email/LinkedIn) is indexed.
+		// For viewer-accessible records we must truly omit the email and linkedin_profile
+		// keys from the JSON — not merely set them to empty string — so marshal through
+		// a map and delete the keys before assigning to memberData.
+		var indexedMember any
 		if accessRelation == "viewer" {
-			indexedMember = &sanitizedMember
+			raw, _ := json.Marshal(data.Member)
+			var m map[string]any
+			_ = json.Unmarshal(raw, &m)
+			delete(m, "email")
+			delete(m, "linkedin_profile")
+			indexedMember = m
 		} else {
 			indexedMember = data.Member
 		}
-
-		// Tags and Fulltext never carry email or LinkedIn regardless of visibility.
-		tags := sanitizedMember.Tags()
 
 		var nameAndAliases []string
 		for _, v := range []string{data.Member.CommitteeName, data.Member.FirstName, data.Member.LastName, data.Member.Username} {

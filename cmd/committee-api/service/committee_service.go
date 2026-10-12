@@ -316,15 +316,6 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 		return nil, wrapError(ctx, err)
 	}
 
-	// Strip contact fields for all visibility levels. Search-level access control is enforced
-	// by the indexer's AccessCheckRelation (auditor for hidden, viewer for basic_profile), which
-	// prevents member discovery via platform search. Direct-GET access control is Heimdall's job:
-	// writers and auditors have computed committee#viewer and must be able to read members they
-	// manage. Re-implementing FGA relation checks here without an FGA client would 404 writers
-	// on hidden committees, breaking update/delete flows that depend on this GET for the ETag.
-	committeeMember.Email = ""
-	committeeMember.LinkedInProfile = ""
-
 	// Convert domain model to GOA response
 	result := s.convertMemberDomainToFullResponse(committeeMember)
 

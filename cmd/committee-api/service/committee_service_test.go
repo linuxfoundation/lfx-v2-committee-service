@@ -3874,15 +3874,23 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 	}
 }
 
-// TestGetCommitteeMember_MemberVisibility verifies that GetCommitteeMember strips contact
-// fields for all member_visibility values. Search-level access control is the indexer's job
-// (auditor relation for hidden, viewer for basic_profile); direct-GET stripping prevents
-// email/LinkedIn from reaching any caller regardless of their FGA relation.
-func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
+// TestGetCommitteeMember_ReturnsFullMember verifies that GetCommitteeMember returns complete
+// member data regardless of member_visibility. The GET endpoint does not enforce visibility
+// at the application layer — Heimdall controls who can call it (via committee#viewer relation),
+// and the indexer enforces visibility for search discovery (AccessCheckRelation auditor/viewer,
+// no email in Fulltext/Tags). Stripping email at the GET layer would break UpdateCommitteeMember
+// flows where the BFF reads the member then PUT-s it back, since Email is a required string
+// in UpdateCommitteeMemberPayload and an empty value overwrites the stored email.
+func TestGetCommitteeMember_ReturnsFullMember(t *testing.T) {
 	const committeeUID = "committee-visibility-test"
 	const memberUID = "member-visibility-test"
 
-	baseMember := &model.CommitteeMember{
+	mockRepo := mock.NewMockRepository()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: committeeUID},
+		CommitteeSettings: &model.CommitteeSettings{UID: committeeUID, MemberVisibility: "hidden"},
+	})
+	mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:             memberUID,
 			CommitteeUID:    committeeUID,
@@ -3890,68 +3898,27 @@ func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
 			Username:        "first-last",
 			FirstName:       "First",
 			LastName:        "Last",
-			JobTitle:        "Engineer",
 			LinkedInProfile: "https://linkedin.com/in/first-last",
-			Organization:    model.CommitteeMemberOrganization{Name: "Example Org"},
 		},
-	}
+	})
 
-	tests := []struct {
-		name             string
-		memberVisibility string // "" means no settings stored
-	}{
-		{
-			name:             "hidden: strips email and linkedin, returns member",
-			memberVisibility: "hidden",
-		},
-		{
-			name:             "no settings (fail-closed): strips email and linkedin, returns member",
-			memberVisibility: "",
-		},
-		{
-			name:             "basic_profile: strips email and linkedin, returns member",
-			memberVisibility: "basic_profile",
-		},
-	}
+	readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+		internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+	)
+	svc := &committeeServicesrvc{committeeReaderOrchestrator: readerOrchestrator}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := mock.NewMockRepository()
+	res, err := svc.GetCommitteeMember(context.Background(), &committeeservice.GetCommitteeMemberPayload{
+		UID:       committeeUID,
+		MemberUID: memberUID,
+	})
 
-			// Wire a committee with the desired settings.
-			mockRepo.AddCommittee(&model.Committee{
-				CommitteeBase: model.CommitteeBase{UID: committeeUID},
-				CommitteeSettings: func() *model.CommitteeSettings {
-					if tt.memberVisibility == "" {
-						return nil
-					}
-					return &model.CommitteeSettings{UID: committeeUID, MemberVisibility: tt.memberVisibility}
-				}(),
-			})
-			mockRepo.AddCommitteeMember(committeeUID, baseMember)
-
-			readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
-				internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
-			)
-			svc := &committeeServicesrvc{
-				committeeReaderOrchestrator: readerOrchestrator,
-			}
-
-			res, err := svc.GetCommitteeMember(context.Background(), &committeeservice.GetCommitteeMemberPayload{
-				UID:       committeeUID,
-				MemberUID: memberUID,
-			})
-
-			require.NoError(t, err)
-			require.NotNil(t, res)
-			require.NotNil(t, res.Member)
-
-			// Contact fields must always be stripped.
-			assert.Nil(t, res.Member.Email, "email must be nil for visibility=%q", tt.memberVisibility)
-			assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be nil for visibility=%q", tt.memberVisibility)
-			// Non-contact fields must still be present.
-			assert.NotNil(t, res.Member.FirstName)
-			assert.NotNil(t, res.Member.LastName)
-		})
-	}
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Member)
+	// Full data must be present — the GET layer does not strip contact fields.
+	require.NotNil(t, res.Member.Email)
+	assert.Equal(t, "first.last@example.com", *res.Member.Email)
+	require.NotNil(t, res.Member.LinkedinProfile)
+	assert.NotNil(t, res.Member.FirstName)
+	assert.NotNil(t, res.Member.LastName)
 }
