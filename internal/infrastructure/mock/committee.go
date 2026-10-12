@@ -239,6 +239,8 @@ type MockRepository struct {
 	inviteRevisions      map[string]uint64 // inviteUID -> revision
 	applicationRevisions map[string]uint64 // applicationUID -> revision
 	mu                   sync.RWMutex      // Protect concurrent access to maps
+	// Error injection for testing
+	ListApplicationsError error
 }
 
 // ================== CommitteeBaseReader implementation ==================
@@ -967,6 +969,10 @@ func (m *MockRepository) GetApplication(ctx context.Context, uid string) (*model
 func (m *MockRepository) ListApplications(ctx context.Context, committeeUID string) ([]*model.CommitteeApplication, error) {
 	slog.DebugContext(ctx, "mock repository: listing committee applications", "committee_uid", committeeUID)
 
+	if m.ListApplicationsError != nil {
+		return nil, m.ListApplicationsError
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1302,6 +1308,9 @@ type MockCommitteePublisher struct {
 	// LastIndexerMessage captures the most recently published indexer message for assertions.
 	LastIndexerMessage any
 	IndexerSyncValues  []bool
+	// IndexerSubjects and IndexerMessages collect every call to Indexer in order.
+	IndexerSubjects []string
+	IndexerMessages []any
 	// LastUpdateAccessMessage captures the most recent asynchronous update_access message.
 	LastUpdateAccessMessage any
 	UpdateAccessCallCount   int
@@ -1309,6 +1318,8 @@ type MockCommitteePublisher struct {
 	LastDeleteAccessMessage any
 	DeleteAccessCallCount   int
 	DeleteAccessError       error
+	// DeleteAccessMessages collects every call to DeleteAccess in order.
+	DeleteAccessMessages []any
 	// LastMemberPutMessage captures the most recent asynchronous member_put message.
 	LastMemberPutMessage any
 	MemberPutCallCount   int
@@ -1324,6 +1335,8 @@ func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, me
 	p.mu.Lock()
 	p.LastIndexerMessage = message
 	p.IndexerSyncValues = append(p.IndexerSyncValues, synced)
+	p.IndexerSubjects = append(p.IndexerSubjects, subject)
+	p.IndexerMessages = append(p.IndexerMessages, message)
 	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: indexer message published",
 		"subject", subject,
@@ -1350,6 +1363,7 @@ func (p *MockCommitteePublisher) DeleteAccess(ctx context.Context, message any) 
 	p.mu.Lock()
 	p.LastDeleteAccessMessage = message
 	p.DeleteAccessCallCount++
+	p.DeleteAccessMessages = append(p.DeleteAccessMessages, message)
 	err := p.DeleteAccessError
 	p.mu.Unlock()
 	if err != nil {

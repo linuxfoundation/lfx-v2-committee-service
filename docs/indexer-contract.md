@@ -412,7 +412,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
-**Indexed on:** create and status updates of a committee application (reapply, approve, reject).
+**Indexed on:** create and status updates of a committee application (reapply, approve, reject), and cascade `ActionDeleted` when the parent committee is deleted.
 
 ### Data Schema
 

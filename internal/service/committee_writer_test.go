@@ -2974,73 +2974,134 @@ func TestCommitteeWriterOrchestrator_Delete_EdgeCases(t *testing.T) {
 }
 
 func TestCommitteeWriterOrchestrator_Delete_ApplicationCascade(t *testing.T) {
-	tests := []struct {
-		name                  string
-		applicationUIDs       []string
-		wantIndexerCalls      int // 2 (committee+settings) + len(applicationUIDs)
-		wantDeleteAccessCalls int // 1 (committee) + len(applicationUIDs)
-	}{
-		{
-			name:                  "no applications — only committee messages",
-			applicationUIDs:       nil,
-			wantIndexerCalls:      2,
-			wantDeleteAccessCalls: 1,
-		},
-		{
-			name:                  "one application cascades indexer and delete_access",
-			applicationUIDs:       []string{"app-1"},
-			wantIndexerCalls:      3,
-			wantDeleteAccessCalls: 2,
-		},
-		{
-			name:                  "two applications each get indexer and delete_access",
-			applicationUIDs:       []string{"app-1", "app-2"},
-			wantIndexerCalls:      4,
-			wantDeleteAccessCalls: 3,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := mock.NewMockRepository()
-			mockRepo.ClearAll()
-			mockRepo.AddProject("project-1", "test-project", "Test Project")
-			mockRepo.AddCommittee(&model.Committee{
-				CommitteeBase: model.CommitteeBase{
-					UID:        "committee-1",
-					ProjectUID: "project-1",
-					Name:       "Test Committee",
-					Category:   "governance",
-				},
-				CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
-			})
-
-			for _, appUID := range tt.applicationUIDs {
-				mockRepo.AddCommitteeApplication(&model.CommitteeApplication{
-					UID:            appUID,
-					CommitteeUID:   "committee-1",
-					ApplicantEmail: "first.last@example.com",
-					Status:         "pending",
-				})
-			}
-
-			publisher := &mock.MockCommitteePublisher{}
-			orchestrator := NewCommitteeWriterOrchestrator(
-				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
-				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
-				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
-				WithCommitteePublisher(publisher),
-			)
-
-			err := orchestrator.Delete(context.Background(), "committee-1", 1, false)
-
-			require.NoError(t, err)
-			assert.Len(t, publisher.IndexerSyncValues, tt.wantIndexerCalls,
-				"indexer call count mismatch")
-			assert.Equal(t, tt.wantDeleteAccessCalls, publisher.DeleteAccessCallCount,
-				"delete_access call count mismatch")
+	setupCommittee := func(mockRepo *mock.MockRepository, appUIDs []string) {
+		mockRepo.AddProject("project-1", "test-project", "Test Project")
+		mockRepo.AddCommittee(&model.Committee{
+			CommitteeBase: model.CommitteeBase{
+				UID:        "committee-1",
+				ProjectUID: "project-1",
+				Name:       "Test Committee",
+				Category:   "governance",
+			},
+			CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
 		})
+		for _, uid := range appUIDs {
+			mockRepo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            uid,
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "first.last@example.com",
+				Status:         "pending",
+			})
+		}
 	}
+
+	t.Run("no applications — only committee messages emitted", func(t *testing.T) {
+		mockRepo := mock.NewMockRepository()
+		mockRepo.ClearAll()
+		setupCommittee(mockRepo, nil)
+
+		publisher := &mock.MockCommitteePublisher{}
+		orchestrator := NewCommitteeWriterOrchestrator(
+			WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+			WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+			WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+			WithCommitteePublisher(publisher),
+		)
+
+		require.NoError(t, orchestrator.Delete(context.Background(), "committee-1", 1, false))
+		assert.Len(t, publisher.IndexerSyncValues, 2, "only committee + settings indexer messages")
+		assert.Equal(t, 1, publisher.DeleteAccessCallCount, "only committee delete_access")
+	})
+
+	t.Run("two applications each get ActionDeleted indexer and committee_application delete_access", func(t *testing.T) {
+		mockRepo := mock.NewMockRepository()
+		mockRepo.ClearAll()
+		setupCommittee(mockRepo, []string{"app-1", "app-2"})
+		// Seed an application for a different committee — must not be touched.
+		mockRepo.AddCommitteeApplication(&model.CommitteeApplication{
+			UID:            "app-other",
+			CommitteeUID:   "other-committee",
+			ApplicantEmail: "first.last@example.com",
+			Status:         "pending",
+		})
+
+		publisher := &mock.MockCommitteePublisher{}
+		orchestrator := NewCommitteeWriterOrchestrator(
+			WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+			WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+			WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+			WithCommitteePublisher(publisher),
+		)
+
+		require.NoError(t, orchestrator.Delete(context.Background(), "committee-1", 1, false))
+
+		// Total counts: 2 (committee+settings) + 2 applications = 4 indexer;
+		//               1 (committee) + 2 applications = 3 delete_access.
+		assert.Len(t, publisher.IndexerSyncValues, 4, "indexer call count")
+		assert.Equal(t, 3, publisher.DeleteAccessCallCount, "delete_access call count")
+
+		// Verify application indexer messages: ActionDeleted on the right subject per UID.
+		seenAppIndexerUIDs := map[string]bool{}
+		for i, subj := range publisher.IndexerSubjects {
+			if subj != constants.IndexCommitteeApplicationSubject {
+				continue
+			}
+			msg, ok := publisher.IndexerMessages[i].(*model.CommitteeIndexerMessage)
+			require.True(t, ok, "application indexer message should be *CommitteeIndexerMessage")
+			assert.Equal(t, model.ActionDeleted, msg.Action, "application indexer action must be ActionDeleted")
+			uid, ok := msg.Data.(string)
+			require.True(t, ok, "application delete indexer Data should be the UID string")
+			seenAppIndexerUIDs[uid] = true
+		}
+		assert.Equal(t, map[string]bool{"app-1": true, "app-2": true}, seenAppIndexerUIDs,
+			"indexer ActionDeleted must cover exactly the two application UIDs")
+
+		// Verify application delete_access messages: correct object type and UID per application.
+		seenAppDeleteUIDs := map[string]bool{}
+		for _, raw := range publisher.DeleteAccessMessages {
+			msg, ok := raw.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			if msg.ObjectType != "committee_application" {
+				continue
+			}
+			assert.Equal(t, "delete_access", msg.Operation)
+			data, ok := msg.Data.(fgatypes.GenericDeleteData)
+			require.True(t, ok)
+			seenAppDeleteUIDs[data.UID] = true
+		}
+		assert.Equal(t, map[string]bool{"app-1": true, "app-2": true}, seenAppDeleteUIDs,
+			"delete_access must cover exactly the two application UIDs")
+
+		// app-other belongs to a different committee and must not appear in any cascade message.
+		assert.False(t, seenAppIndexerUIDs["app-other"], "app-other must not receive indexer delete")
+		assert.False(t, seenAppDeleteUIDs["app-other"], "app-other must not receive delete_access")
+	})
+
+	t.Run("ListApplications error — committee delete succeeds with only committee messages", func(t *testing.T) {
+		mockRepo := mock.NewMockRepository()
+		mockRepo.ClearAll()
+		setupCommittee(mockRepo, []string{"app-1"})
+		mockRepo.ListApplicationsError = errors.New("nats timeout")
+
+		publisher := &mock.MockCommitteePublisher{}
+		orchestrator := NewCommitteeWriterOrchestrator(
+			WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+			WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+			WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+			WithCommitteePublisher(publisher),
+		)
+
+		// Delete must still succeed even though ListApplications failed.
+		require.NoError(t, orchestrator.Delete(context.Background(), "committee-1", 1, false))
+
+		// Only the committee's own messages should have been emitted.
+		assert.Len(t, publisher.IndexerSyncValues, 2, "only committee + settings indexer on list failure")
+		assert.Equal(t, 1, publisher.DeleteAccessCallCount, "only committee delete_access on list failure")
+		for _, subj := range publisher.IndexerSubjects {
+			assert.NotEqual(t, constants.IndexCommitteeApplicationSubject, subj,
+				"no application indexer message must be emitted on list failure")
+		}
+	})
 }
 
 func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.T) {
