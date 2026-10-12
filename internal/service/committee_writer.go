@@ -1180,6 +1180,10 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		messages = append(messages, func() error {
 			return uc.committeePublisher.DeleteAccess(ctx, appDeleteMsg)
 		})
+
+		messages = append(messages, func() error {
+			return uc.committeeWriter.DeleteApplication(ctx, localApp)
+		})
 	}
 
 	// Execute all messages concurrently

@@ -210,6 +210,11 @@ func (w *TestMockCommitteeWriter) UpdateApplication(ctx context.Context, applica
 	return mockWriter.UpdateApplication(ctx, application, revision)
 }
 
+func (w *TestMockCommitteeWriter) DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.DeleteApplication(ctx, application)
+}
+
 func (w *TestMockCommitteeWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
 	return mockWriter.UniqueApplication(ctx, application)
@@ -2985,11 +2990,11 @@ func TestCommitteeWriterOrchestrator_Delete_ApplicationCascade(t *testing.T) {
 			},
 			CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
 		})
-		for _, uid := range appUIDs {
+		for i, uid := range appUIDs {
 			mockRepo.AddCommitteeApplication(&model.CommitteeApplication{
 				UID:            uid,
 				CommitteeUID:   "committee-1",
-				ApplicantEmail: "first.last@example.com",
+				ApplicantEmail: fmt.Sprintf("applicant%d@example.com", i+1),
 				Status:         "pending",
 			})
 		}
@@ -3075,6 +3080,15 @@ func TestCommitteeWriterOrchestrator_Delete_ApplicationCascade(t *testing.T) {
 		// app-other belongs to a different committee and must not appear in any cascade message.
 		assert.False(t, seenAppIndexerUIDs["app-other"], "app-other must not receive indexer delete")
 		assert.False(t, seenAppDeleteUIDs["app-other"], "app-other must not receive delete_access")
+
+		// Verify KV deletion: app-1 and app-2 must be gone; app-other must be untouched.
+		_, _, errGet1 := mockRepo.GetApplication(context.Background(), "app-1")
+		assert.Error(t, errGet1, "app-1 must be deleted from KV")
+		_, _, errGet2 := mockRepo.GetApplication(context.Background(), "app-2")
+		assert.Error(t, errGet2, "app-2 must be deleted from KV")
+		app, _, errGetOther := mockRepo.GetApplication(context.Background(), "app-other")
+		assert.NoError(t, errGetOther, "app-other must still exist in KV")
+		assert.NotNil(t, app)
 	})
 
 	t.Run("ListApplications error — committee delete succeeds with only committee messages", func(t *testing.T) {
@@ -3102,6 +3116,13 @@ func TestCommitteeWriterOrchestrator_Delete_ApplicationCascade(t *testing.T) {
 			assert.NotEqual(t, constants.IndexCommitteeApplicationSubject, subj,
 				"no application indexer message must be emitted on list failure")
 		}
+
+		// KV record must be untouched since the cascade was skipped.
+		// Reset the error before checking so GetApplication can proceed.
+		mockRepo.ListApplicationsError = nil
+		app, _, errGetApp := mockRepo.GetApplication(context.Background(), "app-1")
+		assert.NoError(t, errGetApp, "app-1 must still exist in KV when cascade was skipped")
+		assert.NotNil(t, app)
 	})
 }
 

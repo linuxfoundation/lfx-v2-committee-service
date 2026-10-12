@@ -178,7 +178,7 @@ When a committee is deleted, `committeeWriterOrchestrator.Delete` lists all `com
 - An indexer `ActionDeleted` message to `lfx.index.committee_application` (removes the OpenSearch document).
 - A `delete_access` message to `lfx.fga-sync.delete_access` with `object_type: committee_application` (removes all FGA tuples for that application).
 
-Both messages are published fire-and-forget (`X-Sync: false`) as part of the same concurrent worker pool as the committee's own deletion messages. If `ListApplications` fails the cascade is skipped with a critical-priority warning; the committee delete itself still succeeds. There is no explicit withdraw or delete endpoint — cascade on committee delete is the only current callsite for `delete_access` on `committee_application`.
+Both messages are published fire-and-forget (`X-Sync: false`) as part of the same concurrent worker pool as the committee's own deletion messages. The application's KV record is also removed from storage in the same pool call. If `ListApplications` fails the cascade is skipped with a critical-priority warning; the committee delete itself still succeeds. There is no explicit withdraw or delete endpoint — cascade on committee delete is the only current callsite for `delete_access` on `committee_application`.
 
 ### Event Summary
 
@@ -188,7 +188,7 @@ Both messages are published fire-and-forget (`X-Sync: false`) as part of the sam
 | Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their rejected application |
-| Delete parent committee (cascade) | `committee_application` | `lfx.fga-sync.delete_access` + `lfx.index.committee_application` | One pair per application; fire-and-forget |
+| Delete parent committee (cascade) | `committee_application` | `lfx.fga-sync.delete_access` + `lfx.index.committee_application` | One pair per application, plus KV record deletion; fire-and-forget |
 
 ---
 
@@ -255,4 +255,4 @@ The invite access helper retains a defensive `delete_access` branch that publish
 | Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic as submit |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their rejected application |
-| Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application; fire-and-forget; skipped if `ListApplications` fails |
+| Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application plus KV record deletion; fire-and-forget; skipped if `ListApplications` fails |

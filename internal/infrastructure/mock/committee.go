@@ -1095,6 +1095,24 @@ func (w *MockCommitteeWriter) UpdateApplication(ctx context.Context, application
 	return nil
 }
 
+// DeleteApplication removes a committee application from mock storage (used for cascade deletion).
+func (w *MockCommitteeWriter) DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error {
+	slog.DebugContext(ctx, "mock committee writer: deleting application", "application_uid", application.UID)
+
+	w.mock.mu.Lock()
+	defer w.mock.mu.Unlock()
+
+	if _, exists := w.mock.committeeApplications[application.UID]; !exists {
+		return errors.NewNotFound(fmt.Sprintf("application with UID %s not found", application.UID))
+	}
+
+	indexKey := application.BuildIndexKey(ctx)
+	delete(w.mock.committeeApplications, application.UID)
+	delete(w.mock.applicationIndexKeys, indexKey)
+	delete(w.mock.applicationRevisions, application.UID)
+	return nil
+}
+
 // UniqueApplication checks if an application is unique
 func (w *MockCommitteeWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
 	slog.DebugContext(ctx, "mock committee writer: checking application uniqueness")
