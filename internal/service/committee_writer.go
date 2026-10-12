@@ -1182,7 +1182,14 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		})
 
 		messages = append(messages, func() error {
-			return uc.committeeWriter.DeleteApplication(ctx, localApp)
+			if errKV := uc.committeeWriter.DeleteApplication(ctx, localApp); errKV != nil {
+				slog.WarnContext(ctx, "failed to delete application KV record during cascade — skipping",
+					"error", errKV,
+					"application_uid", localApp.UID,
+					log.PriorityCritical(),
+				)
+			}
+			return nil
 		})
 	}
 

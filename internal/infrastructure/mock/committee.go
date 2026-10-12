@@ -1102,10 +1102,6 @@ func (w *MockCommitteeWriter) DeleteApplication(ctx context.Context, application
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
-	if _, exists := w.mock.committeeApplications[application.UID]; !exists {
-		return errors.NewNotFound(fmt.Sprintf("application with UID %s not found", application.UID))
-	}
-
 	indexKey := application.BuildIndexKey(ctx)
 	delete(w.mock.committeeApplications, application.UID)
 	delete(w.mock.applicationIndexKeys, indexKey)
