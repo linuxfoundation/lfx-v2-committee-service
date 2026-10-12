@@ -1246,17 +1246,23 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		return nil, wrapError(ctx, err)
 	}
 
+	// PrincipalContextID is the caller's LFX username (Heimdall principal claim).
+	// Best-effort: empty when the principal is a JWT sub rather than an LFID.
+	applicantUsername, _ := ctx.Value(constants.PrincipalContextID).(string)
+
 	slog.DebugContext(ctx, "committeeService.submit-application: resolved applicant",
 		"committee_uid", p.UID,
 		"applicant_email_redacted", redaction.RedactEmail(email),
+		"applicant_username_redacted", redaction.Redact(applicantUsername),
 	)
 
 	application := &model.CommitteeApplication{
-		UID:            uuid.New().String(),
-		CommitteeUID:   p.UID,
-		ApplicantEmail: email,
-		Status:         "pending",
-		CreatedAt:      time.Now().UTC(),
+		UID:               uuid.New().String(),
+		CommitteeUID:      p.UID,
+		ApplicantEmail:    email,
+		ApplicantUsername: applicantUsername,
+		Status:            "pending",
+		CreatedAt:         time.Now().UTC(),
 	}
 	if p.Message != nil {
 		application.Message = *p.Message
@@ -1296,6 +1302,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 		rejectedApp.Status = "pending"
 		rejectedApp.ReviewerNotes = ""
+		rejectedApp.ApplicantUsername = applicantUsername
 		if p.Message != nil {
 			rejectedApp.Message = *p.Message
 		}
