@@ -2482,3 +2482,152 @@ func TestPublishMemberMessages_SyncControlsOnlyIndexer(t *testing.T) {
 	assert.True(t, publisher.IndexerSyncValues[0], "indexer publication must honor sync=true")
 	assert.Equal(t, 1, publisher.MemberPutCallCount, "member_put must publish regardless of sync")
 }
+
+// TestPublishMemberMessages_MemberVisibility verifies that publishMemberMessages
+// respects committee member_visibility when building the indexer payload:
+//   - hidden (default): AccessCheckRelation="auditor", email absent from Fulltext and Tags
+//   - basic_profile: AccessCheckRelation="viewer", email absent from Fulltext and Tags,
+//     email and linkedin_profile absent from the indexed Data
+//   - no settings (fail-closed): treated as hidden
+func TestPublishMemberMessages_MemberVisibility(t *testing.T) {
+	const committeeUID = "committee-visibility-idx"
+
+	member := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:             "member-idx-test",
+			CommitteeUID:    committeeUID,
+			Email:           "first.last@example.com",
+			FirstName:       "First",
+			LastName:        "Last",
+			Username:        "first-last",
+			LinkedInProfile: "https://linkedin.com/in/first-last",
+			Organization:    model.CommitteeMemberOrganization{Name: "Example Org"},
+		},
+	}
+
+	tests := []struct {
+		name                string
+		memberVisibility    string // "" → no settings stored
+		wantAccessRelation  string
+		wantEmailInFulltext bool
+		wantEmailInTags     bool
+		wantEmailInData     bool
+		wantLinkedInInData  bool
+	}{
+		{
+			name:                "hidden: auditor relation, email stripped from fulltext and tags",
+			memberVisibility:    "hidden",
+			wantAccessRelation:  "auditor",
+			wantEmailInFulltext: false,
+			wantEmailInTags:     false,
+			wantEmailInData:     true, // full data for auditor-only records
+			wantLinkedInInData:  true,
+		},
+		{
+			name:                "no settings (fail-closed): treated as hidden",
+			memberVisibility:    "",
+			wantAccessRelation:  "auditor",
+			wantEmailInFulltext: false,
+			wantEmailInTags:     false,
+			wantEmailInData:     true,
+			wantLinkedInInData:  true,
+		},
+		{
+			name:                "basic_profile: viewer relation, email and linkedin stripped from data",
+			memberVisibility:    "basic_profile",
+			wantAccessRelation:  "viewer",
+			wantEmailInFulltext: false,
+			wantEmailInTags:     false,
+			wantEmailInData:     false,
+			wantLinkedInInData:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{UID: committeeUID},
+				CommitteeSettings: func() *model.CommitteeSettings {
+					if tt.memberVisibility == "" {
+						return nil
+					}
+					return &model.CommitteeSettings{UID: committeeUID, MemberVisibility: tt.memberVisibility}
+				}(),
+			})
+
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator := &committeeWriterOrchestrator{
+				committeeReader:    mock.NewMockCommitteeReader(mockRepo),
+				committeeWriter:    NewTestMockCommitteeMemberWriter(mockRepo),
+				committeePublisher: publisher,
+				projectRetriever:   mock.NewMockProjectRetriever(mockRepo),
+			}
+
+			err := orchestrator.publishMemberMessages(context.Background(), model.ActionCreated, &model.CommitteeMemberMessageData{
+				Member: member,
+			}, false)
+			require.NoError(t, err)
+
+			msg, ok := publisher.LastIndexerMessage.(*model.CommitteeIndexerMessage)
+			require.True(t, ok, "LastIndexerMessage must be *model.CommitteeIndexerMessage")
+			require.NotNil(t, msg.IndexingConfig)
+
+			assert.Equal(t, tt.wantAccessRelation, msg.IndexingConfig.AccessCheckRelation,
+				"AccessCheckRelation mismatch for member_visibility=%q", tt.memberVisibility)
+
+			fulltext := msg.IndexingConfig.Fulltext
+			emailInFulltext := containsStr(fulltext, member.Email)
+			assert.Equal(t, tt.wantEmailInFulltext, emailInFulltext,
+				"email in Fulltext mismatch for member_visibility=%q", tt.memberVisibility)
+
+			emailTag := "email:" + member.Email
+			emailInTags := sliceContains(msg.IndexingConfig.Tags, emailTag)
+			assert.Equal(t, tt.wantEmailInTags, emailInTags,
+				"email tag presence mismatch for member_visibility=%q", tt.memberVisibility)
+
+			// Inspect the indexed Data payload. Build() marshals the input through JSON into
+			// map[string]any, so we assert on the map keys rather than the original struct.
+			dataMap, isMap := msg.Data.(map[string]interface{})
+			require.True(t, isMap, "Data must be map[string]interface{} after Build()")
+			emailVal, _ := dataMap["email"].(string)
+			linkedInVal, _ := dataMap["linkedin_profile"].(string)
+			if tt.wantEmailInData {
+				assert.Equal(t, member.Email, emailVal,
+					"email must be present in Data for auditor-restricted records")
+			} else {
+				assert.Empty(t, emailVal,
+					"email must be absent from Data for viewer-accessible records")
+			}
+			if tt.wantLinkedInInData {
+				assert.Equal(t, member.LinkedInProfile, linkedInVal,
+					"linkedin_profile must be present in Data for auditor-restricted records")
+			} else {
+				assert.Empty(t, linkedInVal,
+					"linkedin_profile must be absent from Data for viewer-accessible records")
+			}
+		})
+	}
+}
+
+func containsStr(s, sub string) bool {
+	return sub != "" && len(s) >= len(sub) && (s == sub || len(s) > 0 && containsSubstring(s, sub))
+}
+
+func containsSubstring(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
+func sliceContains(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}

@@ -1166,8 +1166,38 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	var memberData any
 	switch action {
 	case model.ActionCreated, model.ActionUpdated:
-		// Add tags for create/update operations (when we have the full member data)
-		indexerMessage.Tags = data.Member.Tags()
+		// Determine member_visibility. Fail closed: treat missing/error settings as "hidden" so
+		// contact details never appear in viewer-accessible search results on a transient NATS error.
+		memberVisibility := "hidden"
+		if settings, _, errSettings := uc.committeeReader.GetSettings(ctx, data.Member.CommitteeUID); errSettings == nil && settings != nil && settings.MemberVisibility != "" {
+			memberVisibility = settings.MemberVisibility
+		}
+
+		// accessRelation gates which principals can find this member in platform search.
+		// "hidden" restricts to auditor+ so plain viewers cannot enumerate the roster.
+		// "basic_profile" keeps viewer access but strips contact PII from the indexed payload.
+		accessRelation := "auditor"
+		if memberVisibility == "basic_profile" {
+			accessRelation = "viewer"
+		}
+
+		// sanitizedMember is a shallow copy with contact fields removed for indexing when
+		// the record is viewer-accessible — email and LinkedIn must not reach plain viewers.
+		sanitizedMember := *data.Member
+		sanitizedMember.Email = ""
+		sanitizedMember.LinkedInProfile = ""
+
+		// indexedMember is what goes into the Data payload: full details for auditor-only
+		// records, contact-stripped for viewer-accessible ones.
+		var indexedMember *model.CommitteeMember
+		if accessRelation == "viewer" {
+			indexedMember = &sanitizedMember
+		} else {
+			indexedMember = data.Member
+		}
+
+		// Tags and Fulltext never carry email or LinkedIn regardless of visibility.
+		tags := sanitizedMember.Tags()
 
 		var nameAndAliases []string
 		for _, v := range []string{data.Member.CommitteeName, data.Member.FirstName, data.Member.LastName, data.Member.Username} {
@@ -1178,19 +1208,20 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		if data.Member.FirstName != "" && data.Member.LastName != "" {
 			nameAndAliases = append(nameAndAliases, fmt.Sprintf("%s %s", data.Member.FirstName, data.Member.LastName))
 		}
+		indexerMessage.Tags = tags
 		indexerMessage.IndexingConfig = &indexerTypes.IndexingConfig{
 			ObjectID:             data.Member.UID,
 			AccessCheckObject:    fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
-			AccessCheckRelation:  "viewer",
+			AccessCheckRelation:  accessRelation,
 			HistoryCheckObject:   fmt.Sprintf("committee:%s", data.Member.CommitteeUID),
 			HistoryCheckRelation: "auditor",
 			SortName:             data.Member.FirstName,
 			NameAndAliases:       nameAndAliases,
 			ParentRefs:           []string{fmt.Sprintf("committee:%s", data.Member.CommitteeUID)},
-			Tags:                 data.Member.Tags(),
-			Fulltext:             fmt.Sprintf("%s %s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Email, data.Member.Organization.Name),
+			Tags:                 tags,
+			Fulltext:             fmt.Sprintf("%s %s %s", data.Member.FirstName, data.Member.LastName, data.Member.Organization.Name),
 		}
-		memberData = data.Member
+		memberData = indexedMember
 	case model.ActionDeleted:
 		// Indexer message only expects the UID for deleted operations
 		memberData = data.Member.UID

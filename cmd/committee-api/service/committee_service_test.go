@@ -3873,3 +3873,103 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 		})
 	}
 }
+
+// TestGetCommitteeMember_MemberVisibility verifies that GetCommitteeMember enforces
+// member_visibility: hidden committees return 404 (fail-closed), and basic_profile
+// committees strip email and linkedin_profile before returning the member.
+func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
+	const committeeUID = "committee-visibility-test"
+	const memberUID = "member-visibility-test"
+
+	baseMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:             memberUID,
+			CommitteeUID:    committeeUID,
+			Email:           "first.last@example.com",
+			Username:        "first-last",
+			FirstName:       "First",
+			LastName:        "Last",
+			JobTitle:        "Engineer",
+			LinkedInProfile: "https://linkedin.com/in/first-last",
+			Organization:    model.CommitteeMemberOrganization{Name: "Example Org"},
+		},
+	}
+
+	tests := []struct {
+		name              string
+		memberVisibility  string // "" means no settings stored (fail-closed)
+		wantNotFound      bool
+		wantEmailEmpty    bool
+		wantLinkedInEmpty bool
+	}{
+		{
+			name:             "hidden: returns 404",
+			memberVisibility: "hidden",
+			wantNotFound:     true,
+		},
+		{
+			name:             "no settings (fail-closed): returns 404",
+			memberVisibility: "",
+			wantNotFound:     true,
+		},
+		{
+			name:              "basic_profile: strips email and linkedin, returns member",
+			memberVisibility:  "basic_profile",
+			wantNotFound:      false,
+			wantEmailEmpty:    true,
+			wantLinkedInEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+
+			// Wire a committee with the desired settings.
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{UID: committeeUID},
+				CommitteeSettings: func() *model.CommitteeSettings {
+					if tt.memberVisibility == "" {
+						return nil
+					}
+					return &model.CommitteeSettings{UID: committeeUID, MemberVisibility: tt.memberVisibility}
+				}(),
+			})
+			mockRepo.AddCommitteeMember(committeeUID, baseMember)
+
+			readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+				internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+			)
+			svc := &committeeServicesrvc{
+				committeeReaderOrchestrator: readerOrchestrator,
+			}
+
+			res, err := svc.GetCommitteeMember(context.Background(), &committeeservice.GetCommitteeMemberPayload{
+				UID:       committeeUID,
+				MemberUID: memberUID,
+			})
+
+			if tt.wantNotFound {
+				require.Error(t, err)
+				var nfErr *committeeservice.NotFoundError
+				require.ErrorAs(t, err, &nfErr, "expected NotFound error for hidden/missing settings")
+				assert.Nil(t, res)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			require.NotNil(t, res.Member)
+
+			if tt.wantEmailEmpty {
+				assert.Nil(t, res.Member.Email, "email must be nil for basic_profile viewer response")
+			}
+			if tt.wantLinkedInEmpty {
+				assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be nil for basic_profile viewer response")
+			}
+			// Non-contact fields must still be present.
+			assert.NotNil(t, res.Member.FirstName)
+			assert.NotNil(t, res.Member.LastName)
+		})
+	}
+}

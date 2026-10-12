@@ -316,6 +316,25 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 		return nil, wrapError(ctx, err)
 	}
 
+	// Enforce member_visibility. Fail closed: treat missing/error settings as "hidden" so
+	// names never leak on a transient NATS error (same pattern as GenerateWeeklyBrief).
+	memberVisibility := "hidden"
+	if settings, _, errSettings := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID); errSettings == nil && settings != nil && settings.MemberVisibility != "" {
+		memberVisibility = settings.MemberVisibility
+	}
+	switch memberVisibility {
+	case "basic_profile":
+		// Roster is viewer-accessible; strip contact details that must never reach plain viewers.
+		committeeMember.Email = ""
+		committeeMember.LinkedInProfile = ""
+	default:
+		// "hidden" (and any unknown value): member profiles are not visible to non-writers/auditors.
+		// The ruleset only checks committee#viewer, so enforce the setting here. Callers with
+		// writer/auditor access reach this endpoint through the BFF, which already gates on
+		// canViewCommitteeRoster before forwarding — they are never blocked in practice.
+		return nil, wrapError(ctx, errors.NewNotFound("committee member not found"))
+	}
+
 	// Convert domain model to GOA response
 	result := s.convertMemberDomainToFullResponse(committeeMember)
 

@@ -708,12 +708,14 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	result := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 		CommitteeUID: &member.CommitteeUID,
 		UID:          &member.UID,
-		Email:        &member.Email,
 		AppointedBy:  member.AppointedBy,
 		Status:       member.Status,
 	}
 
 	// Only set optional fields if they have values
+	if member.Email != "" {
+		result.Email = &member.Email
+	}
 	if member.Username != "" {
 		result.Username = &member.Username
 	}
