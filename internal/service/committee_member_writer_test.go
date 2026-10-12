@@ -2590,23 +2590,29 @@ func TestPublishMemberMessages_MemberVisibility(t *testing.T) {
 
 			// Inspect the indexed Data payload. Build() marshals the input through JSON into
 			// map[string]any, so we assert on the map keys rather than the original struct.
+			// Use explicit key-presence checks (not assert.Empty) so that "email": "" would
+			// not falsely satisfy the absence contract.
 			dataMap, isMap := msg.Data.(map[string]interface{})
 			require.True(t, isMap, "Data must be map[string]interface{} after Build()")
-			emailVal, _ := dataMap["email"].(string)
-			linkedInVal, _ := dataMap["linkedin_profile"].(string)
+			_, emailKeyPresent := dataMap["email"]
+			_, linkedInKeyPresent := dataMap["linkedin_profile"]
 			if tt.wantEmailInData {
-				assert.Equal(t, member.Email, emailVal,
-					"email must be present in Data for auditor-restricted records")
+				assert.True(t, emailKeyPresent,
+					"email key must be present in Data for auditor-restricted records")
+				assert.Equal(t, member.Email, dataMap["email"],
+					"email value mismatch in Data for auditor-restricted records")
 			} else {
-				assert.Empty(t, emailVal,
-					"email must be absent from Data for viewer-accessible records")
+				assert.False(t, emailKeyPresent,
+					"email key must be absent from Data for viewer-accessible records")
 			}
 			if tt.wantLinkedInInData {
-				assert.Equal(t, member.LinkedInProfile, linkedInVal,
-					"linkedin_profile must be present in Data for auditor-restricted records")
+				assert.True(t, linkedInKeyPresent,
+					"linkedin_profile key must be present in Data for auditor-restricted records")
+				assert.Equal(t, member.LinkedInProfile, dataMap["linkedin_profile"],
+					"linkedin_profile value mismatch in Data for auditor-restricted records")
 			} else {
-				assert.Empty(t, linkedInVal,
-					"linkedin_profile must be absent from Data for viewer-accessible records")
+				assert.False(t, linkedInKeyPresent,
+					"linkedin_profile key must be absent from Data for viewer-accessible records")
 			}
 		})
 	}
