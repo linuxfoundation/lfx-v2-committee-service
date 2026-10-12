@@ -3874,14 +3874,12 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 	}
 }
 
-// TestGetCommitteeMember_ReturnsFullMember verifies that GetCommitteeMember returns complete
-// member data regardless of member_visibility. The GET endpoint does not enforce visibility
-// at the application layer — Heimdall controls who can call it (via committee#viewer relation),
-// and the indexer enforces visibility for search discovery (AccessCheckRelation auditor/viewer,
-// no email in Fulltext/Tags). Stripping email at the GET layer would break UpdateCommitteeMember
-// flows where the BFF reads the member then PUT-s it back, since Email is a required string
-// in UpdateCommitteeMemberPayload and an empty value overwrites the stored email.
-func TestGetCommitteeMember_ReturnsFullMember(t *testing.T) {
+// TestGetCommitteeMember_StripsContactFields verifies that GetCommitteeMember omits email
+// and LinkedIn from the response for all member_visibility values. Stripping is fail-closed:
+// it applies regardless of visibility to prevent contact PII leaking to viewers.
+// UpdateCommitteeMember compensates with a read-before-write that restores stored email when
+// the request carries an empty value (BFF read-then-PUT flow).
+func TestGetCommitteeMember_StripsContactFields(t *testing.T) {
 	const committeeUID = "committee-visibility-test"
 	const memberUID = "member-visibility-test"
 
@@ -3915,10 +3913,10 @@ func TestGetCommitteeMember_ReturnsFullMember(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.Member)
-	// Full data must be present — the GET layer does not strip contact fields.
-	require.NotNil(t, res.Member.Email)
-	assert.Equal(t, "first.last@example.com", *res.Member.Email)
-	require.NotNil(t, res.Member.LinkedinProfile)
+	// Contact fields must be absent — the GET layer strips them unconditionally.
+	assert.Nil(t, res.Member.Email, "email must be stripped from GET response")
+	assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be stripped from GET response")
+	// Non-contact fields must still be present.
 	assert.NotNil(t, res.Member.FirstName)
 	assert.NotNil(t, res.Member.LastName)
 }

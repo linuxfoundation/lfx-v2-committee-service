@@ -316,6 +316,12 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 		return nil, wrapError(ctx, err)
 	}
 
+	// Strip contact PII unconditionally — member_visibility governs search-layer access
+	// (AccessCheckRelation in publishMemberMessages). UpdateCommitteeMember preserves
+	// stored email via read-before-write when the request email is empty.
+	committeeMember.Email = ""
+	committeeMember.LinkedInProfile = ""
+
 	// Convert domain model to GOA response
 	result := s.convertMemberDomainToFullResponse(committeeMember)
 
@@ -612,6 +618,14 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
+
+	// GET strips contact fields, so a BFF read-then-PUT sends email="". Preserve the
+	// stored email to prevent silent overwrite.
+	if committeeMember.Email == "" {
+		if current, _, readErr := s.committeeReaderOrchestrator.GetMember(ctx, p.UID, p.MemberUID); readErr == nil && current != nil {
+			committeeMember.Email = current.Email
+		}
+	}
 
 	if !p.SkipEnrichment {
 		s.enrichMember(ctx, committeeMember)

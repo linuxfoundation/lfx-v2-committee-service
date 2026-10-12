@@ -1196,12 +1196,21 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		// a map and delete the keys before assigning to memberData.
 		var indexedMember any
 		if accessRelation == "viewer" {
-			raw, _ := json.Marshal(data.Member)
-			var m map[string]any
-			_ = json.Unmarshal(raw, &m)
-			delete(m, "email")
-			delete(m, "linkedin_profile")
-			indexedMember = m
+			raw, marshalErr := json.Marshal(data.Member)
+			if marshalErr != nil {
+				slog.WarnContext(ctx, "publishMemberMessages: marshal failed for viewer payload; using sanitized member", "error", marshalErr)
+				indexedMember = &sanitizedMember
+			} else {
+				var m map[string]any
+				if unmarshalErr := json.Unmarshal(raw, &m); unmarshalErr != nil {
+					slog.WarnContext(ctx, "publishMemberMessages: unmarshal failed for viewer payload; using sanitized member", "error", unmarshalErr)
+					indexedMember = &sanitizedMember
+				} else {
+					delete(m, "email")
+					delete(m, "linkedin_profile")
+					indexedMember = m
+				}
+			}
 		} else {
 			indexedMember = data.Member
 		}
