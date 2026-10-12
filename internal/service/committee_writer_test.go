@@ -2973,6 +2973,76 @@ func TestCommitteeWriterOrchestrator_Delete_EdgeCases(t *testing.T) {
 	}
 }
 
+func TestCommitteeWriterOrchestrator_Delete_ApplicationCascade(t *testing.T) {
+	tests := []struct {
+		name                  string
+		applicationUIDs       []string
+		wantIndexerCalls      int // 2 (committee+settings) + len(applicationUIDs)
+		wantDeleteAccessCalls int // 1 (committee) + len(applicationUIDs)
+	}{
+		{
+			name:                  "no applications — only committee messages",
+			applicationUIDs:       nil,
+			wantIndexerCalls:      2,
+			wantDeleteAccessCalls: 1,
+		},
+		{
+			name:                  "one application cascades indexer and delete_access",
+			applicationUIDs:       []string{"app-1"},
+			wantIndexerCalls:      3,
+			wantDeleteAccessCalls: 2,
+		},
+		{
+			name:                  "two applications each get indexer and delete_access",
+			applicationUIDs:       []string{"app-1", "app-2"},
+			wantIndexerCalls:      4,
+			wantDeleteAccessCalls: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   "governance",
+				},
+				CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
+			})
+
+			for _, appUID := range tt.applicationUIDs {
+				mockRepo.AddCommitteeApplication(&model.CommitteeApplication{
+					UID:            appUID,
+					CommitteeUID:   "committee-1",
+					ApplicantEmail: "first.last@example.com",
+					Status:         "pending",
+				})
+			}
+
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(publisher),
+			)
+
+			err := orchestrator.Delete(context.Background(), "committee-1", 1, false)
+
+			require.NoError(t, err)
+			assert.Len(t, publisher.IndexerSyncValues, tt.wantIndexerCalls,
+				"indexer call count mismatch")
+			assert.Equal(t, tt.wantDeleteAccessCalls, publisher.DeleteAccessCallCount,
+				"delete_access call count mismatch")
+		})
+	}
+}
+
 func TestCommitteeWriterOrchestrator_buildMemberAccessControlMessage(t *testing.T) {
 	testCases := []struct {
 		name     string
