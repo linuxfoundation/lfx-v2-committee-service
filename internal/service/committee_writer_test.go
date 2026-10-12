@@ -3082,6 +3082,7 @@ func TestCommitteeWriterOrchestrator_Delete_ApplicationCascade(t *testing.T) {
 		mockRepo.ClearAll()
 		setupCommittee(mockRepo, []string{"app-1"})
 		mockRepo.ListApplicationsError = errors.New("nats timeout")
+		t.Cleanup(func() { mockRepo.ListApplicationsError = nil })
 
 		publisher := &mock.MockCommitteePublisher{}
 		orchestrator := NewCommitteeWriterOrchestrator(

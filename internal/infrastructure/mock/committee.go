@@ -1264,6 +1264,7 @@ func (m *MockRepository) ClearAll() {
 	m.memberRevisions = make(map[string]uint64)
 	m.inviteRevisions = make(map[string]uint64)
 	m.applicationRevisions = make(map[string]uint64)
+	m.ListApplicationsError = nil
 }
 
 // GetCommitteeCount returns the total number of committees

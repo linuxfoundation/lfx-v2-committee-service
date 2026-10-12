@@ -138,7 +138,7 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 
 **Source struct:** `internal/domain/model/CommitteeApplication`
 
-**Synced on:** submit (create or reapply), approve, and reject of a committee application.
+**Synced on:** submit (create or reapply), approve, and reject of a committee application, and cascade `delete_access` when the parent committee is deleted.
 
 ### update_access (Submit / Approve / Reject)
 
