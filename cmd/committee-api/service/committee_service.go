@@ -1246,17 +1246,30 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		return nil, wrapError(ctx, err)
 	}
 
+	// Resolve the canonical LFID username from the resolved email — best-effort.
+	// Using UsernameByEmail (rather than the raw PrincipalContextID) avoids storing
+	// a JWT sub when the principal is not yet an LFID (e.g. new-user fallback path).
+	// Left empty when the applicant has no LFID yet or the user-reader is unavailable.
+	var applicantUsername string
+	if s.userReader != nil {
+		if u, uErr := s.userReader.UsernameByEmail(ctx, email); uErr == nil {
+			applicantUsername = u
+		}
+	}
+
 	slog.DebugContext(ctx, "committeeService.submit-application: resolved applicant",
 		"committee_uid", p.UID,
 		"applicant_email_redacted", redaction.RedactEmail(email),
+		"applicant_username_redacted", redaction.Redact(applicantUsername),
 	)
 
 	application := &model.CommitteeApplication{
-		UID:            uuid.New().String(),
-		CommitteeUID:   p.UID,
-		ApplicantEmail: email,
-		Status:         "pending",
-		CreatedAt:      time.Now().UTC(),
+		UID:               uuid.New().String(),
+		CommitteeUID:      p.UID,
+		ApplicantEmail:    email,
+		ApplicantUsername: applicantUsername,
+		Status:            "pending",
+		CreatedAt:         time.Now().UTC(),
 	}
 	if p.Message != nil {
 		application.Message = *p.Message
@@ -1289,30 +1302,35 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 			return nil, wrapError(ctx, errUnique)
 		}
 
-		// Reinstate the rejected application by setting it back to pending
-		_, rev, errGet := s.storage.GetApplication(ctx, rejectedApp.UID)
+		// Reinstate the rejected application by setting it back to pending.
+		// Use the fresh record from GetApplication as the write base to avoid
+		// overwriting concurrent status/notes changes with the stale list snapshot.
+		current, rev, errGet := s.storage.GetApplication(ctx, rejectedApp.UID)
 		if errGet != nil {
 			return nil, wrapError(ctx, errGet)
 		}
-		rejectedApp.Status = "pending"
-		rejectedApp.ReviewerNotes = ""
+		current.Status = "pending"
+		current.ReviewerNotes = ""
+		if applicantUsername != "" {
+			current.ApplicantUsername = applicantUsername
+		}
 		if p.Message != nil {
-			rejectedApp.Message = *p.Message
+			current.Message = *p.Message
 		}
 		if p.Organization != nil {
-			rejectedApp.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
+			current.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
 		}
-		if errUpdate := s.storage.UpdateApplication(ctx, rejectedApp, rev); errUpdate != nil {
+		if errUpdate := s.storage.UpdateApplication(ctx, current, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
 
-		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, rejectedApp, p.XSync)
-		s.publishApplicationAccessControlMessage(ctx, rejectedApp)
+		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, current, p.XSync)
+		s.publishApplicationAccessControlMessage(ctx, current)
 		if p.Notify {
-			s.publishApplicationEvent(ctx, model.ActionCreated, rejectedApp)
+			s.publishApplicationEvent(ctx, model.ActionCreated, current)
 		}
 
-		return s.convertApplicationDomainToResponse(rejectedApp), nil
+		return s.convertApplicationDomainToResponse(current), nil
 	}
 
 	if err := s.storage.CreateApplication(ctx, application); err != nil {

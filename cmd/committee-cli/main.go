@@ -131,6 +131,7 @@ func run() error {
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
 		CommitteeApplicationReader:  storage,
+		CommitteeApplicationWriter:  storage,
 		Args:                        parsed.SubArgs,
 	}
 

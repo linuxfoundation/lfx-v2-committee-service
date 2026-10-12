@@ -2223,6 +2223,56 @@ func TestSubmitApplication_WithoutOrganization(t *testing.T) {
 	assert.Nil(t, stored.Organization, "organization should be nil when not provided")
 }
 
+func TestSubmitApplication_UsernameStoredOnApplication(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+	svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+		withUsernames("first.last@example.com", "first-last")
+
+	ctx := testCtx("first-last")
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID: "committee-1",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	stored, _, err := repo.GetApplication(ctx, *result.UID)
+	require.NoError(t, err)
+	assert.Equal(t, "first-last", stored.ApplicantUsername, "canonical LFID username should be stored")
+}
+
+func TestSubmitApplication_RejectedApp_UsernameUpdatedOnReinstatement(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	repo.SetJoinMode("committee-1", "application")
+
+	// Seed with a stale username to prove the reinstatement path overwrites it.
+	rejected := &model.CommitteeApplication{
+		UID:               "rejected-app-stale-username",
+		CommitteeUID:      "committee-1",
+		ApplicantEmail:    "first.last@example.com",
+		ApplicantUsername: "old-username",
+		Status:            "rejected",
+		CreatedAt:         time.Now(),
+	}
+	repo.AddCommitteeApplication(rejected)
+
+	svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+		withUsernames("first.last@example.com", "first-last")
+	ctx := testCtx("first-last")
+	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+		UID: "committee-1",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, rejected.UID, *result.UID, "should reinstate the existing application")
+
+	stored, _, err := repo.GetApplication(ctx, rejected.UID)
+	require.NoError(t, err)
+	assert.Equal(t, "first-last", stored.ApplicantUsername, "stale username should be overwritten on reinstatement")
+}
+
 func TestSubmitApplication_RejectedApp_OrgReplaced(t *testing.T) {
 	svc, _, repo := setupServiceTestWithRepo()
 	repo.SetJoinMode("committee-1", "application")
