@@ -3874,9 +3874,10 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 	}
 }
 
-// TestGetCommitteeMember_MemberVisibility verifies that GetCommitteeMember enforces
-// member_visibility: hidden committees return 404 (fail-closed), and basic_profile
-// committees strip email and linkedin_profile before returning the member.
+// TestGetCommitteeMember_MemberVisibility verifies that GetCommitteeMember strips contact
+// fields for all member_visibility values. Search-level access control is the indexer's job
+// (auditor relation for hidden, viewer for basic_profile); direct-GET stripping prevents
+// email/LinkedIn from reaching any caller regardless of their FGA relation.
 func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
 	const committeeUID = "committee-visibility-test"
 	const memberUID = "member-visibility-test"
@@ -3896,28 +3897,20 @@ func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		memberVisibility  string // "" means no settings stored (fail-closed)
-		wantNotFound      bool
-		wantEmailEmpty    bool
-		wantLinkedInEmpty bool
+		name             string
+		memberVisibility string // "" means no settings stored
 	}{
 		{
-			name:             "hidden: returns 404",
+			name:             "hidden: strips email and linkedin, returns member",
 			memberVisibility: "hidden",
-			wantNotFound:     true,
 		},
 		{
-			name:             "no settings (fail-closed): returns 404",
+			name:             "no settings (fail-closed): strips email and linkedin, returns member",
 			memberVisibility: "",
-			wantNotFound:     true,
 		},
 		{
-			name:              "basic_profile: strips email and linkedin, returns member",
-			memberVisibility:  "basic_profile",
-			wantNotFound:      false,
-			wantEmailEmpty:    true,
-			wantLinkedInEmpty: true,
+			name:             "basic_profile: strips email and linkedin, returns member",
+			memberVisibility: "basic_profile",
 		},
 	}
 
@@ -3949,24 +3942,13 @@ func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
 				MemberUID: memberUID,
 			})
 
-			if tt.wantNotFound {
-				require.Error(t, err)
-				var nfErr *committeeservice.NotFoundError
-				require.ErrorAs(t, err, &nfErr, "expected NotFound error for hidden/missing settings")
-				assert.Nil(t, res)
-				return
-			}
-
 			require.NoError(t, err)
 			require.NotNil(t, res)
 			require.NotNil(t, res.Member)
 
-			if tt.wantEmailEmpty {
-				assert.Nil(t, res.Member.Email, "email must be nil for basic_profile viewer response")
-			}
-			if tt.wantLinkedInEmpty {
-				assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be nil for basic_profile viewer response")
-			}
+			// Contact fields must always be stripped.
+			assert.Nil(t, res.Member.Email, "email must be nil for visibility=%q", tt.memberVisibility)
+			assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be nil for visibility=%q", tt.memberVisibility)
 			// Non-contact fields must still be present.
 			assert.NotNil(t, res.Member.FirstName)
 			assert.NotNil(t, res.Member.LastName)

@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -2577,12 +2579,12 @@ func TestPublishMemberMessages_MemberVisibility(t *testing.T) {
 				"AccessCheckRelation mismatch for member_visibility=%q", tt.memberVisibility)
 
 			fulltext := msg.IndexingConfig.Fulltext
-			emailInFulltext := containsStr(fulltext, member.Email)
+			emailInFulltext := member.Email != "" && strings.Contains(fulltext, member.Email)
 			assert.Equal(t, tt.wantEmailInFulltext, emailInFulltext,
 				"email in Fulltext mismatch for member_visibility=%q", tt.memberVisibility)
 
 			emailTag := "email:" + member.Email
-			emailInTags := sliceContains(msg.IndexingConfig.Tags, emailTag)
+			emailInTags := slices.Contains(msg.IndexingConfig.Tags, emailTag)
 			assert.Equal(t, tt.wantEmailInTags, emailInTags,
 				"email tag presence mismatch for member_visibility=%q", tt.memberVisibility)
 
@@ -2608,26 +2610,4 @@ func TestPublishMemberMessages_MemberVisibility(t *testing.T) {
 			}
 		})
 	}
-}
-
-func containsStr(s, sub string) bool {
-	return sub != "" && len(s) >= len(sub) && (s == sub || len(s) > 0 && containsSubstring(s, sub))
-}
-
-func containsSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}
-
-func sliceContains(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
