@@ -141,7 +141,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `uid` | string | Committee UID (same as the parent committee) |
 | `business_email_required` | bool | Whether a business email is required to join |
 | `show_meeting_attendees` | bool | Whether meeting attendees are visible |
-| `members_can_view_social_listening` | bool | Board committees only: whether committee members can view Social Listening for the committee's foundation. Defaults to `false`; records written before this field was introduced read as `false`. The API rejects `true` on non-Board committees. |
+| `members_can_view_social_listening` | bool | Board committees only: whether committee members can view Social Listening for the committee's foundation. Defaults to `false`. The API rejects switching it on for a non-Board committee. A committee recategorised out of Board keeps its stored value until the next settings write, which clears it, so consumers must also require `category` = `Board`. Records written before this field was introduced read as `false` from the API, but their indexed documents lack the field until the settings are re-indexed (`committee-cli sync reindex-settings`), so filter on `true`, not on `false`. |
 | `member_visibility` | string | Who can see members |
 | `has_chat_webhook` | bool | Whether a Slack Incoming Webhook URL is configured. Computed from `chat_webhook_url` at write time; the raw URL is never indexed. Records written before this field was introduced will have `false` regardless of whether a webhook was set. |
 | `last_reviewed_at` | string (optional) | RFC3339 timestamp of the last membership review |

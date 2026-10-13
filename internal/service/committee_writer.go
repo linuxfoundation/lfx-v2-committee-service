@@ -22,6 +22,8 @@ import (
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
+const msgSocialListeningBoardOnly = "members_can_view_social_listening can only be enabled on Board committees"
+
 // sanitizeCommitteeBaseForPublish returns a copy of base with the charter's updated_by email
 // stripped. Used both for CommitteeIndexerMessage.Build, which marshals its input verbatim into
 // Data alongside IndexingConfig.Public, and for the committee.updated NATS event payload -- in
@@ -454,8 +456,6 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 }
 
 // Execute orchestrates the committee creation process
-const msgSocialListeningBoardOnly = "members_can_view_social_listening can only be enabled on Board committees"
-
 func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error) {
 
 	slog.DebugContext(ctx, "executing create committee use case",
@@ -470,7 +470,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
 
-	if committee.CommitteeSettings != nil && !committee.CommitteeSettings.AllowedForCategoryOf(&committee.CommitteeBase) {
+	if committee.CommitteeSettings != nil && committee.CommitteeSettings.MembersCanViewSocialListening && !committee.IsBoard() {
 		return nil, errs.NewValidation(msgSocialListeningBoardOnly)
 	}
 
@@ -926,8 +926,15 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		return nil, errGet
 	}
 
-	if !settings.AllowedForCategoryOf(committeeBase) {
-		return nil, errs.NewValidation(msgSocialListeningBoardOnly)
+	// members_can_view_social_listening is Board-only. Only switching it on is rejected: a committee
+	// recategorised out of Board can still carry a stored true, and internal callers (user deletion,
+	// invite LFID backfill) write the stored settings back — rejecting those would wedge every later
+	// settings write. Clearing it here instead drops the stale grant on the next write.
+	if !committeeBase.IsBoard() {
+		if settings.MembersCanViewSocialListening && !existingSettings.MembersCanViewSocialListening {
+			return nil, errs.NewValidation(msgSocialListeningBoardOnly)
+		}
+		settings.MembersCanViewSocialListening = false
 	}
 
 	// Step 2: Merge existing data with updated fields

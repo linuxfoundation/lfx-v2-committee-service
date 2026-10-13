@@ -52,12 +52,6 @@ func (s *CommitteeSettings) IndexingConfig(tags []string) *indexerTypes.Indexing
 	}
 }
 
-// AllowedForCategoryOf reports whether these settings are valid for the given committee.
-// members_can_view_social_listening may only be enabled on Board committees.
-func (s *CommitteeSettings) AllowedForCategoryOf(base *CommitteeBase) bool {
-	return !s.MembersCanViewSocialListening || base.IsBoard()
-}
-
 // CommitteeSettings represents sensitive committee settings
 type CommitteeSettings struct {
 	UID                   string `json:"uid"`

@@ -237,6 +237,15 @@ func TestConvertPayloadToSettings(t *testing.T) {
 			},
 		},
 		{
+			name: "social listening access carried through",
+			payload: &committeeservice.CreateCommitteePayload{
+				MembersCanViewSocialListening: true,
+			},
+			expected: &model.CommitteeSettings{
+				MembersCanViewSocialListening: true,
+			},
+		},
+		{
 			name: "minimal settings payload",
 			payload: &committeeservice.CreateCommitteePayload{
 				BusinessEmailRequired: false,
@@ -375,6 +384,17 @@ func TestConvertPayloadToUpdateSettings(t *testing.T) {
 				LastReviewedBy:        stringPtr("user-456"),
 				Writers:               []model.CommitteeUser{{Username: "writer3"}, {Username: "writer4"}},
 				Auditors:              []model.CommitteeUser{{Username: "auditor3"}, {Username: "auditor4"}},
+			},
+		},
+		{
+			name: "social listening access carried through",
+			payload: &committeeservice.UpdateCommitteeSettingsPayload{
+				UID:                           stringPtr("committee-123"),
+				MembersCanViewSocialListening: true,
+			},
+			expected: &model.CommitteeSettings{
+				UID:                           "committee-123",
+				MembersCanViewSocialListening: true,
 			},
 		},
 		{
@@ -636,6 +656,17 @@ func TestConvertSettingsToResponse(t *testing.T) {
 			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
 				UID:                   stringPtr("committee-456"),
 				BusinessEmailRequired: false,
+			},
+		},
+		{
+			name: "social listening access carried through",
+			settings: &model.CommitteeSettings{
+				UID:                           "committee-321",
+				MembersCanViewSocialListening: true,
+			},
+			expected: &committeeservice.CommitteeSettingsWithReadonlyAttributes{
+				UID:                           stringPtr("committee-321"),
+				MembersCanViewSocialListening: true,
 			},
 		},
 		{
