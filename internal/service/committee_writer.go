@@ -470,7 +470,7 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
 
-	if committee.CommitteeSettings != nil && committee.CommitteeSettings.MembersCanViewSocialListening && !committee.IsBoard() {
+	if committee.CommitteeSettings != nil && committee.MembersCanViewSocialListening && !committee.IsBoard() {
 		return nil, errs.NewValidation(msgSocialListeningBoardOnly)
 	}
 

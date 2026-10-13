@@ -54,10 +54,9 @@ func (s *CommitteeSettings) IndexingConfig(tags []string) *indexerTypes.Indexing
 
 // CommitteeSettings represents sensitive committee settings
 type CommitteeSettings struct {
-	UID                   string `json:"uid"`
-	BusinessEmailRequired bool   `json:"business_email_required"`
-	ShowMeetingAttendees  bool   `json:"show_meeting_attendees"`
-	// MembersCanViewSocialListening is only valid on Board committees.
+	UID                           string          `json:"uid"`
+	BusinessEmailRequired         bool            `json:"business_email_required"`
+	ShowMeetingAttendees          bool            `json:"show_meeting_attendees"`
 	MembersCanViewSocialListening bool            `json:"members_can_view_social_listening"`
 	MemberVisibility              string          `json:"member_visibility"`
 	ChatWebhookURL                *string         `json:"chat_webhook_url,omitempty"`

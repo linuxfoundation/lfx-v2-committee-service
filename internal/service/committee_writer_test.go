@@ -3388,7 +3388,7 @@ func TestCommitteeWriterOrchestrator_SocialListeningBoardOnly(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, tc.enabled, result.CommitteeSettings.MembersCanViewSocialListening)
+			assert.Equal(t, tc.enabled, result.MembersCanViewSocialListening)
 		})
 	}
 }
