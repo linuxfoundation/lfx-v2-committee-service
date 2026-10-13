@@ -802,6 +802,13 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 
 	updateSucceeded = true
 
+	// Crossing the Board boundary in either direction drops the Social Listening grant, so access only
+	// ever follows a fresh opt-in on a committee that is Board now. Runs right after the base write so
+	// a later publish failure can't skip it.
+	if wasBoard != committee.IsBoard() {
+		uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, sync)
+	}
+
 	// ******************************************************
 	// Step 7: Publish messages
 
@@ -883,18 +890,14 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	// ******************************************************
 
-	if wasBoard && !committee.IsBoard() {
-		uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, sync)
-	}
-
 	return committee, nil
 }
 
 // clearSocialListeningAccess switches members_can_view_social_listening off for a committee that just
-// left the Board category, through UpdateSettings so the cleared value is persisted, re-indexed and
-// published like any other settings write. Otherwise a committee moved back to Board would regain
-// access without a fresh opt-in. Best effort: the base update has already committed, and the next
-// settings write clears a value this misses.
+// entered or left the Board category, through UpdateSettings so the cleared value is persisted,
+// re-indexed and published like any other settings write. Otherwise a stale value would let a committee
+// moved (back) to Board grant access without a fresh opt-in. Best effort: the base update has already
+// committed; a missed value on a non-Board committee is also cleared by its next settings write.
 func (uc *committeeWriterOrchestrator) clearSocialListeningAccess(ctx context.Context, committeeUID string, sync bool) {
 	settings, settingsRevision, errGet := uc.committeeReader.GetSettings(ctx, committeeUID)
 	if errGet != nil {
@@ -912,7 +915,7 @@ func (uc *committeeWriterOrchestrator) clearSocialListeningAccess(ctx context.Co
 
 	settings.MembersCanViewSocialListening = false
 	if _, errUpdate := uc.UpdateSettings(ctx, settings, settingsRevision, sync); errUpdate != nil {
-		slog.ErrorContext(ctx, "failed to clear social listening access after leaving board",
+		slog.ErrorContext(ctx, "failed to clear social listening access after a board category change",
 			"error", errUpdate,
 			"committee_uid", committeeUID,
 		)

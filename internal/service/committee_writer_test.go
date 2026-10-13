@@ -3462,14 +3462,16 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_SocialListeningAfterRecatego
 	})
 }
 
-func TestCommitteeWriterOrchestrator_Update_ClearsSocialListeningOnLeavingBoard(t *testing.T) {
+func TestCommitteeWriterOrchestrator_Update_ClearsSocialListeningOnBoardCategoryChange(t *testing.T) {
 	tests := []struct {
 		name        string
+		oldCategory string
 		newCategory string
 		wantEnabled bool
 	}{
-		{name: "leaving Board clears the grant", newCategory: "Technical Steering Committee", wantEnabled: false},
-		{name: "staying Board keeps the grant", newCategory: "Board", wantEnabled: true},
+		{name: "leaving Board clears the grant", oldCategory: "Board", newCategory: "Technical Steering Committee", wantEnabled: false},
+		{name: "staying Board keeps the grant", oldCategory: "Board", newCategory: "Board", wantEnabled: true},
+		{name: "re-entering Board clears a stale grant", oldCategory: "Technical Steering Committee", newCategory: "Board", wantEnabled: false},
 	}
 
 	for _, tc := range tests {
@@ -3482,7 +3484,7 @@ func TestCommitteeWriterOrchestrator_Update_ClearsSocialListeningOnLeavingBoard(
 					UID:        "committee-1",
 					ProjectUID: "project-1",
 					Name:       "Governing Board",
-					Category:   "Board",
+					Category:   tc.oldCategory,
 				},
 				CommitteeSettings: &model.CommitteeSettings{
 					UID:                           "committee-1",
