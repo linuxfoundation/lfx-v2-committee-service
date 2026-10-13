@@ -686,8 +686,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		return nil, errs.NewConflict("committee has been modified by another process")
 	}
 
-	wasBoard := existing.IsBoard()
-
 	slog.DebugContext(ctx, "existing committee retrieved",
 		"committee_uid", existing.UID,
 		"existing_name", existing.Name,
@@ -783,16 +781,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// Step 5: Merge existing data with updated fields
 	uc.mergeCommitteeData(ctx, existing, committee)
 
-	// A committee entering Board must not carry a stale Social Listening grant into its new category:
-	// clear it before the category commits, and abort the update if that fails, since once the live
-	// category is Board a stale value would grant access without a fresh opt-in.
-	if !wasBoard && committee.IsBoard() {
-		if errClear := uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, true, sync); errClear != nil {
-			rollbackRequired = true
-			return nil, errClear
-		}
-	}
-
 	// Step 6: Update the committee in storage
 	errUpdate := uc.committeeWriter.UpdateBase(ctx, committee, revision)
 	if errUpdate != nil {
@@ -811,18 +799,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	)
 
 	updateSucceeded = true
-
-	// A committee leaving Board drops its Social Listening grant too. Best effort after the base write:
-	// the live category already denies access, and the next settings write clears a value this misses.
-	// Runs right after the base write so a later publish failure can't skip it.
-	if wasBoard && !committee.IsBoard() {
-		if errClear := uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, false, sync); errClear != nil {
-			slog.ErrorContext(ctx, "failed to clear social listening access after leaving board",
-				"error", errClear,
-				"committee_uid", committee.CommitteeBase.UID,
-			)
-		}
-	}
 
 	// ******************************************************
 	// Step 7: Publish messages
@@ -906,29 +882,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// ******************************************************
 
 	return committee, nil
-}
-
-// clearSocialListeningAccess switches members_can_view_social_listening off for a committee whose
-// Board category is changing, through UpdateSettings so the cleared value is persisted, re-indexed and
-// published like any other settings write. With forceWrite it writes even when the grant is already off:
-// on Board entry that advances the settings revision, so an enable that read the settings before the
-// transition fails its revision check instead of landing afterwards without a fresh opt-in. A committee
-// without settings needs nothing.
-func (uc *committeeWriterOrchestrator) clearSocialListeningAccess(ctx context.Context, committeeUID string, forceWrite, sync bool) error {
-	settings, settingsRevision, errGet := uc.committeeReader.GetSettings(ctx, committeeUID)
-	if errGet != nil {
-		if errors.As(errGet, &errs.NotFound{}) {
-			return nil
-		}
-		return errGet
-	}
-	if !settings.MembersCanViewSocialListening && !forceWrite {
-		return nil
-	}
-
-	settings.MembersCanViewSocialListening = false
-	_, errUpdate := uc.UpdateSettings(ctx, settings, settingsRevision, sync)
-	return errUpdate
 }
 
 // UpdateSettings orchestrates the committee settings update process
