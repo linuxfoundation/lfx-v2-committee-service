@@ -183,6 +183,13 @@ func TestListMailingListActivityForWindow_ManyLists_Batched(t *testing.T) {
 	require.Len(t, msgs, 2, "lists beyond the batch size require a second message query")
 	assert.Len(t, msgs[0]["tags"], listTagBatchSize)
 	assert.Len(t, msgs[1]["tags"], 5)
+
+	var want []string
+	for i := 0; i < n; i++ {
+		want = append(want, fmt.Sprintf("mailing_list:ml-%d", i))
+	}
+	got := append(append([]string{}, msgs[0]["tags"]...), msgs[1]["tags"]...)
+	assert.ElementsMatch(t, want, got, "every list must appear in exactly one batch")
 }
 
 // ── Pagination: page_token is followed for both queries ──────────────────────
@@ -207,12 +214,52 @@ func TestListMailingListActivityForWindow_FollowsPageToken(t *testing.T) {
 	assert.Equal(t, "1", got[0].ThreadID)
 	assert.Equal(t, "2", got[1].ThreadID)
 
-	require.Len(t, f.requestsOfType(mailingListResourceType), 2, "list query must follow page_token")
+	listReqs := f.requestsOfType(mailingListResourceType)
+	require.Len(t, listReqs, 2, "list query must follow page_token")
+	assert.Equal(t, "p1", listReqs[1].Get("page_token"))
+	assert.Equal(t, []string{"committee_uid:c-1"}, listReqs[1]["tags"], "list filter must be kept on later pages")
+
 	msgs := f.requestsOfType(DefaultMailingListType)
 	require.Len(t, msgs, 2, "message query must follow page_token")
 	assert.Equal(t, "p1", msgs[1].Get("page_token"))
 	assert.ElementsMatch(t, []string{"mailing_list:ml-1", "mailing_list:ml-2"}, msgs[0]["tags"],
 		"lists from every list page are included in the message query")
+
+	// The token is only a cursor: the query-service re-runs the filters from the
+	// request parameters on every page, so they must all be repeated.
+	for _, key := range []string{"type", "date_field", "date_from", "date_to", "page_size", "v"} {
+		assert.Equal(t, msgs[0].Get(key), msgs[1].Get(key), "%s must be repeated on later pages", key)
+	}
+	assert.ElementsMatch(t, msgs[0]["tags"], msgs[1]["tags"], "tags must be repeated on later pages")
+}
+
+// ── Pagination is bounded when the upstream never stops returning a token ────
+
+func TestListMailingListActivityForWindow_PageCap_StopsAndReturnsGathered(t *testing.T) {
+	var mu sync.Mutex
+	messageCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		if q.Get("type") == mailingListResourceType {
+			_, _ = w.Write([]byte(resourcesBody(listResource("ml-1", true))))
+			return
+		}
+		mu.Lock()
+		messageCalls++
+		n := messageCalls
+		mu.Unlock()
+		_, _ = fmt.Fprintf(w, `{"resources":[%s],"page_token":"p%d"}`,
+			messageResource(fmt.Sprintf("m%d", n), n, "ml-1", "S", "A", "2026-08-26T10:00:00Z"), n)
+	}))
+	defer srv.Close()
+	src := newMailingListSource(t, srv)
+
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
+
+	require.NoError(t, err, "hitting the page cap is not an error")
+	assert.Equal(t, maxQueryPages, messageCalls, "must stop after maxQueryPages requests")
+	assert.Len(t, got, maxQueryPages, "results gathered before the cap are still returned")
 }
 
 // ── Field mapping: ThreadID comes from topic_id, Excerpt from snippet ─────────

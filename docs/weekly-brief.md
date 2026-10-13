@@ -168,9 +168,11 @@ Two behaviors to keep in mind when a brief looks empty:
 Records are per-message; the adapter groups them by `topic_id` and returns one
 `MailingListActivity` per thread with subject/excerpt from the earliest in-window message.
 
-**Committee association is read from the mailing list, not the message.** Messages carry
-only their `mailing_list_uid`, so a committee or visibility change on a list is reflected
-immediately with no message re-index. A thread is marked private when any of its messages
+**Committee association is read from the mailing list, not the message.** The source uses
+only each message's `mailing_list_uid`, so a committee or visibility change on a list is
+reflected immediately with no message re-index. Because membership follows the list's
+*current* committees, in-window messages from before a list was linked to the committee are
+included, and messages from a list unlinked during the window are dropped. A thread is marked private when any of its messages
 belongs to a list that is not public (or whose list could not be resolved).
 
 **Known limitation:** if a thread's true opener was posted before the brief window, the
