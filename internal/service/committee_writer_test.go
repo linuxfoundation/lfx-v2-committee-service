@@ -3454,11 +3454,12 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_SocialListeningAfterRecatego
 		assert.ErrorAs(t, err, &validationErr)
 		assert.Nil(t, result)
 
-		stored, revision, errGet := mock.NewMockCommitteeReader(mockRepo).GetSettings(context.Background(), "committee-1")
+		stored, _, errGet := mock.NewMockCommitteeReader(mockRepo).GetSettings(context.Background(), "committee-1")
 		assert.NoError(t, errGet)
 		assert.False(t, stored.MembersCanViewSocialListening)
 		assert.Equal(t, []model.CommitteeUser{{Username: "writer-1"}}, stored.Writers)
-		assert.Equal(t, uint64(1), revision)
+		// UpdateSettings stamps UpdatedAt on every write; the seeded record has none, so this proves nothing was written.
+		assert.True(t, stored.UpdatedAt.IsZero(), "a rejected switch-on must not write the settings")
 	})
 }
 
