@@ -686,6 +686,8 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		return nil, errs.NewConflict("committee has been modified by another process")
 	}
 
+	wasBoard := existing.IsBoard()
+
 	slog.DebugContext(ctx, "existing committee retrieved",
 		"committee_uid", existing.UID,
 		"existing_name", existing.Name,
@@ -881,7 +883,40 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	// ******************************************************
 
+	if wasBoard && !committee.IsBoard() {
+		uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, sync)
+	}
+
 	return committee, nil
+}
+
+// clearSocialListeningAccess switches members_can_view_social_listening off for a committee that just
+// left the Board category, through UpdateSettings so the cleared value is persisted, re-indexed and
+// published like any other settings write. Otherwise a committee moved back to Board would regain
+// access without a fresh opt-in. Best effort: the base update has already committed, and the next
+// settings write clears a value this misses.
+func (uc *committeeWriterOrchestrator) clearSocialListeningAccess(ctx context.Context, committeeUID string, sync bool) {
+	settings, settingsRevision, errGet := uc.committeeReader.GetSettings(ctx, committeeUID)
+	if errGet != nil {
+		if !errors.As(errGet, &errs.NotFound{}) {
+			slog.ErrorContext(ctx, "failed to retrieve committee settings to clear social listening access",
+				"error", errGet,
+				"committee_uid", committeeUID,
+			)
+		}
+		return
+	}
+	if !settings.MembersCanViewSocialListening {
+		return
+	}
+
+	settings.MembersCanViewSocialListening = false
+	if _, errUpdate := uc.UpdateSettings(ctx, settings, settingsRevision, sync); errUpdate != nil {
+		slog.ErrorContext(ctx, "failed to clear social listening access after leaving board",
+			"error", errUpdate,
+			"committee_uid", committeeUID,
+		)
+	}
 }
 
 // UpdateSettings orchestrates the committee settings update process

@@ -3461,3 +3461,57 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_SocialListeningAfterRecatego
 		assert.Equal(t, uint64(1), revision)
 	})
 }
+
+func TestCommitteeWriterOrchestrator_Update_ClearsSocialListeningOnLeavingBoard(t *testing.T) {
+	tests := []struct {
+		name        string
+		newCategory string
+		wantEnabled bool
+	}{
+		{name: "leaving Board clears the grant", newCategory: "Technical Steering Committee", wantEnabled: false},
+		{name: "staying Board keeps the grant", newCategory: "Board", wantEnabled: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Governing Board",
+					Category:   "Board",
+				},
+				CommitteeSettings: &model.CommitteeSettings{
+					UID:                           "committee-1",
+					MembersCanViewSocialListening: true,
+					Writers:                       []model.CommitteeUser{{Username: "writer-1"}},
+				},
+			})
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+
+			_, err := orchestrator.Update(context.Background(), &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Governing Board",
+					Category:   tc.newCategory,
+				},
+			}, uint64(1), false)
+			assert.NoError(t, err)
+
+			stored, _, errGet := mock.NewMockCommitteeReader(mockRepo).GetSettings(context.Background(), "committee-1")
+			assert.NoError(t, errGet)
+			assert.Equal(t, tc.wantEnabled, stored.MembersCanViewSocialListening)
+			assert.Equal(t, []model.CommitteeUser{{Username: "writer-1"}}, stored.Writers)
+		})
+	}
+}
