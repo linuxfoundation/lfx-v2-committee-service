@@ -3528,6 +3528,46 @@ func (w failingSettingsWriter) UpdateSetting(context.Context, *model.CommitteeSe
 	return errs.NewUnexpected("settings write failed")
 }
 
+func TestCommitteeWriterOrchestrator_Update_BoardEntryAlwaysWritesSettings(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProject("project-1", "test-project", "Test Project")
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-1",
+			ProjectUID: "project-1",
+			Name:       "Advisory Group",
+			Category:   "Technical Steering Committee",
+		},
+		CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
+	})
+	reader := mock.NewMockCommitteeReader(mockRepo)
+
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(reader),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+		WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+	)
+
+	_, err := orchestrator.Update(context.Background(), &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-1",
+			ProjectUID: "project-1",
+			Name:       "Advisory Group",
+			Category:   "Board",
+		},
+	}, uint64(1), false)
+	assert.NoError(t, err)
+
+	// The grant was already off, but entering Board still writes the settings: in KV that advances the
+	// revision, so an enable that read the settings before the transition fails its revision check.
+	stored, _, errGet := reader.GetSettings(context.Background(), "committee-1")
+	assert.NoError(t, errGet)
+	assert.False(t, stored.MembersCanViewSocialListening)
+	assert.False(t, stored.UpdatedAt.IsZero(), "Board entry must write the settings to advance their revision")
+}
+
 func TestCommitteeWriterOrchestrator_Update_AbortsBoardEntryWhenStaleGrantCannotBeCleared(t *testing.T) {
 	mockRepo := mock.NewMockRepository()
 	mockRepo.ClearAll()

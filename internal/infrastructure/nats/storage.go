@@ -353,6 +353,9 @@ func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSe
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", settings.UID))
 		}
+		if isJetStreamCASConflict(errUpdate) {
+			return errs.NewConflict("committee settings have been modified by another process")
+		}
 		return errs.NewUnexpected("failed to update committee settings", errUpdate)
 	}
 

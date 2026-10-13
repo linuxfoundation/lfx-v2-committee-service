@@ -787,7 +787,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// clear it before the category commits, and abort the update if that fails, since once the live
 	// category is Board a stale value would grant access without a fresh opt-in.
 	if !wasBoard && committee.IsBoard() {
-		if errClear := uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, sync); errClear != nil {
+		if errClear := uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, true, sync); errClear != nil {
 			rollbackRequired = true
 			return nil, errClear
 		}
@@ -816,7 +816,7 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	// the live category already denies access, and the next settings write clears a value this misses.
 	// Runs right after the base write so a later publish failure can't skip it.
 	if wasBoard && !committee.IsBoard() {
-		if errClear := uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, sync); errClear != nil {
+		if errClear := uc.clearSocialListeningAccess(ctx, committee.CommitteeBase.UID, false, sync); errClear != nil {
 			slog.ErrorContext(ctx, "failed to clear social listening access after leaving board",
 				"error", errClear,
 				"committee_uid", committee.CommitteeBase.UID,
@@ -910,9 +910,11 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 
 // clearSocialListeningAccess switches members_can_view_social_listening off for a committee whose
 // Board category is changing, through UpdateSettings so the cleared value is persisted, re-indexed and
-// published like any other settings write. A committee without settings, or with the grant already off,
-// needs nothing.
-func (uc *committeeWriterOrchestrator) clearSocialListeningAccess(ctx context.Context, committeeUID string, sync bool) error {
+// published like any other settings write. With forceWrite it writes even when the grant is already off:
+// on Board entry that advances the settings revision, so an enable that read the settings before the
+// transition fails its revision check instead of landing afterwards without a fresh opt-in. A committee
+// without settings needs nothing.
+func (uc *committeeWriterOrchestrator) clearSocialListeningAccess(ctx context.Context, committeeUID string, forceWrite, sync bool) error {
 	settings, settingsRevision, errGet := uc.committeeReader.GetSettings(ctx, committeeUID)
 	if errGet != nil {
 		if errors.As(errGet, &errs.NotFound{}) {
@@ -920,7 +922,7 @@ func (uc *committeeWriterOrchestrator) clearSocialListeningAccess(ctx context.Co
 		}
 		return errGet
 	}
-	if !settings.MembersCanViewSocialListening {
+	if !settings.MembersCanViewSocialListening && !forceWrite {
 		return nil
 	}
 
