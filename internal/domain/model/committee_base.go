@@ -18,6 +18,7 @@ import (
 
 const (
 	categoryGovernmentAdvisoryCouncil = "Government Advisory Council"
+	categoryBoard                     = "Board"
 )
 
 // Committee represents the core committee business entity
@@ -201,6 +202,11 @@ func (c *Committee) Tags() []string {
 	}
 
 	return tags
+}
+
+// IsBoard returns true if the committee is a Board committee
+func (c *CommitteeBase) IsBoard() bool {
+	return c.Category == categoryBoard
 }
 
 // IsGovernmentAdvisoryCouncil returns true if the committee is a Government Advisory Council

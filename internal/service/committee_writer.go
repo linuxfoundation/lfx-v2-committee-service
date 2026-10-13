@@ -454,6 +454,8 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 }
 
 // Execute orchestrates the committee creation process
+const msgSocialListeningBoardOnly = "members_can_view_social_listening can only be enabled on Board committees"
+
 func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error) {
 
 	slog.DebugContext(ctx, "executing create committee use case",
@@ -467,6 +469,10 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	committee.CommitteeBase.UID = uuid.New().String()
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
+
+	if committee.CommitteeSettings != nil && !committee.CommitteeSettings.AllowedForCategoryOf(&committee.CommitteeBase) {
+		return nil, errs.NewValidation(msgSocialListeningBoardOnly)
+	}
 
 	// Set timestamps and derived fields for committee settings if they exist
 	if committee.CommitteeSettings != nil {
@@ -911,6 +917,19 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		"business_email_required", existingSettings.BusinessEmailRequired,
 	)
 
+	committeeBase, _, errGet := uc.committeeReader.GetBase(ctx, settings.UID)
+	if errGet != nil {
+		slog.ErrorContext(ctx, "failed to retrieve committee",
+			"error", errGet,
+			"committee_uid", settings.UID,
+		)
+		return nil, errGet
+	}
+
+	if !settings.AllowedForCategoryOf(committeeBase) {
+		return nil, errs.NewValidation(msgSocialListeningBoardOnly)
+	}
+
 	// Step 2: Merge existing data with updated fields
 	// Preserve readonly fields
 	settings.UID = existingSettings.UID
@@ -953,15 +972,6 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	)
 
 	// ******************************************************
-	committeeBase, _, errGet := uc.committeeReader.GetBase(ctx, settings.UID)
-	if errGet != nil {
-		slog.ErrorContext(ctx, "failed to retrieve committee",
-			"error", errGet,
-			"committee_uid", settings.UID,
-		)
-		return nil, errGet
-	}
-
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
 	indexSettings := *settings

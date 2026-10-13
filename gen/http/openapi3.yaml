@@ -74,6 +74,7 @@ paths:
                             last_reviewed_by: user_id_12345
                             mailing_list: tsc@lists.example.org
                             member_visibility: hidden
+                            members_can_view_social_listening: false
                             name: Technical Steering Committee
                             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -137,6 +138,7 @@ paths:
                                 last_reviewed_by: user_id_12345
                                 mailing_list: tsc@lists.example.org
                                 member_visibility: hidden
+                                members_can_view_social_listening: false
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -3730,6 +3732,7 @@ paths:
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
+                                members_can_view_social_listening: false
                                 show_meeting_attendees: false
                                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 updated_at: "2023-06-20T14:45:30Z"
@@ -3828,6 +3831,7 @@ paths:
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             member_visibility: hidden
+                            members_can_view_social_listening: false
                             show_meeting_attendees: false
                             writers:
                                 - avatar: https://example.com/avatar.png
@@ -3853,6 +3857,7 @@ paths:
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
+                                members_can_view_social_listening: false
                                 show_meeting_attendees: false
                                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 updated_at: "2023-06-20T14:45:30Z"
@@ -5541,6 +5546,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                    default: false
+                    example: false
                 name:
                     type: string
                     description: The name of the committee
@@ -5640,6 +5650,7 @@ components:
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5802,6 +5813,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                    default: false
+                    example: false
                 name:
                     type: string
                     description: The name of the committee
@@ -5931,6 +5947,7 @@ components:
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -6743,6 +6760,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                    default: false
+                    example: false
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -6754,6 +6776,7 @@ components:
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 show_meeting_attendees: false
         CommitteeSettingsWithReadonlyAttributes:
             type: object
@@ -6800,6 +6823,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                    default: false
+                    example: false
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -6838,6 +6866,7 @@ components:
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 show_meeting_attendees: false
                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 updated_at: "2023-06-20T14:45:30Z"
@@ -7246,6 +7275,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                    default: false
+                    example: false
                 name:
                     type: string
                     description: The name of the committee
@@ -7347,6 +7381,7 @@ components:
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -8642,6 +8677,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                    default: false
+                    example: false
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -8668,6 +8708,7 @@ components:
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 show_meeting_attendees: false
                 writers:
                     - avatar: https://example.com/avatar.png

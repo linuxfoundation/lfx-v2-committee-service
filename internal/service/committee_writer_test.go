@@ -3308,3 +3308,87 @@ func TestBuildCommitteeIndexingConfig_DisplayNameDedup(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitteeWriterOrchestrator_SocialListeningBoardOnly(t *testing.T) {
+	tests := []struct {
+		name     string
+		category string
+		enabled  bool
+		wantErr  bool
+	}{
+		{name: "board committee can enable", category: "Board", enabled: true, wantErr: false},
+		{name: "non-board committee cannot enable", category: "Technical Steering Committee", enabled: true, wantErr: true},
+		{name: "government advisory council cannot enable", category: "Government Advisory Council", enabled: true, wantErr: true},
+		{name: "non-board committee can leave it off", category: "Technical Steering Committee", enabled: false, wantErr: false},
+	}
+
+	for _, tc := range tests {
+		t.Run("update settings: "+tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   tc.category,
+				},
+				CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
+			})
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+
+			result, err := orchestrator.UpdateSettings(context.Background(), &model.CommitteeSettings{
+				UID:                           "committee-1",
+				MembersCanViewSocialListening: tc.enabled,
+			}, uint64(1), false)
+
+			if tc.wantErr {
+				var validationErr errs.Validation
+				assert.ErrorAs(t, err, &validationErr)
+				assert.Nil(t, result)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.enabled, result.MembersCanViewSocialListening)
+		})
+
+		t.Run("create: "+tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+
+			result, err := orchestrator.Create(context.Background(), &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					ProjectUID: "project-1",
+					Name:       "Test Committee",
+					Category:   tc.category,
+				},
+				CommitteeSettings: &model.CommitteeSettings{MembersCanViewSocialListening: tc.enabled},
+			}, false)
+
+			if tc.wantErr {
+				var validationErr errs.Validation
+				assert.ErrorAs(t, err, &validationErr)
+				assert.Nil(t, result)
+				assert.Equal(t, 0, mockRepo.GetCommitteeCount())
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.enabled, result.CommitteeSettings.MembersCanViewSocialListening)
+		})
+	}
+}
