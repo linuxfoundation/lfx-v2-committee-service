@@ -3517,3 +3517,51 @@ func TestCommitteeWriterOrchestrator_Update_ClearsSocialListeningOnBoardCategory
 		})
 	}
 }
+
+// failingSettingsWriter fails every settings write, to exercise callers that must not proceed without one.
+type failingSettingsWriter struct {
+	*TestMockCommitteeWriter
+}
+
+func (w failingSettingsWriter) UpdateSetting(context.Context, *model.CommitteeSettings, uint64) error {
+	return errs.NewUnexpected("settings write failed")
+}
+
+func TestCommitteeWriterOrchestrator_Update_AbortsBoardEntryWhenStaleGrantCannotBeCleared(t *testing.T) {
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProject("project-1", "test-project", "Test Project")
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-1",
+			ProjectUID: "project-1",
+			Name:       "Advisory Group",
+			Category:   "Technical Steering Committee",
+		},
+		CommitteeSettings: &model.CommitteeSettings{UID: "committee-1", MembersCanViewSocialListening: true},
+	})
+	reader := mock.NewMockCommitteeReader(mockRepo)
+
+	orchestrator := NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(reader),
+		WithCommitteeWriter(failingSettingsWriter{NewTestMockCommitteeWriter(mockRepo)}),
+		WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+		WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+	)
+
+	result, err := orchestrator.Update(context.Background(), &model.Committee{
+		CommitteeBase: model.CommitteeBase{
+			UID:        "committee-1",
+			ProjectUID: "project-1",
+			Name:       "Advisory Group",
+			Category:   "Board",
+		},
+	}, uint64(1), false)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+
+	base, _, errBase := reader.GetBase(context.Background(), "committee-1")
+	assert.NoError(t, errBase)
+	assert.Equal(t, "Technical Steering Committee", base.Category, "the category must not commit without clearing the stale grant")
+}
