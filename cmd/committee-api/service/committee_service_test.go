@@ -656,15 +656,16 @@ func TestUpdateCommitteeMember(t *testing.T) {
 		{
 			name: "successful update",
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
-				UID:         "committee-123",
-				MemberUID:   "member-456",
-				Username:    stringPtr("testuser"),
-				Email:       "test@example.com",
-				FirstName:   stringPtr("John"),
-				LastName:    stringPtr("Doe"),
-				AppointedBy: "admin",
-				Status:      "active",
-				IfMatch:     stringPtr("1"),
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Username:        stringPtr("testuser"),
+				Email:           stringPtr("test@example.com"),
+				LinkedinProfile: stringPtr(""),
+				FirstName:       stringPtr("John"),
+				LastName:        stringPtr("Doe"),
+				AppointedBy:     "admin",
+				Status:          "active",
+				IfMatch:         stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.updateMember = &model.CommitteeMember{
@@ -701,7 +702,7 @@ func TestUpdateCommitteeMember(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:         "committee-123",
 				MemberUID:   "member-456",
-				Email:       "test@example.com",
+				Email:       stringPtr("test@example.com"),
 				AppointedBy: "admin",
 				Status:      "active",
 				IfMatch:     stringPtr("invalid"),
@@ -718,7 +719,7 @@ func TestUpdateCommitteeMember(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:         "committee-123",
 				MemberUID:   "member-456",
-				Email:       "test@example.com",
+				Email:       stringPtr("test@example.com"),
 				AppointedBy: "admin",
 				Status:      "active",
 				IfMatch:     nil,
@@ -733,12 +734,13 @@ func TestUpdateCommitteeMember(t *testing.T) {
 		{
 			name: "orchestrator error - not found",
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
-				UID:         "committee-123",
-				MemberUID:   "member-456",
-				Email:       "test@example.com",
-				AppointedBy: "admin",
-				Status:      "active",
-				IfMatch:     stringPtr("1"),
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Email:           stringPtr("test@example.com"),
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "admin",
+				Status:          "active",
+				IfMatch:         stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.updateMemberErr = errs.NewNotFound("committee member not found")
@@ -752,12 +754,13 @@ func TestUpdateCommitteeMember(t *testing.T) {
 		{
 			name: "orchestrator error - conflict",
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
-				UID:         "committee-123",
-				MemberUID:   "member-456",
-				Email:       "test@example.com",
-				AppointedBy: "admin",
-				Status:      "active",
-				IfMatch:     stringPtr("1"),
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Email:           stringPtr("test@example.com"),
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "admin",
+				Status:          "active",
+				IfMatch:         stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.updateMemberErr = errs.NewConflict("committee member has been modified by another process")
@@ -3880,11 +3883,12 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 	}
 }
 
-// TestGetCommitteeMember_MemberVisibility verifies that GetCommitteeMember enforces
-// member_visibility when returning contact fields:
-//   - basic_profile: email and linkedin_profile are stripped (viewers access search but not PII)
-//   - hidden (or no settings, fail-closed): full data is returned; Heimdall gates the endpoint
-//     via committee#viewer so only authorised callers reach it
+// TestGetCommitteeMember_MemberVisibility verifies that GetCommitteeMember strips contact
+// fields unconditionally (fail-closed). The service has no FGA client to check caller
+// relation, so email and linkedin_profile are omitted for all callers at the GET layer.
+// Endpoint access is gated by Heimdall via committee#viewer.
+// UpdateCommitteeMember compensates with a read-before-write restore (see
+// TestUpdateCommitteeMember_BasicProfile_RestoresContactFields).
 func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
 	const committeeUID = "committee-visibility-test"
 	const memberUID = "member-visibility-test"
@@ -3896,16 +3900,16 @@ func TestGetCommitteeMember_MemberVisibility(t *testing.T) {
 		wantLinkedIn     bool
 	}{
 		{
-			name:             "hidden: full data returned (Heimdall gates access)",
+			name:             "hidden: contact stripped (fail-closed; Heimdall gates endpoint access)",
 			memberVisibility: "hidden",
-			wantEmail:        true,
-			wantLinkedIn:     true,
+			wantEmail:        false,
+			wantLinkedIn:     false,
 		},
 		{
-			name:             "no settings (fail-closed): full data returned",
+			name:             "no settings (fail-closed): contact stripped",
 			memberVisibility: "",
-			wantEmail:        true,
-			wantLinkedIn:     true,
+			wantEmail:        false,
+			wantLinkedIn:     false,
 		},
 		{
 			name:             "basic_profile: contact fields stripped",
@@ -4010,8 +4014,8 @@ func TestUpdateCommitteeMember_BasicProfile_RestoresContactFields(t *testing.T) 
 	_, err := svc.UpdateCommitteeMember(context.Background(), &committeeservice.UpdateCommitteeMemberPayload{
 		UID:             committeeUID,
 		MemberUID:       memberUID,
-		Email:           "",  // BFF sends empty after GET stripped it
-		LinkedinProfile: nil, // BFF omits field after GET stripped it
+		Email:           strPtr(""), // BFF sends empty after GET stripped it
+		LinkedinProfile: nil,        // BFF omits field after GET stripped it
 		AppointedBy:     "admin",
 		Status:          "active",
 		SkipEnrichment:  true,

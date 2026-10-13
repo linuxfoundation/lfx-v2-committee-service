@@ -502,7 +502,7 @@ var _ = dsl.Service("committee-service", func() {
 
 			CommitteeMemberUpdateAttributes()
 
-			dsl.Required("version", "uid", "member_uid", "email")
+			dsl.Required("version", "uid", "member_uid")
 		})
 
 		dsl.Result(CommitteeMemberFullWithReadonlyAttributes)

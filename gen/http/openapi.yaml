@@ -2129,8 +2129,6 @@ paths:
                   required: true
                   schema:
                     $ref: '#/definitions/CommitteeServiceUpdateCommitteeMemberRequestBody'
-                    required:
-                        - email
             responses:
                 "200":
                     description: OK response.
@@ -5223,8 +5221,6 @@ definitions:
                 end_date: "2024-12-31"
                 start_date: "2023-01-01"
                 status: Voting Rep
-        required:
-            - email
     CommitteeServiceUpdateCommitteeSettingsRequestBody:
         title: CommitteeServiceUpdateCommitteeSettingsRequestBody
         type: object

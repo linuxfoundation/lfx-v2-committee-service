@@ -1111,7 +1111,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 				UID:         "committee-123",
 				MemberUID:   "member-456",
 				Username:    stringPtr("testuser"),
-				Email:       "test@example.com",
+				Email:       stringPtr("test@example.com"),
 				FirstName:   stringPtr("John"),
 				LastName:    stringPtr("Doe"),
 				JobTitle:    stringPtr("Engineer"),
@@ -1179,7 +1179,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:         "committee-123",
 				MemberUID:   "member-456",
-				Email:       "minimal@example.com",
+				Email:       stringPtr("minimal@example.com"),
 				AppointedBy: "admin",
 				Status:      "active",
 			},
@@ -1203,7 +1203,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:          "committee-123",
 				MemberUID:    "member-456",
-				Email:        "test@example.com",
+				Email:        stringPtr("test@example.com"),
 				AppointedBy:  "admin",
 				Status:       "active",
 				Username:     nil,
@@ -1229,7 +1229,7 @@ func TestConvertPayloadToUpdateMember(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:         "committee-123",
 				MemberUID:   "member-456",
-				Email:       "test@example.com",
+				Email:       stringPtr("test@example.com"),
 				AppointedBy: "admin",
 				Status:      "active",
 				Organization: &struct {
@@ -1473,7 +1473,7 @@ func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:             "committee-123",
 				MemberUID:       "member-456",
-				Email:           "test@example.com",
+				Email:           stringPtr("test@example.com"),
 				LinkedinProfile: stringPtr("https://www.linkedin.com/in/testuser"),
 				AppointedBy:     "admin",
 				Status:          "active",
@@ -1494,7 +1494,7 @@ func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:             "committee-123",
 				MemberUID:       "member-789",
-				Email:           "nolinkedin@example.com",
+				Email:           stringPtr("nolinkedin@example.com"),
 				LinkedinProfile: nil,
 				AppointedBy:     "admin",
 				Status:          "active",
@@ -1515,7 +1515,7 @@ func TestConvertPayloadToUpdateMember_LinkedInProfile(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:             "committee-123",
 				MemberUID:       "member-999",
-				Email:           "clear@example.com",
+				Email:           stringPtr("clear@example.com"),
 				LinkedinProfile: stringPtr(""),
 				AppointedBy:     "admin",
 				Status:          "active",

@@ -316,16 +316,12 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 		return nil, wrapError(ctx, err)
 	}
 
-	// Enforce member_visibility: strip contact PII only for basic_profile committees.
-	// For hidden (or when settings are unavailable, fail-closed), full data is returned —
-	// Heimdall gates endpoint access via committee#viewer; restricting caller-relation further
-	// requires a FGA client that is not wired into this service.
-	// Search-layer access is always governed by AccessCheckRelation in publishMemberMessages.
-	settings, _, _ := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID)
-	if settings != nil && settings.MemberVisibility == "basic_profile" {
-		committeeMember.Email = ""
-		committeeMember.LinkedInProfile = ""
-	}
+	// Strip contact PII unconditionally (fail-closed). The service has no FGA client to
+	// check caller relation, so contact fields are omitted for all callers at the GET
+	// layer. Search-layer access is governed by AccessCheckRelation in publishMemberMessages.
+	// UpdateCommitteeMember compensates with a read-before-write (see below).
+	committeeMember.Email = ""
+	committeeMember.LinkedInProfile = ""
 
 	// Convert domain model to GOA response
 	result := s.convertMemberDomainToFullResponse(committeeMember)
@@ -605,7 +601,7 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	slog.DebugContext(ctx, "committeeMemberService.update-committee-member",
 		"committee_uid", p.UID,
 		"member_uid", p.MemberUID,
-		"email", redaction.RedactEmail(p.Email),
+		"email", redaction.RedactEmail(ptrStr(p.Email)),
 		"x_sync", p.XSync,
 	)
 
@@ -624,30 +620,27 @@ func (s *committeeServicesrvc) UpdateCommitteeMember(ctx context.Context, p *com
 	// Convert payload to domain model
 	committeeMember := s.convertPayloadToUpdateMember(p)
 
-	// For basic_profile committees GET strips email and linkedin_profile, so a BFF
-	// read-then-PUT arrives with email="" and linkedin_profile=nil. Restore stored values
-	// to prevent silent overwrite. LinkedIn uses nil-check: nil means "not sent by BFF"
-	// (field omitted), whereas "" or a URL are explicit values. For hidden/fail-closed
-	// committees GET returns full data, so no restoration is needed.
-	updateSettings, _, _ := s.committeeReaderOrchestrator.GetSettings(ctx, p.UID)
-	if updateSettings != nil && updateSettings.MemberVisibility == "basic_profile" {
-		if committeeMember.Email == "" || p.LinkedinProfile == nil {
-			current, _, readErr := s.committeeReaderOrchestrator.GetMember(ctx, p.UID, p.MemberUID)
-			if readErr != nil {
-				slog.ErrorContext(ctx, "UpdateCommitteeMember: failed to read member for contact restore",
-					"error", readErr,
-					"committee_uid", p.UID,
-					"member_uid", p.MemberUID,
-				)
-				return nil, wrapError(ctx, readErr)
+	// GET strips contact fields unconditionally, so a BFF read-then-PUT arrives with
+	// email=nil/empty and linkedin_profile=nil. Restore stored values unconditionally
+	// to prevent silent overwrite regardless of visibility setting.
+	// LinkedIn uses nil-check: nil means "not sent by BFF" vs "" or a URL which are
+	// explicit values. Return an error if the member read fails.
+	if committeeMember.Email == "" || p.LinkedinProfile == nil {
+		current, _, readErr := s.committeeReaderOrchestrator.GetMember(ctx, p.UID, p.MemberUID)
+		if readErr != nil {
+			slog.ErrorContext(ctx, "UpdateCommitteeMember: failed to read member for contact restore",
+				"error", readErr,
+				"committee_uid", p.UID,
+				"member_uid", p.MemberUID,
+			)
+			return nil, wrapError(ctx, readErr)
+		}
+		if current != nil {
+			if committeeMember.Email == "" {
+				committeeMember.Email = current.Email
 			}
-			if current != nil {
-				if committeeMember.Email == "" {
-					committeeMember.Email = current.Email
-				}
-				if p.LinkedinProfile == nil {
-					committeeMember.LinkedInProfile = current.LinkedInProfile
-				}
+			if p.LinkedinProfile == nil {
+				committeeMember.LinkedInProfile = current.LinkedInProfile
 			}
 		}
 	}

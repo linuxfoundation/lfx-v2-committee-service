@@ -626,10 +626,14 @@ func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          p.MemberUID, // Member UID is required for updates
 			CommitteeUID: p.UID,       // Committee UID from path parameter
-			Email:        p.Email,
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
 		},
+	}
+
+	// Handle Email with nil check (optional since GET strips it; restore happens in handler)
+	if p.Email != nil {
+		member.Email = *p.Email
 	}
 
 	// Handle Username with nil check
