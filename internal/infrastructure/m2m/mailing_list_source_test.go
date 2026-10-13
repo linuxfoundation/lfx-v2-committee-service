@@ -5,9 +5,12 @@ package m2m
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +26,89 @@ func newMailingListSource(t *testing.T, srv *httptest.Server) *MailingListSource
 	)
 }
 
+// listResource builds a groupsio_mailing_list resource as returned by the
+// query-service.
+func listResource(uid string, public bool) string {
+	return fmt.Sprintf(`{"id":"groupsio_mailing_list:%s","data":{"uid":%q,"public":%t}}`, uid, uid, public)
+}
+
+// messageResource builds a groupsio_mailing_list_message resource.
+func messageResource(id string, topicID int, listUID, subject, snippet, createdAt string) string {
+	return fmt.Sprintf(`{"id":%q,"data":{"topic_id":%d,"subject":%q,"snippet":%q,`+
+		`"group_domain":"lists.example.org","group_name":"dev","mailing_list_uid":%q,"created_at":%q}}`,
+		id, topicID, subject, snippet, listUID, createdAt)
+}
+
+func resourcesBody(resources ...string) string {
+	return `{"resources":[` + strings.Join(resources, ",") + `]}`
+}
+
+// fakeQueryService routes by the `type` query parameter and records every
+// request so tests can assert on the two-step query shape.
+type fakeQueryService struct {
+	mu       sync.Mutex
+	requests []url.Values
+
+	// listPages and messagePages hold the response body per page. The page
+	// served is chosen by the request's page_token ("" → index 0, "pN" → N).
+	listPages    []string
+	messagePages []string
+	listStatus   int
+	msgStatus    int
+}
+
+func (f *fakeQueryService) handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		f.mu.Lock()
+		f.requests = append(f.requests, q)
+		f.mu.Unlock()
+
+		pages, status := f.messagePages, f.msgStatus
+		if q.Get("type") == mailingListResourceType {
+			pages, status = f.listPages, f.listStatus
+		}
+		if status != 0 {
+			w.WriteHeader(status)
+			return
+		}
+		idx := 0
+		if tok := q.Get("page_token"); tok != "" {
+			_, _ = fmt.Sscanf(tok, "p%d", &idx)
+		}
+		if idx >= len(pages) {
+			_, _ = w.Write([]byte(`{"resources":[]}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(pages[idx]))
+	})
+}
+
+func (f *fakeQueryService) requestsOfType(typ string) []url.Values {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []url.Values
+	for _, q := range f.requests {
+		if q.Get("type") == typ {
+			out = append(out, q)
+		}
+	}
+	return out
+}
+
+func newFakeQueryService(t *testing.T, f *fakeQueryService) *MailingListSource {
+	t.Helper()
+	srv := httptest.NewServer(f.handler())
+	t.Cleanup(srv.Close)
+	return newMailingListSource(t, srv)
+}
+
+var (
+	testWindowStart = time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
+	testWindowEnd   = time.Date(2026, 8, 26, 23, 59, 59, 0, time.UTC)
+)
+
 // ── Disabled (empty BaseURL) → nil, no error ─────────────────────────────────
 
 func TestListMailingListActivityForWindow_DisabledBaseURL_ReturnsNil(t *testing.T) {
@@ -34,30 +120,121 @@ func TestListMailingListActivityForWindow_DisabledBaseURL_ReturnsNil(t *testing.
 	assert.Nil(t, got)
 }
 
+// ── Committee has no mailing lists → nil, message query never issued ─────────
+
+func TestListMailingListActivityForWindow_NoLists_SkipsMessageQuery(t *testing.T) {
+	f := &fakeQueryService{listPages: []string{resourcesBody()}}
+	src := newFakeQueryService(t, f)
+
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
+
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	assert.Empty(t, f.requestsOfType(DefaultMailingListType), "no lists → no message query")
+}
+
+// ── Two-step query shape ──────────────────────────────────────────────────────
+
+func TestListMailingListActivityForWindow_QueryShape(t *testing.T) {
+	f := &fakeQueryService{
+		listPages:    []string{resourcesBody(listResource("ml-1", true), listResource("ml-2", true))},
+		messagePages: []string{resourcesBody()},
+	}
+	src := newFakeQueryService(t, f)
+
+	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
+	require.NoError(t, err)
+
+	lists := f.requestsOfType(mailingListResourceType)
+	require.Len(t, lists, 1)
+	assert.Equal(t, []string{"committee_uid:c-1"}, lists[0]["tags"], "lists are resolved by committee_uid tag")
+	assert.Equal(t, queryPageSize, lists[0].Get("page_size"))
+
+	msgs := f.requestsOfType(DefaultMailingListType)
+	require.Len(t, msgs, 1)
+	assert.ElementsMatch(t, []string{"mailing_list:ml-1", "mailing_list:ml-2"}, msgs[0]["tags"],
+		"one OR query covers all of the committee's lists")
+	assert.Empty(t, msgs[0].Get("tags_all"))
+	assert.Equal(t, "created_at", msgs[0].Get("date_field"))
+	assert.Equal(t, testWindowStart.UTC().Format(time.RFC3339Nano), msgs[0].Get("date_from"))
+	assert.Equal(t, testWindowEnd.UTC().Format(time.RFC3339Nano), msgs[0].Get("date_to"))
+	assert.Equal(t, queryPageSize, msgs[0].Get("page_size"))
+	assert.Empty(t, msgs[0].Get("start_time[gte]"), "must not use legacy start_time bracket notation")
+}
+
+// ── Many lists are split into bounded batches ─────────────────────────────────
+
+func TestListMailingListActivityForWindow_ManyLists_Batched(t *testing.T) {
+	n := listTagBatchSize + 5
+	var lists []string
+	for i := 0; i < n; i++ {
+		lists = append(lists, listResource(fmt.Sprintf("ml-%d", i), true))
+	}
+	f := &fakeQueryService{
+		listPages:    []string{resourcesBody(lists...)},
+		messagePages: []string{resourcesBody()},
+	}
+	src := newFakeQueryService(t, f)
+
+	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
+	require.NoError(t, err)
+
+	msgs := f.requestsOfType(DefaultMailingListType)
+	require.Len(t, msgs, 2, "lists beyond the batch size require a second message query")
+	assert.Len(t, msgs[0]["tags"], listTagBatchSize)
+	assert.Len(t, msgs[1]["tags"], 5)
+}
+
+// ── Pagination: page_token is followed for both queries ──────────────────────
+
+func TestListMailingListActivityForWindow_FollowsPageToken(t *testing.T) {
+	f := &fakeQueryService{
+		listPages: []string{
+			`{"resources":[` + listResource("ml-1", true) + `],"page_token":"p1"}`,
+			resourcesBody(listResource("ml-2", true)),
+		},
+		messagePages: []string{
+			`{"resources":[` + messageResource("m1", 1, "ml-1", "First", "A", "2026-08-26T10:00:00Z") + `],"page_token":"p1"}`,
+			resourcesBody(messageResource("m2", 2, "ml-2", "Second", "B", "2026-08-26T11:00:00Z")),
+		},
+	}
+	src := newFakeQueryService(t, f)
+
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
+
+	require.NoError(t, err)
+	require.Len(t, got, 2, "messages from both pages must be returned")
+	assert.Equal(t, "1", got[0].ThreadID)
+	assert.Equal(t, "2", got[1].ThreadID)
+
+	require.Len(t, f.requestsOfType(mailingListResourceType), 2, "list query must follow page_token")
+	msgs := f.requestsOfType(DefaultMailingListType)
+	require.Len(t, msgs, 2, "message query must follow page_token")
+	assert.Equal(t, "p1", msgs[1].Get("page_token"))
+	assert.ElementsMatch(t, []string{"mailing_list:ml-1", "mailing_list:ml-2"}, msgs[0]["tags"],
+		"lists from every list page are included in the message query")
+}
+
 // ── Field mapping: ThreadID comes from topic_id, Excerpt from snippet ─────────
 
 func TestListMailingListActivityForWindow_FieldMapping(t *testing.T) {
-	body := []byte(`{"resources":[{` +
-		`"id":"os-doc-id-269273631",` +
-		`"data":{` +
-		`"topic_id":120939422,` +
-		`"subject":"Please review this PR",` +
-		`"snippet":"Hello folks!",` +
-		`"group_domain":"lists.sonicfoundation.dev",` +
-		`"group_name":"dev",` +
-		`"is_private":false,` +
-		`"created_at":"2026-08-26T15:33:36Z"` +
-		`}}]}`)
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		messagePages: []string{`{"resources":[{` +
+			`"id":"os-doc-id-269273631",` +
+			`"data":{` +
+			`"topic_id":120939422,` +
+			`"subject":"Please review this PR",` +
+			`"snippet":"Hello folks!",` +
+			`"group_domain":"lists.sonicfoundation.dev",` +
+			`"group_name":"dev",` +
+			`"mailing_list_uid":"ml-1",` +
+			`"created_at":"2026-08-26T15:33:36Z"` +
+			`}}]}`},
+	}
+	src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -73,21 +250,17 @@ func TestListMailingListActivityForWindow_FieldMapping(t *testing.T) {
 func TestListMailingListActivityForWindow_GroupsByTopicID(t *testing.T) {
 	// Three messages: two in topic 111, one in topic 222. The earliest
 	// in-window message in topic 111 (msg-1) determines subject and snippet.
-	body := []byte(`{"resources":[` +
-		`{"id":"msg-2","data":{"topic_id":111,"subject":"Re: Topic A","snippet":"Reply text","group_domain":"lists.example.org","group_name":"dev","is_private":false,"created_at":"2026-08-26T12:00:00Z"}},` +
-		`{"id":"msg-1","data":{"topic_id":111,"subject":"Topic A","snippet":"Original text","group_domain":"lists.example.org","group_name":"dev","is_private":false,"created_at":"2026-08-26T11:00:00Z"}},` +
-		`{"id":"msg-3","data":{"topic_id":222,"subject":"Topic B","snippet":"Other thread","group_domain":"lists.example.org","group_name":"dev","is_private":false,"created_at":"2026-08-26T13:00:00Z"}}` +
-		`]}`)
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		messagePages: []string{resourcesBody(
+			messageResource("msg-2", 111, "ml-1", "Re: Topic A", "Reply text", "2026-08-26T12:00:00Z"),
+			messageResource("msg-1", 111, "ml-1", "Topic A", "Original text", "2026-08-26T11:00:00Z"),
+			messageResource("msg-3", 222, "ml-1", "Topic B", "Other thread", "2026-08-26T13:00:00Z"),
+		)},
+	}
+	src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
 	require.Len(t, got, 2, "two topics → two activities")
@@ -107,68 +280,91 @@ func TestListMailingListActivityForWindow_MixedUTCOffsets_SortedByWallClock(t *t
 	// msg-b: 2026-08-26T09:30:00Z      = 09:30 UTC (later wall-clock)
 	// Lexicographic order: "09:30:00Z" < "11:00:00+02:00" → msg-b sorts first (wrong).
 	// time.Time.Before order: 09:00 UTC < 09:30 UTC → msg-a sorts first (correct).
-	body := []byte(`{"resources":[` +
-		`{"id":"msg-b","data":{"topic_id":777,"subject":"Later","snippet":"B","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T09:30:00Z"}},` +
-		`{"id":"msg-a","data":{"topic_id":777,"subject":"Earlier","snippet":"A","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T11:00:00+02:00"}}` +
-		`]}`)
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		messagePages: []string{resourcesBody(
+			messageResource("msg-b", 777, "ml-1", "Later", "B", "2026-08-26T09:30:00Z"),
+			messageResource("msg-a", 777, "ml-1", "Earlier", "A", "2026-08-26T11:00:00+02:00"),
+		)},
+	}
+	src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "Earlier", got[0].Subject, "msg-a (09:00 UTC) must be chosen over msg-b (09:30 UTC) despite lexicographic order")
 }
 
-// ── Privacy: any private message in a thread marks the whole thread private ───
+// ── Privacy: visibility comes from the owning mailing list ───────────────────
 
-func TestListMailingListActivityForWindow_PrivacyPropagation(t *testing.T) {
-	body := []byte(`{"resources":[` +
-		`{"id":"m1","data":{"topic_id":999,"subject":"S","snippet":"A","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}},` +
-		`{"id":"m2","data":{"topic_id":999,"subject":"S","snippet":"B","group_domain":"d","group_name":"g","is_private":true,"created_at":"2026-08-26T11:00:00Z"}}` +
-		`]}`)
+func TestListMailingListActivityForWindow_Privacy(t *testing.T) {
+	tests := []struct {
+		name        string
+		lists       []string
+		messages    []string
+		wantPrivate bool
+	}{
+		{
+			name:        "public list → public thread",
+			lists:       []string{listResource("ml-pub", true)},
+			messages:    []string{messageResource("m1", 999, "ml-pub", "S", "A", "2026-08-26T10:00:00Z")},
+			wantPrivate: false,
+		},
+		{
+			name:        "private list → private thread",
+			lists:       []string{listResource("ml-priv", false)},
+			messages:    []string{messageResource("m1", 999, "ml-priv", "S", "A", "2026-08-26T10:00:00Z")},
+			wantPrivate: true,
+		},
+		{
+			name:  "any message on a private list marks the whole thread private",
+			lists: []string{listResource("ml-pub", true), listResource("ml-priv", false)},
+			messages: []string{
+				messageResource("m1", 999, "ml-pub", "S", "A", "2026-08-26T10:00:00Z"),
+				messageResource("m2", 999, "ml-priv", "S", "B", "2026-08-26T11:00:00Z"),
+			},
+			wantPrivate: true,
+		},
+		{
+			name:        "message whose list is unknown is treated as private",
+			lists:       []string{listResource("ml-pub", true)},
+			messages:    []string{messageResource("m1", 999, "ml-other", "S", "A", "2026-08-26T10:00:00Z")},
+			wantPrivate: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &fakeQueryService{
+				listPages:    []string{resourcesBody(tt.lists...)},
+				messagePages: []string{resourcesBody(tt.messages...)},
+			}
+			src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
+			got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
-
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.True(t, got[0].Private, "thread with any private message must be marked private")
+			require.NoError(t, err)
+			require.Len(t, got, 1)
+			assert.Equal(t, tt.wantPrivate, got[0].Private)
+		})
+	}
 }
 
 // ── URL construction: empty group_name → empty URL ────────────────────────────
 
 func TestListMailingListActivityForWindow_EmptyGroupName_NoURL(t *testing.T) {
-	body := []byte(`{"resources":[{` +
-		`"id":"m1","data":{` +
-		`"topic_id":42,"subject":"S","snippet":"E",` +
-		`"group_domain":"lists.example.org","group_name":"",` +
-		`"is_private":false,"created_at":"2026-08-26T10:00:00Z"` +
-		`}}]}`)
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		messagePages: []string{`{"resources":[{` +
+			`"id":"m1","data":{` +
+			`"topic_id":42,"subject":"S","snippet":"E",` +
+			`"group_domain":"lists.example.org","group_name":"",` +
+			`"mailing_list_uid":"ml-1","created_at":"2026-08-26T10:00:00Z"` +
+			`}}]}`},
+	}
+	src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -177,71 +373,59 @@ func TestListMailingListActivityForWindow_EmptyGroupName_NoURL(t *testing.T) {
 
 // ── Malformed data payload → record skipped ───────────────────────────────────
 
-func TestListMailingListActivityForWindow_MalformedRecord_Skipped(t *testing.T) {
-	body := []byte(`{"resources":[` +
-		`{"id":"bad","data":[1,2,3]},` +
-		`{"id":"good","data":{"topic_id":1,"subject":"Good","snippet":"OK","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}}` +
-		`]}`)
+func TestListMailingListActivityForWindow_MalformedMessage_Skipped(t *testing.T) {
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		messagePages: []string{`{"resources":[` +
+			`{"id":"bad","data":[1,2,3]},` +
+			messageResource("good", 1, "ml-1", "Good", "OK", "2026-08-26T10:00:00Z") +
+			`]}`},
+	}
+	src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1, "malformed record must be skipped")
 	assert.Equal(t, "1", got[0].ThreadID)
 }
 
-// ── Date range: uses date_field=created_at with date_from/date_to ────────────
+// ── Malformed or uid-less mailing list → skipped, others still used ──────────
 
-func TestListMailingListActivityForWindow_DateRangeParams(t *testing.T) {
-	var capturedQuery url.Values
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedQuery = r.URL.Query()
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"resources":[]}`))
-	}))
-	defer srv.Close()
+func TestListMailingListActivityForWindow_MalformedList_Skipped(t *testing.T) {
+	f := &fakeQueryService{
+		listPages: []string{`{"resources":[` +
+			`{"id":"bad","data":[1,2,3]},` +
+			`{"id":"no-uid","data":{"public":true}},` +
+			listResource("ml-1", true) +
+			`]}`},
+		messagePages: []string{resourcesBody(messageResource("m1", 1, "ml-1", "S", "A", "2026-08-26T10:00:00Z"))},
+	}
+	src := newFakeQueryService(t, f)
 
-	windowStart := time.Date(2026, 8, 19, 0, 0, 0, 0, time.UTC)
-	windowEnd := time.Date(2026, 8, 26, 23, 59, 59, 0, time.UTC)
-
-	src := newMailingListSource(t, srv)
-	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", windowStart, windowEnd)
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
-	assert.Equal(t, "groupsio_mailing_list_message", capturedQuery.Get("type"))
-	assert.Equal(t, "committee:c-1", capturedQuery.Get("tags"), "mailing-list source uses committee: prefix (not committee_uid:) — matches mailing-list-service indexer contract")
-	assert.Equal(t, "created_at", capturedQuery.Get("date_field"), "must use date_field=created_at")
-	assert.Equal(t, windowStart.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_from"))
-	assert.Equal(t, windowEnd.UTC().Format(time.RFC3339Nano), capturedQuery.Get("date_to"))
-	assert.Empty(t, capturedQuery.Get("start_time[gte]"), "must not use legacy start_time bracket notation")
+	require.Len(t, got, 1)
+	msgs := f.requestsOfType(DefaultMailingListType)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, []string{"mailing_list:ml-1"}, msgs[0]["tags"], "only valid lists are queried")
 }
 
 // ── Zero topic_id → record skipped ───────────────────────────────────────────
 
 func TestListMailingListActivityForWindow_ZeroTopicID_Skipped(t *testing.T) {
-	body := []byte(`{"resources":[` +
-		`{"id":"zero","data":{"topic_id":0,"subject":"S","snippet":"A","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}},` +
-		`{"id":"empty-data","data":{}},` +
-		`{"id":"good","data":{"topic_id":5,"subject":"Good","snippet":"OK","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}}` +
-		`]}`)
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		messagePages: []string{`{"resources":[` +
+			`{"id":"zero","data":{"topic_id":0,"subject":"S","snippet":"A","mailing_list_uid":"ml-1","created_at":"2026-08-26T10:00:00Z"}},` +
+			`{"id":"empty-data","data":{}},` +
+			messageResource("good", 5, "ml-1", "Good", "OK", "2026-08-26T10:00:00Z") +
+			`]}`},
+	}
+	src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1, "records with zero or missing topic_id must be skipped")
@@ -254,38 +438,43 @@ func TestListMailingListActivityForWindow_ZeroCreatedAt_Skipped(t *testing.T) {
 	// omitted-ts: created_at absent from JSON → zero time.Time → must be skipped
 	// null-ts: created_at explicitly null → zero time.Time → must be skipped
 	// good: valid created_at → must survive
-	body := []byte(`{"resources":[` +
-		`{"id":"omitted-ts","data":{"topic_id":10,"subject":"No time","snippet":"A","group_domain":"d","group_name":"g","is_private":false}},` +
-		`{"id":"null-ts","data":{"topic_id":11,"subject":"Null time","snippet":"B","group_domain":"d","group_name":"g","is_private":false,"created_at":null}},` +
-		`{"id":"good","data":{"topic_id":12,"subject":"Good","snippet":"OK","group_domain":"d","group_name":"g","is_private":false,"created_at":"2026-08-26T10:00:00Z"}}` +
-		`]}`)
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		messagePages: []string{`{"resources":[` +
+			`{"id":"omitted-ts","data":{"topic_id":10,"subject":"No time","snippet":"A","mailing_list_uid":"ml-1"}},` +
+			`{"id":"null-ts","data":{"topic_id":11,"subject":"Null time","snippet":"B","mailing_list_uid":"ml-1","created_at":null}},` +
+			messageResource("good", 12, "ml-1", "Good", "OK", "2026-08-26T10:00:00Z") +
+			`]}`},
+	}
+	src := newFakeQueryService(t, f)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(body)
-	}))
-	defer srv.Close()
-
-	src := newMailingListSource(t, srv)
-	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now().Add(-time.Hour), time.Now())
+	got, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.NoError(t, err)
 	require.Len(t, got, 1, "records with absent or null created_at must be skipped")
 	assert.Equal(t, "12", got[0].ThreadID)
 }
 
-// ── Non-2xx response → error ──────────────────────────────────────────────────
+// ── Non-2xx on either query → error ───────────────────────────────────────────
 
-func TestListMailingListActivityForWindow_Non2xx_ReturnsError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer srv.Close()
+func TestListMailingListActivityForWindow_ListQueryNon2xx_ReturnsError(t *testing.T) {
+	f := &fakeQueryService{listStatus: http.StatusInternalServerError}
+	src := newFakeQueryService(t, f)
 
-	src := newMailingListSource(t, srv)
-	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1",
-		time.Now(), time.Now().Add(time.Hour))
+	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
+
+	require.Error(t, err)
+	assert.Empty(t, f.requestsOfType(DefaultMailingListType), "message query must not run when list resolution fails")
+}
+
+func TestListMailingListActivityForWindow_MessageQueryNon2xx_ReturnsError(t *testing.T) {
+	f := &fakeQueryService{
+		listPages: []string{resourcesBody(listResource("ml-1", true))},
+		msgStatus: http.StatusInternalServerError,
+	}
+	src := newFakeQueryService(t, f)
+
+	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
 
 	require.Error(t, err)
 }
