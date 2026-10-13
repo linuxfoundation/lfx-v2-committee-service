@@ -525,3 +525,37 @@ func TestListMailingListActivityForWindow_MessageQueryNon2xx_ReturnsError(t *tes
 
 	require.Error(t, err)
 }
+
+// ── One shared deadline covers every request of a call ───────────────────────
+
+func TestListMailingListActivityForWindow_TotalTimeout_BoundsSequentialRequests(t *testing.T) {
+	// Every request is faster than the per-request Timeout, but the endless
+	// page_token chain would run for maxQueryPages × 20ms without a shared deadline.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(20 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("type") == mailingListResourceType {
+			_, _ = fmt.Fprintf(w, `{"resources":[%s],"page_token":"next"}`, listResource("ml-1", true))
+			return
+		}
+		_, _ = w.Write([]byte(resourcesBody()))
+	}))
+	defer srv.Close()
+
+	src := NewMailingListSource(
+		MailingListSourceConfig{BaseURL: srv.URL, Timeout: 5 * time.Second, TotalTimeout: 50 * time.Millisecond},
+		srv.Client(),
+	)
+
+	start := time.Now()
+	_, err := src.ListMailingListActivityForWindow(context.Background(), "c-1", testWindowStart, testWindowEnd)
+
+	require.Error(t, err, "exceeding the total deadline must surface as an error")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), time.Second, "must stop at the shared deadline, not run every page")
+}
+
+func TestNewMailingListSource_DefaultsTotalTimeout(t *testing.T) {
+	src := NewMailingListSource(MailingListSourceConfig{BaseURL: "http://example.invalid"}, nil)
+	assert.Equal(t, defaultTotalTimeout, src.cfg.TotalTimeout)
+}

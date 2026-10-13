@@ -36,6 +36,11 @@ const (
 	// listTagBatchSize bounds how many mailing_list tags go into one message
 	// query so the request URL stays well within proxy limits.
 	listTagBatchSize = 25
+
+	// defaultTotalTimeout bounds a whole ListMailingListActivityForWindow call.
+	// The call issues several sequential requests (list pages, then message
+	// batches and pages), so the per-request Timeout alone does not cap it.
+	defaultTotalTimeout = 60 * time.Second
 )
 
 // MailingListSourceConfig configures the live mailing-list source. All fields
@@ -46,7 +51,11 @@ const (
 type MailingListSourceConfig struct {
 	BaseURL string
 	Type    string
+	// Timeout bounds each individual query-service request.
 	Timeout time.Duration
+	// TotalTimeout bounds one whole ListMailingListActivityForWindow call,
+	// across every request it makes. Defaults to defaultTotalTimeout.
+	TotalTimeout time.Duration
 }
 
 // MailingListSource is the live MailingListSource adapter. It resolves the
@@ -71,6 +80,9 @@ type MailingListSource struct {
 func NewMailingListSource(cfg MailingListSourceConfig, client *http.Client) *MailingListSource {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 15 * time.Second
+	}
+	if cfg.TotalTimeout == 0 {
+		cfg.TotalTimeout = defaultTotalTimeout
 	}
 	if cfg.Type == "" {
 		cfg.Type = DefaultMailingListType
@@ -112,6 +124,11 @@ func (m *MailingListSource) ListMailingListActivityForWindow(ctx context.Context
 		slog.WarnContext(ctx, "mailing list source disabled: QUERY_SERVICE_URL not set")
 		return nil, nil
 	}
+
+	// One shared deadline for the whole fan-out; the per-request client timeout
+	// restarts on every page and would otherwise let a slow upstream run long.
+	ctx, cancel := context.WithTimeout(ctx, m.cfg.TotalTimeout)
+	defer cancel()
 
 	publicByList, listOrder, err := m.listCommitteeMailingLists(ctx, committeeUID)
 	if err != nil {

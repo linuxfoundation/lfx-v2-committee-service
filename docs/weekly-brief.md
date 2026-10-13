@@ -172,8 +172,13 @@ Records are per-message; the adapter groups them by `topic_id` and returns one
 only each message's `mailing_list_uid`, so a committee or visibility change on a list is
 reflected immediately with no message re-index. Because membership follows the list's
 *current* committees, in-window messages from before a list was linked to the committee are
-included, and messages from a list unlinked during the window are dropped. A thread is marked private when any of its messages
-belongs to a list that is not public (or whose list could not be resolved).
+included, and messages from a list unlinked during the window are dropped. A thread is
+marked private when any of its messages belongs to a list that is not public (or whose list
+could not be resolved).
+
+**Bounded fetch:** each query-service request has its own timeout, and one call is also
+capped by a shared total deadline (default 60s) across every list page, message batch and
+page. Exceeding it returns an error, like any other failed query.
 
 **Known limitation:** if a thread's true opener was posted before the brief window, the
 earliest in-window message is used as the thread representative. This is acceptable for a
