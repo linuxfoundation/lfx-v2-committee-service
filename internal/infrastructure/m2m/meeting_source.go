@@ -75,6 +75,7 @@ type queryResource struct {
 
 type queryEnvelope struct {
 	Resources []queryResource `json:"resources"`
+	PageToken string          `json:"page_token,omitempty"`
 }
 
 type queryMeetingData struct {
