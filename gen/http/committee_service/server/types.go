@@ -78,8 +78,8 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
@@ -161,8 +161,8 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
@@ -497,8 +497,8 @@ type CreateCommitteeResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
@@ -600,8 +600,8 @@ type UpdateCommitteeSettingsResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
@@ -2959,8 +2959,8 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`

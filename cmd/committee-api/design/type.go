@@ -1089,9 +1089,9 @@ func ShowMeetingAttendeesAttribute() {
 	})
 }
 
-// MembersCanViewSocialListeningAttribute is the DSL attribute for the Board-only Social Listening access setting.
+// MembersCanViewSocialListeningAttribute is the DSL attribute for the group's Social Listening access setting.
 func MembersCanViewSocialListeningAttribute() {
-	dsl.Attribute("members_can_view_social_listening", dsl.Boolean, "Board committees only: when true, members of this committee can view Social Listening for the committee's foundation", func() {
+	dsl.Attribute("members_can_view_social_listening", dsl.Boolean, "When true, members of this committee can view Social Listening for the committee's foundation", func() {
 		dsl.Default(false)
 		dsl.Example(false)
 	})

@@ -3592,7 +3592,7 @@ definitions:
                     - basic_profile
             members_can_view_social_listening:
                 type: boolean
-                description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                description: When true, members of this committee can view Social Listening for the committee's foundation
                 default: false
                 example: false
             name:
@@ -4553,7 +4553,7 @@ definitions:
                     - basic_profile
             members_can_view_social_listening:
                 type: boolean
-                description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                description: When true, members of this committee can view Social Listening for the committee's foundation
                 default: false
                 example: false
             name:
@@ -5281,7 +5281,7 @@ definitions:
                     - basic_profile
             members_can_view_social_listening:
                 type: boolean
-                description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                description: When true, members of this committee can view Social Listening for the committee's foundation
                 default: false
                 example: false
             show_meeting_attendees:
@@ -5490,7 +5490,7 @@ definitions:
                     - basic_profile
             members_can_view_social_listening:
                 type: boolean
-                description: 'Board committees only: when true, members of this committee can view Social Listening for the committee''s foundation'
+                description: When true, members of this committee can view Social Listening for the committee's foundation
                 default: false
                 example: false
             show_meeting_attendees:

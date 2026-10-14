@@ -22,8 +22,6 @@ import (
 	indexerTypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 )
 
-const msgSocialListeningBoardOnly = "members_can_view_social_listening can only be enabled on Board committees"
-
 // sanitizeCommitteeBaseForPublish returns a copy of base with the charter's updated_by email
 // stripped. Used both for CommitteeIndexerMessage.Build, which marshals its input verbatim into
 // Data alongside IndexingConfig.Public, and for the committee.updated NATS event payload -- in
@@ -470,10 +468,6 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
 
-	if committee.CommitteeSettings != nil && committee.MembersCanViewSocialListening && !committee.IsBoard() {
-		return nil, errs.NewValidation(msgSocialListeningBoardOnly)
-	}
-
 	// Set timestamps and derived fields for committee settings if they exist
 	if committee.CommitteeSettings != nil {
 		committee.CommitteeSettings.CreatedAt = now
@@ -917,26 +911,6 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 		"business_email_required", existingSettings.BusinessEmailRequired,
 	)
 
-	committeeBase, _, errGet := uc.committeeReader.GetBase(ctx, settings.UID)
-	if errGet != nil {
-		slog.ErrorContext(ctx, "failed to retrieve committee",
-			"error", errGet,
-			"committee_uid", settings.UID,
-		)
-		return nil, errGet
-	}
-
-	// members_can_view_social_listening is Board-only. Only switching it on is rejected: a committee
-	// recategorised out of Board can still carry a stored true, and internal callers (user deletion,
-	// invite LFID backfill) write the stored settings back — rejecting those would wedge every later
-	// settings write. Clearing it here instead drops the stale grant on the next write.
-	if !committeeBase.IsBoard() {
-		if settings.MembersCanViewSocialListening && !existingSettings.MembersCanViewSocialListening {
-			return nil, errs.NewValidation(msgSocialListeningBoardOnly)
-		}
-		settings.MembersCanViewSocialListening = false
-	}
-
 	// Step 2: Merge existing data with updated fields
 	// Preserve readonly fields
 	settings.UID = existingSettings.UID
@@ -979,6 +953,15 @@ func (uc *committeeWriterOrchestrator) UpdateSettings(ctx context.Context, setti
 	)
 
 	// ******************************************************
+	committeeBase, _, errGet := uc.committeeReader.GetBase(ctx, settings.UID)
+	if errGet != nil {
+		slog.ErrorContext(ctx, "failed to retrieve committee",
+			"error", errGet,
+			"committee_uid", settings.UID,
+		)
+		return nil, errGet
+	}
+
 	committee := &model.Committee{CommitteeBase: *committeeBase, CommitteeSettings: settings}
 	// Build and publish indexer message
 	indexSettings := *settings

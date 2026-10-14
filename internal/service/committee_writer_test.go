@@ -3309,91 +3309,7 @@ func TestBuildCommitteeIndexingConfig_DisplayNameDedup(t *testing.T) {
 	}
 }
 
-func TestCommitteeWriterOrchestrator_SocialListeningBoardOnly(t *testing.T) {
-	tests := []struct {
-		name     string
-		category string
-		enabled  bool
-		wantErr  bool
-	}{
-		{name: "board committee can enable", category: "Board", enabled: true, wantErr: false},
-		{name: "non-board committee cannot enable", category: "Technical Steering Committee", enabled: true, wantErr: true},
-		{name: "government advisory council cannot enable", category: "Government Advisory Council", enabled: true, wantErr: true},
-		{name: "non-board committee can leave it off", category: "Technical Steering Committee", enabled: false, wantErr: false},
-	}
-
-	for _, tc := range tests {
-		t.Run("update settings: "+tc.name, func(t *testing.T) {
-			mockRepo := mock.NewMockRepository()
-			mockRepo.ClearAll()
-			mockRepo.AddProject("project-1", "test-project", "Test Project")
-			mockRepo.AddCommittee(&model.Committee{
-				CommitteeBase: model.CommitteeBase{
-					UID:        "committee-1",
-					ProjectUID: "project-1",
-					Name:       "Test Committee",
-					Category:   tc.category,
-				},
-				CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
-			})
-
-			orchestrator := NewCommitteeWriterOrchestrator(
-				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
-				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
-				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
-				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
-			)
-
-			result, err := orchestrator.UpdateSettings(context.Background(), &model.CommitteeSettings{
-				UID:                           "committee-1",
-				MembersCanViewSocialListening: tc.enabled,
-			}, uint64(1), false)
-
-			if tc.wantErr {
-				var validationErr errs.Validation
-				assert.ErrorAs(t, err, &validationErr)
-				assert.Nil(t, result)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tc.enabled, result.MembersCanViewSocialListening)
-		})
-
-		t.Run("create: "+tc.name, func(t *testing.T) {
-			mockRepo := mock.NewMockRepository()
-			mockRepo.ClearAll()
-			mockRepo.AddProject("project-1", "test-project", "Test Project")
-
-			orchestrator := NewCommitteeWriterOrchestrator(
-				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
-				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
-				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
-				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
-			)
-
-			result, err := orchestrator.Create(context.Background(), &model.Committee{
-				CommitteeBase: model.CommitteeBase{
-					ProjectUID: "project-1",
-					Name:       "Test Committee",
-					Category:   tc.category,
-				},
-				CommitteeSettings: &model.CommitteeSettings{MembersCanViewSocialListening: tc.enabled},
-			}, false)
-
-			if tc.wantErr {
-				var validationErr errs.Validation
-				assert.ErrorAs(t, err, &validationErr)
-				assert.Nil(t, result)
-				assert.Equal(t, 0, mockRepo.GetCommitteeCount())
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, tc.enabled, result.MembersCanViewSocialListening)
-		})
-	}
-}
-
-func TestCommitteeWriterOrchestrator_UpdateSettings_SocialListeningAfterRecategorisation(t *testing.T) {
+func TestCommitteeWriterOrchestrator_SocialListeningSetting(t *testing.T) {
 	newOrchestrator := func(mockRepo *mock.MockRepository) CommitteeWriter {
 		return NewCommitteeWriterOrchestrator(
 			WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
@@ -3402,63 +3318,38 @@ func TestCommitteeWriterOrchestrator_UpdateSettings_SocialListeningAfterRecatego
 			WithCommitteePublisher(mock.NewMockCommitteePublisher()),
 		)
 	}
-	seed := func(enabled bool) *mock.MockRepository {
-		mockRepo := mock.NewMockRepository()
-		mockRepo.ClearAll()
-		mockRepo.AddProject("project-1", "test-project", "Test Project")
-		// A committee that was a Board with the setting on, then recategorised.
-		mockRepo.AddCommittee(&model.Committee{
-			CommitteeBase: model.CommitteeBase{
-				UID:        "committee-1",
-				ProjectUID: "project-1",
-				Name:       "Former Board",
-				Category:   "Technical Steering Committee",
-			},
-			CommitteeSettings: &model.CommitteeSettings{
-				UID:                           "committee-1",
-				MembersCanViewSocialListening: enabled,
-				Writers:                       []model.CommitteeUser{{Username: "writer-1"}},
-			},
+
+	for _, category := range []string{"Board", "Technical Steering Committee"} {
+		t.Run("create: "+category, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+			result, err := newOrchestrator(mockRepo).Create(context.Background(), &model.Committee{
+				CommitteeBase:     model.CommitteeBase{ProjectUID: "project-1", Name: "Test Committee", Category: category},
+				CommitteeSettings: &model.CommitteeSettings{MembersCanViewSocialListening: true},
+			}, false)
+
+			assert.NoError(t, err)
+			assert.True(t, result.MembersCanViewSocialListening)
 		})
-		return mockRepo
+
+		t.Run("update settings: "+category, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase:     model.CommitteeBase{UID: "committee-1", ProjectUID: "project-1", Name: "Test Committee", Category: category},
+				CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
+			})
+
+			result, err := newOrchestrator(mockRepo).UpdateSettings(context.Background(), &model.CommitteeSettings{
+				UID:                           "committee-1",
+				MembersCanViewSocialListening: true,
+			}, uint64(1), false)
+
+			assert.NoError(t, err)
+			assert.True(t, result.MembersCanViewSocialListening)
+		})
 	}
-
-	t.Run("writing back the stored settings succeeds and clears the stale grant", func(t *testing.T) {
-		mockRepo := seed(true)
-
-		// Mirrors internal callers (user deletion, invite LFID backfill) that write the stored settings back.
-		result, err := newOrchestrator(mockRepo).UpdateSettings(context.Background(), &model.CommitteeSettings{
-			UID:                           "committee-1",
-			MembersCanViewSocialListening: true,
-			Writers:                       []model.CommitteeUser{},
-		}, uint64(1), false)
-
-		assert.NoError(t, err)
-		assert.False(t, result.MembersCanViewSocialListening)
-		assert.Empty(t, result.Writers)
-
-		stored, _, errGet := mock.NewMockCommitteeReader(mockRepo).GetSettings(context.Background(), "committee-1")
-		assert.NoError(t, errGet)
-		assert.False(t, stored.MembersCanViewSocialListening)
-	})
-
-	t.Run("switching it on stays rejected and leaves storage untouched", func(t *testing.T) {
-		mockRepo := seed(false)
-
-		result, err := newOrchestrator(mockRepo).UpdateSettings(context.Background(), &model.CommitteeSettings{
-			UID:                           "committee-1",
-			MembersCanViewSocialListening: true,
-		}, uint64(1), false)
-
-		var validationErr errs.Validation
-		assert.ErrorAs(t, err, &validationErr)
-		assert.Nil(t, result)
-
-		stored, _, errGet := mock.NewMockCommitteeReader(mockRepo).GetSettings(context.Background(), "committee-1")
-		assert.NoError(t, errGet)
-		assert.False(t, stored.MembersCanViewSocialListening)
-		assert.Equal(t, []model.CommitteeUser{{Username: "writer-1"}}, stored.Writers)
-		// UpdateSettings stamps UpdatedAt on every write; the seeded record has none, so this proves nothing was written.
-		assert.True(t, stored.UpdatedAt.IsZero(), "a rejected switch-on must not write the settings")
-	})
 }

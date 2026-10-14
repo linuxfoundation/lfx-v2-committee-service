@@ -421,8 +421,8 @@ type CommitteeFullWithReadonlyAttributes struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening bool
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
@@ -590,8 +590,8 @@ type CommitteeSettingsWithReadonlyAttributes struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening bool
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUser
@@ -807,8 +807,8 @@ type CreateCommitteePayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening bool
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
@@ -1730,8 +1730,8 @@ type UpdateCommitteeSettingsPayload struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool
-	// Board committees only: when true, members of this committee can view Social
-	// Listening for the committee's foundation
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
 	MembersCanViewSocialListening bool
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
