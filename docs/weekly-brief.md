@@ -99,9 +99,10 @@ Two behaviors to keep in mind when a brief looks empty:
 - With `QUERY_SERVICE_URL` unset, the query-service sources return zero
   results (no startup failure). With it set, the `M2M_AUTH_*` credentials are
   required.
-- The mailing-list source filters on the `committee:` tag, not `committee_uid:`.
-  This matches what the mailing-list service emits; do not change one side
-  without a coordinated re-index.
+- The mailing-list source makes two queries: it first resolves the committee's
+  mailing lists (`committee_uid:` tag on `groupsio_mailing_list`), then fetches
+  messages for those lists (`mailing_list:` tags). A committee with no mailing
+  lists produces no mailing-list activity.
 
 ### Source reference
 
@@ -157,18 +158,27 @@ Two behaviors to keep in mind when a brief looks empty:
 
 | Field | Value |
 |-------|-------|
-| Resource type | `groupsio_mailing_list_message` |
-| Committee tag | `committee:{uid}` |
-| Date filter | `date_field=created_at` + `date_from`/`date_to` |
+| Step 1 resource type | `groupsio_mailing_list` |
+| Step 1 tag | `committee_uid:{uid}` (resolves the committee's mailing lists and their `public` flag) |
+| Step 2 resource type | `groupsio_mailing_list_message` |
+| Step 2 tags | `mailing_list:{listUID}` for each list from step 1 (OR logic; batched) |
+| Date filter | `date_field=created_at` + `date_from`/`date_to` (step 2 only) |
+| Paging | `page_size=1000`, follows `page_token` (bounded) |
 
 Records are per-message; the adapter groups them by `topic_id` and returns one
 `MailingListActivity` per thread with subject/excerpt from the earliest in-window message.
 
-**Tag prefix difference:** this source uses `committee:` while all other committee-scoped
-sources use `committee_uid:`. This matches the tag emitted by `lfx-v2-mailing-list-service`
-(`grpsio_message.go` — `Tags()` method), which chose `committee:` to align with the broader
-LFX tag convention for this resource type. Changing either side would require a coordinated
-re-index.
+**Committee association is read from the mailing list, not the message.** The source uses
+only each message's `mailing_list_uid`, so a committee or visibility change on a list is
+reflected immediately with no message re-index. Because membership follows the list's
+*current* committees, in-window messages from before a list was linked to the committee are
+included, and messages from a list unlinked during the window are dropped. A thread is
+marked private when any of its messages belongs to a list that is not public (or whose list
+could not be resolved).
+
+**Bounded fetch:** each query-service request has its own timeout, and one call is also
+capped by a shared total deadline (default 60s) across every list page, message batch and
+page. Exceeding it returns an error, like any other failed query.
 
 **Known limitation:** if a thread's true opener was posted before the brief window, the
 earliest in-window message is used as the thread representative. This is acceptable for a

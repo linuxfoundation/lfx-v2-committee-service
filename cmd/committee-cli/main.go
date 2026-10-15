@@ -133,6 +133,7 @@ func run() error {
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
 		CommitteeApplicationReader:  storage,
+		CommitteeApplicationWriter:  storage,
 		B2BOrgFallbackResolver:      b2bOrgFallbackResolver,
 		Args:                        parsed.SubArgs,
 	}

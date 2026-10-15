@@ -412,7 +412,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
-**Indexed on:** create and status updates of a committee application (reapply, approve, reject).
+**Indexed on:** create and status updates of a committee application (reapply, approve, reject), and cascade `ActionDeleted` (plus KV record deletion) when the parent committee is deleted.
 
 ### Data Schema
 
@@ -421,6 +421,7 @@ _(none)_
 | `uid` | string | Application unique identifier |
 | `committee_uid` | string | UID of the committee this application belongs to |
 | `applicant_email` | string | Email address of the applicant |
+| `applicant_username` | string (optional) | LFID username of the applicant (omitted for email-only applicants) |
 | `message` | string | Application message from the applicant |
 | `status` | string | Application status (e.g., `pending`, `approved`, `rejected`) |
 | `reviewer_notes` | string | Notes left by the reviewer |
@@ -438,9 +439,10 @@ _(none)_
 | `committee_application_uid:{uid}` | `committee_application_uid:a1b2c3d4-...` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-...` | Find applications for a committee |
 | `applicant_email:{value}` | `applicant_email:user@example.com` | Find applications by applicant email |
+| `username:{value}` | `username:first-last` | Find applications by applicant LFID username |
 | `status:{value}` | `status:pending` | Find applications by status |
 
-> Tags for `applicant_email` and `status` are only emitted when the value is non-empty.
+> Tags for `applicant_email`, `username`, and `status` are only emitted when the value is non-empty. The `username` tag is absent for email-only applicants who have not registered an LFID.
 
 ### Access Control (IndexingConfig)
 

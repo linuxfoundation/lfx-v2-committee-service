@@ -18,13 +18,14 @@ import (
 
 // CommitteeApplication represents a committee application business entity
 type CommitteeApplication struct {
-	UID            string    `json:"uid"`
-	CommitteeUID   string    `json:"committee_uid"`
-	ApplicantEmail string    `json:"applicant_email"`
-	Message        string    `json:"message"`
-	Status         string    `json:"status"`
-	ReviewerNotes  string    `json:"reviewer_notes"`
-	CreatedAt      time.Time `json:"created_at"`
+	UID               string    `json:"uid"`
+	CommitteeUID      string    `json:"committee_uid"`
+	ApplicantEmail    string    `json:"applicant_email"`
+	ApplicantUsername string    `json:"applicant_username,omitempty"`
+	Message           string    `json:"message"`
+	Status            string    `json:"status"`
+	ReviewerNotes     string    `json:"reviewer_notes"`
+	CreatedAt         time.Time `json:"created_at"`
 	// Organization supplied by the applicant at submission time. Used when
 	// approving the application to populate the created committee member record,
 	// so the member's org is set from what the applicant confirmed rather than
@@ -85,6 +86,11 @@ func (ca *CommitteeApplication) Tags() []string {
 	if ca.ApplicantEmail != "" {
 		applicant := strings.TrimSpace(strings.ToLower(ca.ApplicantEmail))
 		tag := fmt.Sprintf("applicant_email:%s", applicant)
+		tags = append(tags, tag)
+	}
+
+	if ca.ApplicantUsername != "" {
+		tag := fmt.Sprintf("username:%s", ca.ApplicantUsername)
 		tags = append(tags, tag)
 	}
 

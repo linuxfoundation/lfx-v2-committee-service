@@ -263,6 +263,11 @@ func (w *TestMockCommitteeMemberWriter) UpdateApplication(ctx context.Context, a
 	return mockWriter.UpdateApplication(ctx, application, revision)
 }
 
+func (w *TestMockCommitteeMemberWriter) DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error {
+	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
+	return mockWriter.DeleteApplication(ctx, application)
+}
+
 func (w *TestMockCommitteeMemberWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
 	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
 	return mockWriter.UniqueApplication(ctx, application)
