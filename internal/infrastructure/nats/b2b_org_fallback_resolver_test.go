@@ -93,3 +93,28 @@ func TestB2BOrgFallbackResolver_ResolveSFID_emptyInput(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 }
+
+func TestB2BOrgFallbackResolver_ResolveSFID_unansweredRequestTimesOut(t *testing.T) {
+	_, url := startTestNATSServer(t)
+
+	nc, err := nats.Connect(url)
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	// Subscriber receives the request but never replies.
+	_, err = nc.Subscribe(constants.MemberB2BOrgLookupByWebsiteSubject, func(_ *nats.Msg) {})
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+
+	resolver := &b2bOrgFallbackResolver{
+		client:  &NATSClient{conn: nc, timeout: 2 * time.Second},
+		timeout: 100 * time.Millisecond,
+	}
+
+	start := time.Now()
+	// context.Background() has no deadline; the resolver must bound the request itself.
+	_, ok, err := resolver.ResolveSFID(context.Background(), "Example Inc", "example.com")
+	require.Error(t, err, "an unanswered lookup must fail rather than block indefinitely")
+	require.False(t, ok)
+	require.Less(t, time.Since(start), 2*time.Second, "lookup must be bounded by the resolver timeout")
+}

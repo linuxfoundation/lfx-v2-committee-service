@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
@@ -26,6 +27,9 @@ type b2bOrgLookupByWebsiteResponse struct {
 
 type b2bOrgFallbackResolver struct {
 	client *NATSClient
+	// timeout bounds each lookup request so an unanswered request cannot stall
+	// callers that pass a context without a deadline (e.g. the repair CLI).
+	timeout time.Duration
 }
 
 var _ port.B2BOrgFallbackResolver = (*b2bOrgFallbackResolver)(nil)
@@ -34,7 +38,7 @@ var _ port.B2BOrgFallbackResolver = (*b2bOrgFallbackResolver)(nil)
 // consulted only for legacy, non-SFID-shaped organization.id values, before
 // b2bOrgResolver.ResolveByUID is attempted.
 func NewB2BOrgFallbackResolver(client *NATSClient) port.B2BOrgFallbackResolver {
-	return &b2bOrgFallbackResolver{client: client}
+	return &b2bOrgFallbackResolver{client: client, timeout: defaultRequestTimeout}
 }
 
 // ResolveSFID resolves a b2b_org SFID by name/website via member-service.
@@ -50,7 +54,10 @@ func (r *b2bOrgFallbackResolver) ResolveSFID(ctx context.Context, name, website 
 		return "", false, fmt.Errorf("marshal b2b_org lookup by website request: %w", err)
 	}
 
-	_, msg, err := r.client.requestWithSpan(ctx, constants.MemberB2BOrgLookupByWebsiteSubject, payload)
+	ctxReq, cancel := context.WithTimeout(ctx, r.timeout)
+	defer cancel()
+
+	_, msg, err := r.client.requestWithSpan(ctxReq, constants.MemberB2BOrgLookupByWebsiteSubject, payload)
 	if err != nil {
 		return "", false, fmt.Errorf("b2b_org lookup by website request failed: %w", err)
 	}
