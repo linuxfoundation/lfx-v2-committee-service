@@ -67,6 +67,15 @@ This service contains the following API endpoints:
 - `/committees/{uid}/leave`
   - `DELETE`: leave a committee as the authenticated user
 
+## HTTP request limits
+
+All routes enforce a 1 MiB total request-body limit before decoding or debug
+body logging. `POST /committees/{uid}/documents` allows 11 MiB total for multipart
+headers and metadata around a file of up to 10 MiB; the file-size limit remains
+independently enforced. Oversized bodies return HTTP 413, including requests
+without a Content-Length header. The server allows 60 seconds to read the
+request headers and body. Empty invite-acceptance bodies remain supported.
+
 ## NATS Messaging Interface
 
 In addition to HTTP endpoints, this service answers synchronous NATS request-reply subjects used by other LFX services to query committee state.
