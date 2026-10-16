@@ -3308,3 +3308,48 @@ func TestBuildCommitteeIndexingConfig_DisplayNameDedup(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitteeWriterOrchestrator_SocialListeningSetting(t *testing.T) {
+	newOrchestrator := func(mockRepo *mock.MockRepository) CommitteeWriter {
+		return NewCommitteeWriterOrchestrator(
+			WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+			WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+			WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+			WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+		)
+	}
+
+	for _, category := range []string{"Board", "Technical Steering Committee"} {
+		t.Run("create: "+category, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+
+			result, err := newOrchestrator(mockRepo).Create(context.Background(), &model.Committee{
+				CommitteeBase:     model.CommitteeBase{ProjectUID: "project-1", Name: "Test Committee", Category: category},
+				CommitteeSettings: &model.CommitteeSettings{MembersCanViewSocialListening: true},
+			}, false)
+
+			assert.NoError(t, err)
+			assert.True(t, result.MembersCanViewSocialListening)
+		})
+
+		t.Run("update settings: "+category, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase:     model.CommitteeBase{UID: "committee-1", ProjectUID: "project-1", Name: "Test Committee", Category: category},
+				CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
+			})
+
+			result, err := newOrchestrator(mockRepo).UpdateSettings(context.Background(), &model.CommitteeSettings{
+				UID:                           "committee-1",
+				MembersCanViewSocialListening: true,
+			}, uint64(1), false)
+
+			assert.NoError(t, err)
+			assert.True(t, result.MembersCanViewSocialListening)
+		})
+	}
+}

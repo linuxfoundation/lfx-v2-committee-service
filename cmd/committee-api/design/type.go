@@ -53,6 +53,7 @@ func CommitteeSettingsAttributes() {
 	LastReviewedByAttribute()
 	MemberVisibilityAttribute()
 	ShowMeetingAttendeesAttribute()
+	MembersCanViewSocialListeningAttribute()
 }
 
 // CommitteeFull is the DSL type for a committee full.
@@ -1083,6 +1084,14 @@ func MemberVisibilityAttribute() {
 // ShowMeetingAttendeesAttribute is the DSL attribute for the default meeting attendees visibility setting.
 func ShowMeetingAttendeesAttribute() {
 	dsl.Attribute("show_meeting_attendees", dsl.Boolean, "Determines the default show_meeting_attendees setting on meetings this committee is connected to", func() {
+		dsl.Default(false)
+		dsl.Example(false)
+	})
+}
+
+// MembersCanViewSocialListeningAttribute is the DSL attribute for the group's Social Listening access setting.
+func MembersCanViewSocialListeningAttribute() {
+	dsl.Attribute("members_can_view_social_listening", dsl.Boolean, "When true, members of this committee can view Social Listening for the committee's foundation", func() {
 		dsl.Default(false)
 		dsl.Example(false)
 	})
