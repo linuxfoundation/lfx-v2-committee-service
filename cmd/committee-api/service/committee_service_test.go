@@ -200,10 +200,13 @@ func (m *mockCommitteeWriterOrchestrator) ReassignMember(ctx context.Context, ol
 func setupServiceTest() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator) {
 	mockOrchestrator := &mockCommitteeWriterOrchestrator{}
 	mockRepo := mock.NewMockRepository()
+	readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+		internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+	)
 
 	service := &committeeServicesrvc{
 		committeeWriterOrchestrator: mockOrchestrator,
-		committeeReaderOrchestrator: nil, // Not needed for delete member test
+		committeeReaderOrchestrator: readerOrchestrator,
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
 		publisher:                   mock.NewMockCommitteePublisher(),
@@ -232,10 +235,13 @@ func (m *mockInviteSender) SendInvite(_ context.Context, req inviteapi.SendInvit
 func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrchestrator, *mock.MockRepository) {
 	mockOrchestrator := &mockCommitteeWriterOrchestrator{}
 	mockRepo := mock.NewMockRepository()
+	readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+		internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+	)
 
 	svc := &committeeServicesrvc{
 		committeeWriterOrchestrator: mockOrchestrator,
-		committeeReaderOrchestrator: nil,
+		committeeReaderOrchestrator: readerOrchestrator,
 		auth:                        mock.NewMockAuthService(),
 		storage:                     mock.NewMockCommitteeReaderWriter(mockRepo),
 		publisher:                   mock.NewMockCommitteePublisher(),
@@ -650,15 +656,16 @@ func TestUpdateCommitteeMember(t *testing.T) {
 		{
 			name: "successful update",
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
-				UID:         "committee-123",
-				MemberUID:   "member-456",
-				Username:    stringPtr("testuser"),
-				Email:       "test@example.com",
-				FirstName:   stringPtr("John"),
-				LastName:    stringPtr("Doe"),
-				AppointedBy: "admin",
-				Status:      "active",
-				IfMatch:     stringPtr("1"),
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Username:        stringPtr("testuser"),
+				Email:           stringPtr("test@example.com"),
+				LinkedinProfile: stringPtr(""),
+				FirstName:       stringPtr("John"),
+				LastName:        stringPtr("Doe"),
+				AppointedBy:     "admin",
+				Status:          "active",
+				IfMatch:         stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.updateMember = &model.CommitteeMember{
@@ -695,7 +702,7 @@ func TestUpdateCommitteeMember(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:         "committee-123",
 				MemberUID:   "member-456",
-				Email:       "test@example.com",
+				Email:       stringPtr("test@example.com"),
 				AppointedBy: "admin",
 				Status:      "active",
 				IfMatch:     stringPtr("invalid"),
@@ -712,7 +719,7 @@ func TestUpdateCommitteeMember(t *testing.T) {
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
 				UID:         "committee-123",
 				MemberUID:   "member-456",
-				Email:       "test@example.com",
+				Email:       stringPtr("test@example.com"),
 				AppointedBy: "admin",
 				Status:      "active",
 				IfMatch:     nil,
@@ -727,12 +734,13 @@ func TestUpdateCommitteeMember(t *testing.T) {
 		{
 			name: "orchestrator error - not found",
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
-				UID:         "committee-123",
-				MemberUID:   "member-456",
-				Email:       "test@example.com",
-				AppointedBy: "admin",
-				Status:      "active",
-				IfMatch:     stringPtr("1"),
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Email:           stringPtr("test@example.com"),
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "admin",
+				Status:          "active",
+				IfMatch:         stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.updateMemberErr = errs.NewNotFound("committee member not found")
@@ -746,12 +754,13 @@ func TestUpdateCommitteeMember(t *testing.T) {
 		{
 			name: "orchestrator error - conflict",
 			payload: &committeeservice.UpdateCommitteeMemberPayload{
-				UID:         "committee-123",
-				MemberUID:   "member-456",
-				Email:       "test@example.com",
-				AppointedBy: "admin",
-				Status:      "active",
-				IfMatch:     stringPtr("1"),
+				UID:             "committee-123",
+				MemberUID:       "member-456",
+				Email:           stringPtr("test@example.com"),
+				LinkedinProfile: stringPtr(""),
+				AppointedBy:     "admin",
+				Status:          "active",
+				IfMatch:         stringPtr("1"),
 			},
 			setupMock: func(mock *mockCommitteeWriterOrchestrator) {
 				mock.updateMemberErr = errs.NewConflict("committee member has been modified by another process")
@@ -3872,4 +3881,178 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetCommitteeMember_StripsContactFields verifies that GetCommitteeMember strips
+// email and linkedin_profile unconditionally (fail-closed). The service has no FGA
+// client to check caller relation, so contact fields are omitted for all callers.
+// Endpoint access is gated by Heimdall via committee#viewer.
+// UpdateCommitteeMember compensates with a read-before-write restore (see
+// TestUpdateCommitteeMember_RestoresContactFields).
+func TestGetCommitteeMember_StripsContactFields(t *testing.T) {
+	const committeeUID = "committee-strip-test"
+	const memberUID = "member-strip-test"
+
+	mockRepo := mock.NewMockRepository()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: committeeUID},
+		CommitteeSettings: &model.CommitteeSettings{UID: committeeUID, MemberVisibility: "hidden"},
+	})
+	mockRepo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:             memberUID,
+			CommitteeUID:    committeeUID,
+			Email:           "first.last@example.com",
+			Username:        "first-last",
+			FirstName:       "First",
+			LastName:        "Last",
+			LinkedInProfile: "https://linkedin.com/in/first-last",
+		},
+	})
+
+	readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+		internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mockRepo)),
+	)
+	svc := &committeeServicesrvc{committeeReaderOrchestrator: readerOrchestrator}
+
+	res, err := svc.GetCommitteeMember(context.Background(), &committeeservice.GetCommitteeMemberPayload{
+		UID:       committeeUID,
+		MemberUID: memberUID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.NotNil(t, res.Member)
+	assert.Nil(t, res.Member.Email, "email must be stripped unconditionally")
+	assert.Nil(t, res.Member.LinkedinProfile, "linkedin_profile must be stripped unconditionally")
+	// Non-contact fields must always be present.
+	assert.NotNil(t, res.Member.FirstName)
+	assert.NotNil(t, res.Member.LastName)
+}
+
+// TestUpdateCommitteeMember_RestoresContactFields verifies that UpdateCommitteeMember
+// restores email and linkedin_profile from storage when the request omits them
+// (BFF read-then-PUT after GET stripped the contact fields unconditionally).
+// The restore is unconditional — it runs regardless of member_visibility.
+func TestUpdateCommitteeMember_RestoresContactFields(t *testing.T) {
+	const committeeUID = "committee-restore"
+	const memberUID = "member-restore"
+
+	storedMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:             memberUID,
+			CommitteeUID:    committeeUID,
+			Email:           "first.last@example.com",
+			LinkedInProfile: "https://linkedin.com/in/first-last",
+			FirstName:       "First",
+			LastName:        "Last",
+			Status:          "active",
+		},
+	}
+
+	newSeededRepo := func() *mock.MockRepository {
+		r := mock.NewMockRepository()
+		r.AddCommittee(&model.Committee{
+			CommitteeBase: model.CommitteeBase{UID: committeeUID},
+		})
+		r.AddCommitteeMember(committeeUID, storedMember)
+		return r
+	}
+
+	t.Run("email nil and linkedin nil: both restored", func(t *testing.T) {
+		readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+			internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(newSeededRepo())),
+		)
+		writerMock := &mockCommitteeWriterOrchestrator{
+			updateMember: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{UID: memberUID, CommitteeUID: committeeUID},
+			},
+		}
+		svc := &committeeServicesrvc{
+			committeeReaderOrchestrator: readerOrchestrator,
+			committeeWriterOrchestrator: writerMock,
+		}
+
+		_, err := svc.UpdateCommitteeMember(context.Background(), &committeeservice.UpdateCommitteeMemberPayload{
+			UID:             committeeUID,
+			MemberUID:       memberUID,
+			Email:           nil, // BFF omits field (the real contract — HTTP omission maps to nil)
+			LinkedinProfile: nil, // BFF omits field after GET stripped it
+			AppointedBy:     "admin",
+			Status:          "active",
+			SkipEnrichment:  true,
+			IfMatch:         stringPtr("1"),
+		})
+
+		require.NoError(t, err)
+		require.Len(t, writerMock.updateMemberCalls, 1)
+		got := writerMock.updateMemberCalls[0].member
+		assert.Equal(t, "first.last@example.com", got.Email,
+			"stored email must be restored when request email is nil")
+		assert.Equal(t, "https://linkedin.com/in/first-last", got.LinkedInProfile,
+			"stored LinkedIn must be restored when request LinkedIn is nil")
+	})
+
+	t.Run("only linkedin nil: linkedin restored, provided email kept", func(t *testing.T) {
+		readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+			internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(newSeededRepo())),
+		)
+		writerMock := &mockCommitteeWriterOrchestrator{
+			updateMember: &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{UID: memberUID, CommitteeUID: committeeUID},
+			},
+		}
+		svc := &committeeServicesrvc{
+			committeeReaderOrchestrator: readerOrchestrator,
+			committeeWriterOrchestrator: writerMock,
+		}
+
+		_, err := svc.UpdateCommitteeMember(context.Background(), &committeeservice.UpdateCommitteeMemberPayload{
+			UID:             committeeUID,
+			MemberUID:       memberUID,
+			Email:           strPtr("new.email@example.com"), // BFF provides email explicitly
+			LinkedinProfile: nil,                             // BFF omits LinkedIn
+			AppointedBy:     "admin",
+			Status:          "active",
+			SkipEnrichment:  true,
+			IfMatch:         stringPtr("1"),
+		})
+
+		require.NoError(t, err)
+		require.Len(t, writerMock.updateMemberCalls, 1)
+		got := writerMock.updateMemberCalls[0].member
+		assert.Equal(t, "new.email@example.com", got.Email,
+			"provided email must be used when non-empty")
+		assert.Equal(t, "https://linkedin.com/in/first-last", got.LinkedInProfile,
+			"stored LinkedIn must be restored when request LinkedIn is nil")
+	})
+
+	t.Run("GetMember read fails: error returned", func(t *testing.T) {
+		// Use UIDs that are never seeded anywhere — mock.NewMockRepository returns a
+		// global singleton so we must not use committeeUID/memberUID (seeded above).
+		const unknownCommitteeUID = "committee-restore-unknown-404"
+		const unknownMemberUID = "member-restore-unknown-404"
+
+		readerOrchestrator := internalservice.NewCommitteeReaderOrchestrator(
+			internalservice.WithCommitteeReader(mock.NewMockCommitteeReader(mock.NewMockRepository())),
+		)
+		writerMock := &mockCommitteeWriterOrchestrator{}
+		svc := &committeeServicesrvc{
+			committeeReaderOrchestrator: readerOrchestrator,
+			committeeWriterOrchestrator: writerMock,
+		}
+
+		_, err := svc.UpdateCommitteeMember(context.Background(), &committeeservice.UpdateCommitteeMemberPayload{
+			UID:            unknownCommitteeUID,
+			MemberUID:      unknownMemberUID,
+			Email:          nil, // triggers restore path
+			AppointedBy:    "admin",
+			Status:         "active",
+			SkipEnrichment: true,
+			IfMatch:        stringPtr("1"),
+		})
+
+		require.Error(t, err, "restore read failure must propagate as an error")
+		assert.Empty(t, writerMock.updateMemberCalls, "UpdateMember must not be called when restore read fails")
+	})
 }

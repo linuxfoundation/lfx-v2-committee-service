@@ -7062,7 +7062,7 @@ func NewReassignOrgCommitteeSeatPayload(body *ReassignOrgCommitteeSeatRequestBod
 func NewUpdateCommitteeMemberPayload(body *UpdateCommitteeMemberRequestBody, uid string, memberUID string, version string, bearerToken *string, ifMatch *string, xSync bool, skipEnrichment bool) *committeeservice.UpdateCommitteeMemberPayload {
 	v := &committeeservice.UpdateCommitteeMemberPayload{
 		Username:        body.Username,
-		Email:           *body.Email,
+		Email:           body.Email,
 		FirstName:       body.FirstName,
 		LastName:        body.LastName,
 		JobTitle:        body.JobTitle,
@@ -8015,9 +8015,6 @@ func ValidateReassignOrgCommitteeSeatRequestBody(body *ReassignOrgCommitteeSeatR
 // ValidateUpdateCommitteeMemberRequestBody runs the validations defined on
 // Update-Committee-MemberRequestBody
 func ValidateUpdateCommitteeMemberRequestBody(body *UpdateCommitteeMemberRequestBody) (err error) {
-	if body.Email == nil {
-		err = goa.MergeErrors(err, goa.MissingFieldError("email", "body"))
-	}
 	if body.Username != nil {
 		if utf8.RuneCountInString(*body.Username) > 100 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
