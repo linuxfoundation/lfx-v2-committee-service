@@ -32,11 +32,12 @@ import (
 )
 
 var (
-	natsStorage        port.CommitteeReaderWriter
-	natsMessaging      port.ProjectReader
-	natsUserReader     port.UserReader
-	natsB2BOrgResolver port.B2BOrgResolver
-	natsPublisher      port.CommitteePublisher
+	natsStorage                port.CommitteeReaderWriter
+	natsMessaging              port.ProjectReader
+	natsUserReader             port.UserReader
+	natsB2BOrgResolver         port.B2BOrgResolver
+	natsB2BOrgFallbackResolver port.B2BOrgFallbackResolver
+	natsPublisher              port.CommitteePublisher
 
 	// expose the NATS client for direct access in subscriptions
 	natsClient *nats.NATSClient
@@ -95,6 +96,7 @@ func natsInit(ctx context.Context) {
 		natsMessaging = nats.NewMessageRequest(client)
 		natsUserReader = nats.NewUserRequest(client)
 		natsB2BOrgResolver = nats.NewB2BOrgResolver(client)
+		natsB2BOrgFallbackResolver = nats.NewB2BOrgFallbackResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
 }
@@ -250,6 +252,28 @@ func B2BOrgResolverImpl(ctx context.Context) port.B2BOrgResolver {
 		return natsB2BOrgResolver
 	default:
 		log.Fatalf("unsupported b2b org resolver implementation: %s", repoSource)
+	}
+
+	return nil
+}
+
+// B2BOrgFallbackResolverImpl initializes the name/website b2b_org resolver consulted
+// only for legacy, non-SFID-shaped organization.id values, before B2BOrgResolverImpl
+// is attempted. Returns nil in mock mode.
+func B2BOrgFallbackResolverImpl(ctx context.Context) port.B2BOrgFallbackResolver {
+	repoSource := os.Getenv("REPOSITORY_SOURCE")
+	if repoSource == "" {
+		repoSource = "nats"
+	}
+
+	switch repoSource {
+	case "mock":
+		return nil
+	case "nats":
+		natsInit(ctx)
+		return natsB2BOrgFallbackResolver
+	default:
+		log.Fatalf("unsupported b2b org fallback resolver implementation: %s", repoSource)
 	}
 
 	return nil
