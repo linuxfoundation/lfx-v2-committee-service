@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -124,6 +125,8 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 		// Log query and response bodies if debug logs are enabled.
 		handler = debug.HTTP()(handler)
 	}
+	// Bound reads before debug logging, compatibility middleware, or Goa decoding.
+	handler = requestBodyLimitMiddleware()(handler)
 	// Wrap the handler with OpenTelemetry instrumentation
 	handler = otelhttp.NewHandler(handler, "committee-service",
 		otelhttp.WithFilter(func(r *http.Request) bool {
@@ -134,7 +137,12 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 
 	// Start HTTP server using default configuration, change the code to
 	// configure the server as required by your service.
-	srv := &http.Server{Addr: host, Handler: handler, ReadHeaderTimeout: time.Second * 60}
+	srv := &http.Server{
+		Addr:              host,
+		Handler:           handler,
+		ReadHeaderTimeout: 60 * time.Second,
+		ReadTimeout:       60 * time.Second,
+	}
 	for _, m := range committeeServiceServer.Mounts {
 		slog.InfoContext(ctx, "HTTP endpoint mounted",
 			"method", m.Method,
@@ -167,7 +175,53 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	}()
 }
 
-const acceptInviteMaxBodyBytes = 1 << 20 // 1MB
+const (
+	maxRequestBodyBytes = 1 << 20 // 1 MiB for JSON and all non-upload routes.
+	// Allow multipart headers and metadata in addition to the maximum file size.
+	maxUploadBodyBytes = model.MaxDocumentFileSize + maxRequestBodyBytes
+)
+
+// requestBodyLimitMiddleware bounds the complete body before any decoder runs.
+// Reading it here also catches oversized chunked bodies and trailing data that
+// a decoder may otherwise ignore, without buffering beyond the route's ceiling.
+func requestBodyLimitMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limit := int64(maxRequestBodyBytes)
+			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			if r.Method == http.MethodPost && len(parts) == 3 && parts[0] == "committees" && parts[2] == "documents" {
+				limit = maxUploadBodyBytes
+			}
+			if r.ContentLength > limit {
+				if r.ProtoMajor == 1 {
+					w.Header().Set("Connection", "close")
+				}
+				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			if r.Body != nil {
+				body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+				if err != nil {
+					// Closing an unread HTTP/1 body may drain it and block. Send
+					// the rejection first; net/http owns cleanup after the handler.
+					if r.ProtoMajor == 1 {
+						w.Header().Set("Connection", "close")
+					}
+					var maxBytesErr *http.MaxBytesError
+					if errors.As(err, &maxBytesErr) {
+						http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+					} else {
+						http.Error(w, "failed to read request body", http.StatusBadRequest)
+					}
+					return
+				}
+				_ = r.Body.Close()
+				r.Body = io.NopCloser(bytes.NewReader(body))
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
 
 // acceptInviteEmptyBodyMiddleware replaces a missing accept-invite POST body with "{}".
 // Clients may omit the body entirely (same as decline-invite); without this, older
@@ -176,14 +230,10 @@ func acceptInviteEmptyBodyMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPost && isCommitteeInviteAcceptPath(r.URL.Path) {
-				limitedBody := http.MaxBytesReader(w, r.Body, acceptInviteMaxBodyBytes)
-				bodyBytes, err := io.ReadAll(limitedBody)
+				// The outer requestBodyLimitMiddleware has already bounded this body.
+				bodyBytes, err := io.ReadAll(r.Body)
 				_ = r.Body.Close()
 				if err != nil {
-					if strings.Contains(err.Error(), "request body too large") {
-						http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-						return
-					}
 					http.Error(w, "failed to read request body", http.StatusBadRequest)
 					return
 				}
