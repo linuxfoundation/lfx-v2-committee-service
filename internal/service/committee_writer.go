@@ -179,14 +179,24 @@ func WithB2BOrgResolver(resolver port.B2BOrgResolver) committeeWriterOrchestrato
 	}
 }
 
+// WithB2BOrgFallbackResolver sets the name/website b2b_org resolver consulted
+// only for legacy, non-SFID-shaped organization.id values, before B2BOrgResolver
+// is attempted.
+func WithB2BOrgFallbackResolver(resolver port.B2BOrgFallbackResolver) committeeWriterOrchestratorOption {
+	return func(u *committeeWriterOrchestrator) {
+		u.b2bOrgFallbackResolver = resolver
+	}
+}
+
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
-	projectRetriever   port.ProjectReader
-	committeeReader    port.CommitteeReader
-	committeeWriter    port.CommitteeWriter
-	committeePublisher port.CommitteePublisher
-	userReader         port.UserReader
-	b2bOrgResolver     port.B2BOrgResolver
+	projectRetriever       port.ProjectReader
+	committeeReader        port.CommitteeReader
+	committeeWriter        port.CommitteeWriter
+	committeePublisher     port.CommitteePublisher
+	userReader             port.UserReader
+	b2bOrgResolver         port.B2BOrgResolver
+	b2bOrgFallbackResolver port.B2BOrgFallbackResolver
 }
 
 // deleteKeys removes keys by getting their revision and deleting them
