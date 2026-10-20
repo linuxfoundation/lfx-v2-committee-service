@@ -40,7 +40,7 @@ func handleHTTPServer(ctx context.Context, host string, committeeServiceEndpoint
 	// Other encodings can be used by providing the corresponding functions,
 	// see goa.design/implement/encoding.
 	var (
-		dec = goahttp.RequestDecoder
+		dec = requestDecoder
 		enc = goahttp.ResponseEncoder
 	)
 
