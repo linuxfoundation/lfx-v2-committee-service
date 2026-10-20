@@ -1649,7 +1649,7 @@ type UpdateCommitteeMemberPayload struct {
 	// User's LF ID
 	Username *string
 	// Primary email address
-	Email string
+	Email *string
 	// First name
 	FirstName *string
 	// Last name

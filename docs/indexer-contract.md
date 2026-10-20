@@ -209,11 +209,11 @@ _(none)_
 | `project_uid` | string (optional) | UID of the owning project |
 | `project_slug` | string (optional) | Slug of the owning project |
 | `username` | string | Member's username |
-| `email` | string | Member's email address |
+| `email` | string | Member's email address (**omitted** from indexed Data when `member_visibility=basic_profile`; never present for viewer-accessible records) |
 | `first_name` | string | Member's first name |
 | `last_name` | string | Member's last name |
 | `job_title` | string (optional) | Member's job title |
-| `linkedin_profile` | string (optional) | Member's LinkedIn profile URL |
+| `linkedin_profile` | string (optional) | Member's LinkedIn profile URL (**omitted** from indexed Data when `member_visibility=basic_profile`) |
 | `appointed_by` | string | Who appointed this member |
 | `status` | string | Membership status |
 | `role.name` | string | Role name within the committee |
@@ -237,8 +237,7 @@ _(none)_
 | `committee_member_uid:{uid}` | `committee_member_uid:c53dc2b0-b7ed-483f-9296-b7d904e8d168` | Namespaced lookup by UID |
 | `committee_uid:{value}` | `committee_uid:061a110a-7c38-4cd3-bfcf-fc8511a37f35` | Find members of a committee |
 | `committee_category:{value}` | `committee_category:Board` | Find members by committee category |
-| `username:{value}` | `username:govofficial4` | Find members by username |
-| `email:{value}` | `email:gac010@example.com` | Find members by email |
+| `username:{value}` | `username:first-last` | Find members by username |
 | `voting_status:{value}` | `voting_status:Voting Rep` | Find members by voting status |
 | `organization_id:{value}` | `organization_id:org-789` | Find members by organization ID |
 | `organization_name:{value}` | `organization_name:The Linux Foundation` | Find members by organization name |
@@ -246,14 +245,23 @@ _(none)_
 | `project_uid:{value}` | `project_uid:cbef1ed5-17dc-4a50-84e2-6cddd70f6878` | Find members by project UID |
 | `project_slug:{value}` | `project_slug:test-project` | Find members by project slug |
 
-> Tags for `username`, `email`, `voting_status`, `organization_id`, `organization_name`, `organization_website`, `project_uid`, and `project_slug` are only emitted when the value is non-empty.
+> Tags for `username`, `voting_status`, `organization_id`, `organization_name`, `organization_website`, `project_uid`, and `project_slug` are only emitted when the value is non-empty. The `email:{value}` tag is **never emitted** — email is not a safe search facet for viewer-accessible records.
 
 ### Access Control (IndexingConfig)
+
+`member_visibility` (from committee settings; default `hidden`) governs both the access relation and what PII appears in the indexed payload:
+
+| `member_visibility` | `access_check_relation` | `email` in Data | `linkedin_profile` in Data | `email` in Fulltext/Tags |
+|---|---|---|---|---|
+| `hidden` (default) | `auditor` | yes (auditor-only) | yes (auditor-only) | no |
+| `basic_profile` | `viewer` | no | no | no |
+
+The fail-closed rule applies: if committee settings are unavailable at index time, the record is indexed as `hidden` (auditor access, no email in Fulltext/Tags).
 
 | Field | Value |
 |---|---|
 | `access_check_object` | `committee:{committee_uid}` |
-| `access_check_relation` | `viewer` |
+| `access_check_relation` | `auditor` (hidden) or `viewer` (basic_profile) |
 | `history_check_object` | `committee:{committee_uid}` |
 | `history_check_relation` | `auditor` |
 
@@ -261,10 +269,10 @@ _(none)_
 
 | Field | Value |
 |---|---|
-| `fulltext` | `first_name`, `last_name`, `email`, `organization.name` |
+| `fulltext` | `first_name`, `last_name`, `organization.name` (email is **never** included) |
 | `name_and_aliases` | `committee_name`, `first_name`, `last_name`, `username`, `"first_name last_name"` (non-empty values only) |
 | `sort_name` | `first_name` |
-| `public` | _(omitted; viewer access check required)_ |
+| `public` | _(omitted; access check required)_ |
 
 ### Parent References
 

@@ -626,10 +626,14 @@ func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.
 		CommitteeMemberBase: model.CommitteeMemberBase{
 			UID:          p.MemberUID, // Member UID is required for updates
 			CommitteeUID: p.UID,       // Committee UID from path parameter
-			Email:        p.Email,
 			AppointedBy:  p.AppointedBy,
 			Status:       p.Status,
 		},
+	}
+
+	// Handle Email with nil check (optional since GET strips it; restore happens in handler)
+	if p.Email != nil {
+		member.Email = *p.Email
 	}
 
 	// Handle Username with nil check
@@ -708,12 +712,14 @@ func (s *committeeServicesrvc) convertMemberDomainToFullResponse(member *model.C
 	result := &committeeservice.CommitteeMemberFullWithReadonlyAttributes{
 		CommitteeUID: &member.CommitteeUID,
 		UID:          &member.UID,
-		Email:        &member.Email,
 		AppointedBy:  member.AppointedBy,
 		Status:       member.Status,
 	}
 
 	// Only set optional fields if they have values
+	if member.Email != "" {
+		result.Email = &member.Email
+	}
 	if member.Username != "" {
 		result.Username = &member.Username
 	}
