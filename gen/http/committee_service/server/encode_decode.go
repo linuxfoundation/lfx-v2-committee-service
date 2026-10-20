@@ -6144,25 +6144,24 @@ func marshalCommitteeserviceCommitteeLinkWithReadonlyAttributesToCommitteeLinkWi
 		UpdatedAt:    v.UpdatedAt,
 	}
 	if v.CreatedBy != nil {
-		res.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.CreatedBy)
+		res.CreatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponse(v.CreatedBy)
 	}
 	if v.UpdatedBy != nil {
-		res.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.UpdatedBy)
+		res.UpdatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponse(v.UpdatedBy)
 	}
 
 	return res
 }
 
-// marshalCommitteeserviceCommitteeUserToCommitteeUserResponse builds a value
-// of type *CommitteeUserResponse from a value of type
-// *committeeservice.CommitteeUser.
-func marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v *committeeservice.CommitteeUser) *CommitteeUserResponse {
+// marshalCommitteeservicePublicAuditUserToPublicAuditUserResponse builds a
+// value of type *PublicAuditUserResponse from a value of type
+// *committeeservice.PublicAuditUser.
+func marshalCommitteeservicePublicAuditUserToPublicAuditUserResponse(v *committeeservice.PublicAuditUser) *PublicAuditUserResponse {
 	if v == nil {
 		return nil
 	}
-	res := &CommitteeUserResponse{
+	res := &PublicAuditUserResponse{
 		Avatar:   v.Avatar,
-		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
 	}
@@ -6183,10 +6182,10 @@ func marshalCommitteeserviceCommitteeLinkFolderWithReadonlyAttributesToCommittee
 		UpdatedAt:    v.UpdatedAt,
 	}
 	if v.CreatedBy != nil {
-		res.CreatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.CreatedBy)
+		res.CreatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponse(v.CreatedBy)
 	}
 	if v.UpdatedBy != nil {
-		res.UpdatedBy = marshalCommitteeserviceCommitteeUserToCommitteeUserResponse(v.UpdatedBy)
+		res.UpdatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponse(v.UpdatedBy)
 	}
 
 	return res

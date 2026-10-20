@@ -185,7 +185,7 @@ func (o *documentWriterOrchestrator) publishDocumentIndexerMessage(ctx context.C
 			Tags:                 doc.Tags(),
 			Fulltext:             fmt.Sprintf("%s %s %s", doc.Name, doc.Description, doc.FileName),
 		}
-		data = doc
+		data = SanitizeCommitteeDocumentForPublish(*doc)
 	case model.ActionDeleted:
 		data = doc.UID
 	}

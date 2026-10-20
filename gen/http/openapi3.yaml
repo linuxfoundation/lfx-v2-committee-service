@@ -1113,7 +1113,6 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 description: Technical architecture decisions for Q1 2025
@@ -1125,7 +1124,6 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                 "400":
@@ -1333,7 +1331,6 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 description: Technical architecture decisions for Q1 2025
@@ -1345,7 +1342,6 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                 "404":
@@ -1490,7 +1486,6 @@ paths:
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       name: Meeting Notes
@@ -1498,14 +1493,12 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       name: Meeting Notes
@@ -1513,14 +1506,12 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       name: Meeting Notes
@@ -1528,7 +1519,6 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                             example:
@@ -1536,7 +1526,6 @@ paths:
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                   name: Meeting Notes
@@ -1544,14 +1533,12 @@ paths:
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                   name: Meeting Notes
@@ -1559,7 +1546,6 @@ paths:
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                 "404":
@@ -1646,7 +1632,6 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 name: Meeting Notes
@@ -1654,7 +1639,6 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                 "400":
@@ -1852,7 +1836,6 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 name: Meeting Notes
@@ -1860,7 +1843,6 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                 "404":
@@ -2696,7 +2678,6 @@ paths:
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       description: Confluence wiki — architecture decisions log
@@ -2706,7 +2687,6 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       url: https://confluence.example.com/architecture-decisions
@@ -2714,7 +2694,6 @@ paths:
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       description: Confluence wiki — architecture decisions log
@@ -2724,7 +2703,6 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       url: https://confluence.example.com/architecture-decisions
@@ -2732,7 +2710,6 @@ paths:
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       description: Confluence wiki — architecture decisions log
@@ -2742,7 +2719,6 @@ paths:
                                       updated_at: "2023-06-20T14:45:30Z"
                                       updated_by:
                                         avatar: https://example.com/avatar.png
-                                        email: first.last@example.com
                                         name: First Last
                                         username: first-last
                                       url: https://confluence.example.com/architecture-decisions
@@ -2751,7 +2727,6 @@ paths:
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                   description: Confluence wiki — architecture decisions log
@@ -2761,7 +2736,6 @@ paths:
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                   url: https://confluence.example.com/architecture-decisions
@@ -2769,7 +2743,6 @@ paths:
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                   description: Confluence wiki — architecture decisions log
@@ -2779,7 +2752,6 @@ paths:
                                   updated_at: "2023-06-20T14:45:30Z"
                                   updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                   url: https://confluence.example.com/architecture-decisions
@@ -2870,7 +2842,6 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 description: Confluence wiki — architecture decisions log
@@ -2880,7 +2851,6 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 url: https://confluence.example.com/architecture-decisions
@@ -3071,7 +3041,6 @@ paths:
                                 created_at: "2023-01-15T10:30:00Z"
                                 created_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 description: Confluence wiki — architecture decisions log
@@ -3081,7 +3050,6 @@ paths:
                                 updated_at: "2023-06-20T14:45:30Z"
                                 updated_by:
                                     avatar: https://example.com/avatar.png
-                                    email: first.last@example.com
                                     name: First Last
                                     username: first-last
                                 url: https://confluence.example.com/architecture-decisions
@@ -5342,7 +5310,7 @@ components:
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
                 created_by:
-                    $ref: '#/components/schemas/CommitteeUser'
+                    $ref: '#/components/schemas/PublicAuditUser'
                 description:
                     type: string
                     description: Optional description
@@ -5380,7 +5348,7 @@ components:
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
                 updated_by:
-                    $ref: '#/components/schemas/CommitteeUser'
+                    $ref: '#/components/schemas/PublicAuditUser'
             description: A file document associated with a committee.
             example:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5388,7 +5356,6 @@ components:
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
                     avatar: https://example.com/avatar.png
-                    email: first.last@example.com
                     name: First Last
                     username: first-last
                 description: Technical architecture decisions for Q1 2025
@@ -5400,7 +5367,6 @@ components:
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: first.last@example.com
                     name: First Last
                     username: first-last
         CommitteeFull:
@@ -6061,7 +6027,7 @@ components:
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
                 created_by:
-                    $ref: '#/components/schemas/CommitteeUser'
+                    $ref: '#/components/schemas/PublicAuditUser'
                 name:
                     type: string
                     description: Folder name
@@ -6078,14 +6044,13 @@ components:
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
                 updated_by:
-                    $ref: '#/components/schemas/CommitteeUser'
+                    $ref: '#/components/schemas/PublicAuditUser'
             description: A folder for organizing committee links.
             example:
                 committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
                     avatar: https://example.com/avatar.png
-                    email: first.last@example.com
                     name: First Last
                     username: first-last
                 name: Meeting Notes
@@ -6093,7 +6058,6 @@ components:
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: first.last@example.com
                     name: First Last
                     username: first-last
         CommitteeLinkWithReadonlyAttributes:
@@ -6110,7 +6074,7 @@ components:
                     example: "2023-01-15T10:30:00Z"
                     format: date-time
                 created_by:
-                    $ref: '#/components/schemas/CommitteeUser'
+                    $ref: '#/components/schemas/PublicAuditUser'
                 description:
                     type: string
                     description: Optional description
@@ -6137,7 +6101,7 @@ components:
                     example: "2023-06-20T14:45:30Z"
                     format: date-time
                 updated_by:
-                    $ref: '#/components/schemas/CommitteeUser'
+                    $ref: '#/components/schemas/PublicAuditUser'
                 url:
                     type: string
                     description: The URL this link points to
@@ -6149,7 +6113,6 @@ components:
                 created_at: "2023-01-15T10:30:00Z"
                 created_by:
                     avatar: https://example.com/avatar.png
-                    email: first.last@example.com
                     name: First Last
                     username: first-last
                 description: Confluence wiki — architecture decisions log
@@ -6159,7 +6122,6 @@ components:
                 updated_at: "2023-06-20T14:45:30Z"
                 updated_by:
                     avatar: https://example.com/avatar.png
-                    email: first.last@example.com
                     name: First Last
                     username: first-last
                 url: https://confluence.example.com/architecture-decisions
