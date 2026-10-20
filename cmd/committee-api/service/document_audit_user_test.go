@@ -95,35 +95,32 @@ func TestCommitteeService_enrichAuditUserIfMissing(t *testing.T) {
 	}{
 		{
 			name:       "skips when profile is complete",
-			user:       &model.CommitteeUser{Username: "alice", Name: "Alice Example", Avatar: "a.png", Email: "a@lf.org"},
+			user:       &model.CommitteeUser{Username: "first-last", Name: "First Last", Avatar: "https://example.com/avatar.png"},
 			skipAuth:   true,
-			wantName:   "Alice Example",
-			wantAvatar: "a.png",
-			wantEmail:  "a@lf.org",
+			wantName:   "First Last",
+			wantAvatar: "https://example.com/avatar.png",
 		},
 		{
-			name: "enriches avatar and email when name already set",
-			user: &model.CommitteeUser{Username: "alice", Name: "Alice Example"},
-			userReader: mockReaderForPrincipalEmail("alice", "alice@lf.org").
-				withMetadata("alice", &model.UserMetadata{
-					Name:    "Alice Example",
-					Picture: "https://cdn.example/avatar.png",
+			name: "enriches avatar without fetching email when name already set",
+			user: &model.CommitteeUser{Username: "first-last", Name: "First Last"},
+			userReader: mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+				withMetadata("first-last", &model.UserMetadata{
+					Name:    "First Last",
+					Picture: "https://example.com/avatar.png",
 				}),
-			wantName:   "Alice Example",
-			wantAvatar: "https://cdn.example/avatar.png",
-			wantEmail:  "alice@lf.org",
+			wantName:   "First Last",
+			wantAvatar: "https://example.com/avatar.png",
 		},
 		{
 			name: "enriches legacy username-only record",
-			user: &model.CommitteeUser{Username: "alice"},
-			userReader: mockReaderForPrincipalEmail("alice", "alice@lf.org").
-				withMetadata("alice", &model.UserMetadata{
-					Name:    "Alice Example",
-					Picture: "https://cdn.example/avatar.png",
+			user: &model.CommitteeUser{Username: "first-last"},
+			userReader: mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+				withMetadata("first-last", &model.UserMetadata{
+					Name:    "First Last",
+					Picture: "https://example.com/avatar.png",
 				}),
-			wantName:   "Alice Example",
-			wantAvatar: "https://cdn.example/avatar.png",
-			wantEmail:  "alice@lf.org",
+			wantName:   "First Last",
+			wantAvatar: "https://example.com/avatar.png",
 		},
 	}
 

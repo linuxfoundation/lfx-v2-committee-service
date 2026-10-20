@@ -7066,25 +7066,24 @@ func unmarshalCommitteeLinkWithReadonlyAttributesResponseToCommitteeserviceCommi
 		UpdatedAt:    v.UpdatedAt,
 	}
 	if v.CreatedBy != nil {
-		res.CreatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.CreatedBy)
+		res.CreatedBy = unmarshalPublicAuditUserResponseToCommitteeservicePublicAuditUser(v.CreatedBy)
 	}
 	if v.UpdatedBy != nil {
-		res.UpdatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.UpdatedBy)
+		res.UpdatedBy = unmarshalPublicAuditUserResponseToCommitteeservicePublicAuditUser(v.UpdatedBy)
 	}
 
 	return res
 }
 
-// unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser builds a value
-// of type *committeeservice.CommitteeUser from a value of type
-// *CommitteeUserResponse.
-func unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v *CommitteeUserResponse) *committeeservice.CommitteeUser {
+// unmarshalPublicAuditUserResponseToCommitteeservicePublicAuditUser builds a
+// value of type *committeeservice.PublicAuditUser from a value of type
+// *PublicAuditUserResponse.
+func unmarshalPublicAuditUserResponseToCommitteeservicePublicAuditUser(v *PublicAuditUserResponse) *committeeservice.PublicAuditUser {
 	if v == nil {
 		return nil
 	}
-	res := &committeeservice.CommitteeUser{
+	res := &committeeservice.PublicAuditUser{
 		Avatar:   v.Avatar,
-		Email:    v.Email,
 		Name:     v.Name,
 		Username: v.Username,
 	}
@@ -7105,10 +7104,10 @@ func unmarshalCommitteeLinkFolderWithReadonlyAttributesResponseToCommitteeservic
 		UpdatedAt:    v.UpdatedAt,
 	}
 	if v.CreatedBy != nil {
-		res.CreatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.CreatedBy)
+		res.CreatedBy = unmarshalPublicAuditUserResponseToCommitteeservicePublicAuditUser(v.CreatedBy)
 	}
 	if v.UpdatedBy != nil {
-		res.UpdatedBy = unmarshalCommitteeUserResponseToCommitteeserviceCommitteeUser(v.UpdatedBy)
+		res.UpdatedBy = unmarshalPublicAuditUserResponseToCommitteeservicePublicAuditUser(v.UpdatedBy)
 	}
 
 	return res

@@ -101,16 +101,12 @@ func (s *committeeServicesrvc) enrichAuditUserIfMissing(ctx context.Context, use
 	if enriched.Avatar == "" {
 		enriched.Avatar = meta.Picture
 	}
-	if enriched.Email == "" {
-		enriched.Email = s.primaryEmailForUsername(lookupCtx, user.Username)
-	}
 	return enriched
 }
 
 func auditUserProfileComplete(u *model.CommitteeUser) bool {
 	return strings.TrimSpace(u.Name) != "" &&
-		strings.TrimSpace(u.Avatar) != "" &&
-		strings.TrimSpace(u.Email) != ""
+		strings.TrimSpace(u.Avatar) != ""
 }
 
 func (s *committeeServicesrvc) normalizeLegacyAuditUsers(createdBy, updatedBy *model.CommitteeUser) (*model.CommitteeUser, *model.CommitteeUser) {
@@ -147,26 +143,6 @@ func (s *committeeServicesrvc) stampAuditUsers(ctx context.Context) (*model.Comm
 	}
 	updated := model.CloneCommitteeUser(creator)
 	return creator, updated
-}
-
-func committeeUserToGoa(u *model.CommitteeUser) *committeeservice.CommitteeUser {
-	if u == nil {
-		return nil
-	}
-	cu := &committeeservice.CommitteeUser{}
-	if u.Avatar != "" {
-		cu.Avatar = &u.Avatar
-	}
-	if u.Email != "" {
-		cu.Email = &u.Email
-	}
-	if u.Name != "" {
-		cu.Name = &u.Name
-	}
-	if u.Username != "" {
-		cu.Username = &u.Username
-	}
-	return cu
 }
 
 // committeeUserToGoaPublicAuditUser converts a domain CommitteeUser to the email-less GOA shape

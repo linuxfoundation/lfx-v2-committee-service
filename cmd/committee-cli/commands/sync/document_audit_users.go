@@ -489,7 +489,7 @@ func publishLinkIndexerMessage(ctx context.Context, publisher port.CommitteePubl
 		Tags:                 tags,
 		Fulltext:             fmt.Sprintf("%s %s %s", link.Name, link.Description, link.URL),
 	}
-	built, err := indexerMessage.Build(ctx, link)
+	built, err := indexerMessage.Build(ctx, internalservice.SanitizeCommitteeLinkForPublish(*link))
 	if err != nil {
 		return err
 	}
@@ -514,7 +514,7 @@ func publishLinkFolderIndexerMessage(ctx context.Context, publisher port.Committ
 		Tags:                 tags,
 		Fulltext:             folder.Name,
 	}
-	built, err := indexerMessage.Build(ctx, folder)
+	built, err := indexerMessage.Build(ctx, internalservice.SanitizeCommitteeLinkFolderForPublish(*folder))
 	if err != nil {
 		return err
 	}
@@ -539,7 +539,7 @@ func publishDocumentIndexerMessage(ctx context.Context, publisher port.Committee
 		Tags:                 tags,
 		Fulltext:             fmt.Sprintf("%s %s %s", doc.Name, doc.Description, doc.FileName),
 	}
-	built, err := indexerMessage.Build(ctx, doc)
+	built, err := indexerMessage.Build(ctx, internalservice.SanitizeCommitteeDocumentForPublish(*doc))
 	if err != nil {
 		return err
 	}

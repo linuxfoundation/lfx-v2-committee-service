@@ -2766,8 +2766,8 @@ func domainLinkToGoa(l *model.CommitteeLink) *committeeservice.CommitteeLinkWith
 		FolderUID:    l.FolderUID,
 		Name:         &name,
 		URL:          &url,
-		CreatedBy:    committeeUserToGoa(l.CreatedBy),
-		UpdatedBy:    committeeUserToGoa(l.UpdatedBy),
+		CreatedBy:    committeeUserToGoaPublicAuditUser(l.CreatedBy),
+		UpdatedBy:    committeeUserToGoaPublicAuditUser(l.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
@@ -2790,8 +2790,8 @@ func domainFolderToGoa(f *model.CommitteeLinkFolder) *committeeservice.Committee
 		UID:          &uid,
 		CommitteeUID: &committeeUID,
 		Name:         &name,
-		CreatedBy:    committeeUserToGoa(f.CreatedBy),
-		UpdatedBy:    committeeUserToGoa(f.UpdatedBy),
+		CreatedBy:    committeeUserToGoaPublicAuditUser(f.CreatedBy),
+		UpdatedBy:    committeeUserToGoaPublicAuditUser(f.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}
@@ -2917,8 +2917,8 @@ func domainDocumentToGoa(d *model.CommitteeDocument) *committeeservice.Committee
 		FileName:     &fileName,
 		FileSize:     &fileSize,
 		ContentType:  &contentType,
-		CreatedBy:    committeeUserToGoa(d.CreatedBy),
-		UpdatedBy:    committeeUserToGoa(d.UpdatedBy),
+		CreatedBy:    committeeUserToGoaPublicAuditUser(d.CreatedBy),
+		UpdatedBy:    committeeUserToGoaPublicAuditUser(d.UpdatedBy),
 		CreatedAt:    &createdAt,
 		UpdatedAt:    &updatedAt,
 	}

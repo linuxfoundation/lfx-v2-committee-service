@@ -35,6 +35,24 @@ acknowledgement and does not confirm that the JetStream stream has accepted the 
 - [Committee Document](#committee-document)
 - [Group Weekly Brief](#group-weekly-brief)
 
+### Public resource audit users
+
+Committee links, link folders, and documents are indexed under the parent
+committee's `viewer` relation, which can admit anonymous users for public
+committees. Their `created_by` and `updated_by` objects therefore never include
+email. Both live writers and the CLI audit-user migration sanitize copies before
+building indexer messages; stored audit records retain their original profiles.
+REST responses use the email-free `PublicAuditUser` type, and read-time profile
+enrichment fetches only display metadata, never primary email addresses.
+
+**Existing-data rollout:** This fix does not remove emails from existing search
+documents or index history. Before treating an environment as remediated,
+coordinate a cleanup/reindex of existing `committee_link`,
+`committee_link_folder`, and `committee_document` records and affected historical
+payloads. Republishing must use the sanitized payload path; simply deploying the
+new API does not clean existing indexed data. The audit-user migration only
+republishes records it changes, so rerunning it is not a complete reindex.
+
 ---
 
 ## Committee
@@ -77,7 +95,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `deliverables` | []string (optional) | Committee deliverables bullet points |
 | `key_dates` | []object (optional) | Committee key-dates timeline, each with `date` (`YYYY-MM`) and `label` |
 | `external_sources` | []object (optional) | Source-labeled external entities linked to the committee (e.g. OCG groups/events), each with `provider`, `entity_type`, `label`, `url`, and optional `external_id`, `external_category`, `external_region`, `external_event_category` |
-| `charter` | object (optional) | Committee charter: a link to an externally hosted document, with `url` (empty once cleared), `version`, `updated_at`, and optional `updated_by`. Present once a charter has ever existed for the committee, including after removal. `charter.updated_by` has `avatar` (string), `name` (string), `username` (string — LFX username) — **`email` is deliberately omitted** (unlike `created_by`/`updated_by` elsewhere in this document) because a public committee's charter is reachable by anonymous callers via `GET /committees/{uid}`; see `sanitizeCommitteeBaseForPublish` in `internal/service/committee_writer.go` |
+| `charter` | object (optional) | Committee charter: a link to an externally hosted document, with `url` (empty once cleared), `version`, `updated_at`, and optional `updated_by`. Present once a charter has ever existed for the committee, including after removal. `charter.updated_by` has `avatar` (string), `name` (string), `username` (string — LFX username) — **`email` is deliberately omitted**, as it is for link, folder, and document audit users, because a public committee's charter is reachable by anonymous callers via `GET /committees/{uid}`; see `sanitizeCommitteeBaseForPublish` in `internal/service/committee_writer.go` |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
 | `has_mailing_list` | bool | Whether a related mailing list exists |
@@ -296,7 +314,7 @@ _(none)_
 | `file_name` | string | Original uploaded file name |
 | `file_size` | int | File size in bytes |
 | `content_type` | string | Uploaded MIME type |
-| `created_by` | object (optional) | User who uploaded the document. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `created_by` | object (optional) | User who uploaded the document. Object has `avatar` (string), `name` (string), `username` (string — LFX username). Email is deliberately omitted from viewer-accessible payloads |
 | `updated_by` | object (optional) | User who last updated the document. Same shape as `created_by`; identical to `created_by` on upload |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
@@ -492,7 +510,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 | `name` | string | Link display name |
 | `url` | string | Link URL |
 | `description` | string (optional) | Link description |
-| `created_by` | object (optional) | User who created the link. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `created_by` | object (optional) | User who created the link. Object has `avatar` (string), `name` (string), `username` (string — LFX username). Email is deliberately omitted from viewer-accessible payloads |
 | `updated_by` | object (optional) | User who last updated the link. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
@@ -553,7 +571,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 | `uid` | string | Folder unique identifier |
 | `committee_uid` | string | UID of the owning committee |
 | `name` | string | Folder name |
-| `created_by` | object (optional) | User who created the folder. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `created_by` | object (optional) | User who created the folder. Object has `avatar` (string), `name` (string), `username` (string — LFX username). Email is deliberately omitted from viewer-accessible payloads |
 | `updated_by` | object (optional) | User who last updated the folder. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
