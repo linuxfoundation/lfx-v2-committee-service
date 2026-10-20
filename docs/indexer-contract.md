@@ -616,7 +616,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 | `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
 | `error_reason` | string (optional) | Machine-readable reason for the `error` state; omitted on non-error briefs. Known values: `no_sources` (no activity in the lookback window), `ai_error` (AI generation failure). |
 | `brief_text` | string (optional) | Generated brief body; omitted when empty (e.g. `generating` or `error` state briefs). |
-| `source_refs` | []object (optional) | References to the source artifacts the brief was generated from; omitted when empty. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty. |
+| `source_refs` | []object (optional) | References to the source artifacts the brief was generated from; omitted when empty. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — source snippet). Restricted upstream sources carry only `kind` and `id`, never raw titles or excerpts (see Access Control). `title` and `excerpt` are omitted when empty. |
 | `prompt_version` | string (optional) | Version identifier of the prompt used to generate the brief; omitted when empty. |
 | `model` | string (optional) | Identifier of the model used to generate the brief; omitted when empty. |
 | `regeneration_count` | int | Number of times the brief has been regenerated |
@@ -650,6 +650,28 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 > any viewer can query briefs; if private, only members and elevated users (auditors/admins) can.
 > This mirrors the existing `GET /current` endpoint. `private_source_present` is a UI disclosure
 > flag for the BFF/UI; it does not restrict access at the indexer/query-service layer.
+
+The viewer access decision permits the **synthesized narrative** (`brief_text`), not
+verbatim restricted upstream artifacts. Source references for private meetings,
+AI meeting summaries whose access level is not `public`, private mailing-list
+threads (including threads containing any private reply), all surveys, and all
+project memberships contain only `kind` and `id`. They omit raw source titles,
+summary bodies, thread snippets, survey response statistics, and membership
+company/tier/purchase details. These sources remain available to the AI for
+narrative synthesis. Public source references may retain titles and excerpts;
+member-roster references continue to honor the committee's `member_visibility`.
+This policy applies before chair review, starting in `generated` state, and to
+both the REST response and the indexed document.
+
+**Existing-data rollout:** The generation fix does not rewrite previously stored
+briefs or indexed documents. Before treating an environment as remediated, remove
+legacy `source_refs[].title` and `source_refs[].excerpt` from affected stored briefs
+and refresh their search documents. Legacy references do not record per-source
+visibility, so clearing these fields on all legacy references is the conservative
+option; preserve `kind`, `id`, and the narrative. Reindexing alone with
+`committee-cli sync backfill-weekly-brief-index` is **not** a sanitizer: clean the
+stored records first. Coordinate this data cleanup separately; do not silently
+regenerate or overwrite chair-edited narratives.
 
 ### Search Behavior
 

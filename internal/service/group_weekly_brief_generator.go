@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math"
 	"strings"
 	"time"
 
@@ -655,9 +654,12 @@ func (g *groupWeeklyBriefGenerator) finalizeError(ctx context.Context, brief *mo
 }
 
 // buildClaimsAndRefs turns the per-source slices into ClaimEvidence rows and a
-// parallel set of source refs persisted on the brief. When membersHidden is
-// true (committee's member_visibility == "hidden"), member names are replaced
-// with count-only phrases so the stored brief never contains roster data.
+// parallel set of viewer-safe source refs persisted on the brief. Restricted
+// sources retain only their kind and ID, never raw titles or excerpts. Claims
+// and RawContext remain available for synthesizing the narrative. When
+// membersHidden is true (committee's member_visibility == "hidden"), member
+// names are replaced with count-only phrases so the stored brief never contains
+// roster data.
 func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.MeetingAISummaryActivity, members port.WeeklyMemberActivity, mailing []port.MailingListActivity, votes []port.VoteActivity, surveys []port.SurveyActivity, projectMemberships []port.ProjectMembershipActivity, membersHidden bool) ([]port.ClaimEvidence, []model.SourceRef) {
 	claims := make([]port.ClaimEvidence, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+len(projectMemberships)+2)
 	refs := make([]model.SourceRef, 0, len(meetings)+len(summaries)+len(mailing)+len(votes)+len(surveys)+len(projectMemberships)+2)
@@ -666,12 +668,16 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 	// mailing-list excerpts, vote outcomes) directly into ClaimEvidence.Summary.
 	// Claim summaries flow through the AI adapter and may be echoed back in the
 	// output, so only sanitized labels (titles via claimLabel) travel through
-	// claims. Raw excerpts ARE persisted into SourceRef.Excerpt for the response
-	// (sanitized + length-capped) but are not surfaced through claims. Rich
+	// claims. Only public sources' raw titles/excerpts are persisted for the
+	// viewer-facing response; restricted source refs are citation-only. Rich
 	// AI summary content is passed separately via port.WeeklyBriefInput.RawContext
 	// (sanitized via buildRawContext) to keep injection risk contained.
 	for _, m := range meetings {
-		ref := model.SourceRef{Kind: "meeting", ID: m.UID, Title: m.Title, Excerpt: cleanSummary(m.Summary)}
+		ref := model.SourceRef{Kind: "meeting", ID: m.UID}
+		if !m.Private {
+			ref.Title = m.Title
+			ref.Excerpt = cleanSummary(m.Summary)
+		}
 		refs = append(refs, ref)
 		summary := claimLabel("meeting", m.Title)
 		if !m.StartTime.IsZero() {
@@ -684,7 +690,11 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 		})
 	}
 	for _, s := range summaries {
-		ref := model.SourceRef{Kind: "meeting-summary", ID: s.MeetingAndOccurrenceID, Title: s.Title, Excerpt: cleanSummary(s.Content)}
+		ref := model.SourceRef{Kind: "meeting-summary", ID: s.MeetingAndOccurrenceID}
+		if !s.Private {
+			ref.Title = s.Title
+			ref.Excerpt = cleanSummary(s.Content)
+		}
 		refs = append(refs, ref)
 		// The claim label is still a sanitized title only — rich content is
 		// delivered via RawContext, not through claims (defense-in-depth).
@@ -695,7 +705,11 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 		})
 	}
 	for _, ml := range mailing {
-		ref := model.SourceRef{Kind: "mailing-list", ID: ml.ThreadID, Title: ml.Subject, Excerpt: cleanSummary(ml.Excerpt)}
+		ref := model.SourceRef{Kind: "mailing-list", ID: ml.ThreadID}
+		if !ml.Private {
+			ref.Title = ml.Subject
+			ref.Excerpt = cleanSummary(ml.Excerpt)
+		}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "mailing-" + ml.ThreadID,
@@ -721,10 +735,9 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 	}
 
 	for _, sv := range surveys {
-		// Survey title is source-derived free text — sanitize via claimLabel.
-		// Response counts are server-computed integers, safe to format directly.
-		excerpt := surveyParticipationExcerpt(sv)
-		ref := model.SourceRef{Kind: "survey", ID: sv.SurveyUID, Title: sv.Title, Excerpt: excerpt}
+		// Surveys are FGA-gated independently of committee viewer access. Keep
+		// their titles and response counts in AI claims, not persisted refs.
+		ref := model.SourceRef{Kind: "survey", ID: sv.SurveyUID}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "survey-" + sv.SurveyUID,
@@ -741,7 +754,9 @@ func buildClaimsAndRefs(meetings []port.MeetingActivity, summaries []port.Meetin
 		if pm.Tier != "" {
 			title += " (" + claimLabel("tier", pm.Tier) + ")"
 		}
-		ref := model.SourceRef{Kind: "project-membership", ID: pm.MembershipUID, Title: pm.AccountName, Excerpt: membershipExcerpt(pm)}
+		// Purchases are auditor-only in the originating service; company, tier,
+		// and purchase date must not be copied into viewer-readable refs.
+		ref := model.SourceRef{Kind: "project-membership", ID: pm.MembershipUID}
 		refs = append(refs, ref)
 		claims = append(claims, port.ClaimEvidence{
 			ID:      "project-membership-" + pm.MembershipUID,
@@ -1114,42 +1129,6 @@ func surveyResponseLabel(sv port.SurveyActivity) string {
 		return ""
 	}
 	return fmt.Sprintf(" — %d of %d responded", sv.TotalResponses, sv.TotalRecipients)
-}
-
-// surveyParticipationExcerpt returns a short response-rate string for the
-// source_ref excerpt, including percentage when recipients > 0.
-// Example: "14 of 30 responded (47%)"
-func surveyParticipationExcerpt(sv port.SurveyActivity) string {
-	if sv.TotalRecipients == 0 {
-		return ""
-	}
-	pct := int(math.Round(float64(sv.TotalResponses) / float64(sv.TotalRecipients) * 100))
-	return fmt.Sprintf("%d of %d responded (%d%%)", sv.TotalResponses, sv.TotalRecipients, pct)
-}
-
-// membershipExcerpt returns a short description for a project_membership
-// source_ref. It uses tier and purchase date so a reader can identify the
-// record without following a link.
-// Example: "Membership tier: Silver, purchased 2026-08-14"
-// "Joined as" is intentionally avoided: the source may include renewals
-// alongside new memberships (is_first_membership is not yet indexed in
-// OpenSearch), so implying a first-time join would be inaccurate.
-func membershipExcerpt(pm port.ProjectMembershipActivity) string {
-	parts := []string{}
-	if pm.Tier != "" {
-		parts = append(parts, "membership tier: "+pm.Tier)
-	}
-	if !pm.PurchaseDate.IsZero() {
-		parts = append(parts, "purchased "+pm.PurchaseDate.UTC().Format("2006-01-02"))
-	}
-	if len(parts) == 0 {
-		return ""
-	}
-	s := strings.Join(parts, ", ")
-	if len(s) > 0 {
-		s = strings.ToUpper(s[:1]) + s[1:]
-	}
-	return cleanSummary(s)
 }
 
 // publishGroupWeeklyBriefIndex emits a group_weekly_brief indexer message for
