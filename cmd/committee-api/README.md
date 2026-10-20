@@ -67,6 +67,15 @@ This service contains the following API endpoints:
 - `/committees/{uid}/leave`
   - `DELETE`: leave a committee as the authenticated user
 
+## Committee creation request decoding
+
+`POST /committees` requires a single JSON object with exactly one top-level
+`project_uid` key, using that exact spelling. Duplicate keys and case variants
+such as `PROJECT_UID` return HTTP 400, including Unicode-escaped equivalents.
+This keeps the project decoded by the service consistent with the project
+authorized by Heimdall's case-sensitive body lookup. Existing Goa field and UUID
+validation still applies. Other endpoints retain their existing decoding behavior.
+
 ## HTTP request limits
 
 All routes enforce a 1 MiB total request-body limit before decoding or debug
