@@ -534,21 +534,19 @@ var PublicAuditUserType = dsl.Type("public-audit-user", func() {
 	})
 })
 
-// ResourceAuditUserAttributes adds created_by and updated_by user profile objects.
+// ResourceAuditUserAttributes adds email-free audit users for viewer-accessible resources.
 func ResourceAuditUserAttributes() {
-	dsl.Attribute("created_by", CommitteeUserType, "User who created this resource", func() {
+	dsl.Attribute("created_by", PublicAuditUserType, "User who created this resource", func() {
 		dsl.Example(map[string]interface{}{
 			"username": "first-last",
 			"name":     "First Last",
-			"email":    "first.last@example.com",
 			"avatar":   "https://example.com/avatar.png",
 		})
 	})
-	dsl.Attribute("updated_by", CommitteeUserType, "User who last updated this resource", func() {
+	dsl.Attribute("updated_by", PublicAuditUserType, "User who last updated this resource", func() {
 		dsl.Example(map[string]interface{}{
 			"username": "first-last",
 			"name":     "First Last",
-			"email":    "first.last@example.com",
 			"avatar":   "https://example.com/avatar.png",
 		})
 	})

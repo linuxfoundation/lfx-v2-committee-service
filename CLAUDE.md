@@ -149,3 +149,5 @@ Do **not** use names like "Alice Admin", "Bob Smith", "Alex Lee", or any combina
 ## Design Decisions
 
 **Weekly brief access model (LFXV2-3046):** `group_weekly_brief` uses `access_check_relation: viewer`, matching the committee's own visibility — public committees' briefs are visible to anyone who can view the group; private committees' briefs are visible only to members and elevated users. This mirrors `GET /current`. `private_source_present` is a UI disclosure flag only.
+
+This access decision covers the synthesized `brief_text` narrative, not raw restricted source artifacts. The generator persists only `kind` and `id` for restricted source references: private meetings, non-public AI meeting summaries, private mailing-list threads, all surveys, and all project memberships. Their raw titles and excerpts (including survey statistics and purchase details) are never copied into viewer-readable `source_refs`. Public source references may retain titles and excerpts; member-roster references continue to honor `member_visibility`.

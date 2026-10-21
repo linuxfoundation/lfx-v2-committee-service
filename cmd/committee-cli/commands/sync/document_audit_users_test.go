@@ -12,6 +12,8 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )
 
 type testAuditUserReader struct {
@@ -31,6 +33,37 @@ func (m *testAuditUserReader) UserMetadataByPrincipal(_ context.Context, princip
 		return meta, nil
 	}
 	return nil, nil
+}
+
+func TestDocumentAuditUsers_PublicIndexerPayloads(t *testing.T) {
+	for _, action := range []model.MessageAction{model.ActionCreated, model.ActionUpdated} {
+		for _, resource := range []string{"link", "folder", "document"} {
+			t.Run(string(action)+"/"+resource, func(t *testing.T) {
+				ctx := context.Background()
+				user := &model.CommitteeUser{Username: "first-last", Name: "First Last", Avatar: "https://example.com/avatar.png", Email: "first.last@example.com"}
+				publisher := &mock.MockCommitteePublisher{}
+				var subject string
+				switch resource {
+				case "link":
+					require.NoError(t, publishLinkIndexerMessage(ctx, publisher, action, &model.CommitteeLink{UID: "resource-1", CommitteeUID: "committee-1", CreatedBy: user, UpdatedBy: user}))
+					subject = constants.IndexCommitteeLinkSubject
+				case "folder":
+					require.NoError(t, publishLinkFolderIndexerMessage(ctx, publisher, action, &model.CommitteeLinkFolder{UID: "resource-1", CommitteeUID: "committee-1", CreatedBy: user, UpdatedBy: user}))
+					subject = constants.IndexCommitteeLinkFolderSubject
+				case "document":
+					require.NoError(t, publishDocumentIndexerMessage(ctx, publisher, action, &model.CommitteeDocument{UID: "resource-1", CommitteeUID: "committee-1", CreatedBy: user, UpdatedBy: user}))
+					subject = constants.IndexCommitteeDocumentSubject
+				}
+				assert.Equal(t, []string{subject}, publisher.IndexerSubjects)
+				msg := publisher.LastIndexerMessage.(*model.CommitteeIndexerMessage)
+				data := msg.Data.(map[string]any)
+				for _, field := range []string{"created_by", "updated_by"} {
+					assert.Equal(t, map[string]any{"username": "first-last", "name": "First Last", "avatar": "https://example.com/avatar.png"}, data[field])
+				}
+				assert.Equal(t, "first.last@example.com", user.Email)
+			})
+		}
+	}
 }
 
 func TestParseDocumentResourceType(t *testing.T) {

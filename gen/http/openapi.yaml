@@ -3384,7 +3384,7 @@ definitions:
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
             created_by:
-                $ref: '#/definitions/CommitteeUser'
+                $ref: '#/definitions/PublicAuditUser'
             description:
                 type: string
                 description: Optional description
@@ -3422,14 +3422,13 @@ definitions:
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
             updated_by:
-                $ref: '#/definitions/CommitteeUser'
+                $ref: '#/definitions/PublicAuditUser'
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             content_type: application/pdf
             created_at: "2023-01-15T10:30:00Z"
             created_by:
                 avatar: https://example.com/avatar.png
-                email: first.last@example.com
                 name: First Last
                 username: first-last
             description: Technical architecture decisions for Q1 2025
@@ -3441,7 +3440,6 @@ definitions:
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
                 avatar: https://example.com/avatar.png
-                email: first.last@example.com
                 name: First Last
                 username: first-last
     CommitteeFullWithReadonlyAttributes:
@@ -3855,7 +3853,7 @@ definitions:
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
             created_by:
-                $ref: '#/definitions/CommitteeUser'
+                $ref: '#/definitions/PublicAuditUser'
             name:
                 type: string
                 description: Folder name
@@ -3872,14 +3870,13 @@ definitions:
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
             updated_by:
-                $ref: '#/definitions/CommitteeUser'
+                $ref: '#/definitions/PublicAuditUser'
         description: A folder for organizing committee links.
         example:
             committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             created_at: "2023-01-15T10:30:00Z"
             created_by:
                 avatar: https://example.com/avatar.png
-                email: first.last@example.com
                 name: First Last
                 username: first-last
             name: Meeting Notes
@@ -3887,7 +3884,6 @@ definitions:
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
                 avatar: https://example.com/avatar.png
-                email: first.last@example.com
                 name: First Last
                 username: first-last
     CommitteeLinkWithReadonlyAttributes:
@@ -3905,7 +3901,7 @@ definitions:
                 example: "2023-01-15T10:30:00Z"
                 format: date-time
             created_by:
-                $ref: '#/definitions/CommitteeUser'
+                $ref: '#/definitions/PublicAuditUser'
             description:
                 type: string
                 description: Optional description
@@ -3932,7 +3928,7 @@ definitions:
                 example: "2023-06-20T14:45:30Z"
                 format: date-time
             updated_by:
-                $ref: '#/definitions/CommitteeUser'
+                $ref: '#/definitions/PublicAuditUser'
             url:
                 type: string
                 description: The URL this link points to
@@ -3944,7 +3940,6 @@ definitions:
             created_at: "2023-01-15T10:30:00Z"
             created_by:
                 avatar: https://example.com/avatar.png
-                email: first.last@example.com
                 name: First Last
                 username: first-last
             description: Confluence wiki — architecture decisions log
@@ -3954,7 +3949,6 @@ definitions:
             updated_at: "2023-06-20T14:45:30Z"
             updated_by:
                 avatar: https://example.com/avatar.png
-                email: first.last@example.com
                 name: First Last
                 username: first-last
             url: https://confluence.example.com/architecture-decisions

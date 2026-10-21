@@ -55,9 +55,9 @@ type SourceRef struct {
 	Kind string `json:"kind"`
 	// ID is the source-system identifier (URL or UID).
 	ID string `json:"id"`
-	// Title is a short human label for the source.
+	// Title is a short human label, omitted for restricted upstream sources.
 	Title string `json:"title,omitempty"`
-	// Excerpt is the snippet the generator consumed, if any.
+	// Excerpt is a public source snippet, omitted for restricted upstream sources.
 	Excerpt string `json:"excerpt,omitempty"`
 }
 

@@ -67,6 +67,24 @@ This service contains the following API endpoints:
 - `/committees/{uid}/leave`
   - `DELETE`: leave a committee as the authenticated user
 
+## Committee creation request decoding
+
+`POST /committees` requires a single JSON object with exactly one top-level
+`project_uid` key, using that exact spelling. Duplicate keys and case variants
+such as `PROJECT_UID` return HTTP 400, including Unicode-escaped equivalents.
+This keeps the project decoded by the service consistent with the project
+authorized by Heimdall's case-sensitive body lookup. Existing Goa field and UUID
+validation still applies. Other endpoints retain their existing decoding behavior.
+
+## HTTP request limits
+
+All routes enforce a 1 MiB total request-body limit before decoding or debug
+body logging. `POST /committees/{uid}/documents` allows 11 MiB total for multipart
+headers and metadata around a file of up to 10 MiB; the file-size limit remains
+independently enforced. Oversized bodies return HTTP 413, including requests
+without a Content-Length header. The server allows 60 seconds to read the
+request headers and body. Empty invite-acceptance bodies remain supported.
+
 ## NATS Messaging Interface
 
 In addition to HTTP endpoints, this service answers synchronous NATS request-reply subjects used by other LFX services to query committee state.

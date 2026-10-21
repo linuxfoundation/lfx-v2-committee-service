@@ -1186,9 +1186,9 @@ type CreateCommitteeLinkResponseBody struct {
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1213,9 +1213,9 @@ type CreateCommitteeLinkFolderResponseBody struct {
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -1242,9 +1242,9 @@ type UploadCommitteeDocumentResponseBody struct {
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -3141,9 +3141,9 @@ type CommitteeLinkWithReadonlyAttributesResponseBody struct {
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -3166,21 +3166,19 @@ type CommitteeLinkWithReadonlyAttributesResponse struct {
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
-// CommitteeUserResponse is used to define fields on response body types.
-type CommitteeUserResponse struct {
+// PublicAuditUserResponse is used to define fields on response body types.
+type PublicAuditUserResponse struct {
 	// URL to the user's avatar image; empty when none.
 	Avatar *string `form:"avatar,omitempty" json:"avatar,omitempty" xml:"avatar,omitempty"`
-	// The user's email address
-	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
 	// Display name of the user
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User identifier (LF ID / sub)
@@ -3197,9 +3195,9 @@ type CommitteeLinkFolderWithReadonlyAttributesResponseBody struct {
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -3216,9 +3214,9 @@ type CommitteeLinkFolderWithReadonlyAttributesResponse struct {
 	// Folder name
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponse `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponse `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -3245,9 +3243,9 @@ type CommitteeDocumentWithReadonlyAttributesResponseBody struct {
 	// MIME type of the file
 	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
 	// User who created this resource
-	CreatedBy *CommitteeUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
 	// User who last updated this resource
-	UpdatedBy *CommitteeUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
@@ -6332,10 +6330,10 @@ func NewGetCommitteeLinkResultOK(body *GetCommitteeLinkResponseBody, etag *strin
 		UpdatedAt:    body.UpdatedAt,
 	}
 	if body.CreatedBy != nil {
-		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
-		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
 	}
 	res := &committeeservice.GetCommitteeLinkResult{
 		CommitteeLink: v,
@@ -6432,10 +6430,10 @@ func NewCreateCommitteeLinkCommitteeLinkWithReadonlyAttributesCreated(body *Crea
 		UpdatedAt:    body.UpdatedAt,
 	}
 	if body.CreatedBy != nil {
-		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
-		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
 	}
 
 	return v
@@ -6532,10 +6530,10 @@ func NewGetCommitteeLinkFolderResultOK(body *GetCommitteeLinkFolderResponseBody,
 		UpdatedAt:    body.UpdatedAt,
 	}
 	if body.CreatedBy != nil {
-		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
-		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
 	}
 	res := &committeeservice.GetCommitteeLinkFolderResult{
 		CommitteeLinkFolder: v,
@@ -6629,10 +6627,10 @@ func NewCreateCommitteeLinkFolderCommitteeLinkFolderWithReadonlyAttributesCreate
 		UpdatedAt:    body.UpdatedAt,
 	}
 	if body.CreatedBy != nil {
-		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
-		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
 	}
 
 	return v
@@ -6745,10 +6743,10 @@ func NewUploadCommitteeDocumentCommitteeDocumentWithReadonlyAttributesCreated(bo
 		UpdatedAt:    body.UpdatedAt,
 	}
 	if body.CreatedBy != nil {
-		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
-		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
 	}
 
 	return v
@@ -6820,10 +6818,10 @@ func NewGetCommitteeDocumentResultOK(body *GetCommitteeDocumentResponseBody, eta
 		UpdatedAt:    body.UpdatedAt,
 	}
 	if body.CreatedBy != nil {
-		v.CreatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.CreatedBy)
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
 	}
 	if body.UpdatedBy != nil {
-		v.UpdatedBy = unmarshalCommitteeUserResponseBodyToCommitteeserviceCommitteeUser(body.UpdatedBy)
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
 	}
 	res := &committeeservice.GetCommitteeDocumentResult{
 		CommitteeDocument: v,
@@ -8818,12 +8816,12 @@ func ValidateGetCommitteeLinkResponseBody(body *GetCommitteeLinkResponseBody) (e
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -8864,12 +8862,12 @@ func ValidateCreateCommitteeLinkResponseBody(body *CreateCommitteeLinkResponseBo
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -8897,12 +8895,12 @@ func ValidateGetCommitteeLinkFolderResponseBody(body *GetCommitteeLinkFolderResp
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -8930,12 +8928,12 @@ func ValidateCreateCommitteeLinkFolderResponseBody(body *CreateCommitteeLinkFold
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -8981,12 +8979,12 @@ func ValidateUploadCommitteeDocumentResponseBody(body *UploadCommitteeDocumentRe
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -9032,12 +9030,12 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -11521,12 +11519,12 @@ func ValidateCommitteeLinkWithReadonlyAttributesResponseBody(body *CommitteeLink
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -11567,12 +11565,12 @@ func ValidateCommitteeLinkWithReadonlyAttributesResponse(body *CommitteeLinkWith
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponse(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponse(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponse(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponse(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -11585,9 +11583,9 @@ func ValidateCommitteeLinkWithReadonlyAttributesResponse(body *CommitteeLinkWith
 	return
 }
 
-// ValidateCommitteeUserResponse runs the validations defined on
-// committee-userResponse
-func ValidateCommitteeUserResponse(body *CommitteeUserResponse) (err error) {
+// ValidatePublicAuditUserResponse runs the validations defined on
+// public-audit-userResponse
+func ValidatePublicAuditUserResponse(body *PublicAuditUserResponse) (err error) {
 	if body.Avatar != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.avatar", *body.Avatar, goa.FormatURI))
 	}
@@ -11610,12 +11608,12 @@ func ValidateCommitteeLinkFolderWithReadonlyAttributesResponseBody(body *Committ
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -11643,12 +11641,12 @@ func ValidateCommitteeLinkFolderWithReadonlyAttributesResponse(body *CommitteeLi
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponse(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponse(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponse(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponse(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -11695,12 +11693,12 @@ func ValidateCommitteeDocumentWithReadonlyAttributesResponseBody(body *Committee
 		}
 	}
 	if body.CreatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.CreatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
 	if body.UpdatedBy != nil {
-		if err2 := ValidateCommitteeUserResponseBody(body.UpdatedBy); err2 != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}

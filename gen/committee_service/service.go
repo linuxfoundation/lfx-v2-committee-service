@@ -343,9 +343,9 @@ type CommitteeDocumentWithReadonlyAttributes struct {
 	// MIME type of the file
 	ContentType *string
 	// User who created this resource
-	CreatedBy *CommitteeUser
+	CreatedBy *PublicAuditUser
 	// User who last updated this resource
-	UpdatedBy *CommitteeUser
+	UpdatedBy *PublicAuditUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -479,9 +479,9 @@ type CommitteeLinkFolderWithReadonlyAttributes struct {
 	// Folder name
 	Name *string
 	// User who created this resource
-	CreatedBy *CommitteeUser
+	CreatedBy *PublicAuditUser
 	// User who last updated this resource
-	UpdatedBy *CommitteeUser
+	UpdatedBy *PublicAuditUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
@@ -504,9 +504,9 @@ type CommitteeLinkWithReadonlyAttributes struct {
 	// Optional description
 	Description *string
 	// User who created this resource
-	CreatedBy *CommitteeUser
+	CreatedBy *PublicAuditUser
 	// User who last updated this resource
-	UpdatedBy *CommitteeUser
+	UpdatedBy *PublicAuditUser
 	// The timestamp when the resource was created (read-only)
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)

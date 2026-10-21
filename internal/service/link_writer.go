@@ -217,7 +217,7 @@ func (o *linkWriterOrchestrator) publishLinkIndexerMessage(ctx context.Context, 
 			Tags:                 link.Tags(),
 			Fulltext:             fmt.Sprintf("%s %s %s", link.Name, link.Description, link.URL),
 		}
-		data = link
+		data = SanitizeCommitteeLinkForPublish(*link)
 	case model.ActionDeleted:
 		data = link.UID
 	}
@@ -268,7 +268,7 @@ func (o *linkWriterOrchestrator) publishLinkFolderIndexerMessage(ctx context.Con
 			Tags:                 folder.Tags(),
 			Fulltext:             folder.Name,
 		}
-		data = folder
+		data = SanitizeCommitteeLinkFolderForPublish(*folder)
 	case model.ActionDeleted:
 		data = folder.UID
 	}

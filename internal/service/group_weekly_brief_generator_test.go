@@ -5,7 +5,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1046,8 +1048,8 @@ func TestFulfill_SurveySource_ClaimsAndRefsIncluded(t *testing.T) {
 	for _, ref := range bw.putBrief.SourceRefs {
 		if ref.Kind == "survey" && ref.ID == "sv-2" {
 			foundRef = true
-			assert.Equal(t, "Open Source Experience Survey", ref.Title)
-			assert.Equal(t, "8 of 10 responded (80%)", ref.Excerpt)
+			assert.Empty(t, ref.Title, "survey title is restricted upstream")
+			assert.Empty(t, ref.Excerpt, "survey statistics are restricted upstream")
 		}
 	}
 	assert.True(t, foundRef, "brief must contain a source ref for the survey")
@@ -1101,9 +1103,8 @@ func TestFulfill_ProjectMemberships_ClaimsAndRefsIncluded(t *testing.T) {
 	for _, ref := range bw.putBrief.SourceRefs {
 		if ref.Kind == "project-membership" && ref.ID == "pm-1" {
 			foundRef = true
-			assert.Equal(t, "Example Corp", ref.Title)
-			assert.Contains(t, ref.Excerpt, "Membership tier: Silver")
-			assert.Contains(t, ref.Excerpt, "2026-08-14")
+			assert.Empty(t, ref.Title, "company name is auditor-only upstream")
+			assert.Empty(t, ref.Excerpt, "purchase details are auditor-only upstream")
 		}
 	}
 	assert.True(t, foundRef, "brief must contain a source ref for the project membership")
@@ -1167,6 +1168,82 @@ func TestFulfill_ProjectMembershipSource_EmptyProjectUID_DegradesSilently(t *tes
 	// No activity → terminal error state (ACK).
 	require.NotNil(t, bw.putBrief)
 	assert.Equal(t, model.GroupWeeklyBriefStateError, bw.putBrief.State)
+}
+
+func TestBuildClaimsAndRefs_SourceVisibility(t *testing.T) {
+	for _, private := range []bool{false, true} {
+		t.Run(fmt.Sprintf("private=%t", private), func(t *testing.T) {
+			meetings := []port.MeetingActivity{{UID: "meeting-1", Title: "Meeting title", Summary: "Meeting excerpt", Private: private}}
+			summaries := []port.MeetingAISummaryActivity{{MeetingAndOccurrenceID: "summary-1", Title: "Summary title", Content: "Summary excerpt", Private: private}}
+			mailing := []port.MailingListActivity{{ThreadID: "thread-1", Subject: "Thread title", Excerpt: "Thread excerpt", Private: private}}
+			claims, refs := buildClaimsAndRefs(meetings, summaries, port.WeeklyMemberActivity{}, mailing, nil, nil, nil, false)
+			require.Len(t, refs, 3)
+			require.Len(t, claims, 3)
+			for i, want := range []model.SourceRef{
+				{Kind: "meeting", ID: "meeting-1", Title: "Meeting title", Excerpt: "Meeting excerpt"},
+				{Kind: "meeting-summary", ID: "summary-1", Title: "Summary title", Excerpt: "Summary excerpt"},
+				{Kind: "mailing-list", ID: "thread-1", Title: "Thread title", Excerpt: "Thread excerpt"},
+			} {
+				// Restricted text remains available to narrative synthesis only.
+				assert.Contains(t, claims[i].Summary, want.Title)
+				if private {
+					want.Title, want.Excerpt = "", ""
+				}
+				assert.Equal(t, want, refs[i])
+			}
+		})
+	}
+}
+
+func TestFulfill_RestrictedSourceRefsAreCitationOnly(t *testing.T) {
+	pub := &fakePublisher{}
+	recorder := &recordingAIAdapter{}
+	g, bw := newGenerator(t, ActivitySources{
+		Meetings: &fakeMeetingSource{meetings: []port.MeetingActivity{
+			{UID: "private-meeting", Title: "Restricted meeting title", Summary: "Restricted meeting excerpt", Private: true},
+			{UID: "public-meeting", Title: "Public meeting title", Summary: "Public meeting excerpt"},
+		}},
+		AISummaries: &fakeAISummarySource{summaries: []port.MeetingAISummaryActivity{
+			{MeetingAndOccurrenceID: "private-summary", Title: "Restricted summary title", Content: "Restricted summary excerpt", Private: true},
+		}},
+		MailingLists: &fakeMailingListSource{items: []port.MailingListActivity{
+			{ThreadID: "private-thread", Subject: "Restricted thread title", Excerpt: "Restricted thread excerpt", Private: true},
+		}},
+		Surveys: &fakeSurveySource{items: []port.SurveyActivity{
+			{SurveyUID: "private-survey", Title: "Restricted survey title", TotalRecipients: 10, TotalResponses: 8},
+		}},
+		ProjectMemberships: &fakeProjectMembershipSource{items: []port.ProjectMembershipActivity{
+			{MembershipUID: "private-membership", AccountName: "Restricted company", Tier: "Restricted tier", PurchaseDate: testNow},
+		}},
+	},
+		WithGroupWeeklyBriefReaderForGenerator(&fakeBriefReader{brief: generatingBrief()}),
+		WithAIAdapter(recorder),
+		WithGroupWeeklyBriefPublisher(pub),
+	)
+	require.NoError(t, g.Fulfill(context.Background(), GroupWeeklyBriefGenerateInput{CommitteeUID: "c-1", ProjectUID: "p-1", Now: testNow}))
+	require.NotNil(t, bw.putBrief)
+	assert.Equal(t, model.GroupWeeklyBriefStateGenerated, bw.putBrief.State)
+	assert.True(t, bw.putBrief.PrivateSourcePresent)
+	assert.Equal(t, "Para 1.\n\nPara 2.", bw.putBrief.BriefText)
+	assert.Contains(t, recorder.gotInput.RawContext, "Restricted summary excerpt")
+	assert.Equal(t, []model.SourceRef{
+		{Kind: "meeting", ID: "private-meeting"},
+		{Kind: "meeting", ID: "public-meeting", Title: "Public meeting title", Excerpt: "Public meeting excerpt"},
+		{Kind: "meeting-summary", ID: "private-summary"},
+		{Kind: "mailing-list", ID: "private-thread"},
+		{Kind: "survey", ID: "private-survey"},
+		{Kind: "project-membership", ID: "private-membership"},
+	}, bw.putBrief.SourceRefs)
+
+	// Neither storage nor the viewer-readable search document may contain raw
+	// restricted text, even before chair review (the generated state).
+	require.Len(t, pub.indexerMessages, 1)
+	for _, payload := range []any{bw.putBrief, pub.indexerMessages[0]} {
+		data, err := json.Marshal(payload)
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), "Restricted")
+		assert.Contains(t, string(data), "Public meeting excerpt")
+	}
 }
 
 func TestBuildClaimsAndRefs_MembersHidden(t *testing.T) {
@@ -1341,24 +1418,6 @@ func TestSurveyResponseLabel_NoRecipients_ReturnsEmpty(t *testing.T) {
 func TestSurveyResponseLabel_FormatsResponseCount(t *testing.T) {
 	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 30, TotalResponses: 14}
 	assert.Equal(t, " — 14 of 30 responded", surveyResponseLabel(sv))
-}
-
-// ── surveyParticipationExcerpt ────────────────────────────────────────────────
-
-func TestSurveyParticipationExcerpt_NoRecipients_ReturnsEmpty(t *testing.T) {
-	sv := port.SurveyActivity{SurveyUID: "s1"}
-	assert.Equal(t, "", surveyParticipationExcerpt(sv))
-}
-
-func TestSurveyParticipationExcerpt_FormatsWithPercentage(t *testing.T) {
-	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 30, TotalResponses: 14}
-	got := surveyParticipationExcerpt(sv)
-	assert.Equal(t, "14 of 30 responded (47%)", got)
-}
-
-func TestSurveyParticipationExcerpt_FullResponse_100Percent(t *testing.T) {
-	sv := port.SurveyActivity{SurveyUID: "s1", TotalRecipients: 10, TotalResponses: 10}
-	assert.Equal(t, "10 of 10 responded (100%)", surveyParticipationExcerpt(sv))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

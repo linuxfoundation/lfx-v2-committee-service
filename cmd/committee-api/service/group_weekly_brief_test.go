@@ -151,6 +151,10 @@ func TestGetCurrentWeeklyBrief_HitWithThrottleAndSourceRefs(t *testing.T) {
 		BriefText:    "hello",
 		SourceRefs: []model.SourceRef{
 			{Kind: "meeting", ID: "m-1", Title: "Sync", Excerpt: "notes"},
+			{Kind: "meeting-summary", ID: "restricted-summary"},
+			{Kind: "mailing-list", ID: "restricted-thread"},
+			{Kind: "survey", ID: "restricted-survey"},
+			{Kind: "project-membership", ID: "restricted-membership"},
 		},
 	}
 	throttleBytes, _ := json.Marshal(model.GroupWeeklyBriefThrottle{
@@ -162,10 +166,18 @@ func TestGetCurrentWeeklyBrief_HitWithThrottleAndSourceRefs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res.Brief)
 	// source_refs map through to the response.
-	require.Len(t, res.Brief.SourceRefs, 1)
+	require.Len(t, res.Brief.SourceRefs, len(brief.SourceRefs))
 	assert.Equal(t, "meeting", *res.Brief.SourceRefs[0].Kind)
 	assert.Equal(t, "m-1", *res.Brief.SourceRefs[0].ID)
 	assert.Equal(t, "notes", *res.Brief.SourceRefs[0].Excerpt)
+	// The viewer-facing read (with no principal in context) preserves
+	// citation-only refs without populating optional titles or excerpts.
+	for i, ref := range res.Brief.SourceRefs[1:] {
+		assert.Equal(t, brief.SourceRefs[i+1].Kind, *ref.Kind)
+		assert.Equal(t, brief.SourceRefs[i+1].ID, *ref.ID)
+		assert.Nil(t, ref.Title)
+		assert.Nil(t, ref.Excerpt)
+	}
 	// throttle decodes and maps.
 	require.NotNil(t, res.Throttle)
 	assert.Equal(t, 2, *res.Throttle.GeneratesUsed)

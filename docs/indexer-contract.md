@@ -35,6 +35,24 @@ acknowledgement and does not confirm that the JetStream stream has accepted the 
 - [Committee Document](#committee-document)
 - [Group Weekly Brief](#group-weekly-brief)
 
+### Public resource audit users
+
+Committee links, link folders, and documents are indexed under the parent
+committee's `viewer` relation, which can admit anonymous users for public
+committees. Their `created_by` and `updated_by` objects therefore never include
+email. Both live writers and the CLI audit-user migration sanitize copies before
+building indexer messages; stored audit records retain their original profiles.
+REST responses use the email-free `PublicAuditUser` type, and read-time profile
+enrichment fetches only display metadata, never primary email addresses.
+
+**Existing-data rollout:** This fix does not remove emails from existing search
+documents or index history. Before treating an environment as remediated,
+coordinate a cleanup/reindex of existing `committee_link`,
+`committee_link_folder`, and `committee_document` records and affected historical
+payloads. Republishing must use the sanitized payload path; simply deploying the
+new API does not clean existing indexed data. The audit-user migration only
+republishes records it changes, so rerunning it is not a complete reindex.
+
 ---
 
 ## Committee
@@ -77,7 +95,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `deliverables` | []string (optional) | Committee deliverables bullet points |
 | `key_dates` | []object (optional) | Committee key-dates timeline, each with `date` (`YYYY-MM`) and `label` |
 | `external_sources` | []object (optional) | Source-labeled external entities linked to the committee (e.g. OCG groups/events), each with `provider`, `entity_type`, `label`, `url`, and optional `external_id`, `external_category`, `external_region`, `external_event_category` |
-| `charter` | object (optional) | Committee charter: a link to an externally hosted document, with `url` (empty once cleared), `version`, `updated_at`, and optional `updated_by`. Present once a charter has ever existed for the committee, including after removal. `charter.updated_by` has `avatar` (string), `name` (string), `username` (string — LFX username) — **`email` is deliberately omitted** (unlike `created_by`/`updated_by` elsewhere in this document) because a public committee's charter is reachable by anonymous callers via `GET /committees/{uid}`; see `sanitizeCommitteeBaseForPublish` in `internal/service/committee_writer.go` |
+| `charter` | object (optional) | Committee charter: a link to an externally hosted document, with `url` (empty once cleared), `version`, `updated_at`, and optional `updated_by`. Present once a charter has ever existed for the committee, including after removal. `charter.updated_by` has `avatar` (string), `name` (string), `username` (string — LFX username) — **`email` is deliberately omitted**, as it is for link, folder, and document audit users, because a public committee's charter is reachable by anonymous callers via `GET /committees/{uid}`; see `sanitizeCommitteeBaseForPublish` in `internal/service/committee_writer.go` |
 | `total_members` | int | Current total member count |
 | `total_voting_repos` | int | Current total voting repos count |
 | `has_mailing_list` | bool | Whether a related mailing list exists |
@@ -297,7 +315,7 @@ _(none)_
 | `file_name` | string | Original uploaded file name |
 | `file_size` | int | File size in bytes |
 | `content_type` | string | Uploaded MIME type |
-| `created_by` | object (optional) | User who uploaded the document. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `created_by` | object (optional) | User who uploaded the document. Object has `avatar` (string), `name` (string), `username` (string — LFX username). Email is deliberately omitted from viewer-accessible payloads |
 | `updated_by` | object (optional) | User who last updated the document. Same shape as `created_by`; identical to `created_by` on upload |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
@@ -493,7 +511,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 | `name` | string | Link display name |
 | `url` | string | Link URL |
 | `description` | string (optional) | Link description |
-| `created_by` | object (optional) | User who created the link. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `created_by` | object (optional) | User who created the link. Object has `avatar` (string), `name` (string), `username` (string — LFX username). Email is deliberately omitted from viewer-accessible payloads |
 | `updated_by` | object (optional) | User who last updated the link. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
@@ -554,7 +572,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 | `uid` | string | Folder unique identifier |
 | `committee_uid` | string | UID of the owning committee |
 | `name` | string | Folder name |
-| `created_by` | object (optional) | User who created the folder. Object has `avatar` (string), `email` (string), `name` (string), `username` (string — LFX username) |
+| `created_by` | object (optional) | User who created the folder. Object has `avatar` (string), `name` (string), `username` (string — LFX username). Email is deliberately omitted from viewer-accessible payloads |
 | `updated_by` | object (optional) | User who last updated the folder. Same shape as `created_by`; identical to `created_by` on create |
 | `created_at` | timestamp | Creation time (RFC3339) |
 | `updated_at` | timestamp | Last update time (RFC3339) |
@@ -617,7 +635,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 | `state` | string | Draft state (e.g., `empty`, `generating`, `generated`, `edited`, `approved`, `error`) |
 | `error_reason` | string (optional) | Machine-readable reason for the `error` state; omitted on non-error briefs. Known values: `no_sources` (no activity in the lookback window), `ai_error` (AI generation failure). |
 | `brief_text` | string (optional) | Generated brief body; omitted when empty (e.g. `generating` or `error` state briefs). |
-| `source_refs` | []object (optional) | References to the source artifacts the brief was generated from; omitted when empty. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — the snippet the generator consumed). `kind` and `id` are always present; `title` and `excerpt` are omitted when empty. |
+| `source_refs` | []object (optional) | References to the source artifacts the brief was generated from; omitted when empty. Each object has `kind` (string — source category, e.g. `meeting`, `mailing-list`, `doc`), `id` (string — source-system identifier, a URL or UID), and optionally `title` (string — short human label) and `excerpt` (string — source snippet). Restricted upstream sources carry only `kind` and `id`, never raw titles or excerpts (see Access Control). `title` and `excerpt` are omitted when empty. |
 | `prompt_version` | string (optional) | Version identifier of the prompt used to generate the brief; omitted when empty. |
 | `model` | string (optional) | Identifier of the model used to generate the brief; omitted when empty. |
 | `regeneration_count` | int | Number of times the brief has been regenerated |
@@ -651,6 +669,28 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 > any viewer can query briefs; if private, only members and elevated users (auditors/admins) can.
 > This mirrors the existing `GET /current` endpoint. `private_source_present` is a UI disclosure
 > flag for the BFF/UI; it does not restrict access at the indexer/query-service layer.
+
+The viewer access decision permits the **synthesized narrative** (`brief_text`), not
+verbatim restricted upstream artifacts. Source references for private meetings,
+AI meeting summaries whose access level is not `public`, private mailing-list
+threads (including threads containing any private reply), all surveys, and all
+project memberships contain only `kind` and `id`. They omit raw source titles,
+summary bodies, thread snippets, survey response statistics, and membership
+company/tier/purchase details. These sources remain available to the AI for
+narrative synthesis. Public source references may retain titles and excerpts;
+member-roster references continue to honor the committee's `member_visibility`.
+This policy applies before chair review, starting in `generated` state, and to
+both the REST response and the indexed document.
+
+**Existing-data rollout:** The generation fix does not rewrite previously stored
+briefs or indexed documents. Before treating an environment as remediated, remove
+legacy `source_refs[].title` and `source_refs[].excerpt` from affected stored briefs
+and refresh their search documents. Legacy references do not record per-source
+visibility, so clearing these fields on all legacy references is the conservative
+option; preserve `kind`, `id`, and the narrative. Reindexing alone with
+`committee-cli sync backfill-weekly-brief-index` is **not** a sanitizer: clean the
+stored records first. Coordinate this data cleanup separately; do not silently
+regenerate or overwrite chair-edited narratives.
 
 ### Search Behavior
 
