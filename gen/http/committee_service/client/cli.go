@@ -26,7 +26,7 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"charter\": {\n         \"url\": \"https://example.org/governance/charter.pdf\"\n      },\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"chat_webhook_url\": \"pvz\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"charter\": {\n         \"url\": \"https://example.org/governance/charter.pdf\"\n      },\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"chat_webhook_url\": \"pvz\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"members_can_view_social_listening\": false,\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
 		}
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.project_uid", body.ProjectUID, goa.FormatUUID))
 		if utf8.RuneCountInString(body.Name) > 100 {
@@ -172,27 +172,28 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		}
 	}
 	v := &committeeservice.CreateCommitteePayload{
-		ProjectUID:            body.ProjectUID,
-		Name:                  body.Name,
-		Category:              body.Category,
-		Description:           body.Description,
-		Website:               body.Website,
-		MailingList:           body.MailingList,
-		ChatChannel:           body.ChatChannel,
-		EnableVoting:          body.EnableVoting,
-		SsoGroupEnabled:       body.SsoGroupEnabled,
-		RequiresReview:        body.RequiresReview,
-		Public:                body.Public,
-		DisplayName:           body.DisplayName,
-		ParentUID:             body.ParentUID,
-		JoinMode:              body.JoinMode,
-		Repository:            body.Repository,
-		BusinessEmailRequired: body.BusinessEmailRequired,
-		LastReviewedAt:        body.LastReviewedAt,
-		LastReviewedBy:        body.LastReviewedBy,
-		MemberVisibility:      body.MemberVisibility,
-		ShowMeetingAttendees:  body.ShowMeetingAttendees,
-		ChatWebhookURL:        body.ChatWebhookURL,
+		ProjectUID:                    body.ProjectUID,
+		Name:                          body.Name,
+		Category:                      body.Category,
+		Description:                   body.Description,
+		Website:                       body.Website,
+		MailingList:                   body.MailingList,
+		ChatChannel:                   body.ChatChannel,
+		EnableVoting:                  body.EnableVoting,
+		SsoGroupEnabled:               body.SsoGroupEnabled,
+		RequiresReview:                body.RequiresReview,
+		Public:                        body.Public,
+		DisplayName:                   body.DisplayName,
+		ParentUID:                     body.ParentUID,
+		JoinMode:                      body.JoinMode,
+		Repository:                    body.Repository,
+		BusinessEmailRequired:         body.BusinessEmailRequired,
+		LastReviewedAt:                body.LastReviewedAt,
+		LastReviewedBy:                body.LastReviewedBy,
+		MemberVisibility:              body.MemberVisibility,
+		ShowMeetingAttendees:          body.ShowMeetingAttendees,
+		MembersCanViewSocialListening: body.MembersCanViewSocialListening,
+		ChatWebhookURL:                body.ChatWebhookURL,
 	}
 	{
 		var zero bool
@@ -281,6 +282,12 @@ func BuildCreateCommitteePayload(committeeServiceCreateCommitteeBody string, com
 		var zero bool
 		if v.ShowMeetingAttendees == zero {
 			v.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if v.MembersCanViewSocialListening == zero {
+			v.MembersCanViewSocialListening = false
 		}
 	}
 	if body.Writers != nil {
@@ -677,7 +684,7 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 	{
 		err = json.Unmarshal([]byte(committeeServiceUpdateCommitteeSettingsBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"chat_webhook_url\": \"ual\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"chat_webhook_url\": \"ual\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"members_can_view_social_listening\": false,\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }'")
 		}
 		if body.LastReviewedAt != nil {
 			err = goa.MergeErrors(err, goa.ValidateFormat("body.last_reviewed_at", *body.LastReviewedAt, goa.FormatDateTime))
@@ -753,12 +760,13 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		}
 	}
 	v := &committeeservice.UpdateCommitteeSettingsPayload{
-		BusinessEmailRequired: body.BusinessEmailRequired,
-		LastReviewedAt:        body.LastReviewedAt,
-		LastReviewedBy:        body.LastReviewedBy,
-		MemberVisibility:      body.MemberVisibility,
-		ShowMeetingAttendees:  body.ShowMeetingAttendees,
-		ChatWebhookURL:        body.ChatWebhookURL,
+		BusinessEmailRequired:         body.BusinessEmailRequired,
+		LastReviewedAt:                body.LastReviewedAt,
+		LastReviewedBy:                body.LastReviewedBy,
+		MemberVisibility:              body.MemberVisibility,
+		ShowMeetingAttendees:          body.ShowMeetingAttendees,
+		MembersCanViewSocialListening: body.MembersCanViewSocialListening,
+		ChatWebhookURL:                body.ChatWebhookURL,
 	}
 	{
 		var zero string
@@ -770,6 +778,12 @@ func BuildUpdateCommitteeSettingsPayload(committeeServiceUpdateCommitteeSettings
 		var zero bool
 		if v.ShowMeetingAttendees == zero {
 			v.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if v.MembersCanViewSocialListening == zero {
+			v.MembersCanViewSocialListening = false
 		}
 	}
 	if body.Writers != nil {
