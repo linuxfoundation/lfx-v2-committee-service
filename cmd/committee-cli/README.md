@@ -535,6 +535,42 @@ NATS_URL=nats://localhost:4222 \
   committee-cli sync reindex-settings --committee-uid=abc-123
 ```
 
+#### `report board-seats`
+
+Reports every current seat on every Board-category committee, grouped by org, with each seat's org-editability (`is_org_editable`, derived from `appointed_by == "Membership Entitlement"`). Read-only — this command never writes to the KV store and has no `--dry-run` (PCC-1522).
+
+The companion check this report is meant to answer — "is the seat's org still an active SFDC member?" — is not yet possible: `lfx-v2-member-service` has no API to list memberships by project/org (PCC-1610). Every seat and the top-level report carry a `membership_check`/`membership_comparison` field explicitly marked unavailable rather than silently omitted.
+
+Board membership is determined from each member's denormalized `committee_category` snapshot, which can be stale or empty for members created before LFXV2-1442. If the report looks short of expected seats, run `sync member-project-attribute` first.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit the report to a single committee UID; errors if that committee does not exist or is not Board category |
+| `--project-uid` | `""` | Limit the report to Board committees belonging to this project UID |
+| `--output` | `""` | Write the JSON report to this file instead of stdout |
+
+**Exit code:** `0` on success, `1` on error (e.g. failed KV scan, `--committee-uid` not found or not Board category).
+
+**Output:** A single indented JSON document (see `boardSeatsReport` in `commands/report/board_seats.go`) with per-org, per-seat detail. `username`/`email` are redacted (`pkg/redaction`).
+
+**Without `--output`, the report is written to stdout, which is shared with this binary's structured JSON log stream** (`pkg/log`'s handler and any warnings from `EachMember` also write there). A run with no warnings produces one extra log line before the report; any warnings interleave with it. Prefer `--output <path>` for machine consumption, or set `LOG_LEVEL=warn` to suppress the non-warning noise.
+
+**Examples**
+
+Report all Board seats to a file:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli report board-seats --output=/tmp/board-seats.json
+```
+
+Report Board seats for a single project:
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=warn \
+  committee-cli report board-seats --project-uid=abc-123
+```
+
 ## Building
 
 ### Local binary

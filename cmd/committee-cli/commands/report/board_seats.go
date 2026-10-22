@@ -14,11 +14,15 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 )
 
-// boardCategory is the CommitteeBase.Category value identifying a Board committee.
-// Compared case-insensitively since category is a free-form string, not an enum
-// (cmd/committee-api/design/type.go has no committee-category enum).
+// boardCategory is the value of the member's denormalized committee_category field
+// (model.CommitteeMemberBase.CommitteeCategory) identifying a Board committee. Compared
+// case-insensitively because that field is validated only by CommitteeCategoryMemberAttribute's
+// MaxLength in cmd/committee-api/design/type.go (unlike the committee-side CategoryAttribute,
+// which does enforce a dsl.Enum("Board", ...)) — the member copy is a denormalized snapshot that
+// can drift from the committee's actual category (see model.CommitteeMember.NeedsSyncWith).
 const boardCategory = "board"
 
 // membershipComparisonUnavailable explains why this report cannot flag seats whose
@@ -44,7 +48,7 @@ func (s *boardSeatsSubcommand) Help() string {
 type seatReport struct {
 	MemberUID       string `json:"member_uid"`
 	Username        string `json:"username,omitempty"`
-	Email           string `json:"email,omitempty"`
+	Email           string `json:"email,omitempty"` // redacted via redaction.RedactEmail; see populate below
 	RoleName        string `json:"role_name,omitempty"`
 	AppointedBy     string `json:"appointed_by,omitempty"`
 	IsOrgEditable   bool   `json:"is_org_editable"`
@@ -80,6 +84,7 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 	}
 	projectUID := fs.String("project-uid", "", "limit the report to Board committees belonging to this project UID")
 	committeeUID := fs.String("committee-uid", "", "limit the report to a single committee UID (must be Board category)")
+	output := fs.String("output", "", "write the JSON report to this file instead of stdout (recommended: stdout is shared with the structured log stream, so a run with any warnings interleaves log lines with the report)")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -91,10 +96,25 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		return fmt.Errorf("CommitteeReader is not wired in RunContext")
 	}
 
+	if *committeeUID != "" {
+		base, _, err := rc.CommitteeReader.GetBase(ctx, *committeeUID)
+		if err != nil {
+			return fmt.Errorf("failed to look up --committee-uid %q: %w", *committeeUID, err)
+		}
+		if !strings.EqualFold(base.Category, boardCategory) {
+			return fmt.Errorf("--committee-uid %q is not a Board committee (category: %q)", *committeeUID, base.Category)
+		}
+	}
+
 	orgs := make(map[string]*orgReport)
 	seatsTotal := 0
 
 	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
+		// member.CommitteeCategory and member.ProjectUID are denormalized snapshots and can be
+		// stale or empty for members created before LFXV2-1442 (see "sync member-project-attribute"
+		// and model.CommitteeMember.NeedsSyncWith). A stale/empty category here silently drops a
+		// seat from this report. Run `sync member-project-attribute` first if the output looks
+		// short of expected seats.
 		if !strings.EqualFold(member.CommitteeCategory, boardCategory) {
 			return nil
 		}
@@ -114,8 +134,8 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 
 		org.Seats = append(org.Seats, seatReport{
 			MemberUID:       member.UID,
-			Username:        member.Username,
-			Email:           member.Email,
+			Username:        redaction.Redact(member.Username),
+			Email:           redaction.RedactEmail(member.Email),
 			RoleName:        member.Role.Name,
 			AppointedBy:     member.AppointedBy,
 			IsOrgEditable:   isMembershipEntitlement(member.AppointedBy),
@@ -141,7 +161,17 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		Orgs:                 sortedOrgs(orgs),
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	w := os.Stdout
+	if *output != "" {
+		f, err := os.Create(*output)
+		if err != nil {
+			return fmt.Errorf("failed to create --output file %q: %w", *output, err)
+		}
+		defer func() { _ = f.Close() }()
+		w = f
+	}
+
+	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(report)
 }

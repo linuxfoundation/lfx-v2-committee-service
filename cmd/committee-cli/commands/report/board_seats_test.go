@@ -22,8 +22,10 @@ import (
 // mockReader implements port.CommitteeReader with just EachMember exercised; every other
 // method is a stub since board-seats only ever calls EachMember.
 type mockReader struct {
-	members []*model.CommitteeMember
-	eachErr error
+	members    []*model.CommitteeMember
+	eachErr    error
+	bases      map[string]*model.CommitteeBase
+	getBaseErr error
 }
 
 func (r *mockReader) EachMember(_ context.Context, fn func(*model.CommitteeMember) error) error {
@@ -38,8 +40,15 @@ func (r *mockReader) EachMember(_ context.Context, fn func(*model.CommitteeMembe
 	return nil
 }
 
-func (r *mockReader) GetBase(_ context.Context, _ string) (*model.CommitteeBase, uint64, error) {
-	return nil, 0, errors.New("not implemented for this test")
+func (r *mockReader) GetBase(_ context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	if r.getBaseErr != nil {
+		return nil, 0, r.getBaseErr
+	}
+	base, ok := r.bases[uid]
+	if !ok {
+		return nil, 0, errors.New("not found")
+	}
+	return base, 0, nil
 }
 func (r *mockReader) GetRevision(_ context.Context, _ string) (uint64, error) { return 0, nil }
 func (r *mockReader) ListAllUIDs(_ context.Context) ([]string, error)         { return nil, nil }
@@ -193,14 +202,62 @@ func TestBoardSeats_IsOrgEditableDerivation(t *testing.T) {
 }
 
 func TestBoardSeats_FiltersByCommitteeUID(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board A", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-		boardMember("m2", "c2", "Board B", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board A", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+			boardMember("m2", "c2", "Board B", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r, Args: []string{"--committee-uid=c1"}})
 	require.Equal(t, 1, report.SeatsTotal)
 	assert.Equal(t, "m1", report.Orgs[0].Seats[0].MemberUID)
+}
+
+func TestBoardSeats_CommitteeUIDNotFound_ReturnsError(t *testing.T) {
+	r := &mockReader{bases: map[string]*model.CommitteeBase{}}
+	err := (&boardSeatsSubcommand{}).Run(context.Background(), commands.RunContext{CommitteeReader: r, Args: []string{"--committee-uid=missing"}})
+	require.Error(t, err)
+}
+
+func TestBoardSeats_CommitteeUIDNotBoardCategory_ReturnsError(t *testing.T) {
+	r := &mockReader{bases: map[string]*model.CommitteeBase{
+		"c1": {Category: "Technical"},
+	}}
+	err := (&boardSeatsSubcommand{}).Run(context.Background(), commands.RunContext{CommitteeReader: r, Args: []string{"--committee-uid=c1"}})
+	require.Error(t, err)
+}
+
+func TestBoardSeats_RedactsEmailAndUsername(t *testing.T) {
+	m := boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
+	m.Username = "first-last"
+	m.Email = "first.last@example.com"
+	r := &mockReader{members: []*model.CommitteeMember{m}}
+
+	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
+	seat := report.Orgs[0].Seats[0]
+	assert.NotEqual(t, "first-last", seat.Username)
+	assert.NotEqual(t, "first.last@example.com", seat.Email)
+	assert.Contains(t, seat.Email, "@example.com")
+}
+
+func TestBoardSeats_OutputFlag_WritesToFile(t *testing.T) {
+	r := &mockReader{members: []*model.CommitteeMember{
+		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+	}}
+	path := t.TempDir() + "/report.json"
+
+	err := (&boardSeatsSubcommand{}).Run(context.Background(), commands.RunContext{CommitteeReader: r, Args: []string{"--output=" + path}})
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var report boardSeatsReport
+	require.NoError(t, json.Unmarshal(data, &report))
+	assert.Equal(t, 1, report.SeatsTotal)
 }
 
 func TestBoardSeats_FiltersByProjectUID(t *testing.T) {
