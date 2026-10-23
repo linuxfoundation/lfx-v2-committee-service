@@ -553,15 +553,16 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 }
 
 // EachMember streams every committee member via a full bucket scan, invoking fn per member without
-// accumulating the whole set in memory (backfill/repair). Secondary-index keys are skipped; a
-// per-member read error is logged and counted rather than stopping iteration, but — mirroring
-// ListAllInvites above — is reported back as an aggregated error once the scan completes, so a
-// caller that only checks the returned error (e.g. "report board-seats") cannot mistake a partial
-// scan for a complete one. The first error fn returns still stops iteration immediately.
+// accumulating the whole set in memory (best-effort backfill/repair). Secondary-index keys are
+// skipped; a per-member read error is logged and skipped rather than stopping iteration, and is NOT
+// reported back as the returned error — use EachMemberStrict when a partial scan must not be
+// mistaken for a complete one. The first error fn returns still stops iteration immediately.
 func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
 	return s.eachMember(ctx, fn, false)
 }
 
+// EachMemberStrict is EachMember, but returns an aggregated error when any per-member read failed
+// (see eachMember).
 func (s *storage) EachMemberStrict(ctx context.Context, fn func(*model.CommitteeMember) error) error {
 	return s.eachMember(ctx, fn, true)
 }
@@ -598,6 +599,13 @@ func (s *storage) eachMember(ctx context.Context, fn func(*model.CommitteeMember
 		if err := fn(member); err != nil {
 			return err
 		}
+	}
+
+	// A canceled ctx can make NATS close Keys() without surfacing an error through KeyLister, which
+	// would otherwise let a strict caller mistake a truncated scan for a complete one even though
+	// failedReads is still zero (mirrors the ctx.Err() check in ListMembersByOrganization above).
+	if err := ctx.Err(); err != nil {
+		return errs.NewUnexpected("context cancelled while streaming all members", err)
 	}
 
 	if strict && failedReads > 0 {

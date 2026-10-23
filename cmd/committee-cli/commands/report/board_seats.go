@@ -133,6 +133,12 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		if *committeeUID != "" && member.CommitteeUID != *committeeUID {
 			return nil
 		}
+		// member.ProjectUID is the same kind of denormalized snapshot as CommitteeCategory above and
+		// can likewise be stale or empty for a member that has not yet been synced by "sync
+		// member-project-attribute" — a --project-uid run can silently undercount seats as a result.
+		// Documented in cmd/committee-cli/README.md rather than fixed here (unlike the category check,
+		// there is no cheap committeeUID-scoped escape hatch: --project-uid can be combined with an
+		// unscoped run, so there is no single prior lookup to trust instead).
 		if *projectUID != "" && member.ProjectUID != *projectUID {
 			return nil
 		}

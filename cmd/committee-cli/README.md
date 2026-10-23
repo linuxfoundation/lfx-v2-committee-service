@@ -543,6 +543,8 @@ The companion check this report is meant to answer — "is the seat's org still 
 
 For an unscoped run (no `--committee-uid`), Board membership is determined from each member's denormalized `committee_category` snapshot, which can be stale or empty for members created before LFXV2-1442. `sync member-project-attribute` does not repair `committee_category`; it repairs only `project_uid` and `project_slug`, so there is currently no command to recover this drift for an unscoped run. A `--committee-uid` run is unaffected by this gap: the target committee's actual category is looked up directly, so a seat is never dropped due to a stale snapshot.
 
+`--project-uid` has the same class of caveat: it filters on each member's denormalized `project_uid` snapshot, which `sync member-project-attribute` does repair but which can still be stale or empty for a member that has not yet been synced. A seat that hasn't been synced can be silently dropped from a `--project-uid` report with no error or warning. `--committee-uid` is unaffected, since it does not rely on this snapshot.
+
 **Subcommand flags**
 
 | Flag | Default | Description |
