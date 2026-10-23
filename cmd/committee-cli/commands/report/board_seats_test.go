@@ -17,6 +17,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 // mockReader implements port.CommitteeReader with just EachMember exercised; every other
@@ -272,7 +273,7 @@ func TestBoardSeats_FiltersByProjectUID(t *testing.T) {
 	assert.Equal(t, "m1", report.Orgs[0].Seats[0].MemberUID)
 }
 
-func TestBoardSeats_EveryStoreCarriesMembershipComparisonStub(t *testing.T) {
+func TestBoardSeats_EverySeatCarriesMembershipComparisonStub(t *testing.T) {
 	r := &mockReader{members: []*model.CommitteeMember{
 		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
 	}}
@@ -282,6 +283,50 @@ func TestBoardSeats_EveryStoreCarriesMembershipComparisonStub(t *testing.T) {
 	require.Len(t, report.Orgs, 1)
 	require.Len(t, report.Orgs[0].Seats, 1)
 	assert.Equal(t, membershipComparisonUnavailable, report.Orgs[0].Seats[0].MembershipCheck)
+}
+
+func TestBoardSeats_GroupsEquivalentSFIDForms(t *testing.T) {
+	// A 15-char Salesforce Account ID and its 18-char canonical form (computed via the same
+	// NormalizeAccountSFID the report uses, mirroring utils.TestNormalizeAccountSFID_15and18Converge)
+	// are equivalent forms for the same org; the report should collapse them to one group instead of
+	// splitting one org's seats across two rows.
+	fifteen := "001Rm000003oVr9"
+	eighteen := utils.NormalizeAccountSFID(fifteen)
+	r := &mockReader{members: []*model.CommitteeMember{
+		boardMember("m1", "c1", "Board", "Board", eighteen, "Acme Corp", "Membership Entitlement"),
+		boardMember("m2", "c1", "Board", "Board", fifteen, "Acme Corp", "Membership Entitlement"),
+	}}
+
+	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
+	require.Len(t, report.Orgs, 1, "equivalent 15- and 18-char Salesforce Account IDs must collapse to one org")
+	assert.Len(t, report.Orgs[0].Seats, 2)
+}
+
+func TestBoardSeats_OrgNamePickIsDeterministicRegardlessOfScanOrder(t *testing.T) {
+	membersAZ := []*model.CommitteeMember{
+		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+		boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corporation", "Membership Entitlement"),
+	}
+	membersZA := []*model.CommitteeMember{membersAZ[1], membersAZ[0]}
+
+	reportAZ := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: membersAZ}})
+	reportZA := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: membersZA}})
+
+	require.Len(t, reportAZ.Orgs, 1)
+	require.Len(t, reportZA.Orgs, 1)
+	assert.Equal(t, "Acme Corp", reportAZ.Orgs[0].OrgName, "lexicographically smallest name wins regardless of scan order")
+	assert.Equal(t, reportAZ.Orgs[0].OrgName, reportZA.Orgs[0].OrgName)
+}
+
+func TestBoardSeats_ExcludesInactiveMembers(t *testing.T) {
+	active := boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
+	inactive := boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
+	inactive.Status = "Inactive"
+	r := &mockReader{members: []*model.CommitteeMember{active, inactive}}
+
+	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
+	require.Equal(t, 1, report.SeatsTotal)
+	assert.Equal(t, "m1", report.Orgs[0].Seats[0].MemberUID)
 }
 
 func TestBoardSeats_NoCommitteeReader_ReturnsError(t *testing.T) {

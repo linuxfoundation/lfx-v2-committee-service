@@ -15,7 +15,12 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
+
+// inactiveStatus is the model.CommitteeMemberBase.Status value (see StatusAttribute in
+// cmd/committee-api/design/type.go) marking a member as no longer a current seat holder.
+const inactiveStatus = "Inactive"
 
 // boardCategory is the value of the member's denormalized committee_category field
 // (model.CommitteeMemberBase.CommitteeCategory) identifying a Board committee. Compared
@@ -111,11 +116,14 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 
 	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
 		// member.CommitteeCategory and member.ProjectUID are denormalized snapshots and can be
-		// stale or empty for members created before LFXV2-1442 (see "sync member-project-attribute"
-		// and model.CommitteeMember.NeedsSyncWith). A stale/empty category here silently drops a
-		// seat from this report. Run `sync member-project-attribute` first if the output looks
-		// short of expected seats.
+		// stale or empty for members created before LFXV2-1442 (see model.CommitteeMember.NeedsSyncWith).
+		// A stale/empty category here silently drops a seat from this report. "sync
+		// member-project-attribute" does NOT repair committee_category — it repairs only
+		// project_uid/project_slug — so there is currently no CLI command that fixes this drift.
 		if !strings.EqualFold(member.CommitteeCategory, boardCategory) {
+			return nil
+		}
+		if strings.EqualFold(strings.TrimSpace(member.Status), inactiveStatus) {
 			return nil
 		}
 		if *committeeUID != "" && member.CommitteeUID != *committeeUID {
@@ -125,11 +133,19 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 			return nil
 		}
 
-		orgKey := orgReportKey(member)
+		orgID := utils.NormalizeAccountSFID(member.Organization.ID)
+		orgKey := orgReportKey(orgID, member.Organization.Name)
 		org, ok := orgs[orgKey]
 		if !ok {
-			org = &orgReport{OrgID: member.Organization.ID, OrgName: member.Organization.Name}
+			org = &orgReport{OrgID: orgID, OrgName: member.Organization.Name}
 			orgs[orgKey] = org
+		} else if member.Organization.Name < org.OrgName {
+			// EachMember scans the KV bucket in no guaranteed order. Members sharing one org
+			// can carry differing Organization.Name snapshots, so picking "whichever arrives
+			// first" would make the chosen name (and therefore this org's row position) vary
+			// from run to run. Deterministically keep the lexicographically smallest name
+			// instead, so unchanged seats never produce a noisy diff between daily runs.
+			org.OrgName = member.Organization.Name
 		}
 
 		org.Seats = append(org.Seats, seatReport{
@@ -161,28 +177,39 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		Orgs:                 sortedOrgs(orgs),
 	}
 
-	w := os.Stdout
-	if *output != "" {
-		f, err := os.Create(*output)
-		if err != nil {
-			return fmt.Errorf("failed to create --output file %q: %w", *output, err)
-		}
-		defer func() { _ = f.Close() }()
-		w = f
+	if *output == "" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(report)
 	}
 
-	enc := json.NewEncoder(w)
+	f, err := os.Create(*output)
+	if err != nil {
+		return fmt.Errorf("failed to create --output file %q: %w", *output, err)
+	}
+	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
-	return enc.Encode(report)
+	if err := enc.Encode(report); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("failed to write --output file %q: %w", *output, err)
+	}
+	// A failed Close can still mean a truncated file (e.g. a flush error on a full disk) even
+	// though Encode above reported success, so it must not be swallowed.
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close --output file %q: %w", *output, err)
+	}
+	return nil
 }
 
-// orgReportKey groups seats by org ID when present, falling back to the (lowercased) org
-// name for members whose org has no ID — this matches the only identity the data gives us.
-func orgReportKey(member *model.CommitteeMember) string {
-	if member.Organization.ID != "" {
-		return "id:" + member.Organization.ID
+// orgReportKey groups seats by normalized org ID when present, falling back to the (lowercased)
+// org name for members whose org has no ID — this matches the only identity the data gives us.
+// orgID must already be normalized via utils.NormalizeAccountSFID so that equivalent 15- and
+// 18-character Salesforce Account IDs for the same org land in the same group.
+func orgReportKey(orgID, orgName string) string {
+	if orgID != "" {
+		return "id:" + orgID
 	}
-	return "name:" + strings.ToLower(strings.TrimSpace(member.Organization.Name))
+	return "name:" + strings.ToLower(strings.TrimSpace(orgName))
 }
 
 // sortedOrgs returns the orgs sorted by name (then ID) for a stable, diffable report output,

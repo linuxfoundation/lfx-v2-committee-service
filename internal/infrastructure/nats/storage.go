@@ -554,13 +554,18 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 
 // EachMember streams every committee member via a full bucket scan, invoking fn per member without
 // accumulating the whole set in memory (backfill/repair). Secondary-index keys are skipped; a
-// per-member read error is logged and skipped; the first error fn returns stops iteration.
+// per-member read error is logged and counted rather than stopping iteration, but — mirroring
+// ListAllInvites above — is reported back as an aggregated error once the scan completes, so a
+// caller that only checks the returned error (e.g. "report board-seats") cannot mistake a partial
+// scan for a complete one. The first error fn returns still stops iteration immediately.
 func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
 	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
 	if errKeys != nil {
 		return errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
 	}
 	defer func() { _ = keys.Stop() }()
+
+	failedReads := 0
 
 	for key := range keys.Keys() {
 		// Skip all secondary-index keys.
@@ -571,12 +576,20 @@ func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember
 		member := &model.CommitteeMember{}
 		if _, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false); errGet != nil {
 			slog.WarnContext(ctx, "failed to get member while streaming all", "key", key, "error", errGet)
+			failedReads++
 			continue
 		}
 
 		if err := fn(member); err != nil {
 			return err
 		}
+	}
+
+	if failedReads > 0 {
+		return errs.NewUnexpected(
+			"failed to read one or more members while streaming all",
+			fmt.Errorf("failed_reads=%d", failedReads),
+		)
 	}
 	return nil
 }
