@@ -553,14 +553,37 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 }
 
 // EachMember streams every committee member via a full bucket scan, invoking fn per member without
-// accumulating the whole set in memory (backfill/repair). Secondary-index keys are skipped; a
-// per-member read error is logged and skipped; the first error fn returns stops iteration.
+// accumulating the whole set in memory (best-effort backfill/repair). Secondary-index keys are
+// skipped; a per-member read error is logged and skipped rather than stopping iteration, and is NOT
+// reported back as the returned error — use EachMemberStrict when a partial scan must not be
+// mistaken for a complete one. The first error fn returns still stops iteration immediately. A
+// canceled ctx IS still surfaced as an error by both EachMember and EachMemberStrict alike (see
+// eachMember) — only per-member read failures are best-effort for EachMember, not cancellation.
 func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return s.eachMember(ctx, fn, false)
+}
+
+// EachMemberStrict is EachMember, but returns an aggregated error when any per-member read failed
+// (see eachMember).
+func (s *storage) EachMemberStrict(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return s.eachMember(ctx, fn, true)
+}
+
+// eachMember implements the shared bucket-scan loop behind EachMember and EachMemberStrict. A
+// per-member read error is always logged and skipped so a single corrupt/concurrently-deleted record
+// never aborts the scan, but whether that is also reported back as an aggregated error once the scan
+// completes depends on strict: EachMember's existing callers are best-effort backfill/repair commands
+// that must keep printing their run stats and exiting 0 on an otherwise-complete scan even if a handful
+// of reads failed, while EachMemberStrict lets a caller like "report board-seats" tell a partial scan
+// apart from a complete one. The first error fn returns still stops iteration immediately either way.
+func (s *storage) eachMember(ctx context.Context, fn func(*model.CommitteeMember) error, strict bool) error {
 	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
 	if errKeys != nil {
 		return errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
 	}
 	defer func() { _ = keys.Stop() }()
+
+	failedReads := 0
 
 	for key := range keys.Keys() {
 		// Skip all secondary-index keys.
@@ -571,12 +594,27 @@ func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember
 		member := &model.CommitteeMember{}
 		if _, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false); errGet != nil {
 			slog.WarnContext(ctx, "failed to get member while streaming all", "key", key, "error", errGet)
+			failedReads++
 			continue
 		}
 
 		if err := fn(member); err != nil {
 			return err
 		}
+	}
+
+	// A canceled ctx can make NATS close Keys() without surfacing an error through KeyLister, which
+	// would otherwise let a strict caller mistake a truncated scan for a complete one even though
+	// failedReads is still zero (mirrors the ctx.Err() check in ListMembersByOrganization above).
+	if err := ctx.Err(); err != nil {
+		return errs.NewUnexpected("context cancelled while streaming all members", err)
+	}
+
+	if strict && failedReads > 0 {
+		return errs.NewUnexpected(
+			"failed to read one or more members while streaming all",
+			fmt.Errorf("failed_reads=%d", failedReads),
+		)
 	}
 	return nil
 }
