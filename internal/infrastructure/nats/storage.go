@@ -556,7 +556,9 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 // accumulating the whole set in memory (best-effort backfill/repair). Secondary-index keys are
 // skipped; a per-member read error is logged and skipped rather than stopping iteration, and is NOT
 // reported back as the returned error — use EachMemberStrict when a partial scan must not be
-// mistaken for a complete one. The first error fn returns still stops iteration immediately.
+// mistaken for a complete one. The first error fn returns still stops iteration immediately. A
+// canceled ctx IS still surfaced as an error by both EachMember and EachMemberStrict alike (see
+// eachMember) — only per-member read failures are best-effort for EachMember, not cancellation.
 func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
 	return s.eachMember(ctx, fn, false)
 }

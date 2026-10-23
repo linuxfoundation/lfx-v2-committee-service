@@ -111,3 +111,39 @@ func TestStorage_EachMember_ListKeysErrorPropagates(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list keys boom")
 }
+
+// TestStorage_EachMember_CancelledContextReturnsErrorForBothVariants verifies that a context
+// cancelled by the time the scan loop finishes is still surfaced as an error by EachMember AND
+// EachMemberStrict alike, even when every key read succeeded (failedReads stays 0) — cancellation
+// is not folded into the best-effort/strict distinction, unlike per-key read failures (per @dealako,
+// PRRT_kwDOPJKVas6vsrEr).
+func TestStorage_EachMember_CancelledContextReturnsErrorForBothVariants(t *testing.T) {
+	goodBytes, err := json.Marshal(orgMember("m-good", "org-1"))
+	require.NoError(t, err)
+
+	newCancelledCtx := func() context.Context {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		return ctx
+	}
+
+	t.Run("EachMember", func(t *testing.T) {
+		s := newTestStorageWithKV(&mockKV{
+			listKeys:   []string{"m-good"},
+			getEntries: map[string]jetstream.KeyValueEntry{"m-good": &mockEntry{value: goodBytes, rev: 1}},
+		})
+		err := s.EachMember(newCancelledCtx(), func(*model.CommitteeMember) error { return nil })
+		require.Error(t, err, "a cancelled context must still be surfaced even though EachMember is best-effort about read failures")
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("EachMemberStrict", func(t *testing.T) {
+		s := newTestStorageWithKV(&mockKV{
+			listKeys:   []string{"m-good"},
+			getEntries: map[string]jetstream.KeyValueEntry{"m-good": &mockEntry{value: goodBytes, rev: 1}},
+		})
+		err := s.EachMemberStrict(newCancelledCtx(), func(*model.CommitteeMember) error { return nil })
+		require.Error(t, err, "a cancelled context must be surfaced even with zero failedReads")
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+}
