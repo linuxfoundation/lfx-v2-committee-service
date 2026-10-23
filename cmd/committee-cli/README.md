@@ -541,7 +541,7 @@ Reports every current seat on every Board-category committee, grouped by org, wi
 
 The companion check this report is meant to answer — "is the seat's org still an active SFDC member?" — is not yet possible: `lfx-v2-member-service` has no API to list memberships by project/org (PCC-1610). Every seat and the top-level report carry a `membership_check`/`membership_comparison` field explicitly marked unavailable rather than silently omitted.
 
-Board membership is determined from each member's denormalized `committee_category` snapshot, which can be stale or empty for members created before LFXV2-1442. `sync member-project-attribute` does not repair `committee_category`; it repairs only `project_uid` and `project_slug`.
+For an unscoped run (no `--committee-uid`), Board membership is determined from each member's denormalized `committee_category` snapshot, which can be stale or empty for members created before LFXV2-1442. `sync member-project-attribute` does not repair `committee_category`; it repairs only `project_uid` and `project_slug`, so there is currently no command to recover this drift for an unscoped run. A `--committee-uid` run is unaffected by this gap: the target committee's actual category is looked up directly, so a seat is never dropped due to a stale snapshot.
 
 **Subcommand flags**
 
