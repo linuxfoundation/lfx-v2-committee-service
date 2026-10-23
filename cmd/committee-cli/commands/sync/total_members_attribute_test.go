@@ -156,6 +156,10 @@ func (r *mockReader) EachMember(ctx context.Context, fn func(*model.CommitteeMem
 	return nil
 }
 
+func (r *mockReader) EachMemberStrict(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return r.EachMember(ctx, fn)
+}
+
 // mockBaseWriter implements the CommitteeBaseWriter methods syncOne touches,
 // recording UpdateTotalMembers calls.
 type mockBaseWriter struct {

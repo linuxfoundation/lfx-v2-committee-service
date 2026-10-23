@@ -114,13 +114,17 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 	orgs := make(map[string]*orgReport)
 	seatsTotal := 0
 
-	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
+	errEach := rc.CommitteeReader.EachMemberStrict(ctx, func(member *model.CommitteeMember) error {
 		// member.CommitteeCategory and member.ProjectUID are denormalized snapshots and can be
 		// stale or empty for members created before LFXV2-1442 (see model.CommitteeMember.NeedsSyncWith).
 		// A stale/empty category here silently drops a seat from this report. "sync
 		// member-project-attribute" does NOT repair committee_category — it repairs only
-		// project_uid/project_slug — so there is currently no CLI command that fixes this drift.
-		if !strings.EqualFold(member.CommitteeCategory, boardCategory) {
+		// project_uid/project_slug — so there is currently no CLI command that fixes this drift. When
+		// --committee-uid is set, GetBase above has already authoritatively confirmed that committee is
+		// Board, so this snapshot check is skipped for a scoped run — the CommitteeUID check below is
+		// what actually scopes the result, and skipping a seat here would otherwise contradict that
+		// earlier confirmation. For an unscoped run this is still the only signal available.
+		if *committeeUID == "" && !strings.EqualFold(member.CommitteeCategory, boardCategory) {
 			return nil
 		}
 		if strings.EqualFold(strings.TrimSpace(member.Status), inactiveStatus) {
@@ -139,13 +143,14 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		if !ok {
 			org = &orgReport{OrgID: orgID, OrgName: member.Organization.Name}
 			orgs[orgKey] = org
-		} else if member.Organization.Name < org.OrgName {
-			// EachMember scans the KV bucket in no guaranteed order. Members sharing one org
+		} else if name := member.Organization.Name; name != "" && (org.OrgName == "" || name < org.OrgName) {
+			// EachMemberStrict scans the KV bucket in no guaranteed order. Members sharing one org
 			// can carry differing Organization.Name snapshots, so picking "whichever arrives
 			// first" would make the chosen name (and therefore this org's row position) vary
-			// from run to run. Deterministically keep the lexicographically smallest name
-			// instead, so unchanged seats never produce a noisy diff between daily runs.
-			org.OrgName = member.Organization.Name
+			// from run to run. Deterministically keep the lexicographically smallest NON-EMPTY name
+			// instead, so unchanged seats never produce a noisy diff between daily runs and a stale,
+			// empty Organization.Name snapshot never blanks out a known name.
+			org.OrgName = name
 		}
 
 		org.Seats = append(org.Seats, seatReport{

@@ -378,6 +378,10 @@ func (r *TestMockCommitteeReader) EachMember(ctx context.Context, fn func(*model
 	return nil
 }
 
+func (r *TestMockCommitteeReader) EachMemberStrict(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return r.EachMember(ctx, fn)
+}
+
 // Implement CommitteeInviteReader interface
 func (r *TestMockCommitteeReader) GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
 	return nil, 0, errs.NewNotFound("not implemented for this test")

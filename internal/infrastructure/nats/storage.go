@@ -559,6 +559,21 @@ func (s *storage) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite,
 // caller that only checks the returned error (e.g. "report board-seats") cannot mistake a partial
 // scan for a complete one. The first error fn returns still stops iteration immediately.
 func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return s.eachMember(ctx, fn, false)
+}
+
+func (s *storage) EachMemberStrict(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return s.eachMember(ctx, fn, true)
+}
+
+// eachMember implements the shared bucket-scan loop behind EachMember and EachMemberStrict. A
+// per-member read error is always logged and skipped so a single corrupt/concurrently-deleted record
+// never aborts the scan, but whether that is also reported back as an aggregated error once the scan
+// completes depends on strict: EachMember's existing callers are best-effort backfill/repair commands
+// that must keep printing their run stats and exiting 0 on an otherwise-complete scan even if a handful
+// of reads failed, while EachMemberStrict lets a caller like "report board-seats" tell a partial scan
+// apart from a complete one. The first error fn returns still stops iteration immediately either way.
+func (s *storage) eachMember(ctx context.Context, fn func(*model.CommitteeMember) error, strict bool) error {
 	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
 	if errKeys != nil {
 		return errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
@@ -585,7 +600,7 @@ func (s *storage) EachMember(ctx context.Context, fn func(*model.CommitteeMember
 		}
 	}
 
-	if failedReads > 0 {
+	if strict && failedReads > 0 {
 		return errs.NewUnexpected(
 			"failed to read one or more members while streaming all",
 			fmt.Errorf("failed_reads=%d", failedReads),

@@ -20,8 +20,9 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
-// mockReader implements port.CommitteeReader with just EachMember exercised; every other
-// method is a stub since board-seats only ever calls EachMember.
+// mockReader implements port.CommitteeReader with just EachMemberStrict exercised (board-seats uses
+// the strict variant so a partial scan is never mistaken for a complete one); every other method is a
+// stub.
 type mockReader struct {
 	members    []*model.CommitteeMember
 	eachErr    error
@@ -29,7 +30,7 @@ type mockReader struct {
 	getBaseErr error
 }
 
-func (r *mockReader) EachMember(_ context.Context, fn func(*model.CommitteeMember) error) error {
+func (r *mockReader) EachMemberStrict(_ context.Context, fn func(*model.CommitteeMember) error) error {
 	if r.eachErr != nil {
 		return r.eachErr
 	}
@@ -39,6 +40,10 @@ func (r *mockReader) EachMember(_ context.Context, fn func(*model.CommitteeMembe
 		}
 	}
 	return nil
+}
+
+func (r *mockReader) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return r.EachMemberStrict(ctx, fn)
 }
 
 func (r *mockReader) GetBase(_ context.Context, uid string) (*model.CommitteeBase, uint64, error) {
@@ -218,6 +223,23 @@ func TestBoardSeats_FiltersByCommitteeUID(t *testing.T) {
 	assert.Equal(t, "m1", report.Orgs[0].Seats[0].MemberUID)
 }
 
+func TestBoardSeats_CommitteeUIDScoped_CountsMemberWithStaleCategory(t *testing.T) {
+	// GetBase already confirmed c1 is Board category below, so a member whose denormalized
+	// CommitteeCategory snapshot is stale/empty (pre-LFXV2-1442 data) must still be counted — the
+	// per-member category check only applies to unscoped runs.
+	stale := boardMember("m1", "c1", "Board A", "", "org-1", "Acme Corp", "Membership Entitlement")
+	r := &mockReader{
+		members: []*model.CommitteeMember{stale},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Category: "Board"},
+		},
+	}
+
+	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r, Args: []string{"--committee-uid=c1"}})
+	require.Equal(t, 1, report.SeatsTotal, "a stale/empty member.CommitteeCategory must not drop a seat once --committee-uid has confirmed the committee is Board")
+	assert.Equal(t, "m1", report.Orgs[0].Seats[0].MemberUID)
+}
+
 func TestBoardSeats_CommitteeUIDNotFound_ReturnsError(t *testing.T) {
 	r := &mockReader{bases: map[string]*model.CommitteeBase{}}
 	err := (&boardSeatsSubcommand{}).Run(context.Background(), commands.RunContext{CommitteeReader: r, Args: []string{"--committee-uid=missing"}})
@@ -316,6 +338,21 @@ func TestBoardSeats_OrgNamePickIsDeterministicRegardlessOfScanOrder(t *testing.T
 	require.Len(t, reportZA.Orgs, 1)
 	assert.Equal(t, "Acme Corp", reportAZ.Orgs[0].OrgName, "lexicographically smallest name wins regardless of scan order")
 	assert.Equal(t, reportAZ.Orgs[0].OrgName, reportZA.Orgs[0].OrgName)
+}
+
+func TestBoardSeats_OrgNamePickIgnoresEmptyNameRegardlessOfScanOrder(t *testing.T) {
+	// A stale/empty Organization.Name snapshot must never blank out a known good name, regardless of
+	// which member the scan (which has no guaranteed order) happens to visit first.
+	named := boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
+	empty := boardMember("m2", "c1", "Board", "Board", "org-1", "", "Membership Entitlement")
+
+	reportNamedFirst := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: []*model.CommitteeMember{named, empty}}})
+	reportEmptyFirst := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: []*model.CommitteeMember{empty, named}}})
+
+	require.Len(t, reportNamedFirst.Orgs, 1)
+	require.Len(t, reportEmptyFirst.Orgs, 1)
+	assert.Equal(t, "Acme Corp", reportNamedFirst.Orgs[0].OrgName)
+	assert.Equal(t, "Acme Corp", reportEmptyFirst.Orgs[0].OrgName, "an empty Organization.Name snapshot must not overwrite a known name regardless of scan order")
 }
 
 func TestBoardSeats_ExcludesInactiveMembers(t *testing.T) {
