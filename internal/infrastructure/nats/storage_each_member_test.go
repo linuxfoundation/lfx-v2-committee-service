@@ -115,8 +115,7 @@ func TestStorage_EachMember_ListKeysErrorPropagates(t *testing.T) {
 // TestStorage_EachMember_CancelledContextReturnsErrorForBothVariants verifies that a context
 // cancelled by the time the scan loop finishes is still surfaced as an error by EachMember AND
 // EachMemberStrict alike, even when every key read succeeded (failedReads stays 0) — cancellation
-// is not folded into the best-effort/strict distinction, unlike per-key read failures (per @dealako,
-// PRRT_kwDOPJKVas6vsrEr).
+// is not folded into the best-effort/strict distinction, unlike per-key read failures.
 func TestStorage_EachMember_CancelledContextReturnsErrorForBothVariants(t *testing.T) {
 	goodBytes, err := json.Marshal(orgMember("m-good", "org-1"))
 	require.NoError(t, err)

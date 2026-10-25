@@ -137,10 +137,16 @@ func runBoardSeats(t *testing.T, rc commands.RunContext) boardSeatsReport {
 }
 
 func TestBoardSeats_FiltersToBoardCategoryOnly(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-		boardMember("m2", "c2", "TAC", "Technical", "org-1", "Acme Corp", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+			boardMember("m2", "c2", "TAC", "Technical", "org-1", "Acme Corp", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+			"c2": {Name: "TAC", Category: "Technical"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	require.Equal(t, 1, report.SeatsTotal)
@@ -149,20 +155,30 @@ func TestBoardSeats_FiltersToBoardCategoryOnly(t *testing.T) {
 }
 
 func TestBoardSeats_CategoryMatchIsCaseInsensitive(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "BOARD", "org-1", "Acme Corp", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "BOARD", "org-1", "Acme Corp", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "BOARD"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	require.Equal(t, 1, report.SeatsTotal)
 }
 
 func TestBoardSeats_GroupsByOrgID(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-		boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-		boardMember("m3", "c1", "Board", "Board", "org-2", "Globex", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+			boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+			boardMember("m3", "c1", "Board", "Board", "org-2", "Globex", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	require.Len(t, report.Orgs, 2)
@@ -177,10 +193,15 @@ func TestBoardSeats_GroupsByOrgID(t *testing.T) {
 }
 
 func TestBoardSeats_GroupsByNameWhenOrgIDMissing(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "Board", "", "No ID Org", "Membership Entitlement"),
-		boardMember("m2", "c1", "Board", "Board", "", "no id org", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "", "No ID Org", "Membership Entitlement"),
+			boardMember("m2", "c1", "Board", "Board", "", "no id org", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	require.Len(t, report.Orgs, 1, "org name match must be case-insensitive when there is no org ID")
@@ -188,12 +209,17 @@ func TestBoardSeats_GroupsByNameWhenOrgIDMissing(t *testing.T) {
 }
 
 func TestBoardSeats_IsOrgEditableDerivation(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-		boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corp", "  membership entitlement  "),
-		boardMember("m3", "c1", "Board", "Board", "org-1", "Acme Corp", "Direct Appointment"),
-		boardMember("m4", "c1", "Board", "Board", "org-1", "Acme Corp", ""),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+			boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corp", "  membership entitlement  "),
+			boardMember("m3", "c1", "Board", "Board", "org-1", "Acme Corp", "Direct Appointment"),
+			boardMember("m4", "c1", "Board", "Board", "org-1", "Acme Corp", ""),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	require.Len(t, report.Orgs, 1)
@@ -240,6 +266,35 @@ func TestBoardSeats_CommitteeUIDScoped_CountsMemberWithStaleCategory(t *testing.
 	assert.Equal(t, "m1", report.Orgs[0].Seats[0].MemberUID)
 }
 
+func TestBoardSeats_UnscopedRun_ResolvesCategoryFromParentCommittee(t *testing.T) {
+	// member.CommitteeCategory is stale/empty (pre-LFXV2-1442 data), but the parent committee (looked
+	// up via GetBase, cached per UID) is authoritatively Board — the seat must still be counted on an
+	// unscoped run, not just a --committee-uid-scoped one.
+	stale := boardMember("m1", "c1", "Board", "", "org-1", "Acme Corp", "Membership Entitlement")
+	r := &mockReader{
+		members: []*model.CommitteeMember{stale},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
+
+	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
+	require.Equal(t, 1, report.SeatsTotal, "a stale/empty member.CommitteeCategory must not drop a seat when the parent committee resolves to Board")
+	assert.Equal(t, "m1", report.Orgs[0].Seats[0].MemberUID)
+}
+
+func TestBoardSeats_UnscopedRun_SkipsMemberWhenParentCommitteeLookupFails(t *testing.T) {
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{},
+	}
+
+	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
+	assert.Equal(t, 0, report.SeatsTotal, "a seat whose parent committee cannot be resolved must be excluded rather than guessed at")
+}
+
 func TestBoardSeats_CommitteeUIDNotFound_ReturnsError(t *testing.T) {
 	r := &mockReader{bases: map[string]*model.CommitteeBase{}}
 	err := (&boardSeatsSubcommand{}).Run(context.Background(), commands.RunContext{CommitteeReader: r, Args: []string{"--committee-uid=missing"}})
@@ -258,7 +313,12 @@ func TestBoardSeats_RedactsEmailAndUsername(t *testing.T) {
 	m := boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
 	m.Username = "first-last"
 	m.Email = "first.last@example.com"
-	r := &mockReader{members: []*model.CommitteeMember{m}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{m},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	seat := report.Orgs[0].Seats[0]
@@ -268,9 +328,14 @@ func TestBoardSeats_RedactsEmailAndUsername(t *testing.T) {
 }
 
 func TestBoardSeats_OutputFlag_WritesToFile(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 	path := t.TempDir() + "/report.json"
 
 	err := (&boardSeatsSubcommand{}).Run(context.Background(), commands.RunContext{CommitteeReader: r, Args: []string{"--output=" + path}})
@@ -285,10 +350,16 @@ func TestBoardSeats_OutputFlag_WritesToFile(t *testing.T) {
 
 func TestBoardSeats_FiltersByProjectUID(t *testing.T) {
 	m1 := boardMember("m1", "c1", "Board A", "Board", "org-1", "Acme Corp", "Membership Entitlement")
-	m1.ProjectUID = "p1"
 	m2 := boardMember("m2", "c2", "Board B", "Board", "org-1", "Acme Corp", "Membership Entitlement")
-	m2.ProjectUID = "p2"
-	r := &mockReader{members: []*model.CommitteeMember{m1, m2}}
+	// project_uid is resolved authoritatively from the parent committee (same denormalization family
+	// as committee_category), not trusted from the member's own (possibly stale) snapshot.
+	r := &mockReader{
+		members: []*model.CommitteeMember{m1, m2},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board A", Category: "Board", ProjectUID: "p1"},
+			"c2": {Name: "Board B", Category: "Board", ProjectUID: "p2"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r, Args: []string{"--project-uid=p1"}})
 	require.Equal(t, 1, report.SeatsTotal)
@@ -296,9 +367,14 @@ func TestBoardSeats_FiltersByProjectUID(t *testing.T) {
 }
 
 func TestBoardSeats_EverySeatCarriesMembershipComparisonStub(t *testing.T) {
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	assert.Equal(t, membershipComparisonUnavailable, report.MembershipComparison)
@@ -314,10 +390,15 @@ func TestBoardSeats_GroupsEquivalentSFIDForms(t *testing.T) {
 	// splitting one org's seats across two rows.
 	fifteen := "001Rm000003oVr9"
 	eighteen := utils.NormalizeAccountSFID(fifteen)
-	r := &mockReader{members: []*model.CommitteeMember{
-		boardMember("m1", "c1", "Board", "Board", eighteen, "Acme Corp", "Membership Entitlement"),
-		boardMember("m2", "c1", "Board", "Board", fifteen, "Acme Corp", "Membership Entitlement"),
-	}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", eighteen, "Acme Corp", "Membership Entitlement"),
+			boardMember("m2", "c1", "Board", "Board", fifteen, "Acme Corp", "Membership Entitlement"),
+		},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	require.Len(t, report.Orgs, 1, "equivalent 15- and 18-char Salesforce Account IDs must collapse to one org")
@@ -330,9 +411,10 @@ func TestBoardSeats_OrgNamePickIsDeterministicRegardlessOfScanOrder(t *testing.T
 		boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corporation", "Membership Entitlement"),
 	}
 	membersZA := []*model.CommitteeMember{membersAZ[1], membersAZ[0]}
+	bases := map[string]*model.CommitteeBase{"c1": {Name: "Board", Category: "Board"}}
 
-	reportAZ := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: membersAZ}})
-	reportZA := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: membersZA}})
+	reportAZ := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: membersAZ, bases: bases}})
+	reportZA := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: membersZA, bases: bases}})
 
 	require.Len(t, reportAZ.Orgs, 1)
 	require.Len(t, reportZA.Orgs, 1)
@@ -345,9 +427,10 @@ func TestBoardSeats_OrgNamePickIgnoresEmptyNameRegardlessOfScanOrder(t *testing.
 	// which member the scan (which has no guaranteed order) happens to visit first.
 	named := boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
 	empty := boardMember("m2", "c1", "Board", "Board", "org-1", "", "Membership Entitlement")
+	bases := map[string]*model.CommitteeBase{"c1": {Name: "Board", Category: "Board"}}
 
-	reportNamedFirst := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: []*model.CommitteeMember{named, empty}}})
-	reportEmptyFirst := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: []*model.CommitteeMember{empty, named}}})
+	reportNamedFirst := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: []*model.CommitteeMember{named, empty}, bases: bases}})
+	reportEmptyFirst := runBoardSeats(t, commands.RunContext{CommitteeReader: &mockReader{members: []*model.CommitteeMember{empty, named}, bases: bases}})
 
 	require.Len(t, reportNamedFirst.Orgs, 1)
 	require.Len(t, reportEmptyFirst.Orgs, 1)
@@ -359,7 +442,12 @@ func TestBoardSeats_ExcludesInactiveMembers(t *testing.T) {
 	active := boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
 	inactive := boardMember("m2", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement")
 	inactive.Status = "Inactive"
-	r := &mockReader{members: []*model.CommitteeMember{active, inactive}}
+	r := &mockReader{
+		members: []*model.CommitteeMember{active, inactive},
+		bases: map[string]*model.CommitteeBase{
+			"c1": {Name: "Board", Category: "Board"},
+		},
+	}
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	require.Equal(t, 1, report.SeatsTotal)

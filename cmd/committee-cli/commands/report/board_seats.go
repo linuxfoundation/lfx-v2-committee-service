@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -101,6 +102,8 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		return fmt.Errorf("CommitteeReader is not wired in RunContext")
 	}
 
+	infoCache := make(map[string]committeeInfo)
+
 	if *committeeUID != "" {
 		base, _, err := rc.CommitteeReader.GetBase(ctx, *committeeUID)
 		if err != nil {
@@ -109,37 +112,36 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		if !strings.EqualFold(base.Category, boardCategory) {
 			return fmt.Errorf("--committee-uid %q is not a Board committee (category: %q)", *committeeUID, base.Category)
 		}
+		// Seed the cache so EachMemberStrict below reuses this lookup instead of re-fetching it.
+		infoCache[*committeeUID] = committeeInfo{name: base.Name, category: base.Category, projectUID: base.ProjectUID, projectSlug: base.ProjectSlug, ok: true}
 	}
 
 	orgs := make(map[string]*orgReport)
 	seatsTotal := 0
 
 	errEach := rc.CommitteeReader.EachMemberStrict(ctx, func(member *model.CommitteeMember) error {
-		// member.CommitteeCategory and member.ProjectUID are denormalized snapshots and can be
-		// stale or empty for members created before LFXV2-1442 (see model.CommitteeMember.NeedsSyncWith).
-		// A stale/empty category here silently drops a seat from this report. "sync
-		// member-project-attribute" does NOT repair committee_category — it repairs only
-		// project_uid/project_slug — so there is currently no CLI command that fixes this drift. When
-		// --committee-uid is set, GetBase above has already authoritatively confirmed that committee is
-		// Board, so this snapshot check is skipped for a scoped run — the CommitteeUID check below is
-		// what actually scopes the result, and skipping a seat here would otherwise contradict that
-		// earlier confirmation. For an unscoped run this is still the only signal available.
-		if *committeeUID == "" && !strings.EqualFold(member.CommitteeCategory, boardCategory) {
+		if *committeeUID != "" && member.CommitteeUID != *committeeUID {
+			return nil
+		}
+
+		// Resolve committee_category/project_uid/project_slug/name from the parent committee (cached
+		// per UID) rather than trusting the member's denormalized snapshot of each, which can be stale
+		// or empty for members created before LFXV2-1442 (see model.CommitteeMember.NeedsSyncWith). A
+		// failed lookup excludes the seat rather than guessing, but is logged so operators can
+		// investigate. For a --committee-uid run this is a cache hit seeded above, not a new read.
+		info, ok := resolveCommitteeInfo(ctx, rc, member.CommitteeUID, infoCache)
+		if !ok {
+			slog.WarnContext(ctx, "skipping member: could not resolve parent committee",
+				"member_uid", member.UID, "committee_uid", member.CommitteeUID)
+			return nil
+		}
+		if !strings.EqualFold(info.category, boardCategory) {
 			return nil
 		}
 		if strings.EqualFold(strings.TrimSpace(member.Status), inactiveStatus) {
 			return nil
 		}
-		if *committeeUID != "" && member.CommitteeUID != *committeeUID {
-			return nil
-		}
-		// member.ProjectUID is the same kind of denormalized snapshot as CommitteeCategory above and
-		// can likewise be stale or empty for a member that has not yet been synced by "sync
-		// member-project-attribute" — a --project-uid run can silently undercount seats as a result.
-		// Documented in cmd/committee-cli/README.md rather than fixed here (unlike the category check,
-		// there is no cheap committeeUID-scoped escape hatch: --project-uid can be combined with an
-		// unscoped run, so there is no single prior lookup to trust instead).
-		if *projectUID != "" && member.ProjectUID != *projectUID {
+		if *projectUID != "" && info.projectUID != *projectUID {
 			return nil
 		}
 
@@ -167,9 +169,9 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 			AppointedBy:     member.AppointedBy,
 			IsOrgEditable:   isMembershipEntitlement(member.AppointedBy),
 			CommitteeUID:    member.CommitteeUID,
-			CommitteeName:   member.CommitteeName,
-			ProjectUID:      member.ProjectUID,
-			ProjectSlug:     member.ProjectSlug,
+			CommitteeName:   info.name,
+			ProjectUID:      info.projectUID,
+			ProjectSlug:     info.projectSlug,
 			MembershipCheck: membershipComparisonUnavailable,
 		})
 		org.SeatsTotal++
@@ -210,6 +212,38 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		return fmt.Errorf("failed to close --output file %q: %w", *output, err)
 	}
 	return nil
+}
+
+// committeeInfo is the authoritative subset of a committee's attributes needed by this report,
+// resolved via CommitteeReader.GetBase rather than trusting a member's denormalized snapshot of
+// the same fields (model.CommitteeMember.NeedsSyncWith lists CommitteeName, CommitteeCategory,
+// ProjectUID, and ProjectSlug as one denormalization family — all four can be stale or empty for
+// members created before LFXV2-1442). ok is false when the lookup failed; negative results are
+// cached too, since a failing committee UID would otherwise be re-queried for every one of its
+// members.
+type committeeInfo struct {
+	name        string
+	category    string
+	projectUID  string
+	projectSlug string
+	ok          bool
+}
+
+// resolveCommitteeInfo looks up committeeUID's parent committee, caching the result (including
+// failures) so a run with many members on few distinct committees issues at most one GetBase call
+// per committee UID rather than one per member.
+func resolveCommitteeInfo(ctx context.Context, rc commands.RunContext, committeeUID string, cache map[string]committeeInfo) (committeeInfo, bool) {
+	if info, ok := cache[committeeUID]; ok {
+		return info, info.ok
+	}
+	base, _, err := rc.CommitteeReader.GetBase(ctx, committeeUID)
+	if err != nil {
+		cache[committeeUID] = committeeInfo{ok: false}
+		return committeeInfo{}, false
+	}
+	info := committeeInfo{name: base.Name, category: base.Category, projectUID: base.ProjectUID, projectSlug: base.ProjectSlug, ok: true}
+	cache[committeeUID] = info
+	return info, true
 }
 
 // orgReportKey groups seats by normalized org ID when present, falling back to the (lowercased)
