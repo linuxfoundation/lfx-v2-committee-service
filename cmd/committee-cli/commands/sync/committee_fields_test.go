@@ -384,6 +384,19 @@ func TestCommitteeFields_ListFieldsDoesNotNeedAnyOtherArgument(t *testing.T) {
 	assert.Empty(t, f.writer.bases)
 }
 
+func TestCommitteeFields_RunsOfflineOnlyForListFields(t *testing.T) {
+	s := &committeeFieldsSubcommand{}
+
+	assert.True(t, s.RunsOffline([]string{"--list-fields"}))
+	assert.True(t, s.RunsOffline([]string{"-list-fields"}))
+	assert.True(t, s.RunsOffline([]string{"--list-fields=true"}))
+	assert.True(t, s.RunsOffline([]string{"--committee-uid=a", "--list-fields"}), "position does not matter")
+
+	assert.False(t, s.RunsOffline(nil))
+	assert.False(t, s.RunsOffline([]string{"--committee-uid=a", "--field=public", "--from=v1"}))
+	assert.False(t, s.RunsOffline([]string{"--list-fields=false"}))
+}
+
 func TestCommitteeFields_FailsWhenNoV1SourceIsWired(t *testing.T) {
 	f := newFieldsFixture(fieldsBase("committee-1"), nil, map[string]any{"public_enabled": true})
 	rc := commands.RunContext{

@@ -85,6 +85,12 @@ func run() error {
 		return fmt.Errorf("unknown subcommand: %s %s", commandName, subcommandName)
 	}
 
+	// Run invocations that need no infrastructure (e.g. --list-fields) before connecting to NATS,
+	// so they work when the broker is unreachable.
+	if offline, ok := sub.(commands.OfflineSubcommand); ok && offline.RunsOffline(parsed.SubArgs) {
+		return sub.Run(ctx, commands.RunContext{Args: parsed.SubArgs})
+	}
+
 	natsURL := env.Get("NATS_URL", "nats://localhost:4222")
 	natsTimeout := 120 * time.Second
 	if raw := strings.TrimSpace(env.Get("NATS_TIMEOUT", "")); raw != "" {

@@ -28,6 +28,15 @@ type Subcommand interface {
 	Run(ctx context.Context, rc RunContext) error
 }
 
+// OfflineSubcommand is implemented by subcommands that can answer some invocations without any
+// infrastructure, such as printing a static catalog. main runs those invocations before it
+// connects to NATS, the way it does for --help.
+type OfflineSubcommand interface {
+	Subcommand
+	// RunsOffline reports whether an invocation with these args needs no infrastructure.
+	RunsOffline(args []string) bool
+}
+
 // RunContext carries the wired infrastructure and global flags into a subcommand.
 type RunContext struct {
 	CommitteeReader             port.CommitteeReader

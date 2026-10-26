@@ -90,7 +90,27 @@ func (r *kvV1CommitteeReader) GetV1Committee(ctx context.Context, committeeUID s
 	if err != nil {
 		return nil, errors.NewUnexpected(fmt.Sprintf("failed to decode v1 record %s", committeeSFID), err)
 	}
+	if isV1RecordDeleted(record) {
+		return nil, errors.NewNotFound(fmt.Sprintf("v1 record %s for committee %s is marked deleted", committeeSFID, committeeUID))
+	}
 	return record, nil
+}
+
+// isV1RecordDeleted reports whether a v1-objects record carries a deletion marker: the v1
+// isdeleted flag, or a WAL soft-delete (_sdc_deleted_at set to a non-blank value). The sync
+// helper can mark the object before it tombstones the mapping, so the mapping alone is not enough.
+func isV1RecordDeleted(record map[string]any) bool {
+	if deleted, ok := record["isdeleted"].(bool); ok && deleted {
+		return true
+	}
+	deletedAt, ok := record["_sdc_deleted_at"]
+	if !ok || deletedAt == nil {
+		return false
+	}
+	if s, isString := deletedAt.(string); isString {
+		return strings.TrimSpace(s) != ""
+	}
+	return true
 }
 
 // parseV1CommitteeSFID extracts the v1 committee ID from a committee.uid.* mapping value, which
@@ -108,15 +128,23 @@ func parseV1CommitteeSFID(value []byte) (string, error) {
 }
 
 // decodeV1Object decodes a v1-objects value. The sync helper stores either JSON or MessagePack,
-// so JSON is tried first.
+// so JSON is tried first. A null or empty record is an error: every field of it would read as
+// its zero value, and a --from=v1 run would then clear real v2 values.
 func decodeV1Object(value []byte) (map[string]any, error) {
 	var record map[string]any
 	if err := json.Unmarshal(value, &record); err == nil {
-		return record, nil
+		return nonEmptyV1Record(record)
 	}
 	record = nil
 	if err := msgpack.Unmarshal(value, &record); err != nil {
 		return nil, err
+	}
+	return nonEmptyV1Record(record)
+}
+
+func nonEmptyV1Record(record map[string]any) (map[string]any, error) {
+	if len(record) == 0 {
+		return nil, stderrors.New("v1 record is null or empty")
 	}
 	return record, nil
 }

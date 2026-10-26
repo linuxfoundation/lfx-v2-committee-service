@@ -550,6 +550,8 @@ v1 data is read from the sync helper's mirror (`v1-objects`, resolved through `v
 
 **Real writes** need the real NATS server with the project service reachable (the update looks up the project slug and name by request), and the indexer, fga-sync and v1 sync helper running to act on the published messages. Start with one committee and check the result before running a list.
 
+**A successful run means the update was stored and its messages were sent, not that v1 changed.** The writer orchestrator logs a failure to publish the update messages and still returns success, as it does for every caller, so the command cannot see it. For `--from=v2`, where the published event is the whole repair, check the v1 record (or the sync helper's logs) afterwards.
+
 Run `committee-cli sync committee-fields --list-fields` to see every field, where it lives in v1 and v2, and which directions it supports. Selecting an unsupported field or direction fails before anything is read or written.
 
 **Subcommand flags**

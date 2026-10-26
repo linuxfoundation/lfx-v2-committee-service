@@ -250,6 +250,18 @@ type committeeFieldsSubcommand struct {
 
 func (s *committeeFieldsSubcommand) Name() string { return "committee-fields" }
 
+// RunsOffline implements commands.OfflineSubcommand: --list-fields only prints the static field
+// catalog, so it needs no NATS connection.
+func (s *committeeFieldsSubcommand) RunsOffline(args []string) bool {
+	for _, arg := range args {
+		switch arg {
+		case "--list-fields", "-list-fields", "--list-fields=true", "-list-fields=true":
+			return true
+		}
+	}
+	return false
+}
+
 func (s *committeeFieldsSubcommand) Help() string {
 	return "reconcile chosen committee fields between v1 and v2 (--from=v1|v2; --list-fields shows what is supported; dry-run by default)"
 }
