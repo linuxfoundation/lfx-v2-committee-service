@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -393,6 +394,7 @@ func TestWriteFieldList_ListsEveryFieldAndDirection(t *testing.T) {
 		assert.Contains(t, text, name)
 	}
 	assert.Contains(t, text, "NOT supported")
+	assert.Contains(t, text, "sync helper PATCH v1 with all the v2 fields it maps", "the footer must warn about collateral v1 changes")
 	assert.Contains(t, text, "#950")
 	assert.True(t, strings.Contains(text, "--from=v1") && strings.Contains(text, "--from=v2"))
 }
@@ -431,4 +433,48 @@ func TestSummarizeValue_TruncatesLongValues(t *testing.T) {
 	got := summarizeValue(long)
 	assert.Less(t, len(got), len(long))
 	assert.Contains(t, got, "200 chars")
+}
+
+func TestSummarizeValue_DoesNotSplitMultiByteCharacters(t *testing.T) {
+	// 100 three-byte characters: a byte slice at 80 would cut one in half.
+	long := strings.Repeat("é", 100)
+	got := summarizeValue(long)
+	assert.True(t, utf8.ValidString(got), "truncation must keep the text valid UTF-8")
+	assert.Contains(t, got, "100 chars")
+
+	atLimit := strings.Repeat("é", maxLoggedValueLen)
+	assert.Equal(t, atLimit, summarizeValue(atLimit), "a value at the limit is kept whole")
+}
+
+func TestCommitteeFields_FromV1RejectsValuesOverTheAPILimit(t *testing.T) {
+	tests := []struct {
+		field, v1Key string
+		limit        int
+	}{
+		{"description", "description__c", 2000},
+		{"display_name", "public_name", 100},
+		{"chat_channel", "chat_channel", 500},
+	}
+	for _, tt := range tests {
+		t.Run(tt.field, func(t *testing.T) {
+			f := newFieldsFixture(fieldsBase("committee-1"), nil, map[string]any{tt.v1Key: strings.Repeat("x", tt.limit+1)})
+
+			err := f.run("--committee-uid=committee-1", "--field="+tt.field, "--from=v1", "--dry-run=false")
+			require.Error(t, err)
+			assert.Empty(t, f.writer.bases, "an over-limit value must not be written")
+
+			// Dry-run reports the same failure, so the operator sees it before writing.
+			dry := newFieldsFixture(fieldsBase("committee-1"), nil, map[string]any{tt.v1Key: strings.Repeat("x", tt.limit+1)})
+			require.Error(t, dry.run("--committee-uid=committee-1", "--field="+tt.field, "--from=v1"))
+		})
+	}
+}
+
+func TestCommitteeFields_FromV1AcceptsValuesAtTheAPILimit(t *testing.T) {
+	// Counted in characters, not bytes: 100 two-byte characters is 200 bytes.
+	f := newFieldsFixture(fieldsBase("committee-1"), nil, map[string]any{"public_name": strings.Repeat("é", 100)})
+
+	require.NoError(t, f.run("--committee-uid=committee-1", "--field=display_name", "--from=v1", "--dry-run=false"))
+	require.Len(t, f.writer.bases, 1)
+	assert.Equal(t, strings.Repeat("é", 100), f.writer.bases[0].DisplayName)
 }

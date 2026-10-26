@@ -539,10 +539,12 @@ NATS_URL=nats://localhost:4222 \
 
 Reconciles chosen fields of chosen committees between LFX v1 and v2, in the direction you pick with `--from`. It is one command for all committee field drift, so there is no per-field command. Dry-run by default.
 
-- `--from=v1` copies the v1 value into v2. It writes through the writer orchestrator, so the indexer message, FGA update, and `committee.updated` event are published as for an API update. Only the named fields change.
+- `--from=v1` copies the v1 value into v2. It writes through the writer orchestrator, so the indexer message, FGA update, and `committee.updated` event are published as for an API update. In v2 only the named fields change. Values over the committee API's length limits (`description` 2000, `display_name` 100, `chat_channel` 500 characters) are rejected, because the orchestrator does not re-check them.
 - `--from=v2` republishes the committee in v2 unchanged, so the v1 sync helper writes the fields to v1. It only works for fields the sync helper sends to v1, and it cannot push an empty text value (the v1 API ignores empty strings).
 
 v1 data is read from the sync helper's mirror (`v1-objects`, resolved through `v1-mappings`), so it can lag live v1 by one replication cycle. `business_email_required` is a committee setting and is written through the settings path.
+
+**Other v1 fields can change too.** Both directions publish a full committee update, and the v1 sync helper turns it into a PATCH of every v2 field it maps to v1 (name, category, description, website, join mode, chat channel, public, display name), not only the selected ones. Running `--from=v2 --field=public` can therefore also overwrite a different v1 description or website with the v2 value, including fields this command lists as not supported. Compare the other fields first if v1 may hold newer values. The command logs this as a warning on every run.
 
 **SSO group names.** In both directions, updating a public (or SSO-enabled) committee that has no SSO group name makes the writer orchestrator reserve one, which is also the committee's URL slug. This happens on any update, not only when `public` is turned on, so `--from=v2` can trigger it too. The run logs `an SSO group name will be generated` for each such committee, including in dry-run.
 

@@ -14,15 +14,11 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 const (
-	// v1MappingsBucket and v1ObjectsBucket are owned by lfx-v1-sync-helper; this reader
-	// only ever reads them.
-	v1MappingsBucket = "v1-mappings"
-	v1ObjectsBucket  = "v1-objects"
-
 	// v1CommitteeObjectPrefix is the v1-objects key prefix of a committee record.
 	v1CommitteeObjectPrefix = "platform-collaboration__c."
 
@@ -42,11 +38,11 @@ func NewV1CommitteeReader(client *NATSClient) port.V1CommitteeReader {
 
 // GetV1Committee implements port.V1CommitteeReader.
 func (r *v1CommitteeReader) GetV1Committee(ctx context.Context, committeeUID string) (map[string]any, error) {
-	mappings, err := r.client.GetOrBindKVStore(ctx, v1MappingsBucket)
+	mappings, err := r.client.GetOrBindKVStore(ctx, constants.KVBucketNameV1Mappings)
 	if err != nil {
 		return nil, err
 	}
-	objects, err := r.client.GetOrBindKVStore(ctx, v1ObjectsBucket)
+	objects, err := r.client.GetOrBindKVStore(ctx, constants.KVBucketNameV1Objects)
 	if err != nil {
 		return nil, err
 	}

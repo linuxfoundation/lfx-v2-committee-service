@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -31,6 +32,11 @@ const (
 
 	// maxLoggedValueLen bounds how much of a field value is written to the logs.
 	maxLoggedValueLen = 80
+
+	// collateralNotice warns that a write is not limited to the selected fields on the v1 side.
+	collateralNotice = "every write also makes the v1 sync helper PATCH v1 with all the v2 fields it maps " +
+		"(name, category, description, website, join mode, chat channel, public, display name), " +
+		"not only the selected ones, so other v1 values can change too"
 )
 
 // committeeField describes one committee field the committee-fields subcommand can reconcile
@@ -41,6 +47,10 @@ type committeeField struct {
 	v1Key    string // key in the v1 committee record
 	isBool   bool
 	help     string
+
+	// maxLen is the longest value, in characters, the committee API accepts for this field. The
+	// writer orchestrator does not re-check it, so --from=v1 enforces it. 0 means no limit.
+	maxLen int
 
 	// fromV1 is true when the v1 value can be copied straight into v2. When false,
 	// fromV1Note says why.
@@ -68,6 +78,7 @@ var committeeFields = map[string]*committeeField{
 	"display_name": {
 		name: "display_name", location: locationBase, v1Key: "public_name",
 		help:   "public display name (v1 public_name)",
+		maxLen: 100,
 		fromV1: true, fromV2: true,
 		v2Get: func(b *model.CommitteeBase, _ *model.CommitteeSettings) string { return b.DisplayName },
 		v2Set: func(b *model.CommitteeBase, _ *model.CommitteeSettings, v string) { b.DisplayName = v },
@@ -99,6 +110,7 @@ var committeeFields = map[string]*committeeField{
 	"description": {
 		name: "description", location: locationBase, v1Key: "description__c",
 		help:   "committee description",
+		maxLen: 2000,
 		fromV1: true, fromV2: true,
 		v2Get: func(b *model.CommitteeBase, _ *model.CommitteeSettings) string { return b.Description },
 		v2Set: func(b *model.CommitteeBase, _ *model.CommitteeSettings, v string) { b.Description = v },
@@ -106,6 +118,7 @@ var committeeFields = map[string]*committeeField{
 	"chat_channel": {
 		name: "chat_channel", location: locationBase, v1Key: "chat_channel",
 		help:   "chat channel URL",
+		maxLen: 500,
 		fromV1: true, fromV2: true,
 		v2Get: func(b *model.CommitteeBase, _ *model.CommitteeSettings) string {
 			if b.ChatChannel == nil {
@@ -191,6 +204,7 @@ func writeFieldList(w io.Writer) {
 	}
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, "--from=v2 cannot push an empty text value: the v1 API ignores empty strings, so a v1 value cannot be cleared.")
+	_, _ = fmt.Fprintln(w, "Note: "+collateralNotice+".")
 }
 
 func directionStatus(supported bool, note, how string) string {
@@ -292,6 +306,7 @@ func (s *committeeFieldsSubcommand) Run(ctx context.Context, rc commands.RunCont
 		"committees", len(uids),
 		"dry_run", rc.DryRun,
 	)
+	slog.WarnContext(ctx, "note: "+collateralNotice)
 	for i, uid := range uids {
 		if i > 0 && *sleep > 0 {
 			time.Sleep(*sleep)
@@ -353,10 +368,11 @@ type fieldDiff struct {
 }
 
 func summarizeValue(v string) string {
-	if len(v) <= maxLoggedValueLen {
+	runes := []rune(v)
+	if len(runes) <= maxLoggedValueLen {
 		return v
 	}
-	return fmt.Sprintf("%s… (%d chars)", v[:maxLoggedValueLen], len(v))
+	return fmt.Sprintf("%s… (%d chars)", string(runes[:maxLoggedValueLen]), len(runes))
 }
 
 // reconcileCommittee reconciles the chosen fields of one committee. Revision conflicts are
@@ -470,6 +486,9 @@ func copyV1ToV2(ctx context.Context, rc commands.RunContext, uid string, base *m
 
 	baseChanged, settingsChanged := false, false
 	for _, d := range diffs {
+		if d.field.maxLen > 0 && utf8.RuneCountInString(d.v1) > d.field.maxLen {
+			return errors.NewValidation(fmt.Sprintf("v1 value of field %q is %d characters, over the %d the committee API accepts", d.field.name, utf8.RuneCountInString(d.v1), d.field.maxLen))
+		}
 		d.field.v2Set(&newBase, newSettings, d.v1)
 		if d.field.location == locationSettings {
 			settingsChanged = true
