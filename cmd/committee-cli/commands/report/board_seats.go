@@ -25,12 +25,11 @@ import (
 // cmd/committee-api/design/type.go) marking a member as no longer a current seat holder.
 const inactiveStatus = "Inactive"
 
-// boardCategory is the value of the member's denormalized committee_category field
-// (model.CommitteeMemberBase.CommitteeCategory) identifying a Board committee. Compared
-// case-insensitively because that field is validated only by CommitteeCategoryMemberAttribute's
-// MaxLength in cmd/committee-api/design/type.go (unlike the committee-side CategoryAttribute,
-// which does enforce a dsl.Enum("Board", ...)) — the member copy is a denormalized snapshot that
-// can drift from the committee's actual category (see model.CommitteeMember.NeedsSyncWith).
+// boardCategory is the committee Category value (model.CommitteeBase.Category) identifying a
+// Board committee, resolved from the parent committee via GetBase rather than trusted from the
+// member's denormalized committee_category snapshot (which can drift — see
+// model.CommitteeMember.NeedsSyncWith). Compared case-insensitively because that field is
+// validated only by CategoryAttribute's dsl.Enum("Board", ...) at the committee level.
 const boardCategory = "board"
 
 // membershipComparisonUnavailable explains why this report cannot flag seats whose
