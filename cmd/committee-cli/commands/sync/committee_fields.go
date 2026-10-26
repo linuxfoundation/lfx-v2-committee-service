@@ -242,7 +242,11 @@ func dedupe(values []string) []string {
 
 // committeeFieldsSubcommand reconciles chosen fields of chosen committees between v1 and v2,
 // in the direction given by --from.
-type committeeFieldsSubcommand struct{}
+type committeeFieldsSubcommand struct {
+	// v1 is the source of v1 committee records. When nil, Run reads the v1 sync helper's mirror
+	// through rc.KVStore; tests set it to a fake.
+	v1 v1CommitteeReader
+}
 
 func (s *committeeFieldsSubcommand) Name() string { return "committee-fields" }
 
@@ -289,8 +293,12 @@ func (s *committeeFieldsSubcommand) Run(ctx context.Context, rc commands.RunCont
 	if rc.CommitteeWriterOrchestrator == nil {
 		return errors.NewUnexpected("CommitteeWriterOrchestrator is not wired in RunContext")
 	}
-	if rc.V1CommitteeReader == nil {
-		return errors.NewUnexpected("V1CommitteeReader is not wired in RunContext")
+	v1 := s.v1
+	if v1 == nil {
+		if rc.KVStore == nil {
+			return errors.NewUnexpected("KVStore is not wired in RunContext")
+		}
+		v1 = newKVV1CommitteeReader(rc.KVStore)
 	}
 
 	rc.DryRun = *dryRun
@@ -312,7 +320,7 @@ func (s *committeeFieldsSubcommand) Run(ctx context.Context, rc commands.RunCont
 			time.Sleep(*sleep)
 		}
 		// reconcileCommittee records its own outcome in stats; keep going on a failure.
-		_ = reconcileCommittee(ctx, rc, uid, *from, fieldsToSync, stats)
+		_ = reconcileCommittee(ctx, rc, v1, uid, *from, fieldsToSync, stats)
 	}
 
 	stats.Log(ctx, "sync committee-fields")
@@ -377,7 +385,7 @@ func summarizeValue(v string) string {
 
 // reconcileCommittee reconciles the chosen fields of one committee. Revision conflicts are
 // retried from a fresh read. The outcome is recorded in stats.
-func reconcileCommittee(ctx context.Context, rc commands.RunContext, uid, from string, fields []*committeeField, stats *commands.Stats) error {
+func reconcileCommittee(ctx context.Context, rc commands.RunContext, v1 v1CommitteeReader, uid, from string, fields []*committeeField, stats *commands.Stats) error {
 	const maxRetries = 3
 
 	needSettings := false
@@ -409,7 +417,7 @@ func reconcileCommittee(ctx context.Context, rc commands.RunContext, uid, from s
 				return err
 			}
 		}
-		v1Record, err := rc.V1CommitteeReader.GetV1Committee(ctx, uid)
+		v1Record, err := v1.GetV1Committee(ctx, uid)
 		if err != nil {
 			stats.Failed++
 			slog.ErrorContext(ctx, "failed to get v1 committee", "committee_uid", uid, "error", err)

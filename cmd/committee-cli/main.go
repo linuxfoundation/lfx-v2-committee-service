@@ -133,7 +133,7 @@ func run() error {
 		UserReader:                  userReader,
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
-		V1CommitteeReader:           nats.NewV1CommitteeReader(client),
+		KVStore:                     client.GetOrBindKVStore,
 		CommitteeApplicationReader:  storage,
 		CommitteeApplicationWriter:  storage,
 		B2BOrgFallbackResolver:      b2bOrgFallbackResolver,

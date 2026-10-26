@@ -148,12 +148,4 @@ const (
 	// best-effort (returning the throttle alongside the brief when an entry
 	// exists) but never writes it; Phase 2 owns the throttle write/update logic.
 	KVBucketNameGroupWeeklyBriefThrottle = "group-weekly-brief-throttle"
-
-	// KVBucketNameV1Mappings is the KV bucket the v1 sync helper uses to map v2 committee UIDs to
-	// v1 IDs. It is owned by lfx-v1-sync-helper; this service only reads it (committee-cli).
-	KVBucketNameV1Mappings = "v1-mappings"
-
-	// KVBucketNameV1Objects is the KV bucket holding the v1 sync helper's mirror of v1 records.
-	// It is owned by lfx-v1-sync-helper; this service only reads it (committee-cli).
-	KVBucketNameV1Objects = "v1-objects"
 )

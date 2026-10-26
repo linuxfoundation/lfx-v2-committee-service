@@ -118,10 +118,9 @@ func (f *fieldsFixture) run(args ...string) error {
 	rc := commands.RunContext{
 		CommitteeReader:             f.reader,
 		CommitteeWriterOrchestrator: f.writer,
-		V1CommitteeReader:           f.v1,
 		Args:                        args,
 	}
-	return (&committeeFieldsSubcommand{}).Run(context.Background(), rc)
+	return (&committeeFieldsSubcommand{v1: f.v1}).Run(context.Background(), rc)
 }
 
 func TestCommitteeFields_DryRunByDefaultDoesNotWrite(t *testing.T) {
@@ -279,11 +278,11 @@ func TestCommitteeFields_HandlesEachCommitteeIndependently(t *testing.T) {
 		"committee-b": {"public_enabled": true, "public_name": "Name B"},
 	}}
 	rc := commands.RunContext{
-		CommitteeReader: reader, CommitteeWriterOrchestrator: writer, V1CommitteeReader: v1,
+		CommitteeReader: reader, CommitteeWriterOrchestrator: writer,
 		Args: []string{"--committee-uid=committee-a", "--committee-uid=committee-b", "--field=public,display_name", "--from=v1", "--dry-run=false"},
 	}
 
-	require.NoError(t, (&committeeFieldsSubcommand{}).Run(context.Background(), rc))
+	require.NoError(t, (&committeeFieldsSubcommand{v1: v1}).Run(context.Background(), rc))
 
 	require.Len(t, writer.bases, 2)
 	assert.Equal(t, "Name A", writer.bases[0].DisplayName)
@@ -300,11 +299,11 @@ func TestCommitteeFields_OneFailureDoesNotStopTheRest(t *testing.T) {
 	writer := &fieldsWriter{}
 	v1 := &fakeV1Reader{records: map[string]map[string]any{"committee-b": {"public_enabled": true}}}
 	rc := commands.RunContext{
-		CommitteeReader: reader, CommitteeWriterOrchestrator: writer, V1CommitteeReader: v1,
+		CommitteeReader: reader, CommitteeWriterOrchestrator: writer,
 		Args: []string{"--committee-uid=committee-a,committee-b", "--field=public", "--from=v1", "--dry-run=false"},
 	}
 
-	err := (&committeeFieldsSubcommand{}).Run(context.Background(), rc)
+	err := (&committeeFieldsSubcommand{v1: v1}).Run(context.Background(), rc)
 
 	require.Error(t, err, "a failed committee makes the run fail")
 	require.Len(t, writer.bases, 1, "the other committee is still reconciled")
@@ -382,6 +381,22 @@ func TestCommitteeFields_ListFieldsDoesNotNeedAnyOtherArgument(t *testing.T) {
 	f := newFieldsFixture(fieldsBase("committee-1"), nil, map[string]any{})
 
 	require.NoError(t, f.run("--list-fields"))
+	assert.Empty(t, f.writer.bases)
+}
+
+func TestCommitteeFields_FailsWhenNoV1SourceIsWired(t *testing.T) {
+	f := newFieldsFixture(fieldsBase("committee-1"), nil, map[string]any{"public_enabled": true})
+	rc := commands.RunContext{
+		CommitteeReader:             f.reader,
+		CommitteeWriterOrchestrator: f.writer,
+		Args:                        []string{"--committee-uid=committee-1", "--field=public", "--from=v1"},
+	}
+
+	// No fake v1 reader and no KVStore: the command cannot reach the v1 mirror.
+	err := (&committeeFieldsSubcommand{}).Run(context.Background(), rc)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "KVStore is not wired")
 	assert.Empty(t, f.writer.bases)
 }
 

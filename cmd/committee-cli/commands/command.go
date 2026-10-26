@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
+
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 )
@@ -57,12 +59,12 @@ type RunContext struct {
 	// used by data-repair subcommands that need to resolve an organization identity
 	// without a direct SFID (e.g. member-cdp-org-id).
 	B2BOrgFallbackResolver port.B2BOrgFallbackResolver
-	// V1CommitteeReader provides read-only access to the v1 committee record mirrored by the
-	// v1 sync helper, used by data-repair subcommands that reconcile v2 against v1
-	// (e.g. committee-fields).
-	V1CommitteeReader port.V1CommitteeReader
-	DryRun            bool
-	Args              []string // remaining args after command + subcommand, for subcommand flag parsing
+	// KVStore binds a NATS KV bucket by name. Subcommands that read buckets owned by another
+	// service (e.g. committee-fields reading the v1 sync helper's mirror) use it, so that
+	// knowledge stays in the subcommand and out of the storage ports.
+	KVStore func(ctx context.Context, bucket string) (jetstream.KeyValue, error)
+	DryRun  bool
+	Args    []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.
