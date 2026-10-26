@@ -466,6 +466,12 @@ func (m *MockRepository) EachMember(ctx context.Context, fn func(*model.Committe
 	return nil
 }
 
+// EachMemberStrict mirrors EachMember. The in-memory mock has no notion of a per-member read failure
+// (unlike the real KV-backed scan), so there is nothing for "strict" to aggregate here.
+func (m *MockRepository) EachMemberStrict(ctx context.Context, fn func(*model.CommitteeMember) error) error {
+	return m.EachMember(ctx, fn)
+}
+
 // ListMembersByEmail retrieves all committee members whose normalized email matches the given
 // address, scanning all committees. Mirrors the real storage index behavior for tests.
 func (m *MockRepository) ListMembersByEmail(ctx context.Context, email string) ([]*model.CommitteeMember, error) {

@@ -535,6 +535,42 @@ NATS_URL=nats://localhost:4222 \
   committee-cli sync reindex-settings --committee-uid=abc-123
 ```
 
+#### `report board-seats`
+
+Reports every current seat on every Board-category committee, grouped by org, with each seat's org-editability (`is_org_editable`, derived from `appointed_by == "Membership Entitlement"`). Read-only — this command never writes to the KV store and has no `--dry-run` (PCC-1522).
+
+The companion check this report is meant to answer — "is the seat's org still an active SFDC member?" — is not yet possible: `lfx-v2-member-service` has no API to list memberships by project/org (PCC-1610). Every seat and the top-level report carry a `membership_check`/`membership_comparison` field explicitly marked unavailable rather than silently omitted.
+
+Board membership, `committee_name`, `project_uid`, and `project_slug` are all resolved directly from each member's parent committee (looked up once per distinct committee UID and cached for the run), not from the member's own denormalized snapshot of those fields — which can be stale or empty for members created before LFXV2-1442. This means the report is correct even for members `sync member-project-attribute` has never touched (that command only repairs `project_uid`/`project_slug` on the member record itself; it is not a prerequisite for this report). If a member's parent committee cannot be looked up (e.g. it has since been deleted), that seat is skipped and a warning is logged rather than guessed at or silently dropped without explanation.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | `""` | Limit the report to a single committee UID; errors if that committee does not exist or is not Board category |
+| `--project-uid` | `""` | Limit the report to Board committees belonging to this project UID |
+| `--output` | `""` | Write the JSON report to this file instead of stdout |
+
+**Exit code:** `0` on success, `1` on error (e.g. failed KV scan, `--committee-uid` not found or not Board category).
+
+**Output:** A single indented JSON document (see `boardSeatsReport` in `commands/report/board_seats.go`) with per-org, per-seat detail. `username`/`email` are redacted (`pkg/redaction`).
+
+**Without `--output`, the report is written to stdout, which is shared with this binary's structured JSON log stream** (`pkg/log`'s handler and any warnings from `EachMember` also write there). A run with no warnings produces one extra log line before the report; any warnings interleave with it. Prefer `--output <path>` for machine consumption, or set `LOG_LEVEL=warn` to suppress the non-warning noise.
+
+**Examples**
+
+Report all Board seats to a file:
+```sh
+NATS_URL=nats://localhost:4222 \
+  committee-cli report board-seats --output=/tmp/board-seats.json
+```
+
+Report Board seats for a single project:
+```sh
+NATS_URL=nats://localhost:4222 LOG_LEVEL=warn \
+  committee-cli report board-seats --project-uid=abc-123
+```
+
 ## Building
 
 ### Local binary

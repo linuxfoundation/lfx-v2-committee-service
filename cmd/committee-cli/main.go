@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/report"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/sync"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
@@ -143,8 +144,10 @@ func run() error {
 
 func buildRegistry() map[string]commands.Command {
 	syncCmd := sync.NewCommand()
+	reportCmd := report.NewCommand()
 	return map[string]commands.Command{
-		syncCmd.Name(): syncCmd,
+		syncCmd.Name():   syncCmd,
+		reportCmd.Name(): reportCmd,
 	}
 }
 
