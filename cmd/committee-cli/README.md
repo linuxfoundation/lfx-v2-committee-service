@@ -535,6 +535,52 @@ NATS_URL=nats://localhost:4222 \
   committee-cli sync reindex-settings --committee-uid=abc-123
 ```
 
+#### `sync committee-fields`
+
+Reconciles chosen fields of chosen committees between LFX v1 and v2, in the direction you pick with `--from`. It is one command for all committee field drift, so there is no per-field command. Dry-run by default.
+
+- `--from=v1` copies the v1 value into v2. It writes through the writer orchestrator, so the indexer message, FGA update, and `committee.updated` event are published as for an API update. In v2 only the named fields change. Values over the committee API's length limits (`description` 2000, `display_name` 100, `chat_channel` 500 characters) are rejected, because the orchestrator does not re-check them.
+- `--from=v2` republishes the committee in v2 unchanged, so the v1 sync helper writes the fields to v1. It only works for fields the sync helper sends to v1, and it cannot push an empty text value (the v1 API ignores empty strings).
+
+v1 data is read from the sync helper's mirror (`v1-objects`, resolved through `v1-mappings`), so it can lag live v1 by one replication cycle. `business_email_required` is a committee setting and is written through the settings path.
+
+**Other v1 fields can change too.** Both directions publish a full committee update, and the v1 sync helper turns it into a PATCH of every v2 field it maps to v1 (name, category, description, website, join mode, chat channel, public, display name), not only the selected ones. Running `--from=v2 --field=public` can therefore also overwrite a different v1 description or website with the v2 value, including fields this command lists as not supported. Compare the other fields first if v1 may hold newer values. The command logs this as a warning on every run.
+
+**SSO group names.** In both directions, updating a public (or SSO-enabled) committee that has no SSO group name makes the writer orchestrator reserve one, which is also the committee's URL slug. This happens on any update, not only when `public` is turned on, so `--from=v2` can trigger it too. The run logs `an SSO group name will be generated` for each such committee, including in dry-run.
+
+**Real writes** need the real NATS server with the project service reachable (the update looks up the project slug and name by request), and the indexer, fga-sync and v1 sync helper running to act on the published messages. Start with one committee and check the result before running a list.
+
+**A successful run means the update was stored and its messages were sent, not that v1 changed.** The writer orchestrator logs a failure to publish the update messages and still returns success, as it does for every caller, so the command cannot see it. For `--from=v2`, where the published event is the whole repair, check the v1 record (or the sync helper's logs) afterwards.
+
+Run `committee-cli sync committee-fields --list-fields` to see every field, where it lives in v1 and v2, and which directions it supports. Selecting an unsupported field or direction fails before anything is read or written.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--committee-uid` | required | Committee UIDs; comma-separated and/or repeated |
+| `--field` | required | Fields to reconcile; comma-separated and/or repeated |
+| `--from` | required | `v1` or `v2` |
+| `--list-fields` | `false` | Print the supported fields and exit |
+| `--sleep` | `0` | Wait between committees (e.g. `200ms`) |
+| `--dry-run` | `true` | Report what would change without writing; pass `--dry-run=false` to write |
+
+**Exit code:** `0` if no committee failed, `1` otherwise.
+
+**Examples**
+
+Copy v1's `public` and `display_name` into v2 for two committees (dry-run):
+```sh
+committee-cli sync committee-fields \
+  --committee-uid=<uid-1>,<uid-2> --field=public,display_name --from=v1
+```
+
+Push v2's values to v1 for one committee:
+```sh
+committee-cli sync committee-fields \
+  --committee-uid=<uid> --field=public,display_name --from=v2 --dry-run=false
+```
+
 #### `report board-seats`
 
 Reports every current seat on every Board-category committee, grouped by org, with each seat's org-editability (`is_org_editable`, derived from `appointed_by == "Membership Entitlement"`). Read-only — this command never writes to the KV store and has no `--dry-run` (PCC-1522).

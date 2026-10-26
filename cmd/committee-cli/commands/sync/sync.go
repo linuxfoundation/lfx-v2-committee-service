@@ -30,6 +30,7 @@ func (c *command) Subcommands() map[string]commands.Subcommand {
 		"document-audit-users":          &documentAuditUsersSubcommand{},
 		"member-cdp-org-id":             &memberCDPOrgIDSubcommand{},
 		"backfill-weekly-brief-index":   &backfillWeeklyBriefIndexSubcommand{},
+		"committee-fields":              &committeeFieldsSubcommand{},
 	}
 }
 
