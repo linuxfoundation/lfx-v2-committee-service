@@ -6,6 +6,7 @@ package report
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/redaction"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
@@ -129,7 +131,10 @@ func (s *boardSeatsSubcommand) Run(ctx context.Context, rc commands.RunContext) 
 		// or empty for members created before LFXV2-1442 (see model.CommitteeMember.NeedsSyncWith). A
 		// failed lookup excludes the seat rather than guessing, but is logged so operators can
 		// investigate. For a --committee-uid run this is a cache hit seeded above, not a new read.
-		info, ok := resolveCommitteeInfo(ctx, rc, member.CommitteeUID, infoCache)
+		info, ok, err := resolveCommitteeInfo(ctx, rc, member.CommitteeUID, infoCache)
+		if err != nil {
+			return err
+		}
 		if !ok {
 			slog.WarnContext(ctx, "skipping member: could not resolve parent committee",
 				"member_uid", member.UID, "committee_uid", member.CommitteeUID)
@@ -230,20 +235,28 @@ type committeeInfo struct {
 }
 
 // resolveCommitteeInfo looks up committeeUID's parent committee, caching the result (including
-// failures) so a run with many members on few distinct committees issues at most one GetBase call
-// per committee UID rather than one per member.
-func resolveCommitteeInfo(ctx context.Context, rc commands.RunContext, committeeUID string, cache map[string]committeeInfo) (committeeInfo, bool) {
+// NotFound failures) so a run with many members on few distinct committees issues at most one
+// GetBase call per committee UID rather than one per member. Only a genuine errs.NotFound (the
+// committee no longer exists) is cached and reported as ok=false for the caller to skip with a
+// warning; any other GetBase error (e.g. a transient NATS read failure) is NOT cached — it is
+// returned so the caller aborts the scan instead of silently reporting an incomplete result as
+// complete, which would defeat the "strict scan" guarantee EachMemberStrict is meant to provide.
+func resolveCommitteeInfo(ctx context.Context, rc commands.RunContext, committeeUID string, cache map[string]committeeInfo) (committeeInfo, bool, error) {
 	if info, ok := cache[committeeUID]; ok {
-		return info, info.ok
+		return info, info.ok, nil
 	}
 	base, _, err := rc.CommitteeReader.GetBase(ctx, committeeUID)
 	if err != nil {
-		cache[committeeUID] = committeeInfo{ok: false}
-		return committeeInfo{}, false
+		var notFound errs.NotFound
+		if errors.As(err, &notFound) {
+			cache[committeeUID] = committeeInfo{ok: false}
+			return committeeInfo{}, false, nil
+		}
+		return committeeInfo{}, false, fmt.Errorf("failed to resolve parent committee %q: %w", committeeUID, err)
 	}
 	info := committeeInfo{name: base.Name, category: base.Category, projectUID: base.ProjectUID, projectSlug: base.ProjectSlug, ok: true}
 	cache[committeeUID] = info
-	return info, true
+	return info, true, nil
 }
 
 // orgReportKey groups seats by normalized org ID when present, falling back to the (lowercased)

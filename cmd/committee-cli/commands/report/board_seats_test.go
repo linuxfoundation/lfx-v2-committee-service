@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
@@ -52,7 +54,7 @@ func (r *mockReader) GetBase(_ context.Context, uid string) (*model.CommitteeBas
 	}
 	base, ok := r.bases[uid]
 	if !ok {
-		return nil, 0, errors.New("not found")
+		return nil, 0, errs.NewNotFound(fmt.Sprintf("committee %q not found", uid))
 	}
 	return base, 0, nil
 }
@@ -293,6 +295,22 @@ func TestBoardSeats_UnscopedRun_SkipsMemberWhenParentCommitteeLookupFails(t *tes
 
 	report := runBoardSeats(t, commands.RunContext{CommitteeReader: r})
 	assert.Equal(t, 0, report.SeatsTotal, "a seat whose parent committee cannot be resolved must be excluded rather than guessed at")
+}
+
+func TestBoardSeats_UnscopedRun_AbortsOnTransientParentCommitteeLookupFailure(t *testing.T) {
+	// Unlike a genuine errs.NotFound (the committee no longer exists, safe to skip and cache), a
+	// transient GetBase failure must abort the whole run rather than silently drop the committee's
+	// seats and still exit 0 — that would defeat the "strict scan" guarantee EachMemberStrict exists
+	// to provide.
+	r := &mockReader{
+		members: []*model.CommitteeMember{
+			boardMember("m1", "c1", "Board", "Board", "org-1", "Acme Corp", "Membership Entitlement"),
+		},
+		getBaseErr: errs.NewUnexpected("nats read timeout"),
+	}
+
+	err := (&boardSeatsSubcommand{}).Run(context.Background(), commands.RunContext{CommitteeReader: r})
+	require.Error(t, err, "a non-NotFound GetBase failure must fail the run, not silently produce an incomplete report")
 }
 
 func TestBoardSeats_CommitteeUIDNotFound_ReturnsError(t *testing.T) {
