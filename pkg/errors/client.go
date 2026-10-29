@@ -45,6 +45,11 @@ func NewNotFound(message string, err ...error) NotFound {
 	}
 }
 
+// ErrSSOGroupNameTaken is wrapped by the Conflict a committee create or update returns when the
+// requested SSO group name is already in use, so callers can tell it apart from a project and name
+// conflict and retry with a different generated name. Use errors.Is to test for it.
+var ErrSSOGroupNameTaken = errors.New("sso group name already in use")
+
 // Conflict represents a conflict error in the application.
 type Conflict struct {
 	base

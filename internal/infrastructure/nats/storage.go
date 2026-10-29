@@ -4,6 +4,7 @@
 package nats
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,7 +28,201 @@ type storage struct {
 	client *NATSClient
 }
 
+// committeeLookupKeys returns the project+name uniqueness lookup key and, when the committee has an
+// SSO group name, the SSO group uniqueness lookup key.
+func committeeLookupKeys(ctx context.Context, committee *model.Committee) (nameKey, ssoKey string) {
+	nameKey = fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
+	if committee.SSOGroupName != "" {
+		ssoKey = fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, committee.SSOGroupName)
+	}
+	return nameKey, ssoKey
+}
+
+// committeeRollbackTimeout bounds how long committee lock cleanup may take once detached from the request.
+const committeeRollbackTimeout = 5 * time.Second
+
+// detachedCtx returns a context that survives cancellation of the request, bounded by
+// committeeRollbackTimeout. The write errors that trigger a rollback are often caused by the request
+// context itself (a client disconnect or an expired deadline), and the rollback must still be able to
+// read the record and release the locks.
+func detachedCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), committeeRollbackTimeout)
+}
+
+// recordState is what a follow-up read says about a write that returned an error.
+type recordState int
+
+const (
+	// recordAbsent means the key is confirmed absent: the write did not happen.
+	recordAbsent recordState = iota
+	// recordMatches means the stored value equals what was written: the write landed despite the error.
+	recordMatches
+	// recordDiffers means the key holds something else: the write did not land.
+	recordDiffers
+	// recordUnreadable means the key could not be read, so the outcome is unknown.
+	recordUnreadable
+)
+
+// readRecordState reports whether a write of want to key landed, by reading it back. The entry that
+// was read is returned when the key is present (recordMatches or recordDiffers).
+func readRecordState(ctx context.Context, kv jetstream.KeyValue, key string, want []byte) (recordState, jetstream.KeyValueEntry) {
+	entry, err := kv.Get(ctx, key)
+	switch {
+	case errors.Is(err, jetstream.ErrKeyNotFound):
+		return recordAbsent, nil
+	case err != nil:
+		return recordUnreadable, nil
+	case bytes.Equal(entry.Value(), want):
+		return recordMatches, entry
+	default:
+		return recordDiffers, entry
+	}
+}
+
+// committeeLocksInUse returns the lookup keys the committee stored in entry currently holds, which
+// must never be released by a request that lost a race with the update that stored it. The second
+// result is false when the entry cannot be decoded, in which case the caller must keep everything.
+func committeeLocksInUse(ctx context.Context, entry jetstream.KeyValueEntry) (map[string]struct{}, bool) {
+	stored := &model.CommitteeBase{}
+	if err := json.Unmarshal(entry.Value(), stored); err != nil {
+		return nil, false
+	}
+	nameKey, ssoKey := committeeLookupKeys(ctx, &model.Committee{CommitteeBase: *stored})
+	inUse := map[string]struct{}{nameKey: {}}
+	if ssoKey != "" {
+		inUse[ssoKey] = struct{}{}
+	}
+	return inUse, true
+}
+
+// holdsKey reports whether key is one of the held lookup keys.
+func holdsKey(held map[string]struct{}, key string) bool {
+	_, ok := held[key]
+	return ok
+}
+
+// withoutKeys returns keys without the ones in skip.
+func withoutKeys(keys []string, skip map[string]struct{}) []string {
+	var kept []string
+	for _, key := range keys {
+		if _, held := skip[key]; !held {
+			kept = append(kept, key)
+		}
+	}
+	return kept
+}
+
+// reserveCommitteeLocks reserves the project+name lock and, when ssoKey is not empty, the SSO group
+// lock, owned by committeeUID. A key that is already taken by another committee returns errs.Conflict
+// (the SSO one wraps errs.ErrSSOGroupNameTaken). A key already owned by committeeUID, which can be left
+// over from earlier data, counts as held and is not returned, so a failed operation never releases it.
+// The keys newly reserved by this call are returned so the caller can release them; on error nothing
+// stays reserved.
+func (s *storage) reserveCommitteeLocks(ctx context.Context, committeeUID, nameKey, ssoKey string) ([]string, error) {
+	var reserved []string
+	if nameKey != "" {
+		newlyReserved, errUnique := s.reserveCommitteeLock(ctx, committeeUID, nameKey)
+		if errUnique != nil {
+			if errors.Is(errUnique, jetstream.ErrKeyExists) {
+				return nil, errs.NewConflict("committee with the same name for the project already exists")
+			}
+			return nil, errs.NewUnexpected("failed to create unique key for committee", errUnique)
+		}
+		if newlyReserved {
+			reserved = append(reserved, nameKey)
+		}
+	}
+
+	if ssoKey != "" {
+		newlyReserved, errSSO := s.reserveCommitteeLock(ctx, committeeUID, ssoKey)
+		if errSSO != nil {
+			// A concurrent update of the same committee may have reused the name lock reserved above
+			// and committed; releaseStaleCommitteeLocks leaves keys the stored committee uses alone.
+			s.releaseStaleCommitteeLocks(ctx, committeeUID, reserved)
+			if errors.Is(errSSO, jetstream.ErrKeyExists) {
+				return nil, errs.NewConflict("committee with the same SSO group name already exists", errs.ErrSSOGroupNameTaken)
+			}
+			return nil, errs.NewUnexpected("failed to create unique key for SSO group name", errSSO)
+		}
+		if newlyReserved {
+			reserved = append(reserved, ssoKey)
+		}
+	}
+
+	return reserved, nil
+}
+
+// reserveCommitteeLock creates one lock owned by committeeUID. It returns (true, nil) when the key was
+// newly reserved, (false, nil) when it already belongs to committeeUID, and an error wrapping
+// jetstream.ErrKeyExists when another committee owns it.
+func (s *storage) reserveCommitteeLock(ctx context.Context, committeeUID, key string) (bool, error) {
+	kv := s.client.kvStore[constants.KVBucketNameCommittees]
+	_, errCreate := kv.Create(ctx, key, []byte(committeeUID))
+	if errCreate == nil {
+		return true, nil
+	}
+	if !errors.Is(errCreate, jetstream.ErrKeyExists) {
+		return false, errCreate
+	}
+	if entry, errGet := kv.Get(ctx, key); errGet == nil && string(entry.Value()) == committeeUID {
+		return false, nil
+	}
+	return false, errCreate
+}
+
+// releaseCommitteeLocks purges lookup keys owned by committeeUID. A key owned by another committee is
+// left alone: lock keys are derived from a committee's record, and earlier data can hold a key that
+// now belongs to a different committee. It is best-effort and runs on a context detached from the
+// request: a key that cannot be removed is logged at critical priority because it keeps a committee
+// name or SSO group name locked against reuse.
+func (s *storage) releaseCommitteeLocks(ctx context.Context, committeeUID string, keys ...string) {
+	if len(keys) == 0 {
+		return
+	}
+	ctx, cancel := detachedCtx(ctx)
+	defer cancel()
+
+	kv := s.client.kvStore[constants.KVBucketNameCommittees]
+	for _, key := range keys {
+		entry, errGet := kv.Get(ctx, key)
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			continue
+		}
+		if errGet != nil {
+			slog.ErrorContext(ctx, "failed to read committee lookup key before releasing it; the name stays locked until it is removed",
+				"error", errGet,
+				"key", key,
+				"committee_uid", committeeUID,
+				log.PriorityCritical(),
+			)
+			continue
+		}
+		if string(entry.Value()) != committeeUID {
+			slog.WarnContext(ctx, "committee lookup key belongs to another committee; not releasing it",
+				"key", key,
+				"committee_uid", committeeUID,
+			)
+			continue
+		}
+		if errPurge := kv.Purge(ctx, key, jetstream.LastRevision(entry.Revision())); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+			slog.ErrorContext(ctx, "failed to release committee lookup key; the name stays locked until it is removed",
+				"error", errPurge,
+				"key", key,
+				"committee_uid", committeeUID,
+				log.PriorityCritical(),
+			)
+		}
+	}
+}
+
 // Create persists a new committee and its optional settings in the NATS JetStream KV store.
+//
+// It first reserves the project+name lookup key and, when the committee has an SSO group name, the SSO
+// group lookup key, returning errs.Conflict for a duplicate (the SSO conflict wraps
+// errs.ErrSSOGroupNameTaken). If writing the committee fails afterwards, a read-back decides what
+// happened: when the write is confirmed not to have landed the reservations are released, when it did
+// land despite the error the create continues as a success, and when the state cannot be read the
+// reservations are kept so a duplicate cannot be created.
 func (s *storage) Create(ctx context.Context, committee *model.Committee) error {
 
 	if committee == nil {
@@ -39,31 +234,114 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 		return errs.NewUnexpected("failed to marshal committee base", errMarshal)
 	}
 
-	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, committee.CommitteeBase.UID, committeeBaseBytes)
-	if errCreate != nil {
-		return errs.NewUnexpected("failed to create committee", errCreate)
-	}
-
-	slog.DebugContext(ctx, "created committee in NATS storage",
-		"committee_uid", committee.CommitteeBase.UID,
-		"revision", rev,
-	)
-
-	// Create settings if they exist
+	var settingsBytes []byte
 	if committee.CommitteeSettings != nil {
 		committee.CommitteeSettings.UID = committee.CommitteeBase.UID
-		settingsBytes, errMarshalSettings := json.Marshal(committee.CommitteeSettings)
+		var errMarshalSettings error
+		settingsBytes, errMarshalSettings = json.Marshal(committee.CommitteeSettings)
 		if errMarshalSettings != nil {
 			return errs.NewUnexpected("failed to marshal committee settings", errMarshalSettings)
 		}
+	}
 
-		rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Create(ctx, committee.CommitteeBase.UID, settingsBytes)
+	uid := committee.CommitteeBase.UID
+	nameKey, ssoKey := committeeLookupKeys(ctx, committee)
+	reserved, errReserve := s.reserveCommitteeLocks(ctx, uid, nameKey, ssoKey)
+	if errReserve != nil {
+		return errReserve
+	}
+
+	committeesKV := s.client.kvStore[constants.KVBucketNameCommittees]
+	// baseChanged is set when the committee was stored and then changed by another writer before this
+	// create could confirm it. Its revision is then not this create's, so it must never be rolled back.
+	baseChanged := false
+	baseRev, errCreate := committeesKV.Create(ctx, uid, committeeBaseBytes)
+	if errCreate != nil {
+		rctx, cancel := detachedCtx(ctx)
+		defer cancel()
+		state, stored := readRecordState(rctx, committeesKV, uid, committeeBaseBytes)
+		switch state {
+		case recordMatches:
+			// The write landed; take the revision it was stored at from the read-back.
+			baseRev = stored.Revision()
+			slog.WarnContext(ctx, "committee create reported an error but the committee was stored; continuing",
+				"error", errCreate,
+				"committee_uid", uid,
+			)
+		case recordDiffers:
+			// The committee was stored and then changed by another writer before the read-back, so
+			// the stored bytes differ from what was written. If it still carries this create's lookup
+			// keys the create landed and continues; otherwise whatever is stored under the UID is not
+			// this create's committee and the reservations are released.
+			if inUse, decoded := committeeLocksInUse(rctx, stored); decoded && holdsKey(inUse, nameKey) {
+				baseRev = stored.Revision()
+				baseChanged = true
+				slog.WarnContext(ctx, "committee create reported an error but the committee was stored and changed; continuing",
+					"error", errCreate,
+					"committee_uid", uid,
+				)
+				break
+			}
+			s.releaseStaleCommitteeLocks(rctx, uid, reserved)
+			return errs.NewUnexpected("failed to create committee", errCreate)
+		case recordAbsent:
+			s.releaseCommitteeLocks(rctx, uid, reserved...)
+			return errs.NewUnexpected("failed to create committee", errCreate)
+		default:
+			return errs.NewUnexpected("failed to create committee", errCreate)
+		}
+	}
+
+	slog.DebugContext(ctx, "created committee in NATS storage",
+		"committee_uid", uid,
+		"revision", baseRev,
+	)
+
+	// Create settings if they exist
+	if settingsBytes != nil {
+		settingsKV := s.client.kvStore[constants.KVBucketNameCommitteeSettings]
+		rev, errCreate := settingsKV.Create(ctx, uid, settingsBytes)
 		if errCreate != nil {
+			rctx, cancel := detachedCtx(ctx)
+			defer cancel()
+			settingsState, _ := readRecordState(rctx, settingsKV, uid, settingsBytes)
+			switch settingsState {
+			case recordMatches:
+				slog.WarnContext(ctx, "committee settings create reported an error but the settings were stored; continuing",
+					"error", errCreate,
+					"committee_uid", uid,
+				)
+				return nil
+			case recordAbsent:
+				if baseChanged {
+					// Another writer changed the committee after this create stored it, so it is no
+					// longer this create's to remove. Keep it and its lookup keys.
+					slog.ErrorContext(ctx, "committee settings creation failed but the committee was changed by another writer; keeping it and its lookup keys",
+						"error", errCreate,
+						"committee_uid", uid,
+						log.PriorityCritical(),
+					)
+					break
+				}
+				// Remove the committee written above so a failed create does not leave a committee
+				// without settings, and release its locks only once it is gone. The delete is
+				// conditional on the revision this create wrote, so a committee that something
+				// else has since updated is kept.
+				if errDelete := committeesKV.Delete(rctx, uid, jetstream.LastRevision(baseRev)); errDelete != nil && !errors.Is(errDelete, jetstream.ErrKeyNotFound) {
+					slog.ErrorContext(ctx, "failed to remove committee after settings creation failed; keeping it and its lookup keys",
+						"error", errDelete,
+						"committee_uid", uid,
+						log.PriorityCritical(),
+					)
+				} else {
+					s.releaseCommitteeLocks(rctx, uid, reserved...)
+				}
+			}
 			return errs.NewUnexpected("failed to create committee settings", errCreate)
 		}
 
 		slog.DebugContext(ctx, "created committee settings in NATS storage",
-			"committee_uid", committee.CommitteeBase.UID,
+			"committee_uid", uid,
 			"revision", rev,
 		)
 	}
@@ -71,44 +349,12 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 	return nil
 }
 
-// UniqueNameProject enforces a uniqueness constraint on the committee name within a project
-// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
-// if a committee with the same name already exists for the project.
-func (s *storage) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
-
-	uniqueKey := fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
-	_, errUnique := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, uniqueKey, []byte(committee.CommitteeBase.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return uniqueKey, errs.NewConflict("committee with the same name for the project already exists")
-		}
-		return uniqueKey, errs.NewUnexpected("failed to create unique key for committee", errUnique)
-	}
-	return uniqueKey, nil
-}
-
-// UniqueSSOGroupName enforces a uniqueness constraint on the committee's SSO group name
-// by creating a lookup key in the KV store. It returns the lookup key and a conflict error
-// if a committee with the same SSO group name already exists.
-func (s *storage) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
-
-	ssoGroupKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, committee.SSOGroupName)
-	_, errSSO := s.client.kvStore[constants.KVBucketNameCommittees].Create(ctx, ssoGroupKey, []byte(committee.CommitteeBase.UID))
-	if errSSO != nil {
-		if errors.Is(errSSO, jetstream.ErrKeyExists) {
-			return ssoGroupKey, errs.NewConflict("committee with the same SSO group name already exists")
-		}
-		return ssoGroupKey, errs.NewUnexpected("failed to create unique key for SSO group name", errSSO)
-	}
-	return ssoGroupKey, nil
-}
-
 // FindUIDByProjectAndName looks up the UID of a live committee within a project by name,
-// reading the same project+name uniqueness index key that UniqueNameProject creates on
-// committee create and Delete removes on committee deletion. Returns errs.NotFound when
+// reading the same project+name uniqueness index key that Create reserves on committee
+// creation and Delete releases on committee deletion. Returns errs.NotFound when
 // no live committee matches (including a committee that has since been deleted).
 //
-// Index cleanup on delete/rename is best-effort (committee_writer.go logs failures and
+// Index cleanup on delete/rename is best-effort (releaseCommitteeLocks logs failures and
 // continues rather than aborting), so the index key alone is not sufficient evidence that
 // a live committee exists: it may point at a UID that was deleted, or whose project/name
 // has since changed. The primary record is resolved and re-verified against the requested
@@ -191,11 +437,6 @@ func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase
 	return committee, rev, nil
 }
 
-// GetRevision retrieves only the current revision number for a committee without unmarshaling its data.
-func (s *storage) GetRevision(ctx context.Context, uid string) (uint64, error) {
-	return s.get(ctx, constants.KVBucketNameCommittees, uid, &model.CommitteeBase{}, true)
-}
-
 // ListAllUIDs returns all active committee UIDs from the KV store, excluding secondary index keys.
 func (s *storage) ListAllUIDs(ctx context.Context) ([]string, error) {
 	keys, err := s.client.kvStore[constants.KVBucketNameCommittees].ListKeys(ctx)
@@ -231,7 +472,16 @@ func (s *storage) GetSettings(ctx context.Context, uid string) (*model.Committee
 }
 
 // UpdateBase updates a committee's base data in the KV store using optimistic locking via the provided revision.
+//
+// When the project, name or SSO group name changed it first reserves the new lookup keys (returning
+// errs.Conflict for a duplicate, with the SSO conflict wrapping errs.ErrSSOGroupNameTaken), then writes
+// the committee, then releases the lookup keys the committee no longer uses. If the write fails, a
+// read-back decides what happened: when it is confirmed not to have landed the new keys are released,
+// when it did land despite the error the update continues as a success, and when the state cannot be
+// read the new keys are kept so a duplicate cannot be created.
 func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+
+	uid := committee.CommitteeBase.UID
 
 	// Marshal the committee base data
 	committeeBaseBytes, errMarshal := json.Marshal(committee.CommitteeBase)
@@ -239,17 +489,85 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 		return errs.NewUnexpected("failed to marshal committee base", errMarshal)
 	}
 
-	// Update the committee base using optimistic locking (revision check)
-	newRevision, errUpdate := s.client.kvStore[constants.KVBucketNameCommittees].Update(ctx, committee.CommitteeBase.UID, committeeBaseBytes, revision)
-	if errUpdate != nil {
-		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
-			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", committee.CommitteeBase.UID))
+	committeesKV := s.client.kvStore[constants.KVBucketNameCommittees]
+
+	// The stored record tells us which lookup keys the committee holds today.
+	existing := &model.CommitteeBase{}
+	if _, errGet := s.get(ctx, constants.KVBucketNameCommittees, uid, existing, false); errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return errs.NewUnexpected("failed to update committee base", errUpdate)
+		return errs.NewUnexpected("failed to get committee", errGet)
+	}
+	oldNameKey, oldSSOKey := committeeLookupKeys(ctx, &model.Committee{CommitteeBase: *existing})
+	newNameKey, newSSOKey := committeeLookupKeys(ctx, committee)
+
+	reserveName, reserveSSO := "", ""
+	if newNameKey != oldNameKey {
+		reserveName = newNameKey
+	}
+	if newSSOKey != "" && newSSOKey != oldSSOKey {
+		reserveSSO = newSSOKey
+	}
+	reserved, errReserve := s.reserveCommitteeLocks(ctx, uid, reserveName, reserveSSO)
+	if errReserve != nil {
+		return errReserve
 	}
 
+	// The lookup keys this update moves the committee away from. The old SSO group name is stale
+	// whenever it changed, including when it was cleared.
+	var stale []string
+	if newNameKey != oldNameKey {
+		stale = append(stale, oldNameKey)
+	}
+	if oldSSOKey != "" && oldSSOKey != newSSOKey {
+		stale = append(stale, oldSSOKey)
+	}
+
+	// Update the committee base using optimistic locking (revision check)
+	newRevision, errUpdate := committeesKV.Update(ctx, uid, committeeBaseBytes, revision)
+	if errUpdate != nil {
+		rctx, cancel := detachedCtx(ctx)
+		defer cancel()
+		state, stored := readRecordState(rctx, committeesKV, uid, committeeBaseBytes)
+		switch state {
+		case recordMatches:
+			slog.WarnContext(ctx, "committee update reported an error but the committee was updated; continuing",
+				"error", errUpdate,
+				"committee_uid", uid,
+			)
+		case recordUnreadable:
+			return errs.NewUnexpected("failed to update committee base", errUpdate)
+		default:
+			toRelease := reserved
+			if state == recordDiffers {
+				// Another update stored a different version. Locks that version still uses, such as a
+				// name both updates asked for, belong to the committee as it is stored now.
+				inUse, decoded := committeeLocksInUse(rctx, stored)
+				if !decoded {
+					return errs.NewUnexpected("failed to update committee base", errUpdate)
+				}
+				toRelease = withoutKeys(reserved, inUse)
+			}
+			s.releaseCommitteeLocks(rctx, uid, toRelease...)
+			if state == recordDiffers {
+				// The stored version may already carry this update's rename (an ambiguous write that
+				// landed and was then changed by another writer). The old keys are released unless the
+				// stored committee still uses them, which releaseStaleCommitteeLocks re-checks.
+				s.releaseStaleCommitteeLocks(ctx, uid, stale)
+			}
+			if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
+				return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+			}
+			return errs.NewUnexpected("failed to update committee base", errUpdate)
+		}
+	}
+
+	// Release the lookup keys the committee no longer uses. Best-effort: the update already succeeded.
+	s.releaseStaleCommitteeLocks(ctx, uid, stale)
+
 	slog.DebugContext(ctx, "updated committee base in NATS storage",
-		"committee_uid", committee.CommitteeBase.UID,
+		"committee_uid", uid,
 		"old_revision", revision,
 		"new_revision", newRevision,
 	)
@@ -366,26 +684,88 @@ func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSe
 	return nil
 }
 
-// Delete removes a committee's base data and associated settings from the KV store.
-// It uses optimistic locking for the base record and silently ignores missing settings.
+// releaseStaleCommitteeLocks releases the lookup keys an update moved the committee away from, except
+// any the committee holds again by now: a later update can rename the committee back to a name this
+// one just left. The check re-reads the committee, so the keys are kept when it cannot be read. NATS KV
+// has no multi-key transaction, so a rename racing exactly between this read and the release cannot be
+// ruled out; closing that window would take a per-committee lock across service instances.
+func (s *storage) releaseStaleCommitteeLocks(ctx context.Context, uid string, stale []string) {
+	if len(stale) == 0 {
+		return
+	}
+	rctx, cancel := detachedCtx(ctx)
+	defer cancel()
+
+	entry, errGet := s.client.kvStore[constants.KVBucketNameCommittees].Get(rctx, uid)
+	switch {
+	case errors.Is(errGet, jetstream.ErrKeyNotFound):
+		// The committee is gone; nothing holds these keys.
+	case errGet != nil:
+		slog.WarnContext(ctx, "could not read the committee to check stale lookup keys; keeping them",
+			"error", errGet,
+			"committee_uid", uid,
+		)
+		return
+	default:
+		inUse, decoded := committeeLocksInUse(rctx, entry)
+		if !decoded {
+			return
+		}
+		stale = withoutKeys(stale, inUse)
+	}
+
+	s.releaseCommitteeLocks(rctx, uid, stale...)
+}
+
+// Delete removes a committee's base data and associated settings from the KV store and releases the
+// committee's project+name and SSO group lookup keys.
+// It uses optimistic locking for the base record and silently ignores missing settings. The lookup keys
+// are released as soon as the base record is gone, before the settings are removed, so a settings
+// failure cannot leave the name locked. Releasing is best-effort: a failure is logged at critical
+// priority.
 func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error {
 
+	committeesKV := s.client.kvStore[constants.KVBucketNameCommittees]
+
+	// The stored record tells us which lookup keys to release.
+	existing := &model.CommitteeBase{}
+	if _, errGet := s.get(ctx, constants.KVBucketNameCommittees, uid, existing, false); errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+		}
+		return errs.NewUnexpected("failed to get committee", errGet)
+	}
+	nameKey, ssoKey := committeeLookupKeys(ctx, &model.Committee{CommitteeBase: *existing})
+
 	// Delete committee base
-	errDeleteBase := s.client.kvStore[constants.KVBucketNameCommittees].Delete(ctx, uid, jetstream.LastRevision(revision))
-	if errDeleteBase != nil {
+	if errDeleteBase := committeesKV.Delete(ctx, uid, jetstream.LastRevision(revision)); errDeleteBase != nil {
 		if errors.Is(errDeleteBase, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return errs.NewUnexpected("failed to delete committee base", errDeleteBase)
+		// The delete may have been applied before the error was reported; only a read-back that
+		// confirms the committee is gone lets the delete continue.
+		rctx, cancel := detachedCtx(ctx)
+		defer cancel()
+		if _, errGet := committeesKV.Get(rctx, uid); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return errs.NewUnexpected("failed to delete committee base", errDeleteBase)
+		}
+		slog.WarnContext(ctx, "committee delete reported an error but the committee is gone; continuing",
+			"error", errDeleteBase,
+			"committee_uid", uid,
+		)
 	}
+
+	locks := []string{nameKey}
+	if ssoKey != "" {
+		locks = append(locks, ssoKey)
+	}
+	s.releaseCommitteeLocks(ctx, uid, locks...)
 
 	// Delete committee settings if they exist
 	errDeleteSettings := s.client.kvStore[constants.KVBucketNameCommitteeSettings].Delete(ctx, uid)
-	if errDeleteSettings != nil {
-		if errors.Is(errDeleteSettings, jetstream.ErrKeyNotFound) {
-			slog.WarnContext(ctx, "committee settings not found for deletion", "committee_uid", uid)
-			return nil // Settings not found is not an error
-		}
+	if errors.Is(errDeleteSettings, jetstream.ErrKeyNotFound) {
+		slog.WarnContext(ctx, "committee settings not found for deletion", "committee_uid", uid)
+	} else if errDeleteSettings != nil {
 		return errs.NewUnexpected("failed to delete committee settings", errDeleteSettings)
 	}
 

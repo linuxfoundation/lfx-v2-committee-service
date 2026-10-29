@@ -50,10 +50,6 @@ func (r *mockReader) FindUIDByProjectAndName(_ context.Context, _, _ string) (st
 	return "", errors.New("not implemented for this test")
 }
 
-func (r *mockReader) GetRevision(_ context.Context, uid string) (uint64, error) {
-	return r.revision[uid], nil
-}
-
 func (r *mockReader) ListMembersByCommittee(_ context.Context, uid string) ([]*model.CommitteeMember, error) {
 	if err, ok := r.membersErr[uid]; ok {
 		return nil, err

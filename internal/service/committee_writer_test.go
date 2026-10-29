@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,39 +24,18 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
-// TestMockCommitteeWriter implements proper reservation logic for testing
+// TestMockCommitteeWriter wraps the in-memory mock writer for the orchestrator tests
 type TestMockCommitteeWriter struct {
-	mock         *mock.MockRepository
-	reservations map[string]string // key -> reservationID for rollback
+	mock *mock.MockRepository
 }
 
 func NewTestMockCommitteeWriter(mockRepo *mock.MockRepository) *TestMockCommitteeWriter {
-	return &TestMockCommitteeWriter{
-		mock:         mockRepo,
-		reservations: make(map[string]string),
-	}
+	return &TestMockCommitteeWriter{mock: mockRepo}
 }
 
 func (w *TestMockCommitteeWriter) Create(ctx context.Context, committee *model.Committee) error {
-	// Generate UID if not set
-	if committee.CommitteeBase.UID == "" {
-		committee.CommitteeBase.UID = uuid.New().String()
-	}
-
-	now := time.Now()
-	committee.CommitteeBase.CreatedAt = now
-	committee.CommitteeBase.UpdatedAt = now
-
-	// Create committee settings as well
-	if committee.CommitteeSettings != nil {
-		committee.CommitteeSettings.UID = committee.CommitteeBase.UID
-		committee.CommitteeSettings.CreatedAt = now
-		committee.CommitteeSettings.UpdatedAt = now
-	}
-
-	// Store committee and settings
-	w.mock.AddCommittee(committee)
-	return nil
+	mockWriter := mock.NewMockCommitteeWriter(w.mock)
+	return mockWriter.Create(ctx, committee)
 }
 
 func (w *TestMockCommitteeWriter) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
@@ -93,53 +71,6 @@ func (w *TestMockCommitteeWriter) UpdateSettings(ctx context.Context, settings *
 	}
 	// Return the updated settings
 	return settings, nil
-}
-
-// UniqueNameProject reserves a unique name/project combination
-func (w *TestMockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
-	nameProjectKey := committee.BuildIndexKey(ctx)
-
-	// Use the mock's existing logic but invert the result for proper reservation behavior
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	existingUID, err := mockWriter.UniqueNameProject(ctx, committee)
-
-	// If we get a conflict error, that means it already exists - return the conflict
-	if err != nil {
-		var conflictErr errs.Conflict
-		if errors.As(err, &conflictErr) {
-			return existingUID, err
-		}
-		// If it's a "not found" error, that means it's unique - we can reserve it
-		reservationID := uuid.New().String()
-		w.reservations[nameProjectKey] = reservationID
-		return reservationID, nil
-	}
-
-	// Should not reach here with the current mock implementation
-	return existingUID, err
-}
-
-// UniqueSSOGroupName reserves a unique SSO group name
-func (w *TestMockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
-	// Use the mock's existing logic but invert the result for proper reservation behavior
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	existingUID, err := mockWriter.UniqueSSOGroupName(ctx, committee)
-
-	// If we get a conflict error, that means it already exists - return the conflict
-	if err != nil {
-		var conflictErr errs.Conflict
-		if errors.As(err, &conflictErr) {
-			return existingUID, err
-		}
-		// If it's a "not found" error, that means it's unique - we can reserve it
-		ssoKey := "sso:" + committee.SSOGroupName
-		reservationID := uuid.New().String()
-		w.reservations[ssoKey] = reservationID
-		return reservationID, nil
-	}
-
-	// Should not reach here with the current mock implementation
-	return existingUID, err
 }
 
 // CommitteeMemberWriter interface methods
@@ -1100,192 +1031,200 @@ func TestCommitteeWriterOrchestrator_UpdateAccessRouting(t *testing.T) {
 	}
 }
 
-func TestCommitteeWriterOrchestrator_checkReserveSSOName(t *testing.T) {
-	testCases := []struct {
-		name          string
-		setupMock     func(*mock.MockRepository)
-		committee     *model.Committee
-		slug          string
-		expectedError bool
-		validateName  func(t *testing.T, committee *model.Committee)
-	}{
-		{
-			name: "unique SSO group name",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				mockRepo.ClearAll()
-			},
-			committee: &model.Committee{
-				CommitteeBase: model.CommitteeBase{
-					Name: "New Committee",
-				},
-			},
-			slug:          "test-project",
-			expectedError: false,
-			validateName: func(t *testing.T, committee *model.Committee) {
-				assert.Contains(t, committee.SSOGroupName, "test-project")
-				assert.Contains(t, committee.SSOGroupName, "new-committee")
-			},
-		},
-		{
-			name: "SSO group name conflict with retry",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				mockRepo.ClearAll()
-				// Add committee with potentially conflicting SSO name
-				existingCommittee := &model.Committee{
-					CommitteeBase: model.CommitteeBase{
-						UID:             "existing-committee",
-						Name:            "Existing Committee",
-						SSOGroupEnabled: true,
-						SSOGroupName:    "test-project-test-committee",
-						CreatedAt:       time.Now(),
-						UpdatedAt:       time.Now(),
-					},
-					CommitteeSettings: &model.CommitteeSettings{
-						UID:       "existing-committee",
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-				}
-				mockRepo.AddCommittee(existingCommittee)
-			},
-			committee: &model.Committee{
-				CommitteeBase: model.CommitteeBase{
-					Name: "Test Committee",
-				},
-			},
-			slug:          "test-project",
-			expectedError: false,
-			validateName: func(t *testing.T, committee *model.Committee) {
-				assert.NotEmpty(t, committee.SSOGroupName)
-				assert.Contains(t, committee.SSOGroupName, "test-project")
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Setup
-			mockRepo := mock.NewMockRepository()
-			tc.setupMock(mockRepo)
-
-			committeeWriter := NewTestMockCommitteeWriter(mockRepo)
-			orchestrator := &committeeWriterOrchestrator{
-				committeeWriter: committeeWriter,
-			}
-
-			ctx := context.Background()
-
-			// Execute
-			key, err := orchestrator.checkReserveSSOName(ctx, tc.committee, tc.slug)
-
-			// Validate
-			if tc.expectedError {
-				assert.Error(t, err)
-				assert.Empty(t, key)
-			} else {
-				assert.NoError(t, err)
-				assert.NotEmpty(t, key)
-				tc.validateName(t, tc.committee)
-			}
-		})
-	}
+func newSSOTestOrchestrator(mockRepo *mock.MockRepository) CommitteeWriter {
+	return NewCommitteeWriterOrchestrator(
+		WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+		WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+		WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+		WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+	)
 }
 
-func TestCommitteeWriterOrchestrator_rollback(t *testing.T) {
-	testCases := []struct {
-		name         string
-		setupMock    func(*mock.MockRepository)
-		keys         []string
-		validateMock func(t *testing.T, mockRepo *mock.MockRepository)
-	}{
-		{
-			name: "successful rollback with existing committees",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				mockRepo.ClearAll()
-				// Add committees that should be rolled back
-				committee1 := &model.Committee{
-					CommitteeBase: model.CommitteeBase{
-						UID:        "committee-to-rollback-1",
-						ProjectUID: "project-1",
-						Name:       "Committee 1",
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
-					},
-					CommitteeSettings: &model.CommitteeSettings{
-						UID:       "committee-to-rollback-1",
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-				}
-				committee2 := &model.Committee{
-					CommitteeBase: model.CommitteeBase{
-						UID:        "committee-to-rollback-2",
-						ProjectUID: "project-1",
-						Name:       "Committee 2",
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
-					},
-					CommitteeSettings: &model.CommitteeSettings{
-						UID:       "committee-to-rollback-2",
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-				}
-				mockRepo.AddCommittee(committee1)
-				mockRepo.AddCommittee(committee2)
-			},
-			keys: []string{"committee-to-rollback-1", "committee-to-rollback-2"},
-			validateMock: func(t *testing.T, mockRepo *mock.MockRepository) {
-				// Committees should be deleted during rollback
-				assert.Equal(t, 0, mockRepo.GetCommitteeCount())
-			},
-		},
-		{
-			name: "rollback with non-existent keys",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				mockRepo.ClearAll()
-			},
-			keys: []string{"nonexistent-key-1", "nonexistent-key-2"},
-			validateMock: func(t *testing.T, mockRepo *mock.MockRepository) {
-				// No committees to rollback, count should remain 0
-				assert.Equal(t, 0, mockRepo.GetCommitteeCount())
-			},
-		},
-		{
-			name: "empty keys rollback",
-			setupMock: func(mockRepo *mock.MockRepository) {
-				mockRepo.ClearAll()
-			},
-			keys: []string{},
-			validateMock: func(t *testing.T, mockRepo *mock.MockRepository) {
-				assert.Equal(t, 0, mockRepo.GetCommitteeCount())
-			},
-		},
+func TestCommitteeWriterOrchestrator_Create_RegeneratesTakenSSOGroupName(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProjectSlug("project-1", "test-project")
+	mockRepo.AddProjectName("project-1", "Test Project")
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: "existing", ProjectUID: "project-2", Name: "Other", SSOGroupName: "test-project-test-committee"},
+		CommitteeSettings: &model.CommitteeSettings{UID: "existing"},
+	})
+
+	created, err := newSSOTestOrchestrator(mockRepo).Create(ctx, &model.Committee{
+		CommitteeBase:     model.CommitteeBase{ProjectUID: "project-1", Name: "Test Committee", Public: true},
+		CommitteeSettings: &model.CommitteeSettings{},
+	}, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, "test-project-test-committee-2", created.SSOGroupName)
+	assert.Equal(t, 2, mockRepo.GetCommitteeCount())
+}
+
+func TestCommitteeWriterOrchestrator_Create_DuplicateNameIsAConflict(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProjectSlug("project-1", "test-project")
+	mockRepo.AddProjectName("project-1", "Test Project")
+	orchestrator := newSSOTestOrchestrator(mockRepo)
+	input := func() *model.Committee {
+		return &model.Committee{
+			CommitteeBase:     model.CommitteeBase{ProjectUID: "project-1", Name: "Test Committee"},
+			CommitteeSettings: &model.CommitteeSettings{},
+		}
 	}
+	_, err := orchestrator.Create(ctx, input(), false)
+	require.NoError(t, err)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Setup
-			mockRepo := mock.NewMockRepository()
-			tc.setupMock(mockRepo)
+	_, err = orchestrator.Create(ctx, input(), false)
 
-			committeeReader := mock.NewMockCommitteeReader(mockRepo)
-			committeeWriter := mock.NewMockCommitteeWriter(mockRepo)
+	var conflict errs.Conflict
+	require.ErrorAs(t, err, &conflict)
+	assert.NotErrorIs(t, err, errs.ErrSSOGroupNameTaken)
+	assert.Equal(t, 1, mockRepo.GetCommitteeCount())
+}
 
-			orchestrator := &committeeWriterOrchestrator{
-				committeeReader: committeeReader,
-				committeeWriter: committeeWriter,
-			}
+func TestCommitteeWriterOrchestrator_Update_RenameRegeneratesSSOGroupNameAndFreesOldName(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := mock.NewMockRepository()
+	mockRepo.ClearAll()
+	mockRepo.AddProjectSlug("project-1", "test-project")
+	mockRepo.AddProjectName("project-1", "Test Project")
+	orchestrator := newSSOTestOrchestrator(mockRepo)
 
-			ctx := context.Background()
+	created, err := orchestrator.Create(ctx, &model.Committee{
+		CommitteeBase:     model.CommitteeBase{ProjectUID: "project-1", Name: "Test Committee", Public: true},
+		CommitteeSettings: &model.CommitteeSettings{},
+	}, false)
+	require.NoError(t, err)
+	require.Equal(t, "test-project-test-committee", created.SSOGroupName)
 
-			// Execute
-			orchestrator.deleteKeys(ctx, tc.keys, true)
+	updated, err := orchestrator.Update(ctx, &model.Committee{
+		CommitteeBase: model.CommitteeBase{UID: created.CommitteeBase.UID, ProjectUID: "project-1", Name: "Renamed Committee", Public: true},
+	}, 1, false)
 
-			// Validate
-			tc.validateMock(t, mockRepo)
+	require.NoError(t, err)
+	assert.Equal(t, "test-project-renamed-committee", updated.SSOGroupName)
+
+	// The old name is free again once the committee was renamed.
+	_, err = orchestrator.Create(ctx, &model.Committee{
+		CommitteeBase:     model.CommitteeBase{ProjectUID: "project-1", Name: "Test Committee"},
+		CommitteeSettings: &model.CommitteeSettings{},
+	}, false)
+	assert.NoError(t, err)
+}
+
+func TestCommitteeWriterOrchestrator_writeWithSSORetry(t *testing.T) {
+	ssoTaken := errs.NewConflict("committee with the same SSO group name already exists", errs.ErrSSOGroupNameTaken)
+
+	t.Run("a successful write runs once", func(t *testing.T) {
+		orchestrator := &committeeWriterOrchestrator{}
+		committee := &model.Committee{CommitteeBase: model.CommitteeBase{Name: "New Committee", SSOGroupName: "test-project-new-committee"}}
+		calls := 0
+
+		err := orchestrator.writeWithSSORetry(context.Background(), committee, "test-project", func() error {
+			calls++
+			return nil
 		})
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, calls)
+		assert.Equal(t, "test-project-new-committee", committee.SSOGroupName)
+	})
+
+	t.Run("an SSO group name conflict regenerates the name and retries", func(t *testing.T) {
+		orchestrator := &committeeWriterOrchestrator{}
+		committee := &model.Committee{CommitteeBase: model.CommitteeBase{Name: "New Committee", SSOGroupName: "test-project-new-committee"}}
+		var tried []string
+
+		err := orchestrator.writeWithSSORetry(context.Background(), committee, "test-project", func() error {
+			tried = append(tried, committee.SSOGroupName)
+			if len(tried) < 3 {
+				return ssoTaken
+			}
+			return nil
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"test-project-new-committee", "test-project-new-committee-2", "test-project-new-committee-3"}, tried)
+	})
+
+	t.Run("other errors are returned without retrying", func(t *testing.T) {
+		orchestrator := &committeeWriterOrchestrator{}
+		committee := &model.Committee{CommitteeBase: model.CommitteeBase{Name: "New Committee", SSOGroupName: "test-project-new-committee"}}
+		nameConflict := errs.NewConflict("committee with the same name for the project already exists")
+		calls := 0
+
+		err := orchestrator.writeWithSSORetry(context.Background(), committee, "test-project", func() error {
+			calls++
+			return nameConflict
+		})
+
+		assert.ErrorIs(t, err, nameConflict)
+		assert.Equal(t, 1, calls)
+	})
+
+	t.Run("gives up after the maximum number of attempts", func(t *testing.T) {
+		orchestrator := &committeeWriterOrchestrator{}
+		committee := &model.Committee{CommitteeBase: model.CommitteeBase{Name: "New Committee", SSOGroupName: "test-project-new-committee"}}
+		calls := 0
+
+		err := orchestrator.writeWithSSORetry(context.Background(), committee, "test-project", func() error {
+			calls++
+			return ssoTaken
+		})
+
+		var unexpected errs.Unexpected
+		require.ErrorAs(t, err, &unexpected)
+		assert.Equal(t, maxSSOGroupNameAttempts, calls)
+	})
+
+	t.Run("a name that cannot be regenerated is an unexpected error", func(t *testing.T) {
+		orchestrator := &committeeWriterOrchestrator{}
+		committee := &model.Committee{CommitteeBase: model.CommitteeBase{Name: "New Committee", SSOGroupName: "test-project-new-committee-abc"}}
+
+		err := orchestrator.writeWithSSORetry(context.Background(), committee, "test-project", func() error {
+			return ssoTaken
+		})
+
+		var unexpected errs.Unexpected
+		assert.ErrorAs(t, err, &unexpected)
+	})
+}
+
+func TestCommitteeWriterOrchestrator_rollbackCreatedCommittee(t *testing.T) {
+	newOrchestrator := func(mockRepo *mock.MockRepository) *committeeWriterOrchestrator {
+		return &committeeWriterOrchestrator{
+			committeeReader: mock.NewMockCommitteeReader(mockRepo),
+			committeeWriter: mock.NewMockCommitteeWriter(mockRepo),
+		}
 	}
+
+	t.Run("removes the committee and its name reservation", func(t *testing.T) {
+		mockRepo := mock.NewMockRepository()
+		mockRepo.ClearAll()
+		committee := &model.Committee{
+			CommitteeBase:     model.CommitteeBase{UID: "committee-to-rollback", ProjectUID: "project-1", Name: "Committee 1"},
+			CommitteeSettings: &model.CommitteeSettings{UID: "committee-to-rollback"},
+		}
+		mockRepo.AddCommittee(committee)
+
+		newOrchestrator(mockRepo).rollbackCreatedCommittee(context.Background(), "committee-to-rollback")
+
+		assert.Equal(t, 0, mockRepo.GetCommitteeCount())
+		again := &model.Committee{CommitteeBase: model.CommitteeBase{UID: "other", ProjectUID: "project-1", Name: "Committee 1"}}
+		require.NoError(t, mock.NewMockCommitteeWriter(mockRepo).Create(context.Background(), again), "the name must be reusable after rollback")
+	})
+
+	t.Run("a committee that does not exist is a no-op", func(t *testing.T) {
+		mockRepo := mock.NewMockRepository()
+		mockRepo.ClearAll()
+
+		newOrchestrator(mockRepo).rollbackCreatedCommittee(context.Background(), "nonexistent")
+
+		assert.Equal(t, 0, mockRepo.GetCommitteeCount())
+	})
 }
 
 func TestNewcommitteeWriterOrchestrator(t *testing.T) {
