@@ -89,31 +89,6 @@ func (w *TestMockCommitteeWriter) DeleteMember(ctx context.Context, memberUID st
 	return mockWriter.DeleteMember(ctx, memberUID, revision)
 }
 
-func (w *TestMockCommitteeWriter) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.UniqueMember(ctx, member)
-}
-
-func (w *TestMockCommitteeWriter) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.IndexMemberByCommittee(ctx, member)
-}
-
-func (w *TestMockCommitteeWriter) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.IndexMemberByOrganization(ctx, member)
-}
-
-func (w *TestMockCommitteeWriter) IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.IndexMemberByEmail(ctx, member)
-}
-
-func (w *TestMockCommitteeWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.IndexMemberByUsername(ctx, member)
-}
-
 // Implement CommitteeInviteWriter interface
 func (w *TestMockCommitteeWriter) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)

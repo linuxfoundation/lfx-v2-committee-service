@@ -90,6 +90,26 @@ NATS KV has no multi-key transaction, so a rename racing exactly between the rea
 the committee uses and the release of a stale key cannot be ruled out. Closing that window would take a
 per-committee lock across service instances.
 
+For members the uniqueness lock and the four secondary indexes (see below) are an internal detail of the
+KV store, maintained by `CreateMember`, `UpdateMember`, and `DeleteMember`:
+
+- `CreateMember` reserves the (committee, email) lock (a duplicate email in the committee returns a
+  conflict), writes the member record, then writes the indexes by committee, organization, email, and
+  username. If a step fails, the member and every key written by that call are removed again.
+- `UpdateMember` compares the stored member with the new one. When the email changes it reserves the new
+  lock (a taken email returns a conflict); it moves the organization, email, and username indexes when
+  those values change, re-asserts the new keys after the write (two in-flight updates of the same member
+  share a reservation, so one's failure can release a key the other still needs), and releases the keys
+  the member no longer uses. A stale revision returns a conflict and releases whatever the call reserved.
+- `DeleteMember` releases the lock and every index as soon as the record is gone. A record that cannot be
+  decoded is still deleted, without releasing keys that cannot be derived from it.
+
+The same read-back rules as for committees apply: a write error is checked by reading the record back, a
+write that landed despite the error continues, an unreadable state keeps the keys, cleanup runs on a
+context detached from the request, and a key is only released when its value is the member's own UID.
+Callers never see or build these keys. The only code that writes an index directly is the KV-only
+`MemberIndexBackfiller` used by the `committee-cli sync members-by-*-index` repair commands.
+
 Constants `KVLookupSettingsInvitePrefix` (`lookup/committee-settings-invite/<invite_uid>`) and
 `KVSlugPrefix` (`slug/`) are defined, but no current write path creates keys with them. The `slug/`
 prefix is only skipped when scanning for records.
@@ -109,9 +129,10 @@ keeps keys dot-free and avoids storing raw emails or usernames in key names.
 | `lookup/committee-members-by-email/` | `<email_hash>` | All seats held by an email; used to react to alternate-email changes and user merges (LFXV2-2521) | Member create; re-keyed when email changes | `committee-cli sync members-by-email-index` |
 | `lookup/committee-members-by-username/` | `<username_hash>` | All seats held by an LFID username; used by the user-deleted scrub flow (LFXV2-2645) | Member create when a username is set; re-keyed when it changes | `committee-cli sync members-by-username-index` |
 
-Writers: `IndexMemberBy*` in `internal/infrastructure/nats/storage.go`, called from
-`internal/service/committee_member_writer.go` (create, update, delete). On update, stale keys are
-removed after the new ones are written; on delete, all of the member's index keys are removed. See
+Writers: `CreateMember`, `UpdateMember`, and `DeleteMember` in `internal/infrastructure/nats/storage.go`
+maintain these indexes (the service layer does not see them). On update, stale keys are removed after the
+new ones are written; on delete, all of the member's index keys are removed. The `IndexMemberBy*` methods
+(the `MemberIndexBackfiller` port) exist only for the repair commands in the last column. See
 [`cmd/committee-cli/README.md`](../cmd/committee-cli/README.md) for the `sync` flags. `--dry-run` defaults differ per command (for example `members-by-committee-index` defaults to
 `false`), so check each command's flags before running.
 

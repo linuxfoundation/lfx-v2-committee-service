@@ -721,9 +721,15 @@ func (w *MockCommitteeWriter) CreateMember(ctx context.Context, member *model.Co
 		w.mock.memberIndexKeys[committeeUID] = make(map[string]*model.CommitteeMember)
 	}
 
+	// A committee holds at most one member per email, as the storage layer enforces.
+	indexKey := member.BuildIndexKey(ctx)
+	if existing, taken := w.mock.memberIndexKeys[committeeUID][indexKey]; taken && existing.UID != member.UID {
+		return errors.NewConflict("member with the same email already exists in the committee")
+	}
+
 	// Store member
 	w.mock.committeeMembers[committeeUID][member.UID] = member
-	w.mock.memberIndexKeys[committeeUID][member.BuildIndexKey(ctx)] = member
+	w.mock.memberIndexKeys[committeeUID][indexKey] = member
 	w.mock.memberRevisions[member.UID] = 1
 
 	return nil
@@ -749,9 +755,20 @@ func (w *MockCommitteeWriter) UpdateMember(ctx context.Context, member *model.Co
 		return nil, errors.NewNotFound(fmt.Sprintf("member with UID %s not found", member.UID))
 	}
 
+	// A new email must not already be a member of the committee, and the member's index key follows
+	// its email, as the storage layer enforces.
+	oldKey := w.mock.committeeMembers[foundCommitteeUID][member.UID].BuildIndexKey(ctx)
+	newKey := member.BuildIndexKey(ctx)
+	if newKey != oldKey {
+		if existing, taken := w.mock.memberIndexKeys[foundCommitteeUID][newKey]; taken && existing.UID != member.UID {
+			return nil, errors.NewConflict("member with the same email already exists in the committee")
+		}
+		delete(w.mock.memberIndexKeys[foundCommitteeUID], oldKey)
+	}
+
 	member.UpdatedAt = time.Now()
 	w.mock.committeeMembers[foundCommitteeUID][member.UID] = member
-	w.mock.memberIndexKeys[foundCommitteeUID][member.BuildIndexKey(ctx)] = member
+	w.mock.memberIndexKeys[foundCommitteeUID][newKey] = member
 
 	// Update revision
 	currentRevision := w.mock.memberRevisions[member.UID]
@@ -791,26 +808,6 @@ func (w *MockCommitteeWriter) DeleteMember(ctx context.Context, memberUID string
 	delete(w.mock.memberRevisions, memberUID)
 
 	return nil
-}
-
-// UniqueMember verifies if a member is unique (based on email or other unique identifiers)
-func (w *MockCommitteeWriter) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	slog.DebugContext(ctx, "mock committee writer: checking member uniqueness", "member_uid", member.UID, "email", member.Email)
-
-	w.mock.mu.RLock()
-	defer w.mock.mu.RUnlock()
-
-	// Check across all committees for existing member with same email
-	for _, committeeMembers := range w.mock.committeeMembers {
-		for _, existing := range committeeMembers {
-			if existing.Email == member.Email && existing.UID != member.UID {
-				// Return conflict error to indicate non-uniqueness
-				return existing.UID, errors.NewConflict(fmt.Sprintf("member with email %s already exists", member.Email))
-			}
-		}
-	}
-
-	return "", nil
 }
 
 // IndexMemberByCommittee records the secondary index entry for the given member.

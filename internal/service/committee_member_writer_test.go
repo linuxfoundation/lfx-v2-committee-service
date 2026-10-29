@@ -20,7 +20,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 	fgatypes "github.com/linuxfoundation/lfx-v2-fga-sync/pkg/types"
 )
 
@@ -28,11 +27,8 @@ import (
 type TestMockCommitteeMemberWriter struct {
 	*mock.MockRepository
 	members            map[string]*model.CommitteeMember
-	keys               map[string]string // uniqueness keys
 	customRevisions    map[string]uint64 // for testing revision conflicts
-	indexedKeys        []string          // keys written by IndexMemberByCommittee
-	orgIndexErr        error             // when set, IndexMemberByOrganization returns (key, orgIndexErr)
-	uniqueMemberCalls  int               // incremented on every UniqueMember call
+	createErr          error             // when set, CreateMember returns it without storing anything
 	rejectCancelledCtx bool              // when set, DeleteMember/GetMemberRevision return ctx.Err() if ctx is already done
 
 	mu          sync.Mutex // guards deletedKeys (DeleteMember may run in a background cleanup goroutine)
@@ -52,11 +48,21 @@ func (w *TestMockCommitteeMemberWriter) wasDeleted(key string) bool {
 	return false
 }
 
+// emailTaken reports whether another stored member of the same committee has member's email, which the
+// storage layer rejects.
+func (w *TestMockCommitteeMemberWriter) emailTaken(ctx context.Context, member *model.CommitteeMember) bool {
+	for uid, other := range w.members {
+		if uid != member.UID && other.CommitteeUID == member.CommitteeUID && other.BuildIndexKey(ctx) == member.BuildIndexKey(ctx) {
+			return true
+		}
+	}
+	return false
+}
+
 func NewTestMockCommitteeMemberWriter(mockRepo *mock.MockRepository) *TestMockCommitteeMemberWriter {
 	return &TestMockCommitteeMemberWriter{
 		MockRepository:  mockRepo,
 		members:         make(map[string]*model.CommitteeMember),
-		keys:            make(map[string]string),
 		customRevisions: make(map[string]uint64),
 	}
 }
@@ -98,6 +104,12 @@ func (w *TestMockCommitteeMemberWriter) CreateMember(ctx context.Context, member
 	if member == nil {
 		return errs.NewValidation("member cannot be nil")
 	}
+	if w.createErr != nil {
+		return w.createErr
+	}
+	if w.emailTaken(ctx, member) {
+		return errs.NewConflict("member with the same email already exists in the committee")
+	}
 
 	// Store the member
 	w.members[member.UID] = member
@@ -107,6 +119,10 @@ func (w *TestMockCommitteeMemberWriter) CreateMember(ctx context.Context, member
 func (w *TestMockCommitteeMemberWriter) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
 	if _, exists := w.members[member.UID]; !exists {
 		return nil, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", member.UID))
+	}
+
+	if w.emailTaken(ctx, member) {
+		return nil, errs.NewConflict("member with the same email already exists in the committee")
 	}
 
 	// Check revision if custom revision is set
@@ -144,61 +160,6 @@ func (w *TestMockCommitteeMemberWriter) DeleteMember(ctx context.Context, uid st
 	w.deletedKeys = append(w.deletedKeys, uid)
 	w.mu.Unlock()
 	return nil
-}
-
-func (w *TestMockCommitteeMemberWriter) UniqueMember(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	w.uniqueMemberCalls++
-	key := member.BuildIndexKey(ctx)
-
-	// Check if this key already exists
-	if existingUID, exists := w.keys[key]; exists {
-		return existingUID, errs.NewConflict("member with the same email already exists in the committee")
-	}
-
-	// Reserve the key
-	w.keys[key] = member.UID
-	return key, nil
-}
-
-func (w *TestMockCommitteeMemberWriter) IndexMemberByCommittee(_ context.Context, member *model.CommitteeMember) (string, error) {
-	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
-	w.indexedKeys = append(w.indexedKeys, key)
-	return key, nil
-}
-
-func (w *TestMockCommitteeMemberWriter) IndexMemberByOrganization(_ context.Context, member *model.CommitteeMember) (string, error) {
-	orgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
-	if orgSFID == "" {
-		return "", nil
-	}
-	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
-	w.indexedKeys = append(w.indexedKeys, key)
-	if w.orgIndexErr != nil {
-		// Return the key alongside the error: the create/update paths append the key for rollback
-		// before checking the error, so this exercises the rollback cleanup of a partial write.
-		return key, w.orgIndexErr
-	}
-	return key, nil
-}
-
-func (w *TestMockCommitteeMemberWriter) IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	hash := member.BuildEmailIndexKey(ctx)
-	if hash == "" {
-		return "", nil
-	}
-	key := fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, hash, member.UID)
-	w.indexedKeys = append(w.indexedKeys, key)
-	return key, nil
-}
-
-func (w *TestMockCommitteeMemberWriter) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
-	hash := member.BuildUsernameIndexKey(ctx)
-	if hash == "" {
-		return "", nil
-	}
-	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
-	w.indexedKeys = append(w.indexedKeys, key)
-	return key, nil
 }
 
 func (w *TestMockCommitteeMemberWriter) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
@@ -557,7 +518,7 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 						Username:     "firstuser",
 					},
 				}
-				_, _ = memberWriter.UniqueMember(context.Background(), firstMember)
+				require.NoError(t, memberWriter.CreateMember(context.Background(), firstMember))
 			}
 
 			ctx := context.Background()
@@ -753,145 +714,6 @@ func TestCommitteeWriterOrchestrator_DeleteMember(t *testing.T) {
 	}
 }
 
-func TestCommitteeWriterOrchestrator_deleteMemberKeys(t *testing.T) {
-	orchestrator, _, memberWriter := setupMemberWriterTest()
-
-	// Create a custom mock reader that knows about our test member
-	customReader := &TestMockCommitteeReader{
-		memberRevisions: map[string]uint64{
-			"member-to-delete": 1,
-		},
-	}
-	orchestrator.committeeReader = customReader
-
-	// Add a test member to our writer
-	member := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-to-delete",
-			Email:        "delete@example.com",
-			CommitteeUID: "committee-123",
-		},
-	}
-	memberWriter.members["member-to-delete"] = member
-
-	ctx := context.Background()
-	keys := []string{"member-to-delete"}
-
-	// Test successful deletion
-	orchestrator.deleteMemberKeys(ctx, keys, false)
-
-	// Verify member was deleted from our test writer
-	_, exists := memberWriter.members["member-to-delete"]
-	assert.False(t, exists, "Member should have been deleted from test writer")
-}
-
-func TestCommitteeWriterOrchestrator_deleteMemberKeys_EmptyKeys(t *testing.T) {
-	orchestrator, _, _ := setupMemberWriterTest()
-
-	ctx := context.Background()
-	keys := []string{}
-
-	// Should handle empty keys gracefully
-	orchestrator.deleteMemberKeys(ctx, keys, false)
-	// No assertion needed, just ensure it doesn't panic
-}
-
-// TestCreateMember_IndexKeyTracked verifies that CreateMember calls
-// IndexMemberByCommittee and records the returned key for rollback.
-func TestCreateMember_IndexKeyTracked(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-
-	committee := &model.Committee{
-		CommitteeBase: model.CommitteeBase{
-			UID:      "committee-index-test",
-			Name:     "Index Test Committee",
-			Category: "Technical",
-		},
-		CommitteeSettings: &model.CommitteeSettings{
-			UID:                   "committee-index-test",
-			BusinessEmailRequired: false,
-		},
-	}
-	mockRepo.AddCommittee(committee)
-
-	member := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			CommitteeUID: "committee-index-test",
-			Email:        "indextest@example.com",
-			Username:     "indexuser",
-			Organization: model.CommitteeMemberOrganization{Name: "Index Org"},
-		},
-	}
-
-	ctx := context.Background()
-	result, err := orchestrator.CreateMember(ctx, member, false, false)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.NotEmpty(t, result.UID)
-	assert.Equal(t, "committee-index-test", result.CommitteeUID)
-
-	// IndexMemberByCommittee and IndexMemberByEmail must both have been called; the first indexed key
-	// must be the committee→member key (appended before the email key in CreateMember).
-	require.Len(t, memberWriter.indexedKeys, 2)
-	expectedCommitteeKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s", result.CommitteeUID, result.UID)
-	assert.Equal(t, expectedCommitteeKey, memberWriter.indexedKeys[0])
-	assert.Contains(t, memberWriter.indexedKeys[1], "lookup/committee-members-by-email/")
-}
-
-// TestDeleteMember_IndexKeyIncluded verifies that DeleteMember enqueues the
-// committee→member secondary index key for cleanup alongside the primary record.
-func TestDeleteMember_IndexKeyIncluded(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-
-	existingMember := &model.CommitteeMember{
-		CommitteeMemberBase: model.CommitteeMemberBase{
-			UID:          "member-del-idx",
-			CommitteeUID: "committee-del-idx",
-			Email:        "del-idx@example.com",
-			Username:     "delidxuser",
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
-		},
-	}
-	// Populate the shared mock repo so GetMember succeeds.
-	mockRepo.AddCommitteeMember(existingMember.CommitteeUID, existingMember)
-	// Add primary record to writer so DeleteMember can find and remove it.
-	memberWriter.members["member-del-idx"] = existingMember
-
-	// Pre-register the by-committee index key in the writer's members map so
-	// deleteMemberKeys can resolve a revision for it and attempt deletion.
-	// We also point the orchestrator's reader at memberWriter: its GetMemberRevision
-	// override checks the local members map first, so it finds the synthetic index
-	// key entry without needing it to exist as a real member in the shared mock repo.
-	indexKey := fmt.Sprintf("lookup/committee-members-by-committee/%s.%s",
-		existingMember.CommitteeUID, existingMember.UID)
-	memberWriter.members[indexKey] = existingMember
-
-	ctx := context.Background()
-
-	// Pre-register the username→member secondary index key.
-	usernameHash := existingMember.BuildUsernameIndexKey(ctx)
-	usernameIndexKey := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existingMember.UID)
-	memberWriter.members[usernameIndexKey] = existingMember
-
-	orchestrator.committeeReader = memberWriter
-
-	err := orchestrator.DeleteMember(ctx, "committee-del-idx", "member-del-idx", 1, false, false)
-	require.NoError(t, err)
-
-	// Primary record must be gone.
-	_, primaryStillExists := memberWriter.members["member-del-idx"]
-	assert.False(t, primaryStillExists, "main member record should be deleted")
-
-	// Committee index key must also have been removed by the cleanup pass.
-	_, indexStillExists := memberWriter.members[indexKey]
-	assert.False(t, indexStillExists, "committee→member index key should be cleaned up on delete")
-
-	// Username index key must also have been removed by the cleanup pass.
-	_, usernameIndexStillExists := memberWriter.members[usernameIndexKey]
-	assert.False(t, usernameIndexStillExists, "username→member index key should be cleaned up on delete")
-}
-
 // flakyOldSeatReader wraps a real reader but forces GetMember(targetUID) to return a configurable
 // non-NotFound (transient) error, to exercise ReassignMember's "old seat state unconfirmed" branch.
 type flakyOldSeatReader struct {
@@ -963,266 +785,6 @@ func TestReassignMember_UnconfirmedOldSeatRetainsNewSeat(t *testing.T) {
 		}
 	}
 	assert.True(t, retained, "new seat must be retained (not rolled back) when the old seat state is unconfirmed")
-}
-
-// TestCreateMember_OrgIndexWriteFailsRollsBack verifies the org-index failure path in CreateMember:
-// when IndexMemberByOrganization returns a (key, error), the error is surfaced and the deferred rollback
-// cleans up the records written before the failure (notably the primary member record).
-func TestCreateMember_OrgIndexWriteFailsRollsBack(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	// Route reads through the writer so the rollback's GetMemberRevision/DeleteMember see the records
-	// CreateMember just wrote into the in-memory store (same pattern as TestDeleteMember_IndexKeyIncluded).
-	orchestrator.committeeReader = memberWriter
-
-	committee := &model.Committee{
-		CommitteeBase: model.CommitteeBase{UID: "committee-org-rollback", Name: "Org Rollback Committee", Category: "Technical"},
-		CommitteeSettings: &model.CommitteeSettings{
-			UID:                   "committee-org-rollback",
-			BusinessEmailRequired: false,
-		},
-	}
-	mockRepo.AddCommittee(committee)
-
-	// Force the organization-index write to fail (after returning a non-empty key).
-	memberWriter.orgIndexErr = errs.NewUnexpected("org index write failed")
-
-	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		CommitteeUID: "committee-org-rollback",
-		Email:        "org-rollback@example.com",
-		Username:     "orgrollbackuser",
-		Organization: model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Rollback Org"},
-	}}
-
-	ctx := context.Background()
-	res, err := orchestrator.CreateMember(ctx, member, false, false)
-
-	require.Error(t, err)
-	assert.Nil(t, res)
-	assert.ErrorIs(t, err, memberWriter.orgIndexErr, "the org-index write error must be surfaced")
-
-	// Rollback must have removed the primary member record created before the failure.
-	_, stillExists := memberWriter.members[member.UID]
-	assert.False(t, stillExists, "primary member record must be rolled back when the org index write fails")
-	assert.True(t, memberWriter.wasDeleted(member.UID), "rollback must delete the primary member record")
-}
-
-// TestCreateMember_RollbackSurvivesCancelledContext is the regression test for the bug fixed in
-// LFXV2-2984: when the HTTP client times out, the server-side request context is cancelled
-// mid-flight. Before the fix, CreateMember's rollback defer passed that cancelled context to
-// deleteMemberKeys, causing NATS KV cleanup to fail immediately and leaving orphaned uniqueness
-// keys that permanently blocked future creates with 409 Conflict. The fix uses a detached
-// context.WithTimeout(context.Background(), …) for rollback so cleanup always runs regardless of
-// caller-context state.
-//
-// The test simulates the cancelled-caller-context scenario: the request context is cancelled
-// before CreateMember is called, IndexMemberByOrganization is forced to fail (so rollback fires),
-// and DeleteMember / GetMemberRevision are configured to reject a cancelled context. Under the old
-// code the rollback would propagate the cancelled context and the uniqueness key would not be
-// cleaned up. Under the fixed code the detached cleanup context is alive and the key is removed.
-func TestCreateMember_RollbackSurvivesCancelledContext(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	// Route reads through the writer so rollback's GetMemberRevision/DeleteMember see written records.
-	orchestrator.committeeReader = memberWriter
-
-	committee := &model.Committee{
-		CommitteeBase: model.CommitteeBase{UID: "committee-ctx-cancel", Name: "Ctx Cancel Committee", Category: "Technical"},
-		CommitteeSettings: &model.CommitteeSettings{
-			UID:                   "committee-ctx-cancel",
-			BusinessEmailRequired: false,
-		},
-	}
-	mockRepo.AddCommittee(committee)
-
-	// Force a write failure at the org-index step (after both UniqueMember and CreateMember succeed),
-	// so rollback fires with rollbackRequired=true.
-	memberWriter.orgIndexErr = errs.NewUnexpected("injected org-index failure")
-	// Make DeleteMember/GetMemberRevision fail when the context is already cancelled.
-	// This distinguishes the old (cancelled request context) path from the fixed (detached) path.
-	memberWriter.rejectCancelledCtx = true
-
-	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		CommitteeUID: "committee-ctx-cancel",
-		Email:        "ctx-cancel@example.com",
-		Username:     "ctxcanceluser",
-		Organization: model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Cancel Org"},
-	}}
-
-	// Pre-compute the uniqueness key and seed it into members so GetMemberRevision can return a
-	// revision for it during rollback. (UniqueMember stores to w.keys; GetMemberRevision reads
-	// w.members. Without seeding, GetMemberRevision returns not-found and rollback silently skips
-	// the uniqueness key — which would defeat the assertion below.)
-	uniqueKey := member.BuildIndexKey(context.Background())
-	memberWriter.members[uniqueKey] = member
-
-	// Simulate a timed-out HTTP client: cancel the context before calling CreateMember.
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err := orchestrator.CreateMember(ctx, member, false, false)
-	require.Error(t, err)
-
-	// Rollback must have cleaned up the uniqueness key using a live (detached) context.
-	// If rollback incorrectly used the cancelled request context, rejectCancelledCtx would
-	// cause GetMemberRevision/DeleteMember to return an error and the key would not appear
-	// in deletedKeys.
-	assert.True(t, memberWriter.wasDeleted(uniqueKey),
-		"rollback must remove the uniqueness key even when the request context is cancelled")
-}
-
-// TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes covers the org-change path
-// (oldOrgSFID != newOrgSFID, both non-empty): the new organization index entry is written and the old
-// entry is cleaned up by the background goroutine.
-func TestCommitteeWriterOrchestrator_UpdateMember_OrgChangeReindexes(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
-	// Route reads through the writer so the background stale-key cleanup goroutine's
-	// GetMemberRevision/DeleteMember see the seeded in-memory index entries.
-	orchestrator.committeeReader = memberWriter
-
-	committee := &model.Committee{
-		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
-		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
-	}
-	mockRepo.AddCommittee(committee)
-
-	const oldOrg = "001B000000IqhSLIAZ"
-	const newOrg = "001C000000AbCdEFGH"
-	existing := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		UID: "member-123", CommitteeUID: "committee-123", Email: "old@example.com", Username: "auth0|olduser",
-		FirstName: "Old", LastName: "User",
-		Organization: model.CommitteeMemberOrganization{ID: oldOrg, Name: "Old Org"},
-		CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
-	}}
-	mockRepo.AddCommitteeMember("committee-123", existing)
-	memberWriter.members["member-123"] = existing
-	memberWriter.customRevisions["member-123"] = 1
-
-	// Pre-seed the OLD org index key so the background cleanup goroutine can resolve + delete it.
-	oldKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, utils.NormalizeAccountSFID(oldOrg), "member-123")
-	memberWriter.members[oldKey] = existing
-
-	updated := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		UID: "member-123", CommitteeUID: "committee-123", Email: "new@example.com", Username: "plain-lfid",
-		FirstName: "New", LastName: "User",
-		Organization: model.CommitteeMemberOrganization{ID: newOrg, Name: "New Org"},
-	}}
-
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// New org index entry must be written synchronously during the update.
-	newKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, utils.NormalizeAccountSFID(newOrg), "member-123")
-	assert.Contains(t, memberWriter.indexedKeys, newKey, "new organization index entry must be written on org change")
-
-	// Old org index entry must be cleaned up by the background goroutine.
-	assert.Eventually(t, func() bool { return memberWriter.wasDeleted(oldKey) }, 2*time.Second, 10*time.Millisecond,
-		"stale old-organization index entry must be cleaned up after the org change")
-}
-
-// TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp covers the org-removal path
-// (newOrgSFID == ""): no new organization index is written, and the old entry is cleaned up.
-func TestCommitteeWriterOrchestrator_UpdateMember_OrgRemovalCleansUp(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "newuser"}}
-	// Route reads through the writer so the background stale-key cleanup goroutine's
-	// GetMemberRevision/DeleteMember see the seeded in-memory index entries.
-	orchestrator.committeeReader = memberWriter
-
-	committee := &model.Committee{
-		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
-		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
-	}
-	mockRepo.AddCommittee(committee)
-
-	const oldOrg = "001B000000IqhSLIAZ"
-	existing := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		UID: "member-123", CommitteeUID: "committee-123", Email: "old@example.com", Username: "auth0|olduser",
-		FirstName: "Old", LastName: "User",
-		Organization: model.CommitteeMemberOrganization{ID: oldOrg, Name: "Old Org"},
-		CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
-	}}
-	mockRepo.AddCommitteeMember("committee-123", existing)
-	memberWriter.members["member-123"] = existing
-	memberWriter.customRevisions["member-123"] = 1
-
-	oldKey := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, utils.NormalizeAccountSFID(oldOrg), "member-123")
-	memberWriter.members[oldKey] = existing
-
-	// Updated member loses its organization affiliation (no organization id).
-	updated := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		UID: "member-123", CommitteeUID: "committee-123", Email: "new@example.com", Username: "plain-lfid",
-		FirstName: "New", LastName: "User",
-		Organization: model.CommitteeMemberOrganization{},
-	}}
-
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// No new organization index entry is written when the member loses its org.
-	// (An email-index entry IS written because the email changed in this scenario — that is correct.)
-	for _, k := range memberWriter.indexedKeys {
-		assert.NotContains(t, k, "lookup/committee-members-by-organization",
-			"no organization index entry should be written when the org is removed")
-	}
-
-	// The old org index entry must still be cleaned up by the background goroutine.
-	assert.Eventually(t, func() bool { return memberWriter.wasDeleted(oldKey) }, 2*time.Second, 10*time.Millisecond,
-		"stale old-organization index entry must be cleaned up after org removal")
-}
-
-// TestCommitteeWriterOrchestrator_UpdateMember_CaseOnlyEmailChange verifies that a case-only
-// email change (same normalized hash) does not write or delete any uniqueness/index keys.
-// Writing a new key identical to the old one and then marking it stale would silently delete the
-// valid entry, breaking the uniqueness invariant.
-func TestCommitteeWriterOrchestrator_UpdateMember_CaseOnlyEmailChange(t *testing.T) {
-	orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-	orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"user@example.com": "theuser"}}
-	orchestrator.committeeReader = memberWriter
-
-	committee := &model.Committee{
-		CommitteeBase:     model.CommitteeBase{UID: "committee-123", Name: "Test Committee", Category: "Technical"},
-		CommitteeSettings: &model.CommitteeSettings{BusinessEmailRequired: false},
-	}
-	mockRepo.AddCommittee(committee)
-
-	existing := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		UID: "member-123", CommitteeUID: "committee-123", Email: "user@example.com",
-		FirstName: "Test", LastName: "User",
-		CreatedAt: time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
-	}}
-	mockRepo.AddCommitteeMember("committee-123", existing)
-	memberWriter.members["member-123"] = existing
-	memberWriter.customRevisions["member-123"] = 1
-
-	// Pre-seed the uniqueness key so that a duplicate write would be detected as a conflict.
-	existingIndexKey := existing.BuildIndexKey(context.Background())
-	memberWriter.keys[existingIndexKey] = existing.UID
-
-	// Update with a case-only email change (same normalized form).
-	updated := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-		UID: "member-123", CommitteeUID: "committee-123", Email: "USER@EXAMPLE.COM",
-		FirstName: "Test", LastName: "User",
-	}}
-
-	result, err := orchestrator.UpdateMember(context.Background(), updated, 1, false, false)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// UniqueMember must not be called at all for a case-only email change.
-	assert.Equal(t, 0, memberWriter.uniqueMemberCalls,
-		"UniqueMember must not be called for a case-only email change")
-
-	// No new index key should have been written, and the pre-seeded uniqueness key must remain.
-	for _, k := range memberWriter.indexedKeys {
-		assert.NotContains(t, k, "lookup/committee-members/",
-			"case-only email change must not write a new uniqueness key")
-		assert.NotContains(t, k, "lookup/committee-members-by-email/",
-			"case-only email change must not write a new email-index key")
-	}
-	assert.Equal(t, existing.UID, memberWriter.keys[existingIndexKey],
-		"pre-existing uniqueness key must not be deleted by a case-only email change")
 }
 
 func TestCommitteeWriterOrchestrator_validateCorporateEmailDomain(t *testing.T) {
@@ -1889,10 +1451,6 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	memberWriter.members["member-complete"] = member
 	mockRepo.AddCommitteeMember("committee-123", member)
 
-	// Setup member lookup key (simulating secondary index)
-	lookupKey := member.BuildIndexKey(context.Background())
-	memberWriter.keys[lookupKey] = member.UID
-
 	ctx := context.Background()
 	err := orchestrator.DeleteMember(ctx, "committee-123", "member-complete", 1, false, false)
 
@@ -1902,10 +1460,6 @@ func TestCommitteeWriterOrchestrator_DeleteMember_CompleteFlow(t *testing.T) {
 	// Verify member was deleted
 	_, exists := memberWriter.members["member-complete"]
 	assert.False(t, exists, "Member should have been deleted from storage")
-
-	// Note: Secondary index cleanup is tested in deleteMemberKeys test
-	// The actual cleanup happens in the background and would be tested
-	// in integration tests with real NATS storage
 }
 
 // TestCommitteeWriterOrchestrator_DeleteMember_MessagePublishingFailure verifies that DeleteMember
@@ -2205,10 +1759,6 @@ func TestCommitteeWriterOrchestrator_UpdateMember_EmailAlreadyExists(t *testing.
 	}
 	memberWriter.members["member-456"] = existingMember2
 	memberWriter.customRevisions["member-456"] = 1
-
-	// Create lookup key for member 2's email
-	lookupKey2 := existingMember2.BuildIndexKey(context.Background())
-	memberWriter.keys[lookupKey2] = existingMember2.UID
 
 	// Try to update member 1 to use member 2's email
 	updatedMember := &model.CommitteeMember{
@@ -2556,4 +2106,80 @@ func TestPublishMemberMessages_SyncControlsOnlyIndexer(t *testing.T) {
 	require.Len(t, publisher.IndexerSyncValues, 1)
 	assert.True(t, publisher.IndexerSyncValues[0], "indexer publication must honor sync=true")
 	assert.Equal(t, 1, publisher.MemberPutCallCount, "member_put must publish regardless of sync")
+}
+
+func addMemberWriterTestCommittee(mockRepo *mock.MockRepository, uid string) {
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: uid, Name: "Test Committee", Category: "Technical"},
+		CommitteeSettings: &model.CommitteeSettings{UID: uid},
+	})
+}
+
+// TestCreateMember_StorageFailurePublishesNothing verifies that a failed storage create is returned to
+// the caller and nothing is published for a member that was not created. Storage owns the uniqueness
+// lock and the lookup entries, and removes them itself when it fails.
+func TestCreateMember_StorageFailurePublishesNothing(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"conflict", errs.NewConflict("member with the same email already exists in the committee")},
+		{"unexpected", errs.NewUnexpected("failed to index member by email")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+			addMemberWriterTestCommittee(mockRepo, "committee-failure")
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator.committeePublisher = publisher
+			memberWriter.createErr = tc.err
+
+			result, err := orchestrator.CreateMember(context.Background(), testMember("", "committee-failure", "first.last@example.com", "", ""), false, false)
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tc.err)
+			assert.Nil(t, result)
+			assert.Empty(t, memberWriter.members)
+			assert.Nil(t, publisher.LastIndexerMessage)
+			assert.Zero(t, publisher.MemberPutCallCount)
+		})
+	}
+}
+
+func testMember(uid, committeeUID, email, username, orgName string) *model.CommitteeMember {
+	return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:          uid,
+		CommitteeUID: committeeUID,
+		Email:        email,
+		Username:     username,
+		Organization: model.CommitteeMemberOrganization{Name: orgName},
+	}}
+}
+
+// TestRollbackCreatedMember covers the panic-recovery rollback: a member that was created earlier in
+// the request is removed again, even when the request context was cancelled (a client that timed out).
+// Storage removes the member's lookup entries together with the record.
+func TestRollbackCreatedMember(t *testing.T) {
+	t.Run("removes the member using a context that survives request cancellation", func(t *testing.T) {
+		orchestrator, _, memberWriter := setupMemberWriterTest()
+		orchestrator.committeeReader = memberWriter
+		memberWriter.rejectCancelledCtx = true // like storage on a cancelled request context
+		member := testMember("member-to-roll-back", "committee-123", "first.last@example.com", "", "")
+		memberWriter.members[member.UID] = member
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		orchestrator.rollbackCreatedMember(ctx, member.UID)
+
+		assert.True(t, memberWriter.wasDeleted(member.UID), "the rollback must run even though the request context is cancelled")
+		assert.NotContains(t, memberWriter.members, member.UID)
+	})
+
+	t.Run("a member that does not exist is a no-op", func(t *testing.T) {
+		orchestrator, _, memberWriter := setupMemberWriterTest()
+		orchestrator.committeeReader = memberWriter
+
+		orchestrator.rollbackCreatedMember(context.Background(), "unknown-member")
+
+		assert.Empty(t, memberWriter.deletedKeys)
+	})
 }
