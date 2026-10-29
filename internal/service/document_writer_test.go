@@ -22,6 +22,12 @@ type mockDocStorage struct {
 	revisions map[string]uint64
 	files     map[string][]byte
 	nameKeys  map[string]string // uniqueKey -> documentUID
+
+	// createErr, when set, is returned by CreateDocumentMetadata before any state changes.
+	createErr error
+	// skipNameCheck makes DocumentNameExists report false so a test can reach the authoritative
+	// uniqueness check in CreateDocumentMetadata (simulating a concurrent upload winning the name).
+	skipNameCheck bool
 }
 
 func newMockDocStorage() *mockDocStorage {
@@ -34,8 +40,16 @@ func newMockDocStorage() *mockDocStorage {
 }
 
 func (m *mockDocStorage) CreateDocumentMetadata(_ context.Context, doc *model.CommitteeDocument) error {
+	if m.createErr != nil {
+		return m.createErr
+	}
+	nameKey := doc.CommitteeUID + "|" + doc.Name
+	if _, exists := m.nameKeys[nameKey]; exists {
+		return errs.NewConflict("document with the same name already exists for this committee")
+	}
 	m.documents[doc.UID] = doc
 	m.revisions[doc.UID] = 1
+	m.nameKeys[nameKey] = doc.UID
 	return nil
 }
 
@@ -76,17 +90,16 @@ func (m *mockDocStorage) DeleteDocumentMetadata(_ context.Context, committeeUID,
 	return nil
 }
 
-func (m *mockDocStorage) UniqueDocumentName(_ context.Context, doc *model.CommitteeDocument) (string, error) {
-	uniqueKey := doc.CommitteeUID + "|" + doc.Name
-	if _, exists := m.nameKeys[uniqueKey]; exists {
-		return uniqueKey, errs.NewConflict("document with the same name already exists for this committee")
+func (m *mockDocStorage) DocumentNameExists(_ context.Context, committeeUID, name string) (bool, error) {
+	if m.skipNameCheck {
+		return false, nil
 	}
-	m.nameKeys[uniqueKey] = doc.UID
-	return uniqueKey, nil
+	_, exists := m.nameKeys[committeeUID+"|"+name]
+	return exists, nil
 }
 
-func (m *mockDocStorage) DeleteUniqueDocumentName(_ context.Context, uniqueKey string) error {
-	delete(m.nameKeys, uniqueKey)
+func (m *mockDocStorage) DeleteDocumentFile(_ context.Context, documentUID string) error {
+	delete(m.files, documentUID)
 	return nil
 }
 
@@ -427,4 +440,68 @@ func TestDeleteDocument_PublisherErrors_DoNotFail(t *testing.T) {
 
 	// Publisher errors are fire-and-forget; the delete must succeed.
 	require.NoError(t, err)
+}
+
+func newDuplicateTestDocs() (first, second *model.CommitteeDocument) {
+	first = &model.CommitteeDocument{
+		Name:         "Architecture Overview",
+		CommitteeUID: "committee-1",
+		FileName:     "arch.pdf",
+		ContentType:  "application/pdf",
+	}
+	second = &model.CommitteeDocument{
+		Name:         "Architecture Overview",
+		CommitteeUID: "committee-1",
+		FileName:     "arch-v2.pdf",
+		ContentType:  "application/pdf",
+	}
+	return first, second
+}
+
+func TestUploadDocument_DuplicateName_PreCheckDoesNotUploadFile(t *testing.T) {
+	storage := newMockDocStorage()
+	orch := newDocWriterOrch(storage)
+	first, second := newDuplicateTestDocs()
+
+	_, err := orch.UploadDocument(context.Background(), first, validPDFFileData(), false)
+	require.NoError(t, err)
+
+	_, err = orch.UploadDocument(context.Background(), second, validPDFFileData(), false)
+
+	var conflictErr errs.Conflict
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Len(t, storage.files, 1, "a rejected duplicate must not leave a second file behind")
+	assert.Len(t, storage.documents, 1)
+}
+
+func TestUploadDocument_DuplicateName_LostRaceRemovesUploadedFile(t *testing.T) {
+	storage := newMockDocStorage()
+	orch := newDocWriterOrch(storage)
+	first, second := newDuplicateTestDocs()
+
+	_, err := orch.UploadDocument(context.Background(), first, validPDFFileData(), false)
+	require.NoError(t, err)
+
+	// Simulate a concurrent upload that won the name after the pre-check passed: the
+	// authoritative check in CreateDocumentMetadata rejects this one.
+	storage.skipNameCheck = true
+	_, err = orch.UploadDocument(context.Background(), second, validPDFFileData(), false)
+
+	var conflictErr errs.Conflict
+	require.ErrorAs(t, err, &conflictErr)
+	assert.Len(t, storage.files, 1, "the file uploaded for the losing request must be removed")
+	assert.Len(t, storage.documents, 1)
+}
+
+func TestUploadDocument_MetadataCreateFails_RemovesUploadedFile(t *testing.T) {
+	storage := newMockDocStorage()
+	storage.createErr = errors.New("metadata store unavailable")
+	orch := newDocWriterOrch(storage)
+	first, _ := newDuplicateTestDocs()
+
+	_, err := orch.UploadDocument(context.Background(), first, validPDFFileData(), false)
+
+	require.Error(t, err)
+	assert.Empty(t, storage.files, "the uploaded file must not be orphaned when metadata creation fails")
+	assert.Empty(t, storage.documents)
 }

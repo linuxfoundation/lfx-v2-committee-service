@@ -49,6 +49,14 @@ func (m *memKV) Delete(_ context.Context, key string, _ ...jetstream.KVDeleteOpt
 	return nil
 }
 
+func (m *memKV) Purge(_ context.Context, key string, _ ...jetstream.KVDeleteOpt) error {
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
+	delete(m.keys, key)
+	return nil
+}
+
 func newTestStorageWithBucket(bucket string, kv jetstream.KeyValue) *storage {
 	return &storage{client: &NATSClient{kvStore: map[string]jetstream.KeyValue{bucket: kv}}}
 }

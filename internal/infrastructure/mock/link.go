@@ -89,8 +89,13 @@ func (m *MockLinkRepository) CreateLinkFolder(ctx context.Context, folder *model
 	slog.DebugContext(ctx, "mock link repository: creating folder", "uid", folder.UID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	nameKey := fmt.Sprintf("%s|%s", folder.CommitteeUID, folder.Name)
+	if _, exists := m.folderNameKeys[nameKey]; exists {
+		return errs.NewConflict("folder with the same name already exists for this committee")
+	}
 	m.folders[folder.UID] = folder
 	m.folderRevisions[folder.UID] = 1
+	m.folderNameKeys[nameKey] = folder.UID
 	return nil
 }
 
@@ -129,25 +134,8 @@ func (m *MockLinkRepository) DeleteLinkFolder(ctx context.Context, committeeUID,
 	if m.folderRevisions[folderUID] != revision {
 		return errs.NewConflict("folder has been modified or deleted")
 	}
+	delete(m.folderNameKeys, fmt.Sprintf("%s|%s", folder.CommitteeUID, folder.Name))
 	delete(m.folders, folderUID)
 	delete(m.folderRevisions, folderUID)
-	return nil
-}
-
-func (m *MockLinkRepository) UniqueLinkFolderName(ctx context.Context, folder *model.CommitteeLinkFolder) (string, error) {
-	uniqueKey := fmt.Sprintf("%s|%s", folder.CommitteeUID, folder.Name)
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if _, exists := m.folderNameKeys[uniqueKey]; exists {
-		return uniqueKey, errs.NewConflict("folder with the same name already exists for this committee")
-	}
-	m.folderNameKeys[uniqueKey] = folder.UID
-	return uniqueKey, nil
-}
-
-func (m *MockLinkRepository) DeleteUniqueLinkFolderName(ctx context.Context, uniqueKey string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.folderNameKeys, uniqueKey)
 	return nil
 }

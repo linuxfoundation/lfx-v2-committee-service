@@ -95,32 +95,26 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 	doc.CreatedAt = now
 	doc.UpdatedAt = now
 
-	uniqueKey, err := o.docWriter.UniqueDocumentName(ctx, doc)
+	// Fast-fail on a taken name before uploading the file. This check is not authoritative (a
+	// concurrent upload can still win the name); CreateDocumentMetadata below is.
+	exists, err := o.docReader.DocumentNameExists(ctx, doc.CommitteeUID, doc.Name)
 	if err != nil {
 		return nil, err
 	}
+	if exists {
+		return nil, errs.NewConflict("document with the same name already exists for this committee")
+	}
 
-	// Store file first; if this fails, roll back the name reservation.
 	if err := o.docWriter.PutDocumentFile(ctx, doc.UID, fileData); err != nil {
-		if errCleanup := o.docWriter.DeleteUniqueDocumentName(ctx, uniqueKey); errCleanup != nil {
-			slog.WarnContext(ctx, "failed to rollback document name reservation",
-				"unique_key", uniqueKey,
-				"error", errCleanup,
-			)
-		}
 		return nil, err
 	}
 
 	if err := o.docWriter.CreateDocumentMetadata(ctx, doc); err != nil {
-		// NOTE: The file written by PutDocumentFile above is not rolled back here.
-		// This is an accepted trade-off: metadata creation failures are rare, orphaned
-		// files are bounded by the 10 GB object store limit, and normal deletes clean
-		// up files. A DeleteDocumentFile port method could be added if orphan volume
-		// becomes a concern.
-		// Roll back the uniqueness reservation so the name can be reused
-		if errCleanup := o.docWriter.DeleteUniqueDocumentName(ctx, uniqueKey); errCleanup != nil {
-			slog.WarnContext(ctx, "failed to rollback document name reservation",
-				"unique_key", uniqueKey,
+		// The metadata was not created (name conflict or write failure), so the file just stored
+		// is unreferenced; remove it so it does not accumulate in the object store.
+		if errCleanup := o.docWriter.DeleteDocumentFile(ctx, doc.UID); errCleanup != nil {
+			slog.WarnContext(ctx, "failed to remove uploaded document file after metadata creation failed",
+				"document_uid", doc.UID,
 				"error", errCleanup,
 			)
 		}

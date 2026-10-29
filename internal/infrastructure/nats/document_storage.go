@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -46,6 +47,10 @@ func (ds *documentStorage) getMetadata(ctx context.Context, uid string, target a
 	return entry.Revision(), nil
 }
 
+// CreateDocumentMetadata creates the document metadata. It first reserves the (committee, document
+// name) uniqueness lookup key and returns errs.Conflict if the name is already taken. If writing
+// the metadata record fails after the key was reserved, the key is released so the name is not
+// left locked.
 func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument) error {
 	if doc == nil {
 		return errs.NewValidation("document cannot be nil")
@@ -54,8 +59,26 @@ func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *mode
 	if errMarshal != nil {
 		return errs.NewUnexpected("failed to marshal document", errMarshal)
 	}
-	rev, errCreate := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments].Create(ctx, doc.UID, docBytes)
+
+	kv := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments]
+
+	uniqueKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
+	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(doc.UID)); errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return errs.NewConflict("document with the same name already exists for this committee")
+		}
+		return errs.NewUnexpected("failed to create unique key for document name", errUnique)
+	}
+
+	rev, errCreate := kv.Create(ctx, doc.UID, docBytes)
 	if errCreate != nil {
+		if errPurge := kv.Purge(ctx, uniqueKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+			slog.ErrorContext(ctx, "failed to release document name lookup key",
+				"error", errPurge,
+				"key", uniqueKey,
+				log.PriorityCritical(),
+			)
+		}
 		return errs.NewUnexpected("failed to create document metadata", errCreate)
 	}
 	slog.DebugContext(ctx, "created document metadata in NATS storage",
@@ -112,22 +135,27 @@ func (ds *documentStorage) GetDocumentFile(ctx context.Context, documentUID stri
 	return data, nil
 }
 
-func (ds *documentStorage) UniqueDocumentName(ctx context.Context, doc *model.CommitteeDocument) (string, error) {
-	uniqueKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
-	_, errUnique := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments].Create(ctx, uniqueKey, []byte(doc.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return uniqueKey, errs.NewConflict("document with the same name already exists for this committee")
+// DocumentNameExists reports whether the name is already reserved in the committee. It reads the
+// same uniqueness lookup key that CreateDocumentMetadata reserves.
+func (ds *documentStorage) DocumentNameExists(ctx context.Context, committeeUID, name string) (bool, error) {
+	probe := &model.CommitteeDocument{CommitteeUID: committeeUID, Name: name}
+	uniqueKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, probe.BuildIndexKey(ctx))
+	if _, errGet := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments].Get(ctx, uniqueKey); errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return false, nil
 		}
-		return uniqueKey, errs.NewUnexpected("failed to create unique key for document name", errUnique)
+		return false, errs.NewUnexpected("failed to check document name", errGet)
 	}
-	return uniqueKey, nil
+	return true, nil
 }
 
-func (ds *documentStorage) DeleteUniqueDocumentName(ctx context.Context, uniqueKey string) error {
-	errPurge := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments].Purge(ctx, uniqueKey)
-	if errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
-		return errs.NewUnexpected("failed to delete document name uniqueness key", errPurge)
+// DeleteDocumentFile removes the file from the object store. A missing file is not an error.
+func (ds *documentStorage) DeleteDocumentFile(ctx context.Context, documentUID string) error {
+	if errDel := ds.client.objStore[constants.ObjectStoreNameCommitteeDocuments].Delete(ctx, documentUID); errDel != nil {
+		if errors.Is(errDel, jetstream.ErrObjectNotFound) {
+			return nil
+		}
+		return errs.NewUnexpected("failed to delete document file", errDel)
 	}
 	return nil
 }
@@ -158,11 +186,9 @@ func (ds *documentStorage) DeleteDocumentMetadata(ctx context.Context, committee
 	// Best-effort deletion of the binary file from object store.
 	// Metadata is already gone so the file is API-inaccessible even if this fails.
 	// Logged for ops visibility; does not fail the delete response.
-	if errDel := ds.client.objStore[constants.ObjectStoreNameCommitteeDocuments].Delete(ctx, documentUID); errDel != nil {
-		if !errors.Is(errDel, jetstream.ErrObjectNotFound) {
-			slog.WarnContext(ctx, "failed to delete document file from object store (non-fatal)",
-				"document_uid", documentUID, "error", errDel)
-		}
+	if errDel := ds.DeleteDocumentFile(ctx, documentUID); errDel != nil {
+		slog.WarnContext(ctx, "failed to delete document file from object store (non-fatal)",
+			"document_uid", documentUID, "error", errDel)
 	}
 	slog.DebugContext(ctx, "deleted document metadata from NATS storage",
 		"document_uid", documentUID,

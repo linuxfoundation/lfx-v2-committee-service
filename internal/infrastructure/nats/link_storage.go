@@ -14,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -90,6 +91,9 @@ func (s *storage) DeleteLink(ctx context.Context, committeeUID, linkUID string, 
 	return nil
 }
 
+// CreateLinkFolder creates a folder. It first reserves the (committee, folder name) uniqueness
+// lookup key and returns errs.Conflict if the name is already taken. If writing the folder record
+// fails after the key was reserved, the key is released so the name is not left locked.
 func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) error {
 	if folder == nil {
 		return errs.NewValidation("folder cannot be nil")
@@ -98,31 +102,29 @@ func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeL
 	if errMarshal != nil {
 		return errs.NewUnexpected("failed to marshal folder", errMarshal)
 	}
-	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Create(ctx, folder.UID, folderBytes)
+
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeFolders]
+
+	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))
+	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(folder.UID)); errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return errs.NewConflict("folder with the same name already exists for this committee")
+		}
+		return errs.NewUnexpected("failed to create unique key for folder name", errUnique)
+	}
+
+	rev, errCreate := kv.Create(ctx, folder.UID, folderBytes)
 	if errCreate != nil {
+		if errPurge := kv.Purge(ctx, uniqueKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+			slog.ErrorContext(ctx, "failed to release folder name lookup key",
+				"error", errPurge,
+				"key", uniqueKey,
+				log.PriorityCritical(),
+			)
+		}
 		return errs.NewUnexpected("failed to create folder", errCreate)
 	}
 	slog.DebugContext(ctx, "created folder in NATS storage", "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID, "revision", rev)
-	return nil
-}
-
-func (s *storage) UniqueLinkFolderName(ctx context.Context, folder *model.CommitteeLinkFolder) (string, error) {
-	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))
-	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Create(ctx, uniqueKey, []byte(folder.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return uniqueKey, errs.NewConflict("folder with the same name already exists for this committee")
-		}
-		return uniqueKey, errs.NewUnexpected("failed to create unique key for folder name", errUnique)
-	}
-	return uniqueKey, nil
-}
-
-func (s *storage) DeleteUniqueLinkFolderName(ctx context.Context, uniqueKey string) error {
-	errPurge := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Purge(ctx, uniqueKey)
-	if errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
-		return errs.NewUnexpected("failed to delete folder name uniqueness key", errPurge)
-	}
 	return nil
 }
 
