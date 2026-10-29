@@ -70,7 +70,13 @@ keys reserved by that call are released. If it landed despite the error, the ope
 success. If the state cannot be read, the keys are kept, which blocks reuse instead of allowing a
 duplicate. The cleanup runs on a context detached from the request, so a cancelled request still
 releases its keys. A key is only released when its value is the committee's own UID, and a key the
-committee already owns is not treated as a conflict. Callers never see or build these keys.
+committee already owns is not treated as a conflict. A failed or superseded update never releases a key
+that the committee as currently stored still uses, and an old SSO group name is released when it was
+cleared as well as when it was replaced. Callers never see or build these keys.
+
+NATS KV has no multi-key transaction, so a rename racing exactly between the read that checks which keys
+the committee uses and the release of a stale key cannot be ruled out. Closing that window would take a
+per-committee lock across service instances.
 
 Constants `KVLookupSettingsInvitePrefix` (`lookup/committee-settings-invite/<invite_uid>`) and
 `KVSlugPrefix` (`slug/`) are defined, but no current write path creates keys with them. The `slug/`

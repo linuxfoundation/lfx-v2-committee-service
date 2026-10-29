@@ -5,6 +5,7 @@ package nats
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -23,6 +24,12 @@ import (
 type lockKV struct {
 	jetstream.KeyValue
 	values map[string][]byte
+	revs   map[string]uint64 // per-key revision: 1 on create, +1 on every update
+
+	// Hooks to interleave another writer with an operation under test. Each runs once.
+	beforeUpdate   func() // at the start of Update, before the revision check
+	afterUpdate    func() // after Update stored its value, before it returns
+	afterAmbiguous func() // after an ambiguous Update stored its value and before it reports the error
 
 	failCreateFor string // Create fails without storing for this key
 	ambiguousFor  string // Create/Update store the value, then report an error
@@ -41,7 +48,7 @@ type lockKV struct {
 	cancel         context.CancelFunc
 }
 
-func newLockKV() *lockKV { return &lockKV{values: map[string][]byte{}} }
+func newLockKV() *lockKV { return &lockKV{values: map[string][]byte{}, revs: map[string]uint64{}} }
 
 func (k *lockKV) Create(_ context.Context, key string, value []byte, _ ...jetstream.KVCreateOpt) (uint64, error) {
 	if key == k.failCreateFor {
@@ -55,13 +62,18 @@ func (k *lockKV) Create(_ context.Context, key string, value []byte, _ ...jetstr
 		return 0, jetstream.ErrKeyExists
 	}
 	k.values[key] = value
+	k.revs[key] = 1
 	if key == k.ambiguousFor {
 		return 0, errors.New("simulated timeout after the write was committed")
 	}
 	return 1, nil
 }
 
-func (k *lockKV) Update(_ context.Context, key string, value []byte, _ uint64) (uint64, error) {
+func (k *lockKV) Update(_ context.Context, key string, value []byte, revision uint64) (uint64, error) {
+	if hook := k.beforeUpdate; hook != nil {
+		k.beforeUpdate = nil
+		hook()
+	}
 	k.updateAttempted = true
 	if _, ok := k.values[key]; !ok {
 		return 0, jetstream.ErrKeyNotFound
@@ -69,11 +81,23 @@ func (k *lockKV) Update(_ context.Context, key string, value []byte, _ uint64) (
 	if k.failUpdate {
 		return 0, errors.New("simulated update failure")
 	}
+	if revision != k.revs[key] {
+		return 0, errors.New("wrong last sequence")
+	}
 	k.values[key] = value
+	k.revs[key]++
 	if key == k.ambiguousFor {
+		if hook := k.afterAmbiguous; hook != nil {
+			k.afterAmbiguous = nil
+			hook()
+		}
 		return 0, errors.New("simulated timeout after the write was committed")
 	}
-	return 2, nil
+	if hook := k.afterUpdate; hook != nil {
+		k.afterUpdate = nil
+		hook()
+	}
+	return k.revs[key], nil
 }
 
 func (k *lockKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
@@ -87,7 +111,7 @@ func (k *lockKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, 
 	if !ok {
 		return nil, jetstream.ErrKeyNotFound
 	}
-	return &mockEntry{value: value, rev: 1}, nil
+	return &mockEntry{value: value, rev: k.revs[key]}, nil
 }
 
 func (k *lockKV) Delete(_ context.Context, key string, _ ...jetstream.KVDeleteOpt) error {
@@ -98,6 +122,7 @@ func (k *lockKV) Delete(_ context.Context, key string, _ ...jetstream.KVDeleteOp
 		return errors.New("simulated delete failure")
 	}
 	delete(k.values, key)
+	delete(k.revs, key)
 	if key == k.ambiguousDeleteFor {
 		return errors.New("simulated timeout after the delete was applied")
 	}
@@ -112,6 +137,7 @@ func (k *lockKV) Purge(ctx context.Context, key string, _ ...jetstream.KVDeleteO
 		return k.purgeErr
 	}
 	delete(k.values, key)
+	delete(k.revs, key)
 	return nil
 }
 
@@ -432,6 +458,76 @@ func TestStorage_UpdateBaseCommittee(t *testing.T) {
 		require.NoError(t, s.UpdateBase(ctx, renamed("Steering Committee", "project-1-tsc"), 1))
 
 		assert.Equal(t, []byte("some-other-committee"), committees.values[nameLockKey(ctx, original)])
+	})
+
+	t.Run("a stale revision fails the update and releases the new lookup keys", func(t *testing.T) {
+		s, committees, _ := seed(t)
+		require.NoError(t, s.UpdateBase(ctx, renamed("Steering Committee", "project-1-tsc"), 1))
+		stale := renamed("Technical Committee", "project-1-tsc-2")
+
+		require.Error(t, s.UpdateBase(ctx, stale, 1), "revision 1 is stale after the first update")
+
+		assert.NotContains(t, committees.values, nameLockKey(ctx, stale))
+		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc-2"))
+	})
+
+	t.Run("a losing concurrent update does not release a lock the winning update uses", func(t *testing.T) {
+		s, committees, _ := seed(t)
+		losing := renamed("Steering Committee", "project-1-tsc")
+		winning := renamed("Steering Committee", "project-1-tsc")
+		winning.Category = "Winner"
+		// The losing update reserves the new name first; the winning update then reuses that lock and
+		// commits at the same revision before the losing update's write.
+		committees.beforeUpdate = func() {
+			require.NoError(t, s.UpdateBase(ctx, winning, 1))
+		}
+
+		require.Error(t, s.UpdateBase(ctx, losing, 1))
+
+		assert.Contains(t, committees.values, nameLockKey(ctx, winning), "the stored committee must keep its name lock")
+		stored := &model.CommitteeBase{}
+		require.NoError(t, json.Unmarshal(committees.values["c-1"], stored))
+		assert.Equal(t, "Winner", stored.Category)
+	})
+
+	t.Run("an ambiguous rename that is later changed by another writer keeps the locks the committee uses", func(t *testing.T) {
+		s, committees, _ := seed(t)
+		committees.ambiguousFor = "c-1"
+		updated := renamed("Steering Committee", "project-1-tsc-2")
+		// Another writer (for example a member count sync) changes the record before the read-back,
+		// so the stored bytes no longer equal what the update wrote, but the rename is live.
+		committees.afterAmbiguous = func() {
+			stored := &model.CommitteeBase{}
+			require.NoError(t, json.Unmarshal(committees.values["c-1"], stored))
+			stored.TotalMembers = 5
+			changed, err := json.Marshal(stored)
+			require.NoError(t, err)
+			committees.values["c-1"] = changed
+		}
+
+		require.Error(t, s.UpdateBase(ctx, updated, 1))
+
+		assert.Contains(t, committees.values, nameLockKey(ctx, updated))
+		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc-2"))
+	})
+
+	t.Run("a stale lock the committee holds again by cleanup time is kept", func(t *testing.T) {
+		s, committees, original := seed(t)
+		originalBytes := committees.values["c-1"]
+		// Another update renames the committee back to its original name before this update's cleanup.
+		committees.afterUpdate = func() { committees.values["c-1"] = originalBytes }
+
+		require.NoError(t, s.UpdateBase(ctx, renamed("Steering Committee", "project-1-tsc"), 1))
+
+		assert.Contains(t, committees.values, nameLockKey(ctx, original), "the name the committee holds again must stay locked")
+	})
+
+	t.Run("clearing the SSO group name releases the old SSO lock", func(t *testing.T) {
+		s, committees, _ := seed(t)
+
+		require.NoError(t, s.UpdateBase(ctx, renamed("TSC", ""), 1))
+
+		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc"))
 	})
 
 	t.Run("an unknown committee is not found", func(t *testing.T) {
