@@ -1010,8 +1010,13 @@ func (w *MockCommitteeWriter) CreateInvite(ctx context.Context, invite *model.Co
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
+	indexKey := invite.BuildIndexKey(ctx)
+	if _, exists := w.mock.inviteIndexKeys[indexKey]; exists {
+		return errors.NewConflict("invite already exists")
+	}
+
 	w.mock.committeeInvites[invite.UID] = invite
-	w.mock.inviteIndexKeys[invite.BuildIndexKey(ctx)] = invite
+	w.mock.inviteIndexKeys[indexKey] = invite
 	w.mock.inviteRevisions[invite.UID] = 1
 	return nil
 }
@@ -1033,20 +1038,6 @@ func (w *MockCommitteeWriter) UpdateInvite(ctx context.Context, invite *model.Co
 	return nil
 }
 
-// UniqueInvite checks if an invite is unique
-func (w *MockCommitteeWriter) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
-	slog.DebugContext(ctx, "mock committee writer: checking invite uniqueness")
-
-	w.mock.mu.RLock()
-	defer w.mock.mu.RUnlock()
-
-	indexKey := invite.BuildIndexKey(ctx)
-	if _, exists := w.mock.inviteIndexKeys[indexKey]; exists {
-		return indexKey, errors.NewConflict("invite already exists")
-	}
-	return indexKey, nil
-}
-
 // ================== CommitteeApplicationWriter implementation ==================
 
 // CreateApplication creates a new committee application
@@ -1061,8 +1052,13 @@ func (w *MockCommitteeWriter) CreateApplication(ctx context.Context, application
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
+	indexKey := application.BuildIndexKey(ctx)
+	if _, exists := w.mock.applicationIndexKeys[indexKey]; exists {
+		return errors.NewConflict("application already exists")
+	}
+
 	w.mock.committeeApplications[application.UID] = application
-	w.mock.applicationIndexKeys[application.BuildIndexKey(ctx)] = application
+	w.mock.applicationIndexKeys[indexKey] = application
 	w.mock.applicationRevisions[application.UID] = 1
 	return nil
 }
@@ -1096,20 +1092,6 @@ func (w *MockCommitteeWriter) DeleteApplication(ctx context.Context, application
 	delete(w.mock.applicationIndexKeys, indexKey)
 	delete(w.mock.applicationRevisions, application.UID)
 	return nil
-}
-
-// UniqueApplication checks if an application is unique
-func (w *MockCommitteeWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
-	slog.DebugContext(ctx, "mock committee writer: checking application uniqueness")
-
-	w.mock.mu.RLock()
-	defer w.mock.mu.RUnlock()
-
-	indexKey := application.BuildIndexKey(ctx)
-	if _, exists := w.mock.applicationIndexKeys[indexKey]; exists {
-		return indexKey, errors.NewConflict("application already exists")
-	}
-	return indexKey, nil
 }
 
 // MockProjectRetriever implements ProjectRetriever interface

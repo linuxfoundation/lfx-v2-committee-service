@@ -11,14 +11,13 @@ import (
 
 // CommitteeApplicationWriter provides access to committee application writing operations
 type CommitteeApplicationWriter interface {
-	// CreateApplication creates a new committee application
+	// CreateApplication creates a new committee application. At most one application exists per
+	// (committee, applicant email); a second create for the same pair returns errs.Conflict and
+	// leaves storage unchanged.
 	CreateApplication(ctx context.Context, application *model.CommitteeApplication) error
 	// UpdateApplication updates an existing committee application
 	UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error
-	// DeleteApplication removes a committee application record and its uniqueness index key from storage.
+	// DeleteApplication removes a committee application record and releases its uniqueness from storage.
 	// Intended for cascade deletion when the parent committee is deleted; no revision check is performed.
 	DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error
-
-	// Checkers for uniqueness
-	UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error)
 }

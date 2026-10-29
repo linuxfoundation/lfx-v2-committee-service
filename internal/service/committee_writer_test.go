@@ -125,11 +125,6 @@ func (w *TestMockCommitteeWriter) UpdateInvite(ctx context.Context, invite *mode
 	return mockWriter.UpdateInvite(ctx, invite, revision)
 }
 
-func (w *TestMockCommitteeWriter) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.UniqueInvite(ctx, invite)
-}
-
 // Implement CommitteeApplicationWriter interface
 func (w *TestMockCommitteeWriter) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
@@ -144,11 +139,6 @@ func (w *TestMockCommitteeWriter) UpdateApplication(ctx context.Context, applica
 func (w *TestMockCommitteeWriter) DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.mock)
 	return mockWriter.DeleteApplication(ctx, application)
-}
-
-func (w *TestMockCommitteeWriter) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.mock)
-	return mockWriter.UniqueApplication(ctx, application)
 }
 
 func TestCommitteeWriterOrchestrator_Create(t *testing.T) {
