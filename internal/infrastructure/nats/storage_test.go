@@ -28,6 +28,17 @@ type lockKV struct {
 	ambiguousFor  string // Create/Update store the value, then report an error
 	failUpdate    bool   // Update fails without storing
 	purgeErr      error
+
+	getErrFor          string // Get fails with a generic (not NotFound) error for this key
+	failGetAfterUpdate bool   // once Update was attempted, Get fails with a generic error
+	updateAttempted    bool
+	deleteFailFor      string // Delete fails without applying for this key
+	ambiguousDeleteFor string // Delete applies, then reports an error
+
+	// cancelOnCreate makes Create for that key cancel the request context and fail without storing,
+	// simulating a client disconnect. Get and Purge then honor the (cancelled) context they are given.
+	cancelOnCreate string
+	cancel         context.CancelFunc
 }
 
 func newLockKV() *lockKV { return &lockKV{values: map[string][]byte{}} }
@@ -35,6 +46,10 @@ func newLockKV() *lockKV { return &lockKV{values: map[string][]byte{}} }
 func (k *lockKV) Create(_ context.Context, key string, value []byte, _ ...jetstream.KVCreateOpt) (uint64, error) {
 	if key == k.failCreateFor {
 		return 0, errors.New("simulated create failure")
+	}
+	if key == k.cancelOnCreate {
+		k.cancel()
+		return 0, context.Canceled
 	}
 	if _, ok := k.values[key]; ok {
 		return 0, jetstream.ErrKeyExists
@@ -47,6 +62,7 @@ func (k *lockKV) Create(_ context.Context, key string, value []byte, _ ...jetstr
 }
 
 func (k *lockKV) Update(_ context.Context, key string, value []byte, _ uint64) (uint64, error) {
+	k.updateAttempted = true
 	if _, ok := k.values[key]; !ok {
 		return 0, jetstream.ErrKeyNotFound
 	}
@@ -60,7 +76,13 @@ func (k *lockKV) Update(_ context.Context, key string, value []byte, _ uint64) (
 	return 2, nil
 }
 
-func (k *lockKV) Get(_ context.Context, key string) (jetstream.KeyValueEntry, error) {
+func (k *lockKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if key == k.getErrFor || (k.failGetAfterUpdate && k.updateAttempted) {
+		return nil, errors.New("simulated read failure")
+	}
 	value, ok := k.values[key]
 	if !ok {
 		return nil, jetstream.ErrKeyNotFound
@@ -72,11 +94,20 @@ func (k *lockKV) Delete(_ context.Context, key string, _ ...jetstream.KVDeleteOp
 	if _, ok := k.values[key]; !ok {
 		return jetstream.ErrKeyNotFound
 	}
+	if key == k.deleteFailFor {
+		return errors.New("simulated delete failure")
+	}
 	delete(k.values, key)
+	if key == k.ambiguousDeleteFor {
+		return errors.New("simulated timeout after the delete was applied")
+	}
 	return nil
 }
 
-func (k *lockKV) Purge(_ context.Context, key string, _ ...jetstream.KVDeleteOpt) error {
+func (k *lockKV) Purge(ctx context.Context, key string, _ ...jetstream.KVDeleteOpt) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if k.purgeErr != nil {
 		return k.purgeErr
 	}
@@ -189,17 +220,62 @@ func TestStorage_CreateCommittee(t *testing.T) {
 		assert.Empty(t, settings.values)
 	})
 
-	t.Run("an ambiguous committee write keeps the lookup keys so a duplicate cannot be created", func(t *testing.T) {
-		s, committees, _ := newCommitteeLockStorage()
+	t.Run("an ambiguous committee write that landed is treated as created", func(t *testing.T) {
+		s, committees, settings := newCommitteeLockStorage()
 		committees.ambiguousFor = "c-1"
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+
+		require.NoError(t, s.Create(ctx, c))
+
+		assert.Contains(t, settings.values, "c-1", "the create continues and writes the settings")
+		assert.Contains(t, committees.values, nameLockKey(ctx, c))
+		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc"))
+	})
+
+	t.Run("a failed committee write whose state cannot be read keeps the lookup keys", func(t *testing.T) {
+		s, committees, _ := newCommitteeLockStorage()
+		committees.failCreateFor = "c-1"
+		committees.getErrFor = "c-1"
 		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
 
 		require.Error(t, s.Create(ctx, c))
 
+		assert.Contains(t, committees.values, nameLockKey(ctx, c), "an unconfirmed outcome must keep the reservation")
+		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc"))
+	})
+
+	t.Run("a cancelled request still releases the lookup keys", func(t *testing.T) {
+		s, committees, _ := newCommitteeLockStorage()
+		reqCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		committees.cancel, committees.cancelOnCreate = cancel, "c-1"
+
+		require.Error(t, s.Create(reqCtx, testCommittee("c-1", "project-1", "TSC", "project-1-tsc")))
+
+		assert.Empty(t, committees.values, "the locks must not stay held because the request was cancelled")
+	})
+
+	t.Run("an ambiguous settings write that landed is treated as created", func(t *testing.T) {
+		s, committees, settings := newCommitteeLockStorage()
+		settings.ambiguousFor = "c-1"
+
+		require.NoError(t, s.Create(ctx, testCommittee("c-1", "project-1", "TSC", "project-1-tsc")))
+
+		assert.Contains(t, committees.values, "c-1")
+		assert.Contains(t, settings.values, "c-1")
+	})
+
+	t.Run("a failed settings write whose committee cannot be removed keeps the committee and its lookup keys", func(t *testing.T) {
+		s, committees, settings := newCommitteeLockStorage()
+		settings.failCreateFor = "c-1"
+		committees.deleteFailFor = "c-1"
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+
+		require.Error(t, s.Create(ctx, c))
+
+		assert.Contains(t, committees.values, "c-1")
 		assert.Contains(t, committees.values, nameLockKey(ctx, c))
 		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc"))
-		var conflict errs.Conflict
-		assert.ErrorAs(t, s.Create(ctx, testCommittee("c-2", "project-1", "TSC", "")), &conflict)
 	})
 
 	t.Run("nil committee is a validation error", func(t *testing.T) {
@@ -300,14 +376,62 @@ func TestStorage_UpdateBaseCommittee(t *testing.T) {
 		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc"))
 	})
 
-	t.Run("an ambiguous write keeps the new lookup keys so a duplicate cannot be created", func(t *testing.T) {
-		s, committees, _ := seed(t)
+	t.Run("an ambiguous write that landed is treated as updated and releases the old lookup keys", func(t *testing.T) {
+		s, committees, original := seed(t)
 		committees.ambiguousFor = "c-1"
+		updated := renamed("Steering Committee", "project-1-tsc-2")
+
+		require.NoError(t, s.UpdateBase(ctx, updated, 1))
+
+		assert.Contains(t, committees.values, nameLockKey(ctx, updated))
+		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc-2"))
+		assert.NotContains(t, committees.values, nameLockKey(ctx, original), "the old name must not stay locked")
+		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc"), "the old SSO group name must not stay locked")
+	})
+
+	t.Run("a failed write whose state cannot be read keeps the new lookup keys", func(t *testing.T) {
+		s, committees, _ := seed(t)
+		committees.failUpdate = true
+		committees.failGetAfterUpdate = true // the initial read succeeds; the read-back after the failed write does not
 		updated := renamed("Steering Committee", "project-1-tsc")
 
 		require.Error(t, s.UpdateBase(ctx, updated, 1))
 
-		assert.Contains(t, committees.values, nameLockKey(ctx, updated))
+		assert.Contains(t, committees.values, nameLockKey(ctx, updated), "an unconfirmed outcome must keep the reservation")
+	})
+
+	t.Run("a cancelled request still releases the new lookup keys", func(t *testing.T) {
+		s, committees, _ := seed(t)
+		committees.failUpdate = true
+		updated := renamed("Steering Committee", "project-1-tsc-2")
+		reqCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		require.Error(t, s.UpdateBase(reqCtx, updated, 1))
+
+		assert.NotContains(t, committees.values, nameLockKey(ctx, updated))
+		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc-2"))
+	})
+
+	t.Run("moving back to a name whose lock the committee already owns is not a conflict", func(t *testing.T) {
+		s, committees, original := seed(t)
+		// A lock left over from earlier data: this committee already owns the target name's lock.
+		target := renamed("Steering Committee", "project-1-tsc")
+		committees.values[nameLockKey(ctx, target)] = []byte("c-1")
+
+		require.NoError(t, s.UpdateBase(ctx, target, 1))
+
+		assert.Contains(t, committees.values, nameLockKey(ctx, target), "an already-owned lock must be kept")
+		assert.NotContains(t, committees.values, nameLockKey(ctx, original))
+	})
+
+	t.Run("a lock owned by another committee is not released", func(t *testing.T) {
+		s, committees, original := seed(t)
+		committees.values[nameLockKey(ctx, original)] = []byte("some-other-committee")
+
+		require.NoError(t, s.UpdateBase(ctx, renamed("Steering Committee", "project-1-tsc"), 1))
+
+		assert.Equal(t, []byte("some-other-committee"), committees.values[nameLockKey(ctx, original)])
 	})
 
 	t.Run("an unknown committee is not found", func(t *testing.T) {
@@ -341,6 +465,53 @@ func TestStorage_DeleteCommittee(t *testing.T) {
 		require.NoError(t, s.Delete(ctx, "c-1", 1))
 
 		assert.Empty(t, committees.values)
+	})
+
+	t.Run("a settings delete failure still releases the lookup keys", func(t *testing.T) {
+		s, committees, settings := newCommitteeLockStorage()
+		require.NoError(t, s.Create(ctx, testCommittee("c-1", "project-1", "TSC", "project-1-tsc")))
+		settings.deleteFailFor = "c-1"
+
+		err := s.Delete(ctx, "c-1", 1)
+
+		require.Error(t, err)
+		assert.NotContains(t, committees.values, "c-1")
+		assert.Empty(t, committees.values, "the name and SSO group name must not stay locked after the committee is gone")
+	})
+
+	t.Run("a delete that was applied despite an error continues and releases the lookup keys", func(t *testing.T) {
+		s, committees, settings := newCommitteeLockStorage()
+		require.NoError(t, s.Create(ctx, testCommittee("c-1", "project-1", "TSC", "project-1-tsc")))
+		committees.ambiguousDeleteFor = "c-1"
+
+		require.NoError(t, s.Delete(ctx, "c-1", 1))
+
+		assert.Empty(t, committees.values)
+		assert.Empty(t, settings.values)
+	})
+
+	t.Run("a failed delete that cannot be confirmed keeps the committee and its lookup keys", func(t *testing.T) {
+		s, committees, _ := newCommitteeLockStorage()
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+		require.NoError(t, s.Create(ctx, c))
+		committees.deleteFailFor = "c-1"
+
+		require.Error(t, s.Delete(ctx, "c-1", 1))
+
+		assert.Contains(t, committees.values, "c-1")
+		assert.Contains(t, committees.values, nameLockKey(ctx, c))
+	})
+
+	t.Run("a lookup key owned by another committee is not released", func(t *testing.T) {
+		s, committees, _ := newCommitteeLockStorage()
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+		require.NoError(t, s.Create(ctx, c))
+		committees.values[nameLockKey(ctx, c)] = []byte("some-other-committee")
+
+		require.NoError(t, s.Delete(ctx, "c-1", 1))
+
+		assert.Equal(t, []byte("some-other-committee"), committees.values[nameLockKey(ctx, c)])
+		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc"), "the SSO lock this committee owns is released")
 	})
 
 	t.Run("a failure to release a lookup key does not fail the delete", func(t *testing.T) {
