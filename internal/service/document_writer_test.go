@@ -25,6 +25,9 @@ type mockDocStorage struct {
 
 	// createErr, when set, is returned by CreateDocumentMetadata before any state changes.
 	createErr error
+	// cancelOnCreate, when set, is called by CreateDocumentMetadata, which then fails with
+	// context.Canceled without storing, simulating a client disconnect after the file was uploaded.
+	cancelOnCreate context.CancelFunc
 	// createErrAfterStore stores the metadata and then returns createErr, simulating a write that
 	// was committed but reported as failed.
 	createErrAfterStore bool
@@ -45,6 +48,10 @@ func newMockDocStorage() *mockDocStorage {
 }
 
 func (m *mockDocStorage) CreateDocumentMetadata(_ context.Context, doc *model.CommitteeDocument) error {
+	if m.cancelOnCreate != nil {
+		m.cancelOnCreate()
+		return context.Canceled
+	}
 	if m.createErr != nil && !m.createErrAfterStore {
 		return m.createErr
 	}
@@ -58,7 +65,10 @@ func (m *mockDocStorage) CreateDocumentMetadata(_ context.Context, doc *model.Co
 	return m.createErr
 }
 
-func (m *mockDocStorage) GetDocumentMetadata(_ context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error) {
+func (m *mockDocStorage) GetDocumentMetadata(ctx context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
 	if m.getErr != nil {
 		return nil, 0, m.getErr
 	}
@@ -106,7 +116,10 @@ func (m *mockDocStorage) DocumentNameExists(_ context.Context, committeeUID, nam
 	return exists, nil
 }
 
-func (m *mockDocStorage) DeleteDocumentFile(_ context.Context, documentUID string) error {
+func (m *mockDocStorage) DeleteDocumentFile(ctx context.Context, documentUID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	delete(m.files, documentUID)
 	return nil
 }
@@ -540,4 +553,19 @@ func TestUploadDocument_AmbiguousMetadataWrite_FailedReadKeepsUploadedFile(t *te
 
 	require.Error(t, err)
 	assert.Len(t, storage.files, 1, "the file must be kept when the metadata cannot be confirmed absent")
+}
+
+func TestUploadDocument_CancelledRequest_RemovesUploadedFile(t *testing.T) {
+	storage := newMockDocStorage()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	storage.cancelOnCreate = cancel
+	orch := newDocWriterOrch(storage)
+	first, _ := newDuplicateTestDocs()
+
+	_, err := orch.UploadDocument(ctx, first, validPDFFileData(), false)
+
+	require.Error(t, err)
+	assert.Empty(t, storage.documents)
+	assert.Empty(t, storage.files, "a cancelled upload must not leave its file behind")
 }

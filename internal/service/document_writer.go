@@ -64,6 +64,10 @@ func NewDocumentWriterOrchestrator(opts ...DocumentWriterOption) CommitteeDocume
 	return o
 }
 
+// fileCleanupTimeout bounds how long removing an unreferenced uploaded file may take once detached
+// from the request.
+const fileCleanupTimeout = 5 * time.Second
+
 func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *model.CommitteeDocument, fileData []byte, sync bool) (*model.CommitteeDocument, error) {
 	if doc == nil {
 		return nil, errs.NewValidation("document is required")
@@ -133,7 +137,14 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 // metadata may have been stored before the error was reported), so unless the failure was a name
 // conflict the file is only removed once reading the metadata returns NotFound. Any other result,
 // including a failed read, keeps the file: deleting it under a live record would break downloads.
+//
+// The create error is often caused by the request context itself (the client disconnected after the
+// file was stored), so the cleanup runs on a context detached from the request's cancellation,
+// bounded by fileCleanupTimeout, and can still remove the orphaned file.
 func (o *documentWriterOrchestrator) removeUnreferencedFile(ctx context.Context, doc *model.CommitteeDocument, createErr error) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), fileCleanupTimeout)
+	defer cancel()
+
 	var conflict errs.Conflict
 	if !errors.As(createErr, &conflict) {
 		_, _, errGet := o.docReader.GetDocumentMetadata(ctx, doc.CommitteeUID, doc.UID)
