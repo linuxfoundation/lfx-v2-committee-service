@@ -35,9 +35,6 @@ func (w *mockInviteWriter) UpdateInvite(_ context.Context, inv *model.CommitteeI
 	w.updatedRevs = append(w.updatedRevs, rev)
 	return nil
 }
-func (w *mockInviteWriter) UniqueInvite(_ context.Context, _ *model.CommitteeInvite) (string, error) {
-	return "", nil
-}
 
 // mockPublisher records Indexer, membership, and access call counts.
 type mockPublisher struct {

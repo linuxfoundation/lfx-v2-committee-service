@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -63,6 +64,10 @@ func NewDocumentWriterOrchestrator(opts ...DocumentWriterOption) CommitteeDocume
 	return o
 }
 
+// fileCleanupTimeout bounds how long removing an unreferenced uploaded file may take once detached
+// from the request.
+const fileCleanupTimeout = 5 * time.Second
+
 func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *model.CommitteeDocument, fileData []byte, sync bool) (*model.CommitteeDocument, error) {
 	if doc == nil {
 		return nil, errs.NewValidation("document is required")
@@ -95,35 +100,22 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 	doc.CreatedAt = now
 	doc.UpdatedAt = now
 
-	uniqueKey, err := o.docWriter.UniqueDocumentName(ctx, doc)
+	// Fast-fail on a taken name before uploading the file. This check is not authoritative (a
+	// concurrent upload can still win the name); CreateDocumentMetadata below is.
+	exists, err := o.docReader.DocumentNameExists(ctx, doc.CommitteeUID, doc.Name)
 	if err != nil {
 		return nil, err
 	}
+	if exists {
+		return nil, errs.NewConflict("document with the same name already exists for this committee")
+	}
 
-	// Store file first; if this fails, roll back the name reservation.
 	if err := o.docWriter.PutDocumentFile(ctx, doc.UID, fileData); err != nil {
-		if errCleanup := o.docWriter.DeleteUniqueDocumentName(ctx, uniqueKey); errCleanup != nil {
-			slog.WarnContext(ctx, "failed to rollback document name reservation",
-				"unique_key", uniqueKey,
-				"error", errCleanup,
-			)
-		}
 		return nil, err
 	}
 
 	if err := o.docWriter.CreateDocumentMetadata(ctx, doc); err != nil {
-		// NOTE: The file written by PutDocumentFile above is not rolled back here.
-		// This is an accepted trade-off: metadata creation failures are rare, orphaned
-		// files are bounded by the 10 GB object store limit, and normal deletes clean
-		// up files. A DeleteDocumentFile port method could be added if orphan volume
-		// becomes a concern.
-		// Roll back the uniqueness reservation so the name can be reused
-		if errCleanup := o.docWriter.DeleteUniqueDocumentName(ctx, uniqueKey); errCleanup != nil {
-			slog.WarnContext(ctx, "failed to rollback document name reservation",
-				"unique_key", uniqueKey,
-				"error", errCleanup,
-			)
-		}
+		o.removeUnreferencedFile(ctx, doc, err)
 		return nil, err
 	}
 
@@ -138,6 +130,42 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 	o.publishDocumentCreatedEvent(ctx, doc)
 
 	return doc, nil
+}
+
+// removeUnreferencedFile deletes the file uploaded for doc after CreateDocumentMetadata failed, so
+// it does not accumulate in the object store. A non-conflict write error can be ambiguous (the
+// metadata may have been stored before the error was reported), so unless the failure was a name
+// conflict the file is only removed once reading the metadata returns NotFound. Any other result,
+// including a failed read, keeps the file: deleting it under a live record would break downloads.
+//
+// The create error is often caused by the request context itself (the client disconnected after the
+// file was stored), so the cleanup runs on a context detached from the request's cancellation,
+// bounded by fileCleanupTimeout, and can still remove the orphaned file.
+func (o *documentWriterOrchestrator) removeUnreferencedFile(ctx context.Context, doc *model.CommitteeDocument, createErr error) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), fileCleanupTimeout)
+	defer cancel()
+
+	var conflict errs.Conflict
+	if !errors.As(createErr, &conflict) {
+		_, _, errGet := o.docReader.GetDocumentMetadata(ctx, doc.CommitteeUID, doc.UID)
+		var notFound errs.NotFound
+		if !errors.As(errGet, &notFound) {
+			slog.WarnContext(ctx, "document metadata not confirmed absent after create error; keeping uploaded file",
+				"document_uid", doc.UID,
+				"committee_uid", doc.CommitteeUID,
+				"create_error", createErr,
+				"lookup_error", errGet,
+			)
+			return
+		}
+	}
+
+	if errCleanup := o.docWriter.DeleteDocumentFile(ctx, doc.UID); errCleanup != nil {
+		slog.WarnContext(ctx, "failed to remove uploaded document file after metadata creation failed",
+			"document_uid", doc.UID,
+			"error", errCleanup,
+		)
+	}
 }
 
 func (o *documentWriterOrchestrator) DeleteDocument(ctx context.Context, committeeUID, documentUID string, revision uint64, sync bool) error {

@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -1144,7 +1145,10 @@ func (s *storage) ListInvites(ctx context.Context, committeeUID string) ([]*mode
 
 // ================== CommitteeInviteWriter implementation ==================
 
-// CreateInvite creates a new committee invite
+// CreateInvite creates a new committee invite. It first reserves the (committee, invitee email)
+// uniqueness lookup key and returns errs.Conflict if an invite for that pair already exists. If
+// writing the invite record fails and the record is confirmed absent, the key is released so the
+// pair is not left locked (see rollbackLookupKey).
 func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
 
 	if invite == nil {
@@ -1156,8 +1160,19 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 		return errs.NewUnexpected("failed to marshal committee invite", errMarshal)
 	}
 
-	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeInvites].Create(ctx, invite.UID, inviteBytes)
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeInvites]
+
+	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
+	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(invite.UID)); errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return errs.NewConflict("invite for the same email already exists in the committee")
+		}
+		return errs.NewUnexpected("failed to create unique key for invite", errUnique)
+	}
+
+	rev, errCreate := kv.Create(ctx, invite.UID, inviteBytes)
 	if errCreate != nil {
+		rollbackLookupKey(ctx, kv, invite.UID, uniqueKey, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee invite", errCreate)
 	}
 
@@ -1197,19 +1212,6 @@ func (s *storage) UpdateInvite(ctx context.Context, invite *model.CommitteeInvit
 	)
 
 	return nil
-}
-
-// UniqueInvite verifies if an invite with the same email exists for the committee
-func (s *storage) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
-	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
-	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeInvites].Create(ctx, uniqueKey, []byte(invite.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return uniqueKey, errs.NewConflict("invite for the same email already exists in the committee")
-		}
-		return uniqueKey, errs.NewUnexpected("failed to create unique key for invite", errUnique)
-	}
-	return uniqueKey, nil
 }
 
 // ================== CommitteeApplicationReader implementation ==================
@@ -1320,7 +1322,10 @@ func (s *storage) ListAllApplications(ctx context.Context) ([]*model.CommitteeAp
 
 // ================== CommitteeApplicationWriter implementation ==================
 
-// CreateApplication creates a new committee application
+// CreateApplication creates a new committee application. It first reserves the (committee,
+// applicant email) uniqueness lookup key and returns errs.Conflict if an application for that pair
+// already exists. If writing the application record fails and the record is confirmed absent, the
+// key is released so the pair is not left locked (see rollbackLookupKey).
 func (s *storage) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
 
 	if application == nil {
@@ -1332,8 +1337,19 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 		return errs.NewUnexpected("failed to marshal committee application", errMarshal)
 	}
 
-	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Create(ctx, application.UID, applicationBytes)
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeApplications]
+
+	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
+	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(application.UID)); errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return errs.NewConflict("application from the same user already exists in the committee")
+		}
+		return errs.NewUnexpected("failed to create unique key for application", errUnique)
+	}
+
+	rev, errCreate := kv.Create(ctx, application.UID, applicationBytes)
 	if errCreate != nil {
+		rollbackLookupKey(ctx, kv, application.UID, uniqueKey, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee application", errCreate)
 	}
 
@@ -1414,18 +1430,42 @@ func (s *storage) DeleteApplication(ctx context.Context, application *model.Comm
 	return nil
 }
 
-// UniqueApplication verifies if an application from the same user exists for the committee
-func (s *storage) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
-	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
-	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Create(ctx, uniqueKey, []byte(application.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return uniqueKey, errs.NewConflict("application from the same user already exists in the committee")
-		}
-		return uniqueKey, errs.NewUnexpected("failed to create unique key for application", errUnique)
+// rollbackLookupKey releases a uniqueness lookup key that was reserved earlier in the same Create
+// after writing the record itself returned an error.
+//
+// A write error can be ambiguous: for example, a timeout after the server already stored the
+// record. Releasing the key in that case would let a duplicate through, so the key is only released
+// once the record is confirmed absent. If its absence cannot be confirmed the key is kept, which
+// fails safe by blocking re-creation until the state is reconciled.
+//
+// The write error is often caused by the request context itself (a client disconnect or an expired
+// deadline between reserving the key and writing the record). The rollback therefore runs on a
+// context detached from the request's cancellation, bounded by rollbackTimeout, so it can still read
+// the record and release the key.
+//
+// The lookup key is not logged: for invites and applications it is an unsalted hash of the
+// committee and the email, so callers pass non-identifying attributes (record and committee UIDs).
+// createErr is the error the record write returned and is logged with the read error.
+func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lookupKey string, createErr error, attrs ...any) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+
+	if _, errGet := kv.Get(ctx, recordKey); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
+		slog.WarnContext(ctx, "record write reported an error but the record is not confirmed absent; keeping lookup key",
+			append([]any{"create_error", createErr, "lookup_error", errGet}, attrs...)...,
+		)
+		return
 	}
-	return uniqueKey, nil
+
+	if errPurge := kv.Purge(ctx, lookupKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+		slog.ErrorContext(ctx, "failed to release lookup key; the name or email stays locked until it is removed",
+			append([]any{"error", errPurge, "create_error", createErr, log.PriorityCritical()}, attrs...)...,
+		)
+	}
 }
+
+// rollbackTimeout bounds how long a lookup-key rollback may take once detached from the request.
+const rollbackTimeout = 5 * time.Second
 
 // IsReady checks whether the underlying NATS client connection is healthy and ready to serve requests.
 func (s *storage) IsReady(ctx context.Context) error {
