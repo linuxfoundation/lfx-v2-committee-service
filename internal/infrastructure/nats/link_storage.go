@@ -14,7 +14,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -93,7 +92,7 @@ func (s *storage) DeleteLink(ctx context.Context, committeeUID, linkUID string, 
 
 // CreateLinkFolder creates a folder. It first reserves the (committee, folder name) uniqueness
 // lookup key and returns errs.Conflict if the name is already taken. If writing the folder record
-// fails after the key was reserved, the key is released so the name is not left locked.
+// fails and the record is confirmed absent, the key is released so the name is not left locked.
 func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) error {
 	if folder == nil {
 		return errs.NewValidation("folder cannot be nil")
@@ -115,13 +114,7 @@ func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeL
 
 	rev, errCreate := kv.Create(ctx, folder.UID, folderBytes)
 	if errCreate != nil {
-		if errPurge := kv.Purge(ctx, uniqueKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
-			slog.ErrorContext(ctx, "failed to release folder name lookup key",
-				"error", errPurge,
-				"key", uniqueKey,
-				log.PriorityCritical(),
-			)
-		}
+		rollbackLookupKey(ctx, kv, folder.UID, uniqueKey, "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID)
 		return errs.NewUnexpected("failed to create folder", errCreate)
 	}
 	slog.DebugContext(ctx, "created folder in NATS storage", "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID, "revision", rev)

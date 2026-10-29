@@ -45,13 +45,6 @@ Weekly-brief keys pass through `sanitizeKVKey`, which rewrites `/`, `:`, and spa
 These keys live in the same bucket as the record they protect. They are created with KV `Create`
 (fails if present) so a duplicate write returns a conflict. The value is the owning record's UID.
 
-For invites, applications, link folders, and documents the key is an internal detail of the KV store:
-the storage layer's `Create*` method reserves the key, writes the record, and returns a conflict error
-on a duplicate. If the record write fails after the key was reserved, the key is released so the
-email or name is not left locked. Deleting a folder, document, or application releases its key. Callers
-never see or build these keys. Document upload additionally pre-checks the name before storing the
-file, removes the stored file if metadata creation fails, and treats the metadata create as the
-authoritative uniqueness check.
 `<hash>` is a lowercase SHA-256 hex digest of the inputs joined with `|`. Normalization is per row, as
 stated in the "Hash input" column: only the email-bearing rows are trimmed and lowercased; committee,
 folder, and document names are hashed verbatim and stay case-sensitive.
@@ -65,6 +58,17 @@ folder, and document names are hashed verbatim and stay case-sensitive.
 | `committee-applications` | `lookup/committee-applications/<hash>` | `committee_uid\|applicant_email` (trimmed, lowercased) | One application per applicant per committee |
 | `committee-folders` | `lookup/committee-folders/<hash>` | `committee_uid\|folder name` | Unique folder name per committee |
 | `committee-documents-metadata` | `lookup/committee-documents/<hash>` | `committee_uid\|document name` | Unique document name per committee |
+
+For invites, applications, link folders, and documents the key is an internal detail of the KV store:
+the storage layer's `Create*` method reserves the key, writes the record, and returns a conflict error
+on a duplicate. If the record write fails and the record is confirmed absent, the key is released so
+the email or name is not left locked. If the write error is ambiguous (the record may have been
+stored), the key is kept, which blocks re-creation instead of allowing a duplicate. Deleting a folder,
+document, or application releases its key. Callers never see or build these keys.
+
+Document upload pre-checks the name before storing the file, removes the stored file if metadata
+creation fails (unless the metadata is found to exist), and treats the metadata create as the
+authoritative uniqueness check.
 
 Constants `KVLookupSettingsInvitePrefix` (`lookup/committee-settings-invite/<invite_uid>`) and
 `KVSlugPrefix` (`slug/`) are defined, but no current write path creates keys with them. The `slug/`

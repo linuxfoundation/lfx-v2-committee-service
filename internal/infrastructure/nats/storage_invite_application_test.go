@@ -25,7 +25,10 @@ type memKV struct {
 	jetstream.KeyValue
 	keys          map[string][]byte
 	failCreateFor string
-	deleteErr     error
+	// ambiguousCreateFor makes Create store the value and then report an error, simulating a
+	// timeout after the server already committed the write.
+	ambiguousCreateFor string
+	deleteErr          error
 }
 
 func newMemKV() *memKV { return &memKV{keys: map[string][]byte{}} }
@@ -38,7 +41,18 @@ func (m *memKV) Create(_ context.Context, key string, value []byte, _ ...jetstre
 		return 0, jetstream.ErrKeyExists
 	}
 	m.keys[key] = value
+	if key == m.ambiguousCreateFor {
+		return 0, errors.New("simulated timeout after the write was committed")
+	}
 	return uint64(len(m.keys)), nil
+}
+
+func (m *memKV) Get(_ context.Context, key string) (jetstream.KeyValueEntry, error) {
+	value, ok := m.keys[key]
+	if !ok {
+		return nil, jetstream.ErrKeyNotFound
+	}
+	return &mockEntry{value: value, rev: 1}, nil
 }
 
 func (m *memKV) Delete(_ context.Context, key string, _ ...jetstream.KVDeleteOpt) error {
@@ -125,6 +139,21 @@ func TestStorage_CreateInvite(t *testing.T) {
 		require.NoError(t, s.CreateInvite(ctx, testInvite("invite-1", "first.last@example.com")))
 	})
 
+	t.Run("ambiguous write error keeps the lookup key so a duplicate cannot be created", func(t *testing.T) {
+		kv := newMemKV()
+		kv.ambiguousCreateFor = "invite-1"
+		s := newTestStorageWithBucket(constants.KVBucketNameCommitteeInvites, kv)
+		invite := testInvite("invite-1", "first.last@example.com")
+
+		require.Error(t, s.CreateInvite(ctx, invite))
+
+		assert.Contains(t, kv.keys, "invite-1", "the record was committed")
+		assert.Contains(t, kv.keys, lookupKey(invite), "the lookup key must be kept while the record may exist")
+
+		var conflict errs.Conflict
+		assert.ErrorAs(t, s.CreateInvite(ctx, testInvite("invite-2", "first.last@example.com")), &conflict)
+	})
+
 	t.Run("failure to release the lookup key does not mask the create error", func(t *testing.T) {
 		kv := newMemKV()
 		kv.failCreateFor = "invite-1"
@@ -188,6 +217,20 @@ func TestStorage_CreateApplication(t *testing.T) {
 
 		kv.failCreateFor = ""
 		require.NoError(t, s.CreateApplication(ctx, testApplication("application-1", "first.last@example.com")))
+	})
+
+	t.Run("ambiguous write error keeps the lookup key so a duplicate cannot be created", func(t *testing.T) {
+		kv := newMemKV()
+		kv.ambiguousCreateFor = "application-1"
+		s := newTestStorageWithBucket(constants.KVBucketNameCommitteeApplications, kv)
+		application := testApplication("application-1", "first.last@example.com")
+
+		require.Error(t, s.CreateApplication(ctx, application))
+
+		assert.Contains(t, kv.keys, lookupKey(application))
+
+		var conflict errs.Conflict
+		assert.ErrorAs(t, s.CreateApplication(ctx, testApplication("application-2", "first.last@example.com")), &conflict)
 	})
 
 	t.Run("delete releases the lookup key so the applicant can apply again", func(t *testing.T) {

@@ -92,6 +92,20 @@ func TestStorage_CreateDocumentMetadata(t *testing.T) {
 		assert.Len(t, kv.keys, keysBefore)
 	})
 
+	t.Run("ambiguous write error keeps the lookup key so a duplicate cannot be created", func(t *testing.T) {
+		kv := newMemKV()
+		kv.ambiguousCreateFor = "doc-1"
+		ds := newDocStorage(kv)
+		d := doc("doc-1", "Charter")
+
+		require.Error(t, ds.CreateDocumentMetadata(ctx, d))
+
+		assert.Contains(t, kv.keys, fmt.Sprintf(constants.KVLookupDocumentPrefix, d.BuildIndexKey(ctx)))
+
+		var conflict errs.Conflict
+		assert.ErrorAs(t, ds.CreateDocumentMetadata(ctx, doc("doc-2", "Charter")), &conflict)
+	})
+
 	t.Run("failed record write releases the lookup key so the name is not locked", func(t *testing.T) {
 		kv := newMemKV()
 		kv.failCreateFor = "doc-1"
@@ -103,4 +117,24 @@ func TestStorage_CreateDocumentMetadata(t *testing.T) {
 		kv.failCreateFor = ""
 		require.NoError(t, ds.CreateDocumentMetadata(ctx, doc("doc-1", "Charter")))
 	})
+}
+
+func TestDocumentStorage_DocumentNameExists(t *testing.T) {
+	ctx := context.Background()
+	kv := newMemKV()
+	ds := &documentStorage{client: newTestStorageWithBucket(constants.KVBucketNameCommitteeDocuments, kv).client}
+
+	exists, err := ds.DocumentNameExists(ctx, "committee-1", "Charter")
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	require.NoError(t, ds.CreateDocumentMetadata(ctx, &model.CommitteeDocument{UID: "doc-1", CommitteeUID: "committee-1", Name: "Charter"}))
+
+	exists, err = ds.DocumentNameExists(ctx, "committee-1", "Charter")
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = ds.DocumentNameExists(ctx, "committee-2", "Charter")
+	require.NoError(t, err)
+	assert.False(t, exists, "the same name in another committee is a different key")
 }

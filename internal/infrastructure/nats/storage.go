@@ -1147,8 +1147,8 @@ func (s *storage) ListInvites(ctx context.Context, committeeUID string) ([]*mode
 
 // CreateInvite creates a new committee invite. It first reserves the (committee, invitee email)
 // uniqueness lookup key and returns errs.Conflict if an invite for that pair already exists. If
-// writing the invite record fails after the key was reserved, the key is released so the pair is
-// not left locked.
+// writing the invite record fails and the record is confirmed absent, the key is released so the
+// pair is not left locked (see rollbackLookupKey).
 func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
 
 	if invite == nil {
@@ -1172,7 +1172,7 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 
 	rev, errCreate := kv.Create(ctx, invite.UID, inviteBytes)
 	if errCreate != nil {
-		s.releaseLookupKey(ctx, kv, uniqueKey)
+		rollbackLookupKey(ctx, kv, invite.UID, uniqueKey, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee invite", errCreate)
 	}
 
@@ -1324,8 +1324,8 @@ func (s *storage) ListAllApplications(ctx context.Context) ([]*model.CommitteeAp
 
 // CreateApplication creates a new committee application. It first reserves the (committee,
 // applicant email) uniqueness lookup key and returns errs.Conflict if an application for that pair
-// already exists. If writing the application record fails after the key was reserved, the key is
-// released so the pair is not left locked.
+// already exists. If writing the application record fails and the record is confirmed absent, the
+// key is released so the pair is not left locked (see rollbackLookupKey).
 func (s *storage) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
 
 	if application == nil {
@@ -1349,7 +1349,7 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 
 	rev, errCreate := kv.Create(ctx, application.UID, applicationBytes)
 	if errCreate != nil {
-		s.releaseLookupKey(ctx, kv, uniqueKey)
+		rollbackLookupKey(ctx, kv, application.UID, uniqueKey, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee application", errCreate)
 	}
 
@@ -1430,15 +1430,27 @@ func (s *storage) DeleteApplication(ctx context.Context, application *model.Comm
 	return nil
 }
 
-// releaseLookupKey deletes a uniqueness lookup key reserved earlier in the same operation. It is
-// best-effort: a failure is logged at critical priority because a key left behind locks the
-// (committee, email) pair against re-creation.
-func (s *storage) releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, key string) {
-	if err := kv.Delete(ctx, key); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
-		slog.ErrorContext(ctx, "failed to release lookup key",
-			"error", err,
-			"key", key,
-			log.PriorityCritical(),
+// rollbackLookupKey releases a uniqueness lookup key that was reserved earlier in the same Create
+// after writing the record itself returned an error.
+//
+// A write error can be ambiguous: for example, a timeout after the server already stored the
+// record. Releasing the key in that case would let a duplicate through, so the key is only released
+// once the record is confirmed absent. If its absence cannot be confirmed the key is kept, which
+// fails safe by blocking re-creation until the state is reconciled.
+//
+// The lookup key is not logged: for invites and applications it is an unsalted hash of the
+// committee and the email, so callers pass non-identifying attributes (record and committee UIDs).
+func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lookupKey string, attrs ...any) {
+	if _, errGet := kv.Get(ctx, recordKey); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
+		slog.WarnContext(ctx, "record write reported an error but the record is not confirmed absent; keeping lookup key",
+			append([]any{"error", errGet}, attrs...)...,
+		)
+		return
+	}
+
+	if errPurge := kv.Purge(ctx, lookupKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+		slog.ErrorContext(ctx, "failed to release lookup key; the name or email stays locked until it is removed",
+			append([]any{"error", errPurge, log.PriorityCritical()}, attrs...)...,
 		)
 	}
 }

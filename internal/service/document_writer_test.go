@@ -25,6 +25,9 @@ type mockDocStorage struct {
 
 	// createErr, when set, is returned by CreateDocumentMetadata before any state changes.
 	createErr error
+	// createErrAfterStore stores the metadata and then returns createErr, simulating a write that
+	// was committed but reported as failed.
+	createErrAfterStore bool
 	// skipNameCheck makes DocumentNameExists report false so a test can reach the authoritative
 	// uniqueness check in CreateDocumentMetadata (simulating a concurrent upload winning the name).
 	skipNameCheck bool
@@ -40,7 +43,7 @@ func newMockDocStorage() *mockDocStorage {
 }
 
 func (m *mockDocStorage) CreateDocumentMetadata(_ context.Context, doc *model.CommitteeDocument) error {
-	if m.createErr != nil {
+	if m.createErr != nil && !m.createErrAfterStore {
 		return m.createErr
 	}
 	nameKey := doc.CommitteeUID + "|" + doc.Name
@@ -50,7 +53,7 @@ func (m *mockDocStorage) CreateDocumentMetadata(_ context.Context, doc *model.Co
 	m.documents[doc.UID] = doc
 	m.revisions[doc.UID] = 1
 	m.nameKeys[nameKey] = doc.UID
-	return nil
+	return m.createErr
 }
 
 func (m *mockDocStorage) GetDocumentMetadata(_ context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error) {
@@ -504,4 +507,18 @@ func TestUploadDocument_MetadataCreateFails_RemovesUploadedFile(t *testing.T) {
 	require.Error(t, err)
 	assert.Empty(t, storage.files, "the uploaded file must not be orphaned when metadata creation fails")
 	assert.Empty(t, storage.documents)
+}
+
+func TestUploadDocument_AmbiguousMetadataWrite_KeepsUploadedFile(t *testing.T) {
+	storage := newMockDocStorage()
+	storage.createErr = errors.New("timeout after the write was committed")
+	storage.createErrAfterStore = true
+	orch := newDocWriterOrch(storage)
+	first, _ := newDuplicateTestDocs()
+
+	_, err := orch.UploadDocument(context.Background(), first, validPDFFileData(), false)
+
+	require.Error(t, err)
+	assert.Len(t, storage.documents, 1, "the metadata was committed")
+	assert.Len(t, storage.files, 1, "the file must not be deleted while its metadata exists")
 }

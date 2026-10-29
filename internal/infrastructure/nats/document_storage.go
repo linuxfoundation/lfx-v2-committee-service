@@ -16,7 +16,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
-	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -49,8 +48,8 @@ func (ds *documentStorage) getMetadata(ctx context.Context, uid string, target a
 
 // CreateDocumentMetadata creates the document metadata. It first reserves the (committee, document
 // name) uniqueness lookup key and returns errs.Conflict if the name is already taken. If writing
-// the metadata record fails after the key was reserved, the key is released so the name is not
-// left locked.
+// the metadata record fails and the record is confirmed absent, the key is released so the name is
+// not left locked.
 func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument) error {
 	if doc == nil {
 		return errs.NewValidation("document cannot be nil")
@@ -72,13 +71,7 @@ func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *mode
 
 	rev, errCreate := kv.Create(ctx, doc.UID, docBytes)
 	if errCreate != nil {
-		if errPurge := kv.Purge(ctx, uniqueKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
-			slog.ErrorContext(ctx, "failed to release document name lookup key",
-				"error", errPurge,
-				"key", uniqueKey,
-				log.PriorityCritical(),
-			)
-		}
+		rollbackLookupKey(ctx, kv, doc.UID, uniqueKey, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
 		return errs.NewUnexpected("failed to create document metadata", errCreate)
 	}
 	slog.DebugContext(ctx, "created document metadata in NATS storage",
