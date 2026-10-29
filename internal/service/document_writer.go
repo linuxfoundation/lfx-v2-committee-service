@@ -131,16 +131,19 @@ func (o *documentWriterOrchestrator) UploadDocument(ctx context.Context, doc *mo
 // removeUnreferencedFile deletes the file uploaded for doc after CreateDocumentMetadata failed, so
 // it does not accumulate in the object store. A non-conflict write error can be ambiguous (the
 // metadata may have been stored before the error was reported), so unless the failure was a name
-// conflict the file is only removed once the metadata record is confirmed absent; deleting it under
-// a live record would break downloads.
+// conflict the file is only removed once reading the metadata returns NotFound. Any other result,
+// including a failed read, keeps the file: deleting it under a live record would break downloads.
 func (o *documentWriterOrchestrator) removeUnreferencedFile(ctx context.Context, doc *model.CommitteeDocument, createErr error) {
 	var conflict errs.Conflict
 	if !errors.As(createErr, &conflict) {
-		if _, _, errGet := o.docReader.GetDocumentMetadata(ctx, doc.CommitteeUID, doc.UID); errGet == nil {
-			slog.WarnContext(ctx, "document metadata may exist despite create error; keeping uploaded file",
+		_, _, errGet := o.docReader.GetDocumentMetadata(ctx, doc.CommitteeUID, doc.UID)
+		var notFound errs.NotFound
+		if !errors.As(errGet, &notFound) {
+			slog.WarnContext(ctx, "document metadata not confirmed absent after create error; keeping uploaded file",
 				"document_uid", doc.UID,
 				"committee_uid", doc.CommitteeUID,
-				"error", createErr,
+				"create_error", createErr,
+				"lookup_error", errGet,
 			)
 			return
 		}

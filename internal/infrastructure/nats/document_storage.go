@@ -71,7 +71,7 @@ func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *mode
 
 	rev, errCreate := kv.Create(ctx, doc.UID, docBytes)
 	if errCreate != nil {
-		rollbackLookupKey(ctx, kv, doc.UID, uniqueKey, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
+		rollbackLookupKey(ctx, kv, doc.UID, uniqueKey, errCreate, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
 		return errs.NewUnexpected("failed to create document metadata", errCreate)
 	}
 	slog.DebugContext(ctx, "created document metadata in NATS storage",

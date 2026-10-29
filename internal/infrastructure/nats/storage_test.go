@@ -29,6 +29,12 @@ type memKV struct {
 	// timeout after the server already committed the write.
 	ambiguousCreateFor string
 	deleteErr          error
+
+	// cancelOnCreate makes Create for that key cancel the request context and fail without storing,
+	// simulating a client disconnect between reserving the lookup key and writing the record. Get
+	// and Purge then honor the (cancelled) context they are given, like a real client would.
+	cancelOnCreate string
+	cancel         context.CancelFunc
 }
 
 func newMemKV() *memKV { return &memKV{keys: map[string][]byte{}} }
@@ -36,6 +42,10 @@ func newMemKV() *memKV { return &memKV{keys: map[string][]byte{}} }
 func (m *memKV) Create(_ context.Context, key string, value []byte, _ ...jetstream.KVCreateOpt) (uint64, error) {
 	if key == m.failCreateFor {
 		return 0, errors.New("simulated create failure")
+	}
+	if key == m.cancelOnCreate {
+		m.cancel()
+		return 0, context.Canceled
 	}
 	if _, ok := m.keys[key]; ok {
 		return 0, jetstream.ErrKeyExists
@@ -47,7 +57,10 @@ func (m *memKV) Create(_ context.Context, key string, value []byte, _ ...jetstre
 	return uint64(len(m.keys)), nil
 }
 
-func (m *memKV) Get(_ context.Context, key string) (jetstream.KeyValueEntry, error) {
+func (m *memKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	value, ok := m.keys[key]
 	if !ok {
 		return nil, jetstream.ErrKeyNotFound
@@ -63,7 +76,10 @@ func (m *memKV) Delete(_ context.Context, key string, _ ...jetstream.KVDeleteOpt
 	return nil
 }
 
-func (m *memKV) Purge(_ context.Context, key string, _ ...jetstream.KVDeleteOpt) error {
+func (m *memKV) Purge(ctx context.Context, key string, _ ...jetstream.KVDeleteOpt) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -154,6 +170,18 @@ func TestStorage_CreateInvite(t *testing.T) {
 		assert.ErrorAs(t, s.CreateInvite(ctx, testInvite("invite-2", "first.last@example.com")), &conflict)
 	})
 
+	t.Run("a cancelled request still releases the lookup key", func(t *testing.T) {
+		kv := newMemKV()
+		reqCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		kv.cancel, kv.cancelOnCreate = cancel, "invite-1"
+		s := newTestStorageWithBucket(constants.KVBucketNameCommitteeInvites, kv)
+
+		require.Error(t, s.CreateInvite(reqCtx, testInvite("invite-1", "first.last@example.com")))
+
+		assert.Empty(t, kv.keys, "the lookup key must not stay locked because the request was cancelled")
+	})
+
 	t.Run("failure to release the lookup key does not mask the create error", func(t *testing.T) {
 		kv := newMemKV()
 		kv.failCreateFor = "invite-1"
@@ -231,6 +259,18 @@ func TestStorage_CreateApplication(t *testing.T) {
 
 		var conflict errs.Conflict
 		assert.ErrorAs(t, s.CreateApplication(ctx, testApplication("application-2", "first.last@example.com")), &conflict)
+	})
+
+	t.Run("a cancelled request still releases the lookup key", func(t *testing.T) {
+		kv := newMemKV()
+		reqCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		kv.cancel, kv.cancelOnCreate = cancel, "application-1"
+		s := newTestStorageWithBucket(constants.KVBucketNameCommitteeApplications, kv)
+
+		require.Error(t, s.CreateApplication(reqCtx, testApplication("application-1", "first.last@example.com")))
+
+		assert.Empty(t, kv.keys, "the lookup key must not stay locked because the request was cancelled")
 	})
 
 	t.Run("delete releases the lookup key so the applicant can apply again", func(t *testing.T) {

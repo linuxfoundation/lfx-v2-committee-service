@@ -114,7 +114,7 @@ func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeL
 
 	rev, errCreate := kv.Create(ctx, folder.UID, folderBytes)
 	if errCreate != nil {
-		rollbackLookupKey(ctx, kv, folder.UID, uniqueKey, "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID)
+		rollbackLookupKey(ctx, kv, folder.UID, uniqueKey, errCreate, "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID)
 		return errs.NewUnexpected("failed to create folder", errCreate)
 	}
 	slog.DebugContext(ctx, "created folder in NATS storage", "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID, "revision", rev)

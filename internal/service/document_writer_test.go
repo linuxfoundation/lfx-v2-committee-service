@@ -28,6 +28,8 @@ type mockDocStorage struct {
 	// createErrAfterStore stores the metadata and then returns createErr, simulating a write that
 	// was committed but reported as failed.
 	createErrAfterStore bool
+	// getErr, when set, is returned by GetDocumentMetadata, simulating a failed read.
+	getErr error
 	// skipNameCheck makes DocumentNameExists report false so a test can reach the authoritative
 	// uniqueness check in CreateDocumentMetadata (simulating a concurrent upload winning the name).
 	skipNameCheck bool
@@ -57,9 +59,12 @@ func (m *mockDocStorage) CreateDocumentMetadata(_ context.Context, doc *model.Co
 }
 
 func (m *mockDocStorage) GetDocumentMetadata(_ context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error) {
+	if m.getErr != nil {
+		return nil, 0, m.getErr
+	}
 	doc, ok := m.documents[documentUID]
 	if !ok || doc.CommitteeUID != committeeUID {
-		return nil, 0, errors.New("document not found")
+		return nil, 0, errs.NewNotFound("document not found")
 	}
 	return doc, m.revisions[documentUID], nil
 }
@@ -521,4 +526,18 @@ func TestUploadDocument_AmbiguousMetadataWrite_KeepsUploadedFile(t *testing.T) {
 	require.Error(t, err)
 	assert.Len(t, storage.documents, 1, "the metadata was committed")
 	assert.Len(t, storage.files, 1, "the file must not be deleted while its metadata exists")
+}
+
+func TestUploadDocument_AmbiguousMetadataWrite_FailedReadKeepsUploadedFile(t *testing.T) {
+	storage := newMockDocStorage()
+	storage.createErr = errors.New("timeout after the write was committed")
+	storage.createErrAfterStore = true
+	storage.getErr = errors.New("metadata store unavailable")
+	orch := newDocWriterOrch(storage)
+	first, _ := newDuplicateTestDocs()
+
+	_, err := orch.UploadDocument(context.Background(), first, validPDFFileData(), false)
+
+	require.Error(t, err)
+	assert.Len(t, storage.files, 1, "the file must be kept when the metadata cannot be confirmed absent")
 }

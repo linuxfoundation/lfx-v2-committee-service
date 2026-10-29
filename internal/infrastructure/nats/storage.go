@@ -1172,7 +1172,7 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 
 	rev, errCreate := kv.Create(ctx, invite.UID, inviteBytes)
 	if errCreate != nil {
-		rollbackLookupKey(ctx, kv, invite.UID, uniqueKey, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
+		rollbackLookupKey(ctx, kv, invite.UID, uniqueKey, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee invite", errCreate)
 	}
 
@@ -1349,7 +1349,7 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 
 	rev, errCreate := kv.Create(ctx, application.UID, applicationBytes)
 	if errCreate != nil {
-		rollbackLookupKey(ctx, kv, application.UID, uniqueKey, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
+		rollbackLookupKey(ctx, kv, application.UID, uniqueKey, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee application", errCreate)
 	}
 
@@ -1438,22 +1438,34 @@ func (s *storage) DeleteApplication(ctx context.Context, application *model.Comm
 // once the record is confirmed absent. If its absence cannot be confirmed the key is kept, which
 // fails safe by blocking re-creation until the state is reconciled.
 //
+// The write error is often caused by the request context itself (a client disconnect or an expired
+// deadline between reserving the key and writing the record). The rollback therefore runs on a
+// context detached from the request's cancellation, bounded by rollbackTimeout, so it can still read
+// the record and release the key.
+//
 // The lookup key is not logged: for invites and applications it is an unsalted hash of the
 // committee and the email, so callers pass non-identifying attributes (record and committee UIDs).
-func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lookupKey string, attrs ...any) {
+// createErr is the error the record write returned and is logged with the read error.
+func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lookupKey string, createErr error, attrs ...any) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+
 	if _, errGet := kv.Get(ctx, recordKey); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
 		slog.WarnContext(ctx, "record write reported an error but the record is not confirmed absent; keeping lookup key",
-			append([]any{"error", errGet}, attrs...)...,
+			append([]any{"create_error", createErr, "lookup_error", errGet}, attrs...)...,
 		)
 		return
 	}
 
 	if errPurge := kv.Purge(ctx, lookupKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
 		slog.ErrorContext(ctx, "failed to release lookup key; the name or email stays locked until it is removed",
-			append([]any{"error", errPurge, log.PriorityCritical()}, attrs...)...,
+			append([]any{"error", errPurge, "create_error", createErr, log.PriorityCritical()}, attrs...)...,
 		)
 	}
 }
+
+// rollbackTimeout bounds how long a lookup-key rollback may take once detached from the request.
+const rollbackTimeout = 5 * time.Second
 
 // IsReady checks whether the underlying NATS client connection is healthy and ready to serve requests.
 func (s *storage) IsReady(ctx context.Context) error {
