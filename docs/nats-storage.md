@@ -58,6 +58,15 @@ folder, and document names are hashed verbatim and stay case-sensitive.
 | `committee-folders` | `lookup/committee-folders/<hash>` | `committee_uid\|folder name` | Unique folder name per committee |
 | `committee-documents-metadata` | `lookup/committee-documents/<hash>` | `committee_uid\|document name` | Unique document name per committee |
 
+For committees the keys are an internal detail of the KV store: `Create` reserves the project+name lock
+and, when the committee has an SSO group name, the SSO group lock; `UpdateBase` reserves the new keys when
+the project, name, or SSO group name changed and releases the old ones after the write; `Delete` releases
+both. A duplicate name returns a conflict. A duplicate SSO group name returns a conflict that wraps
+`errs.ErrSSOGroupNameTaken`, which the service uses to generate the next candidate name and try again.
+If writing the committee fails and it is confirmed absent (or unchanged, on update), the keys reserved
+by that call are released. If the write error is ambiguous, they are kept, which blocks reuse instead of
+allowing a duplicate. Callers never see or build these keys.
+
 Constants `KVLookupSettingsInvitePrefix` (`lookup/committee-settings-invite/<invite_uid>`) and
 `KVSlugPrefix` (`slug/`) are defined, but no current write path creates keys with them. The `slug/`
 prefix is only skipped when scanning for records.
