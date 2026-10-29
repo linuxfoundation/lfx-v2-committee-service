@@ -1507,6 +1507,32 @@ func TestStorage_UpdateMember(t *testing.T) {
 		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, original).unique)
 	})
 
+	t.Run("a lock a concurrent request released after the write is restored", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		newUnique := buildMemberLookupKeys(ctx, moved).unique
+		// Another update of the same member to the same address shared this lock's reservation, and its
+		// failure path released it between this update's reservation and its write landing.
+		kv.afterUpdate = func() { delete(kv.values, newUnique); delete(kv.revs, newUnique) }
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, []byte("m-1"), kv.values[newUnique], "the member must keep the lock for its new email")
+	})
+
+	t.Run("a lock another member took after the write is not overwritten and does not fail the update", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		newUnique := buildMemberLookupKeys(ctx, moved).unique
+		kv.afterUpdate = func() { kv.values[newUnique] = []byte("some-other-member") }
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.NoError(t, err, "the update has already been applied")
+		assert.Equal(t, []byte("some-other-member"), kv.values[newUnique])
+	})
+
 	t.Run("an unknown member is not found", func(t *testing.T) {
 		s, _ := newMemberLockStorage()
 
@@ -1565,6 +1591,16 @@ func TestStorage_DeleteMember(t *testing.T) {
 
 		assert.Equal(t, []byte("some-other-member"), kv.values[unique])
 		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, m).byEmail, "the member's own keys are released")
+	})
+
+	t.Run("a record that cannot be decoded is still deleted, without releasing keys it cannot derive", func(t *testing.T) {
+		s, kv, m := seed(t)
+		kv.values["m-1"] = []byte("{not valid json")
+
+		require.NoError(t, s.DeleteMember(ctx, "m-1", 1))
+
+		assert.NotContains(t, kv.values, "m-1", "corrupt data must be removable")
+		assert.Contains(t, kv.values, buildMemberLookupKeys(ctx, m).unique, "keys that cannot be derived are left for repair")
 	})
 
 	t.Run("an unknown member is not found", func(t *testing.T) {

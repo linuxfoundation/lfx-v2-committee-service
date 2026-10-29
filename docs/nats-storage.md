@@ -98,9 +98,11 @@ KV store, maintained by `CreateMember`, `UpdateMember`, and `DeleteMember`:
   username. If a step fails, the member and every key written by that call are removed again.
 - `UpdateMember` compares the stored member with the new one. When the email changes it reserves the new
   lock (a taken email returns a conflict); it moves the organization, email, and username indexes when
-  those values change, and releases the keys the member no longer uses after the write. A stale revision
-  returns a conflict and releases whatever the call reserved.
-- `DeleteMember` releases the lock and every index as soon as the record is gone.
+  those values change, re-asserts the new keys after the write (two in-flight updates of the same member
+  share a reservation, so one's failure can release a key the other still needs), and releases the keys
+  the member no longer uses. A stale revision returns a conflict and releases whatever the call reserved.
+- `DeleteMember` releases the lock and every index as soon as the record is gone. A record that cannot be
+  decoded is still deleted, without releasing keys that cannot be derived from it.
 
 The same read-back rules as for committees apply: a write error is checked by reading the record back, a
 write that landed despite the error continues, an unreadable state keeps the keys, cleanup runs on a

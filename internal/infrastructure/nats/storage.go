@@ -1382,6 +1382,11 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 		}
 	}
 
+	// Re-assert the keys the update moved the member to. Two in-flight updates of the same member to the
+	// same new value share one reservation (the second sees the key as already its own), so a failing
+	// update can release it before the winning update's write lands.
+	s.ensureMemberKeys(ctx, member.UID, reserveUnique, reserveIdx)
+
 	// Release the lookup keys the member no longer uses. Best-effort: the update already succeeded.
 	s.releaseStaleMemberKeys(ctx, member.UID, stale)
 
@@ -1393,6 +1398,49 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 	)
 
 	return member, nil
+}
+
+// ensureMemberKeys re-asserts lookup keys an update just stored the member under. A key that is missing
+// is created again (a concurrent request released it), which is logged; a key another member owns now
+// is logged at critical priority because the member is stored under it without owning it. It never
+// fails the update, which has already been applied.
+func (s *storage) ensureMemberKeys(ctx context.Context, memberUID, unique string, indexes []memberIndexKey) {
+	keys := make([]string, 0, 1+len(indexes))
+	if unique != "" {
+		keys = append(keys, unique)
+	}
+	for _, idx := range indexes {
+		keys = append(keys, idx.key)
+	}
+	if len(keys) == 0 {
+		return
+	}
+	rctx, cancel := detachedCtx(ctx)
+	defer cancel()
+
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
+	for _, key := range keys {
+		restored, err := reserveOwnedKey(rctx, kv, memberUID, key)
+		switch {
+		case err != nil && errors.Is(err, jetstream.ErrKeyExists):
+			slog.ErrorContext(ctx, "member was stored under a lookup key that another member owns",
+				"key", key,
+				"member_uid", memberUID,
+				log.PriorityCritical(),
+			)
+		case err != nil:
+			slog.WarnContext(ctx, "could not confirm a lookup key after the member update",
+				"error", err,
+				"key", key,
+				"member_uid", memberUID,
+			)
+		case restored:
+			slog.WarnContext(ctx, "restored a lookup key a concurrent request released",
+				"key", key,
+				"member_uid", memberUID,
+			)
+		}
+	}
 }
 
 // mapMemberUpdateError maps a failed member write to the error kind callers handle.
@@ -1418,17 +1466,29 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
 
-	// The stored member tells us which lookup keys to release.
+	// The stored member tells us which lookup keys to release. A record that cannot be decoded is still
+	// deleted, without releasing keys that cannot be derived from it, so corrupt data can be removed.
 	existing := &model.CommitteeMember{}
+	keysKnown := true
 	if _, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, uid, existing, false); errGet != nil {
-		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+		var syntaxErr *json.SyntaxError
+		var typeErr *json.UnmarshalTypeError
+		switch {
+		case errors.Is(errGet, jetstream.ErrKeyNotFound):
 			slog.WarnContext(ctx, "committee member not found for deletion",
 				"member_uid", uid,
 				"revision", revision,
 			)
 			return errs.NewNotFound("committee member not found")
+		case errors.As(errGet, &syntaxErr) || errors.As(errGet, &typeErr):
+			keysKnown = false
+			slog.WarnContext(ctx, "committee member record could not be decoded; deleting it without releasing its lookup keys",
+				"error", errGet,
+				"member_uid", uid,
+			)
+		default:
+			return errs.NewUnexpected("failed to get committee member", errGet)
 		}
-		return errs.NewUnexpected("failed to get committee member", errGet)
 	}
 	keys := buildMemberLookupKeys(ctx, existing)
 
@@ -1459,11 +1519,13 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 		)
 	}
 
-	held := []string{keys.unique}
-	for _, idx := range keys.indexes() {
-		held = append(held, idx.key)
+	if keysKnown {
+		held := []string{keys.unique}
+		for _, idx := range keys.indexes() {
+			held = append(held, idx.key)
+		}
+		releaseOwnedKeys(ctx, kv, uid, held, "member")
 	}
-	releaseOwnedKeys(ctx, kv, uid, held, "member")
 
 	slog.DebugContext(ctx, "committee member deleted successfully from storage",
 		"member_uid", uid,
@@ -1591,9 +1653,8 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 			}
 
 			// Defensive consistency check: the secondary index is a hint, the member record is the source
-			// of truth. The org-change stale-key cleanup runs in a background goroutine, so a lagging or
-			// failed cleanup can leave an index key pointing at a member whose organization.id has since
-			// changed. Skip such entries so a stale key never leaks a seat into another org's list.
+			// of truth. The org-change stale-key cleanup is best-effort, so a failed cleanup can leave an
+			// index key pointing at a member whose organization.id has since changed. Skip such entries so a stale key never leaks a seat into another org's list.
 			if memberOrg := utils.NormalizeAccountSFID(member.Organization.ID); memberOrg != orgSFID {
 				slog.WarnContext(ctx, "skipping stale org member index entry; member org no longer matches",
 					"member_uid", memberUID, "index_org_sfid", orgSFID, "member_org_sfid", memberOrg)
@@ -1697,7 +1758,7 @@ func (s *storage) ListMembersByEmail(ctx context.Context, email string) ([]*mode
 			return nil, errs.NewUnexpected("failed to get member while listing by email", errGet)
 		}
 
-		// Defensive consistency check: email-change stale-key cleanup runs in a background goroutine,
+		// Defensive consistency check: email-change stale-key cleanup is best-effort,
 		// so a lagging cleanup can leave an index key pointing at a member whose email has since
 		// changed. Skip such entries.
 		if member.BuildEmailIndexKey(ctx) != emailHash {
