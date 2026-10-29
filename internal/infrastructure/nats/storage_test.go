@@ -766,7 +766,7 @@ func TestStorage_UpdateBaseCommittee(t *testing.T) {
 	})
 
 	t.Run("an ambiguous rename that is later changed by another writer keeps the locks the committee uses", func(t *testing.T) {
-		s, committees, _ := seed(t)
+		s, committees, original := seed(t)
 		committees.ambiguousFor = "c-1"
 		updated := renamed("Steering Committee", "project-1-tsc-2")
 		// Another writer (for example a member count sync) changes the record before the read-back,
@@ -784,6 +784,8 @@ func TestStorage_UpdateBaseCommittee(t *testing.T) {
 
 		assert.Contains(t, committees.values, nameLockKey(ctx, updated))
 		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc-2"))
+		assert.NotContains(t, committees.values, nameLockKey(ctx, original), "the rename is live, so the old name must not stay locked")
+		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc"), "the old SSO group name must not stay locked")
 	})
 
 	t.Run("a stale lock the committee holds again by cleanup time is kept", func(t *testing.T) {

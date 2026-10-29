@@ -477,6 +477,16 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 		return errReserve
 	}
 
+	// The lookup keys this update moves the committee away from. The old SSO group name is stale
+	// whenever it changed, including when it was cleared.
+	var stale []string
+	if newNameKey != oldNameKey {
+		stale = append(stale, oldNameKey)
+	}
+	if oldSSOKey != "" && oldSSOKey != newSSOKey {
+		stale = append(stale, oldSSOKey)
+	}
+
 	// Update the committee base using optimistic locking (revision check)
 	newRevision, errUpdate := committeesKV.Update(ctx, uid, committeeBaseBytes, revision)
 	if errUpdate != nil {
@@ -503,6 +513,12 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 				toRelease = withoutKeys(reserved, inUse)
 			}
 			s.releaseCommitteeLocks(rctx, uid, toRelease...)
+			if state == recordDiffers {
+				// The stored version may already carry this update's rename (an ambiguous write that
+				// landed and was then changed by another writer). The old keys are released unless the
+				// stored committee still uses them, which releaseStaleCommitteeLocks re-checks.
+				s.releaseStaleCommitteeLocks(ctx, uid, stale)
+			}
 			if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 				return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 			}
@@ -511,14 +527,6 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 	}
 
 	// Release the lookup keys the committee no longer uses. Best-effort: the update already succeeded.
-	// The old SSO group name is stale whenever it changed, including when it was cleared.
-	var stale []string
-	if newNameKey != oldNameKey {
-		stale = append(stale, oldNameKey)
-	}
-	if oldSSOKey != "" && oldSSOKey != newSSOKey {
-		stale = append(stale, oldSSOKey)
-	}
 	s.releaseStaleCommitteeLocks(ctx, uid, stale)
 
 	slog.DebugContext(ctx, "updated committee base in NATS storage",
