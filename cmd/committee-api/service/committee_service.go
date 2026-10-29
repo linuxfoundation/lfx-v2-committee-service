@@ -734,12 +734,12 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		invite.Role = *p.Role
 	}
 
-	// Check uniqueness — allow re-inviting if the existing invite is revoked
-	_, errUnique := s.storage.UniqueInvite(ctx, invite)
-	if errUnique != nil {
+	// Create the invite; storage reports a conflict when one already exists for this email, in
+	// which case a revoked invite is reinstated instead
+	if errCreate := s.storage.CreateInvite(ctx, invite); errCreate != nil {
 		var conflictErr errors.Conflict
-		if !stderrors.As(errUnique, &conflictErr) {
-			return nil, wrapError(ctx, errUnique)
+		if !stderrors.As(errCreate, &conflictErr) {
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Uniqueness conflict: look for a revoked invite to reinstate
@@ -755,7 +755,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 			}
 		}
 		if revokedInvite == nil {
-			return nil, wrapError(ctx, errUnique)
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Reinstate the revoked invite by setting it back to pending
@@ -789,10 +789,6 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
 
 		return s.convertInviteDomainToResponse(revokedInvite), nil
-	}
-
-	if err := s.storage.CreateInvite(ctx, invite); err != nil {
-		return nil, wrapError(ctx, err)
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
@@ -1278,12 +1274,12 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		application.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
 	}
 
-	// Check uniqueness — allow reapplying if the existing application is rejected
-	_, errUnique := s.storage.UniqueApplication(ctx, application)
-	if errUnique != nil {
+	// Create the application; storage reports a conflict when one already exists for this
+	// applicant, in which case a rejected application is reinstated instead
+	if errCreate := s.storage.CreateApplication(ctx, application); errCreate != nil {
 		var conflictErr errors.Conflict
-		if !stderrors.As(errUnique, &conflictErr) {
-			return nil, wrapError(ctx, errUnique)
+		if !stderrors.As(errCreate, &conflictErr) {
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Uniqueness conflict: look for a rejected application to reinstate
@@ -1299,7 +1295,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 			}
 		}
 		if rejectedApp == nil {
-			return nil, wrapError(ctx, errUnique)
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Reinstate the rejected application by setting it back to pending.
@@ -1331,10 +1327,6 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 
 		return s.convertApplicationDomainToResponse(current), nil
-	}
-
-	if err := s.storage.CreateApplication(ctx, application); err != nil {
-		return nil, wrapError(ctx, err)
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)

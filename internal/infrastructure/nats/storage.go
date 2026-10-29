@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -1144,7 +1145,10 @@ func (s *storage) ListInvites(ctx context.Context, committeeUID string) ([]*mode
 
 // ================== CommitteeInviteWriter implementation ==================
 
-// CreateInvite creates a new committee invite
+// CreateInvite creates a new committee invite. It first reserves the (committee, invitee email)
+// uniqueness lookup key and returns errs.Conflict if an invite for that pair already exists. If
+// writing the invite record fails after the key was reserved, the key is released so the pair is
+// not left locked.
 func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error {
 
 	if invite == nil {
@@ -1156,8 +1160,19 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 		return errs.NewUnexpected("failed to marshal committee invite", errMarshal)
 	}
 
-	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeInvites].Create(ctx, invite.UID, inviteBytes)
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeInvites]
+
+	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
+	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(invite.UID)); errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return errs.NewConflict("invite for the same email already exists in the committee")
+		}
+		return errs.NewUnexpected("failed to create unique key for invite", errUnique)
+	}
+
+	rev, errCreate := kv.Create(ctx, invite.UID, inviteBytes)
 	if errCreate != nil {
+		s.releaseLookupKey(ctx, kv, uniqueKey)
 		return errs.NewUnexpected("failed to create committee invite", errCreate)
 	}
 
@@ -1197,19 +1212,6 @@ func (s *storage) UpdateInvite(ctx context.Context, invite *model.CommitteeInvit
 	)
 
 	return nil
-}
-
-// UniqueInvite verifies if an invite with the same email exists for the committee
-func (s *storage) UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error) {
-	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
-	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeInvites].Create(ctx, uniqueKey, []byte(invite.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return uniqueKey, errs.NewConflict("invite for the same email already exists in the committee")
-		}
-		return uniqueKey, errs.NewUnexpected("failed to create unique key for invite", errUnique)
-	}
-	return uniqueKey, nil
 }
 
 // ================== CommitteeApplicationReader implementation ==================
@@ -1320,7 +1322,10 @@ func (s *storage) ListAllApplications(ctx context.Context) ([]*model.CommitteeAp
 
 // ================== CommitteeApplicationWriter implementation ==================
 
-// CreateApplication creates a new committee application
+// CreateApplication creates a new committee application. It first reserves the (committee,
+// applicant email) uniqueness lookup key and returns errs.Conflict if an application for that pair
+// already exists. If writing the application record fails after the key was reserved, the key is
+// released so the pair is not left locked.
 func (s *storage) CreateApplication(ctx context.Context, application *model.CommitteeApplication) error {
 
 	if application == nil {
@@ -1332,8 +1337,19 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 		return errs.NewUnexpected("failed to marshal committee application", errMarshal)
 	}
 
-	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Create(ctx, application.UID, applicationBytes)
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeApplications]
+
+	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
+	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(application.UID)); errUnique != nil {
+		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			return errs.NewConflict("application from the same user already exists in the committee")
+		}
+		return errs.NewUnexpected("failed to create unique key for application", errUnique)
+	}
+
+	rev, errCreate := kv.Create(ctx, application.UID, applicationBytes)
 	if errCreate != nil {
+		s.releaseLookupKey(ctx, kv, uniqueKey)
 		return errs.NewUnexpected("failed to create committee application", errCreate)
 	}
 
@@ -1414,17 +1430,17 @@ func (s *storage) DeleteApplication(ctx context.Context, application *model.Comm
 	return nil
 }
 
-// UniqueApplication verifies if an application from the same user exists for the committee
-func (s *storage) UniqueApplication(ctx context.Context, application *model.CommitteeApplication) (string, error) {
-	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
-	_, errUnique := s.client.kvStore[constants.KVBucketNameCommitteeApplications].Create(ctx, uniqueKey, []byte(application.UID))
-	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
-			return uniqueKey, errs.NewConflict("application from the same user already exists in the committee")
-		}
-		return uniqueKey, errs.NewUnexpected("failed to create unique key for application", errUnique)
+// releaseLookupKey deletes a uniqueness lookup key reserved earlier in the same operation. It is
+// best-effort: a failure is logged at critical priority because a key left behind locks the
+// (committee, email) pair against re-creation.
+func (s *storage) releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, key string) {
+	if err := kv.Delete(ctx, key); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
+		slog.ErrorContext(ctx, "failed to release lookup key",
+			"error", err,
+			"key", key,
+			log.PriorityCritical(),
+		)
 	}
-	return uniqueKey, nil
 }
 
 // IsReady checks whether the underlying NATS client connection is healthy and ready to serve requests.
