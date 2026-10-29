@@ -42,9 +42,13 @@ type RunContext struct {
 	CommitteeReader             port.CommitteeReader
 	CommitteeWriterOrchestrator service.CommitteeWriter
 	// CommitteeMemberWriter provides direct storage-layer access to member write operations
-	// (e.g. IndexMemberByCommittee). This is used by data-repair subcommands that bypass the
+	// (create, update, delete). This is used by data-repair subcommands that bypass the
 	// business-logic orchestrator and write to the storage layer directly.
 	CommitteeMemberWriter port.CommitteeMemberWriter
+	// MemberIndexBackfiller writes the NATS KV member secondary indexes directly, for the
+	// members-by-*-index backfill subcommands. It is KV-specific and goes away with the KV member
+	// storage.
+	MemberIndexBackfiller port.MemberIndexBackfiller
 	// CommitteeInviteWriter provides direct storage-layer access to invite write operations
 	// (e.g. backfilling fields during reindex). Bypasses the business-logic orchestrator.
 	CommitteeInviteWriter port.CommitteeInviteWriter

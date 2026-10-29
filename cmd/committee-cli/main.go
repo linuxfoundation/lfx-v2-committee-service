@@ -133,6 +133,7 @@ func run() error {
 		CommitteeReader:             storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
 		CommitteeMemberWriter:       storage,
+		MemberIndexBackfiller:       storage,
 		CommitteeInviteWriter:       storage,
 		DocumentAuditSync:           storage,
 		Publisher:                   publisher,

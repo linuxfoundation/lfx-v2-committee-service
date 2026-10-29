@@ -25,56 +25,26 @@ import (
 
 // type committeeWriterOrchestrator from committee_writer.go
 
-func (uc *committeeWriterOrchestrator) deleteMemberKeys(ctx context.Context, keys []string, isRollback bool) {
+// rollbackCreatedMember removes a member that was created earlier in the same request, which also
+// releases its lookup entries. It is best-effort and only logs failures.
+func (uc *committeeWriterOrchestrator) rollbackCreatedMember(ctx context.Context, uid string) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 
-	if len(keys) == 0 {
+	rev, errGet := uc.committeeReader.GetMemberRevision(cleanupCtx, uid)
+	if errGet != nil {
+		slog.ErrorContext(ctx, "failed to read committee member for rollback",
+			"error", errGet,
+			"member_uid", uid,
+			log.PriorityCritical(),
+		)
 		return
 	}
-
-	slog.DebugContext(ctx, "deleting member keys",
-		"keys", keys,
-		"is_rollback", isRollback,
-	)
-
-	for _, key := range keys {
-		rev, errGet := uc.committeeReader.GetMemberRevision(ctx, key)
-		if errGet != nil {
-			var notFoundErr errs.NotFound
-			if errors.As(errGet, &notFoundErr) {
-				// Key already absent — nothing to delete. This is expected for
-				// the committee→member index on members created before the backfill
-				// was run, and for any key that was never written (e.g. failed partial write).
-				slog.DebugContext(ctx, "member key already absent during cleanup",
-					"key", key,
-					"is_rollback", isRollback,
-				)
-				continue
-			}
-			slog.ErrorContext(ctx, "failed to get revision for member key deletion",
-				"error", errGet,
-				"key", key,
-				"is_rollback", isRollback,
-				// This is critical because if we don't delete them,
-				// the member would be locked for reuse for a long time.
-				log.PriorityCritical(),
-			)
-			continue
-		}
-
-		errDelete := uc.committeeWriter.DeleteMember(ctx, key, rev)
-		if errDelete != nil {
-			slog.ErrorContext(ctx, "failed to delete member key",
-				"error", errDelete,
-				"key", key,
-				"is_rollback", isRollback,
-				// This is critical because if we don't delete them,
-				// the member would be locked for reuse for a long time.
-				log.PriorityCritical(),
-			)
-		}
-		slog.DebugContext(ctx, "deleted member key",
-			"key", key,
-			"is_rollback", isRollback,
+	if errDelete := uc.committeeWriter.DeleteMember(cleanupCtx, uid, rev); errDelete != nil {
+		slog.ErrorContext(ctx, "failed to roll back committee member",
+			"error", errDelete,
+			"member_uid", uid,
+			log.PriorityCritical(),
 		)
 	}
 }
@@ -93,16 +63,11 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	member.CreatedAt = now
 	member.UpdatedAt = now
 
-	// Track resources for rollback purposes
-	var (
-		keys             []string
-		rollbackRequired bool
-	)
+	// created marks that the member was persisted, so an unexpected panic afterwards removes it again
+	var created bool
 	defer func() {
-		if err := recover(); err != nil || rollbackRequired {
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			uc.deleteMemberKeys(cleanupCtx, keys, rollbackRequired)
+		if err := recover(); err != nil && created {
+			uc.rollbackCreatedMember(ctx, member.UID)
 		}
 	}()
 
@@ -226,97 +191,27 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		return nil, errOrganization
 	}
 
-	// Step 7: Check if member already exists in committee
-	key, errMemberExists := uc.committeeWriter.UniqueMember(ctx, member)
-	if errMemberExists != nil {
-		slog.WarnContext(ctx, "member already exists in committee",
-			"error", errMemberExists,
-			"committee_uid", member.CommitteeUID,
-			"member_email", redaction.RedactEmail(member.Email),
-		)
-		return nil, errMemberExists
-	}
-	keys = append(keys, key)
-
-	// Step 8: Create the member record with rollback support
-	errCreate := uc.committeeWriter.CreateMember(ctx, member)
-	if errCreate != nil {
-		slog.ErrorContext(ctx, "failed to create committee member",
-			"error", errCreate,
-			"committee_uid", member.CommitteeUID,
-			"member_uid", member.UID,
-		)
-		rollbackRequired = true
+	// Step 7: Create the member. Storage enforces that the email is unique within the committee and
+	// writes the member's lookup entries (by committee, organization, email, and username), removing
+	// everything again if any step fails.
+	if errCreate := uc.committeeWriter.CreateMember(ctx, member); errCreate != nil {
+		var conflictErr errs.Conflict
+		if errors.As(errCreate, &conflictErr) {
+			slog.WarnContext(ctx, "member already exists in committee",
+				"error", errCreate,
+				"committee_uid", member.CommitteeUID,
+				"member_email", redaction.RedactEmail(member.Email),
+			)
+		} else {
+			slog.ErrorContext(ctx, "failed to create committee member",
+				"error", errCreate,
+				"committee_uid", member.CommitteeUID,
+				"member_uid", member.UID,
+			)
+		}
 		return nil, errCreate
 	}
-	keys = append(keys, member.UID)
-
-	// Step 8b: Write the committee→member secondary index so ListMembersByCommittee can use a
-	// targeted prefix scan rather than a full bucket scan.
-	indexKey, errIndex := uc.committeeWriter.IndexMemberByCommittee(ctx, member)
-	// Append before checking the error: if the write partially succeeded and
-	// returned an error, rollback must still be able to clean up the written key.
-	if indexKey != "" {
-		keys = append(keys, indexKey)
-	}
-	if errIndex != nil {
-		slog.ErrorContext(ctx, "failed to write committee member index",
-			"error", errIndex,
-			"committee_uid", member.CommitteeUID,
-			"member_uid", member.UID,
-		)
-		rollbackRequired = true
-		return nil, errIndex
-	}
-
-	// Step 8c: Write the organization→member secondary index (Org Lens, LFXV2-1865) so a company's
-	// committee seats can be listed from committee-service's own KV without a query-service call.
-	// No-op (empty key) for members with no organization.id.
-	orgIndexKey, errOrgIndex := uc.committeeWriter.IndexMemberByOrganization(ctx, member)
-	if orgIndexKey != "" {
-		keys = append(keys, orgIndexKey)
-	}
-	if errOrgIndex != nil {
-		slog.ErrorContext(ctx, "failed to write committee member organization index",
-			"error", errOrgIndex,
-			"organization_id", member.Organization.ID,
-			"member_uid", member.UID,
-		)
-		rollbackRequired = true
-		return nil, errOrgIndex
-	}
-
-	// Step 8d: Write the email→member secondary index so v1-sync-helper can find all committee seats
-	// for a given email via a server-side filtered scan rather than a full bucket scan.
-	// No-op (empty key) for members with no email.
-	emailIndexKey, errEmailIndex := uc.committeeWriter.IndexMemberByEmail(ctx, member)
-	if emailIndexKey != "" {
-		keys = append(keys, emailIndexKey)
-	}
-	if errEmailIndex != nil {
-		slog.ErrorContext(ctx, "failed to write committee member email index",
-			"error", errEmailIndex,
-			"member_uid", member.UID,
-		)
-		rollbackRequired = true
-		return nil, errEmailIndex
-	}
-
-	// Step 8e: Write the username→member secondary index so the user-deleted scrub can find all
-	// committee seats for a given LFID via a server-side filtered scan rather than a full bucket scan.
-	// No-op (empty key) for members with no username.
-	usernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
-	if usernameIndexKey != "" {
-		keys = append(keys, usernameIndexKey)
-	}
-	if errUsernameIndex != nil {
-		slog.ErrorContext(ctx, "failed to write committee member username index",
-			"error", errUsernameIndex,
-			"member_uid", member.UID,
-		)
-		rollbackRequired = true
-		return nil, errUsernameIndex
-	}
+	created = true
 
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,
@@ -363,32 +258,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		"member_username", redaction.Redact(member.Username),
 		"revision", revision,
 	)
-
-	// For rollback purposes and cleanup
-	var (
-		staleKeys        []string
-		newKeys          []string
-		rollbackRequired bool
-		updateSucceeded  bool
-	)
-	defer func() {
-		if err := recover(); err != nil || rollbackRequired {
-			// Rollback new keys
-			uc.deleteMemberKeys(ctx, newKeys, true)
-		}
-		if updateSucceeded && len(staleKeys) > 0 {
-			slog.DebugContext(ctx, "cleaning up stale member keys",
-				"keys_count", len(staleKeys),
-			)
-			go func() {
-				// Cleanup stale keys in a separate goroutine
-				// new context to avoid blocking the main flow
-				ctxCleanup, cancel := context.WithTimeout(context.Background(), time.Second*10)
-				defer cancel()
-				uc.deleteMemberKeys(ctxCleanup, staleKeys, false)
-			}()
-		}
-	}()
 
 	// Step 1: Retrieve existing member data from the repository
 	existing, existingRevision, errGet := uc.committeeReader.GetMember(ctx, member.UID)
@@ -520,38 +389,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 			}
 		}
 
-		// Check if new email already exists in committee (uniqueness check).
-		// emailChanged is hash-based so case-only changes never reach this block,
-		// preventing write+stale-delete of identical uniqueness keys.
-		newLookupKey, errMemberExists := uc.committeeWriter.UniqueMember(ctx, member)
-		if errMemberExists != nil {
-			slog.WarnContext(ctx, "member with new email already exists in committee",
-				"error", errMemberExists,
-				"committee_uid", member.CommitteeUID,
-				"new_email", redaction.RedactEmail(member.Email),
-			)
-			return nil, errMemberExists
-		}
-		newKeys = append(newKeys, newLookupKey)
-
-		// Mark old uniqueness and email-index keys for cleanup.
-		staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx)))
-
-		newEmailIndexKey, errEmailIndex := uc.committeeWriter.IndexMemberByEmail(ctx, member)
-		if newEmailIndexKey != "" {
-			newKeys = append(newKeys, newEmailIndexKey)
-		}
-		if errEmailIndex != nil {
-			slog.ErrorContext(ctx, "failed to write email index during member update",
-				"error", errEmailIndex,
-				"member_uid", member.UID,
-			)
-			rollbackRequired = true
-			return nil, errEmailIndex
-		}
-		if oldEmailHash != "" {
-			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, oldEmailHash, existing.UID))
-		}
 	}
 
 	// Resolve username from email when auth can map the email to an LFID.
@@ -613,7 +450,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 				"error", errUsername,
 				"username", redaction.Redact(member.Username),
 			)
-			rollbackRequired = true
 			return nil, errUsername
 		}
 	}
@@ -631,7 +467,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 				"error", errOrganization,
 				"organization", member.Organization.Name,
 			)
-			rollbackRequired = true
 			return nil, errOrganization
 		}
 	}
@@ -649,58 +484,8 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 		"organization_changed", organizationChanged,
 	)
 
-	// Step 7b: Reconcile the organization→member secondary index (Org Lens, LFXV2-1865) when the
-	// holding org id changes. The committee→member index is immutable on update (committee_uid can't
-	// change), but organization.id can — so write the new entry (tracked in newKeys for rollback if
-	// the update fails) and mark the old entry stale for cleanup after a successful update.
-	oldOrgSFID := utils.NormalizeAccountSFID(existing.Organization.ID)
-	newOrgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
-	if oldOrgSFID != newOrgSFID {
-		if newOrgSFID != "" {
-			newOrgIndexKey, errOrgIndex := uc.committeeWriter.IndexMemberByOrganization(ctx, member)
-			if newOrgIndexKey != "" {
-				newKeys = append(newKeys, newOrgIndexKey)
-			}
-			if errOrgIndex != nil {
-				slog.ErrorContext(ctx, "failed to write organization index during member update",
-					"error", errOrgIndex,
-					"organization_id", member.Organization.ID,
-					"member_uid", member.UID,
-				)
-				rollbackRequired = true
-				return nil, errOrgIndex
-			}
-		}
-		if oldOrgSFID != "" {
-			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, oldOrgSFID, existing.UID))
-		}
-	}
-
-	// Step 7c: Reconcile the username→member secondary index when the username changes.
-	// Write the new entry first (tracked for rollback), then mark the old one stale for
-	// post-update cleanup. Members with no new username skip the write; members with no old
-	// username skip the stale-key append.
-	oldUsernameHash := existing.BuildUsernameIndexKey(ctx)
-	newUsernameHash := member.BuildUsernameIndexKey(ctx)
-	if oldUsernameHash != newUsernameHash {
-		if newUsernameHash != "" {
-			newUsernameIndexKey, errUsernameIndex := uc.committeeWriter.IndexMemberByUsername(ctx, member)
-			if newUsernameIndexKey != "" {
-				newKeys = append(newKeys, newUsernameIndexKey)
-			}
-			if errUsernameIndex != nil {
-				slog.ErrorContext(ctx, "failed to write username index during member update",
-					"error", errUsernameIndex,
-					"member_uid", member.UID,
-				)
-				rollbackRequired = true
-				return nil, errUsernameIndex
-			}
-		}
-		if oldUsernameHash != "" {
-			staleKeys = append(staleKeys, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, oldUsernameHash, existing.UID))
-		}
-	}
+	// Storage moves the member's lookup entries (by email, organization, and username) when they change,
+	// and enforces that a new email is unique within the committee.
 
 	// Step 8: Update the member in storage
 	updatedMember, errUpdate := uc.committeeWriter.UpdateMember(ctx, member, revision)
@@ -709,7 +494,6 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 			"error", errUpdate,
 			"member_uid", member.UID,
 		)
-		rollbackRequired = true
 		return nil, errUpdate
 	}
 
@@ -753,11 +537,8 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 
 	slog.DebugContext(ctx, "committee member update completed successfully",
 		"member_uid", member.UID,
-		"stale_keys_count", len(staleKeys),
 	)
 
-	// Mark update as successful for defer cleanup
-	updateSucceeded = true
 	return member, nil
 }
 
@@ -801,40 +582,7 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, committ
 		"committee_uid", existing.CommitteeUID,
 	)
 
-	// Step 2: Build list of secondary indices to delete
-	var indicesToDelete []string
-
-	// Build member lookup index key (committee_uid + email hash) for uniqueness guard.
-	memberIndexKey := fmt.Sprintf(constants.KVLookupMemberPrefix, existing.BuildIndexKey(ctx))
-	indicesToDelete = append(indicesToDelete, memberIndexKey)
-
-	// Build committee→member secondary index key so it is cleaned up on delete.
-	membersByCommitteeKey := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, existing.CommitteeUID, existing.UID)
-	indicesToDelete = append(indicesToDelete, membersByCommitteeKey)
-
-	// Build organization→member secondary index key (Org Lens, LFXV2-1865) so it is cleaned up on
-	// delete. Only present when the member had an organization.id; normalized to match the write side.
-	if orgSFID := utils.NormalizeAccountSFID(existing.Organization.ID); orgSFID != "" {
-		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, existing.UID))
-	}
-
-	// Build email→member secondary index key so it is cleaned up on delete.
-	if emailHash := existing.BuildEmailIndexKey(ctx); emailHash != "" {
-		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, emailHash, existing.UID))
-	}
-
-	// Build username→member secondary index key so it is cleaned up on delete.
-	if usernameHash := existing.BuildUsernameIndexKey(ctx); usernameHash != "" {
-		indicesToDelete = append(indicesToDelete, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, usernameHash, existing.UID))
-	}
-
-	slog.DebugContext(ctx, "secondary indices identified for member deletion",
-		"member_uid", uid,
-		"indices_count", len(indicesToDelete),
-		"indices", indicesToDelete,
-	)
-
-	// Step 3: Delete the main member record
+	// Step 2: Delete the member record; storage also releases its uniqueness lock and lookup entries
 	errDelete := uc.committeeWriter.DeleteMember(ctx, uid, revision)
 	if errDelete != nil {
 		slog.ErrorContext(ctx, "failed to delete committee member",
@@ -848,12 +596,7 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, committ
 		"member_uid", uid,
 	)
 
-	// Step 4: Delete secondary indices
-	// We use the deleteMemberKeys method which handles errors gracefully and logs them
-	// We don't abort here - secondary indices have a minor impact during deletion
-	uc.deleteMemberKeys(ctx, indicesToDelete, false)
-
-	// Step 5: Publish indexer message for member deletion
+	// Step 3: Publish indexer message for member deletion
 	deleteEventData := &model.CommitteeMemberMessageData{
 		Member:           existing,
 		SkipNotification: skipNotification,
@@ -868,7 +611,6 @@ func (uc *committeeWriterOrchestrator) DeleteMember(ctx context.Context, committ
 
 	slog.DebugContext(ctx, "committee member deletion completed successfully",
 		"member_uid", uid,
-		"indices_deleted", len(indicesToDelete),
 	)
 
 	return nil

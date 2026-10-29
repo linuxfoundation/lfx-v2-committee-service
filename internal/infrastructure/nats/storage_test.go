@@ -369,7 +369,7 @@ func (k *lockKV) Update(_ context.Context, key string, value []byte, revision ui
 		return 0, errors.New("simulated update failure")
 	}
 	if revision != k.revs[key] {
-		return 0, errors.New("wrong last sequence")
+		return 0, jetstream.ErrKeyExists // what a stale revision looks like from a real bucket
 	}
 	k.values[key] = value
 	k.revs[key]++
@@ -1102,5 +1102,624 @@ func TestStorage_CreateCommittee_RealJetStream_SettingsFailure(t *testing.T) {
 		assert.NoError(t, err, "the committee must keep its name lock")
 		_, err = committees.Get(ctx, ssoLockKey("project-1-tsc"))
 		assert.NoError(t, err, "the committee must keep its SSO group lock")
+	})
+}
+
+// ---- Members ----
+
+func newMemberLockStorage() (*storage, *lockKV) {
+	members := newLockKV()
+	s := &storage{client: &NATSClient{kvStore: map[string]jetstream.KeyValue{
+		constants.KVBucketNameCommitteeMembers: members,
+	}}}
+	return s, members
+}
+
+func testMember(uid, committeeUID, email, username, orgID string) *model.CommitteeMember {
+	return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:          uid,
+		CommitteeUID: committeeUID,
+		Email:        email,
+		Username:     username,
+		Organization: model.CommitteeMemberOrganization{ID: orgID, Name: "Org " + orgID},
+	}}
+}
+
+const testOrgSFID = "001B000000IqhSLIAZ" // 18 characters
+const otherOrgSFID = "001B000000AbCdEFGH"
+
+// memberKeys returns every lookup key of the member in the committee-members bucket.
+func memberKeyList(ctx context.Context, m *model.CommitteeMember) []string {
+	k := buildMemberLookupKeys(ctx, m)
+	keys := []string{k.unique}
+	for _, idx := range k.indexes() {
+		keys = append(keys, idx.key)
+	}
+	return keys
+}
+
+func TestStorage_CreateMember(t *testing.T) {
+	ctx := context.Background()
+	newMember := func(uid string) *model.CommitteeMember {
+		return testMember(uid, "committee-1", "first.last@example.com", "first-last", testOrgSFID)
+	}
+
+	t.Run("writes the record, the uniqueness lock and every index", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		m := newMember("m-1")
+
+		require.NoError(t, s.CreateMember(ctx, m))
+
+		assert.Contains(t, kv.values, "m-1")
+		assert.Equal(t, []byte("m-1"), kv.values[fmt.Sprintf(constants.KVLookupMemberPrefix, m.BuildIndexKey(ctx))])
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, "committee-1", "m-1"))
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, testOrgSFID, "m-1"))
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, m.BuildEmailIndexKey(ctx), "m-1"))
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, m.BuildUsernameIndexKey(ctx), "m-1"))
+	})
+
+	t.Run("a member without organization or username only gets the indexes that apply", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		m := testMember("m-1", "committee-1", "first.last@example.com", "", "")
+
+		require.NoError(t, s.CreateMember(ctx, m))
+
+		assert.Len(t, kv.values, 4, "the record, the lock, the committee index and the email index")
+	})
+
+	t.Run("a duplicate email in the same committee is a conflict and changes nothing", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		require.NoError(t, s.CreateMember(ctx, newMember("m-1")))
+		before := len(kv.values)
+
+		err := s.CreateMember(ctx, testMember("m-2", "committee-1", " First.Last@Example.com ", "other", ""))
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		assert.Len(t, kv.values, before)
+		assert.NotContains(t, kv.values, "m-2")
+	})
+
+	t.Run("the same email in another committee is allowed", func(t *testing.T) {
+		s, _ := newMemberLockStorage()
+		require.NoError(t, s.CreateMember(ctx, newMember("m-1")))
+
+		other := newMember("m-2")
+		other.CommitteeUID = "committee-2"
+
+		require.NoError(t, s.CreateMember(ctx, other))
+	})
+
+	t.Run("a failed record write releases the uniqueness lock", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		kv.failCreateFor = "m-1"
+
+		require.Error(t, s.CreateMember(ctx, newMember("m-1")))
+		assert.Empty(t, kv.values)
+
+		kv.failCreateFor = ""
+		require.NoError(t, s.CreateMember(ctx, newMember("m-1")), "the email must be reusable")
+	})
+
+	t.Run("a failed record write whose state cannot be read keeps the lock", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		kv.failCreateFor = "m-1"
+		kv.getErrFor = "m-1"
+		m := newMember("m-1")
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMemberPrefix, m.BuildIndexKey(ctx)))
+	})
+
+	t.Run("an ambiguous record write that landed is treated as created", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		kv.ambiguousFor = "m-1"
+		m := newMember("m-1")
+
+		require.NoError(t, s.CreateMember(ctx, m))
+
+		for _, key := range memberKeyList(ctx, m) {
+			assert.Contains(t, kv.values, key)
+		}
+	})
+
+	t.Run("a cancelled request still releases the uniqueness lock", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		reqCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		kv.cancel, kv.cancelOnCreate = cancel, "m-1"
+
+		require.Error(t, s.CreateMember(reqCtx, newMember("m-1")))
+
+		assert.Empty(t, kv.values)
+	})
+
+	t.Run("a failed index write removes the member and every key written", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		m := newMember("m-1")
+		kv.failCreateFor = fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, m.BuildEmailIndexKey(ctx), "m-1")
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		assert.Empty(t, kv.values, "no record, lock, or index may be left behind")
+
+		kv.failCreateFor = ""
+		require.NoError(t, s.CreateMember(ctx, newMember("m-1")), "the email must be reusable")
+	})
+
+	t.Run("a failed index write whose member cannot be removed keeps the member and its keys", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		m := newMember("m-1")
+		kv.failCreateFor = fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, m.BuildUsernameIndexKey(ctx), "m-1")
+		kv.deleteFailFor = "m-1"
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		assert.Contains(t, kv.values, "m-1")
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMemberPrefix, m.BuildIndexKey(ctx)))
+	})
+
+	t.Run("a member changed by another writer is kept when an index write then fails", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		m := newMember("m-1")
+		kv.ambiguousFor = "m-1"
+		kv.failCreateFor = fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, "committee-1", "m-1")
+		kv.afterAmbiguous = func() {
+			stored := &model.CommitteeMember{}
+			require.NoError(t, json.Unmarshal(kv.values["m-1"], stored))
+			stored.FirstName = "Changed"
+			changed, err := json.Marshal(stored)
+			require.NoError(t, err)
+			kv.values["m-1"] = changed
+		}
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		assert.Contains(t, kv.values, "m-1", "the other writer's changes must not be rolled back")
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMemberPrefix, m.BuildIndexKey(ctx)))
+	})
+
+	t.Run("a member without a committee or UID is a validation error", func(t *testing.T) {
+		s, _ := newMemberLockStorage()
+
+		var validation errs.Validation
+		assert.ErrorAs(t, s.CreateMember(ctx, nil), &validation)
+		assert.ErrorAs(t, s.CreateMember(ctx, testMember("", "committee-1", "a@example.com", "", "")), &validation)
+		assert.ErrorAs(t, s.CreateMember(ctx, testMember("m-1", "", "a@example.com", "", "")), &validation)
+	})
+}
+
+func TestStorage_UpdateMember(t *testing.T) {
+	ctx := context.Background()
+
+	seed := func(t *testing.T) (*storage, *lockKV, *model.CommitteeMember) {
+		t.Helper()
+		s, kv := newMemberLockStorage()
+		m := testMember("m-1", "committee-1", "first.last@example.com", "first-last", testOrgSFID)
+		require.NoError(t, s.CreateMember(ctx, m))
+		return s, kv, m
+	}
+	changed := func(mutate func(*model.CommitteeMember)) *model.CommitteeMember {
+		m := testMember("m-1", "committee-1", "first.last@example.com", "first-last", testOrgSFID)
+		mutate(m)
+		return m
+	}
+
+	t.Run("a change that touches no lookup key reserves and releases nothing", func(t *testing.T) {
+		s, kv, original := seed(t)
+		before := len(kv.values)
+
+		updated, err := s.UpdateMember(ctx, changed(func(m *model.CommitteeMember) { m.FirstName = "Renamed" }), 1)
+
+		require.NoError(t, err)
+		assert.Equal(t, "Renamed", updated.FirstName)
+		assert.Len(t, kv.values, before)
+		for _, key := range memberKeyList(ctx, original) {
+			assert.Contains(t, kv.values, key)
+		}
+	})
+
+	t.Run("a case-only email change keeps the same keys", func(t *testing.T) {
+		s, kv, original := seed(t)
+		before := len(kv.values)
+
+		_, err := s.UpdateMember(ctx, changed(func(m *model.CommitteeMember) { m.Email = "First.Last@Example.com" }), 1)
+
+		require.NoError(t, err)
+		assert.Len(t, kv.values, before)
+		assert.Contains(t, kv.values, memberKeyList(ctx, original)[0])
+	})
+
+	t.Run("an email change moves the uniqueness lock and the email index", func(t *testing.T) {
+		s, kv, original := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.NoError(t, err)
+		oldKeys, newKeys := buildMemberLookupKeys(ctx, original), buildMemberLookupKeys(ctx, moved)
+		assert.NotContains(t, kv.values, oldKeys.unique)
+		assert.NotContains(t, kv.values, oldKeys.byEmail)
+		assert.Contains(t, kv.values, newKeys.unique)
+		assert.Contains(t, kv.values, newKeys.byEmail)
+		assert.Contains(t, kv.values, oldKeys.byCommittee, "the committee index does not change")
+		assert.Contains(t, kv.values, oldKeys.byUsername, "the username index does not change")
+	})
+
+	t.Run("an organization change moves the organization index", func(t *testing.T) {
+		s, kv, original := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Organization.ID = otherOrgSFID })
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.NoError(t, err)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, original).byOrganization)
+		assert.Contains(t, kv.values, buildMemberLookupKeys(ctx, moved).byOrganization)
+	})
+
+	t.Run("removing the organization releases its index, and adding one reserves it", func(t *testing.T) {
+		s, kv, original := seed(t)
+		cleared := changed(func(m *model.CommitteeMember) { m.Organization = model.CommitteeMemberOrganization{} })
+
+		_, err := s.UpdateMember(ctx, cleared, 1)
+		require.NoError(t, err)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, original).byOrganization)
+
+		_, err = s.UpdateMember(ctx, changed(func(m *model.CommitteeMember) { m.Organization.ID = otherOrgSFID }), 2)
+		require.NoError(t, err)
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, otherOrgSFID, "m-1"))
+	})
+
+	t.Run("a username change moves the username index and clearing it releases it", func(t *testing.T) {
+		s, kv, original := seed(t)
+
+		_, err := s.UpdateMember(ctx, changed(func(m *model.CommitteeMember) { m.Username = "new-name" }), 1)
+		require.NoError(t, err)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, original).byUsername)
+		assert.Contains(t, kv.values, fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, (&model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{Username: "new-name"}}).BuildUsernameIndexKey(ctx), "m-1"))
+
+		_, err = s.UpdateMember(ctx, changed(func(m *model.CommitteeMember) { m.Username = "" }), 2)
+		require.NoError(t, err)
+		for key := range kv.values {
+			assert.NotContains(t, key, "committee-members-by-username", "no username index may remain")
+		}
+	})
+
+	t.Run("a new email that is already a member is a conflict and reserves nothing", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		require.NoError(t, s.CreateMember(ctx, testMember("m-2", "committee-1", "taken@example.com", "", "")))
+		before := len(kv.values)
+
+		_, err := s.UpdateMember(ctx, changed(func(m *model.CommitteeMember) {
+			m.Email = "taken@example.com"
+			m.Organization.ID = otherOrgSFID // a second change that must not leak a reservation
+		}), 1)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		assert.Len(t, kv.values, before)
+	})
+
+	t.Run("a failed index reservation releases the keys reserved before it", func(t *testing.T) {
+		s, kv, original := seed(t)
+		moved := changed(func(m *model.CommitteeMember) {
+			m.Email = "new.address@example.com"
+			m.Organization.ID = otherOrgSFID
+		})
+		newKeys := buildMemberLookupKeys(ctx, moved)
+		kv.failCreateFor = newKeys.byOrganization // reserved after the uniqueness lock and before the email index
+		before := len(kv.values)
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.Error(t, err)
+		assert.Len(t, kv.values, before)
+		assert.NotContains(t, kv.values, newKeys.unique, "the lock reserved before the failure must be released")
+		for _, key := range memberKeyList(ctx, original) {
+			assert.Contains(t, kv.values, key, "the member's own keys are untouched")
+		}
+	})
+
+	t.Run("a stale revision is a conflict and releases the new keys", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		_, err := s.UpdateMember(ctx, changed(func(m *model.CommitteeMember) { m.FirstName = "First update" }), 1)
+		require.NoError(t, err)
+		stale := changed(func(m *model.CommitteeMember) { m.Email = "stale.change@example.com" })
+
+		_, err = s.UpdateMember(ctx, stale, 1)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, stale).unique)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, stale).byEmail)
+	})
+
+	t.Run("an ambiguous write that landed is treated as updated and releases the old keys", func(t *testing.T) {
+		s, kv, original := seed(t)
+		kv.ambiguousFor = "m-1"
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.NoError(t, err)
+		assert.Contains(t, kv.values, buildMemberLookupKeys(ctx, moved).unique)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, original).unique, "the old email must not stay locked")
+	})
+
+	t.Run("an ambiguous email change that another writer changed afterwards keeps the new keys and releases the old", func(t *testing.T) {
+		s, kv, original := seed(t)
+		kv.ambiguousFor = "m-1"
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		kv.afterAmbiguous = func() {
+			stored := &model.CommitteeMember{}
+			require.NoError(t, json.Unmarshal(kv.values["m-1"], stored))
+			stored.FirstName = "Changed"
+			changedBytes, err := json.Marshal(stored)
+			require.NoError(t, err)
+			kv.values["m-1"] = changedBytes
+		}
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.Error(t, err)
+		assert.Contains(t, kv.values, buildMemberLookupKeys(ctx, moved).unique)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, original).unique)
+	})
+
+	t.Run("a failed write whose state cannot be read keeps the new keys", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		kv.failUpdate = true
+		kv.failGetAfterUpdate = true
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.Error(t, err)
+		assert.Contains(t, kv.values, buildMemberLookupKeys(ctx, moved).unique)
+	})
+
+	t.Run("a cancelled request still releases the new keys", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		kv.failUpdate = true
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		reqCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		kv.beforeUpdate = cancel
+
+		_, err := s.UpdateMember(reqCtx, moved, 1)
+
+		require.Error(t, err)
+		require.True(t, kv.updateAttempted)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, moved).unique)
+	})
+
+	t.Run("a key the member already owns is not a conflict", func(t *testing.T) {
+		s, kv, original := seed(t)
+		target := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		// Left over from earlier data: this member already owns the target email's lock.
+		kv.values[buildMemberLookupKeys(ctx, target).unique] = []byte("m-1")
+
+		_, err := s.UpdateMember(ctx, target, 1)
+
+		require.NoError(t, err)
+		assert.Contains(t, kv.values, buildMemberLookupKeys(ctx, target).unique)
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, original).unique)
+	})
+
+	t.Run("an unknown member is not found", func(t *testing.T) {
+		s, _ := newMemberLockStorage()
+
+		var notFound errs.NotFound
+		_, err := s.UpdateMember(ctx, testMember("missing", "committee-1", "a@example.com", "", ""), 1)
+		assert.ErrorAs(t, err, &notFound)
+	})
+}
+
+func TestStorage_DeleteMember(t *testing.T) {
+	ctx := context.Background()
+	seed := func(t *testing.T) (*storage, *lockKV, *model.CommitteeMember) {
+		t.Helper()
+		s, kv := newMemberLockStorage()
+		m := testMember("m-1", "committee-1", "first.last@example.com", "first-last", testOrgSFID)
+		require.NoError(t, s.CreateMember(ctx, m))
+		return s, kv, m
+	}
+
+	t.Run("removes the record, the uniqueness lock and every index", func(t *testing.T) {
+		s, kv, m := seed(t)
+
+		require.NoError(t, s.DeleteMember(ctx, "m-1", 1))
+
+		assert.Empty(t, kv.values)
+		require.NoError(t, s.CreateMember(ctx, testMember("m-2", "committee-1", m.Email, "", "")), "the email must be reusable")
+	})
+
+	t.Run("a delete that was applied despite an error continues and releases the keys", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		kv.ambiguousDeleteFor = "m-1"
+
+		require.NoError(t, s.DeleteMember(ctx, "m-1", 1))
+
+		assert.Empty(t, kv.values)
+	})
+
+	t.Run("a failed delete that cannot be confirmed keeps the member and its keys", func(t *testing.T) {
+		s, kv, m := seed(t)
+		kv.deleteFailFor = "m-1"
+
+		require.Error(t, s.DeleteMember(ctx, "m-1", 1))
+
+		assert.Contains(t, kv.values, "m-1")
+		for _, key := range memberKeyList(ctx, m) {
+			assert.Contains(t, kv.values, key)
+		}
+	})
+
+	t.Run("a lookup key owned by another member is not released", func(t *testing.T) {
+		s, kv, m := seed(t)
+		unique := buildMemberLookupKeys(ctx, m).unique
+		kv.values[unique] = []byte("some-other-member")
+
+		require.NoError(t, s.DeleteMember(ctx, "m-1", 1))
+
+		assert.Equal(t, []byte("some-other-member"), kv.values[unique])
+		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, m).byEmail, "the member's own keys are released")
+	})
+
+	t.Run("an unknown member is not found", func(t *testing.T) {
+		s, _ := newMemberLockStorage()
+
+		var notFound errs.NotFound
+		assert.ErrorAs(t, s.DeleteMember(ctx, "missing", 1), &notFound)
+	})
+}
+
+// failingMemberKV wraps a real committee-members bucket so Create fails for one key, after running
+// beforeCreate. All other calls reach the real bucket, which enforces revisions.
+type failingMemberKV struct {
+	jetstream.KeyValue
+	failKey      string
+	beforeCreate func()
+}
+
+func (k *failingMemberKV) Create(ctx context.Context, key string, value []byte, opts ...jetstream.KVCreateOpt) (uint64, error) {
+	if key == k.failKey {
+		if k.beforeCreate != nil {
+			k.beforeCreate()
+		}
+		return 0, errors.New("simulated create failure")
+	}
+	return k.KeyValue.Create(ctx, key, value, opts...)
+}
+
+// newRealMemberStorage builds a storage over a real JetStream committee-members bucket.
+func newRealMemberStorage(t *testing.T) (*storage, jetstream.KeyValue, *failingMemberKV) {
+	t.Helper()
+	js := startJetStreamTestServer(t)
+	real, err := js.CreateKeyValue(context.Background(), jetstream.KeyValueConfig{Bucket: constants.KVBucketNameCommitteeMembers})
+	require.NoError(t, err)
+
+	failing := &failingMemberKV{KeyValue: real}
+	s := &storage{client: &NATSClient{kvStore: map[string]jetstream.KeyValue{
+		constants.KVBucketNameCommitteeMembers: failing,
+	}}}
+	return s, real, failing
+}
+
+func TestStorage_Member_RealJetStream(t *testing.T) {
+	ctx := context.Background()
+	newMember := func() *model.CommitteeMember {
+		return testMember("m-1", "committee-1", "first.last@example.com", "first-last", testOrgSFID)
+	}
+	exists := func(t *testing.T, kv jetstream.KeyValue, key string) bool {
+		t.Helper()
+		_, err := kv.Get(ctx, key)
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return false
+		}
+		require.NoError(t, err)
+		return true
+	}
+	// A real bucket's revision is the stream sequence, so tests read it instead of assuming 1.
+	revision := func(t *testing.T, kv jetstream.KeyValue, key string) uint64 {
+		t.Helper()
+		entry, err := kv.Get(ctx, key)
+		require.NoError(t, err)
+		return entry.Revision()
+	}
+
+	t.Run("an index failure removes the member and every key written", func(t *testing.T) {
+		s, kv, failing := newRealMemberStorage(t)
+		m := newMember()
+		failing.failKey = buildMemberLookupKeys(ctx, m).byEmail
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		for _, key := range append(memberKeyList(ctx, m), "m-1") {
+			assert.False(t, exists(t, kv, key), "key %q must be gone", key)
+		}
+	})
+
+	t.Run("a member another writer advanced is kept when an index write then fails", func(t *testing.T) {
+		s, kv, failing := newRealMemberStorage(t)
+		m := newMember()
+		failing.failKey = buildMemberLookupKeys(ctx, m).byEmail
+		// Between the member write and the failing index write, another writer updates the member,
+		// which advances its revision past the one this create wrote.
+		failing.beforeCreate = func() {
+			entry, err := kv.Get(ctx, "m-1")
+			require.NoError(t, err)
+			stored := &model.CommitteeMember{}
+			require.NoError(t, json.Unmarshal(entry.Value(), stored))
+			stored.FirstName = "Changed"
+			changed, err := json.Marshal(stored)
+			require.NoError(t, err)
+			_, err = kv.Update(ctx, "m-1", changed, entry.Revision())
+			require.NoError(t, err)
+		}
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		entry, err := kv.Get(ctx, "m-1")
+		require.NoError(t, err, "the member the other writer updated must survive the rollback")
+		stored := &model.CommitteeMember{}
+		require.NoError(t, json.Unmarshal(entry.Value(), stored))
+		assert.Equal(t, "Changed", stored.FirstName)
+		assert.True(t, exists(t, kv, buildMemberLookupKeys(ctx, m).unique), "the member must keep its uniqueness lock")
+	})
+
+	t.Run("a stale revision keeps the member and its keys on delete", func(t *testing.T) {
+		s, kv, _ := newRealMemberStorage(t)
+		m := newMember()
+		require.NoError(t, s.CreateMember(ctx, m))
+		staleRev := revision(t, kv, "m-1")
+		changed := newMember()
+		changed.FirstName = "Changed"
+		_, err := s.UpdateMember(ctx, changed, staleRev)
+		require.NoError(t, err)
+
+		require.Error(t, s.DeleteMember(ctx, "m-1", staleRev), "the revision is stale after the update")
+
+		for _, key := range append(memberKeyList(ctx, m), "m-1") {
+			assert.True(t, exists(t, kv, key), "key %q must still exist", key)
+		}
+	})
+
+	t.Run("a stale revision is a conflict on update and releases the new keys", func(t *testing.T) {
+		s, kv, _ := newRealMemberStorage(t)
+		require.NoError(t, s.CreateMember(ctx, newMember()))
+		staleRev := revision(t, kv, "m-1")
+		first := newMember()
+		first.FirstName = "First update"
+		_, err := s.UpdateMember(ctx, first, staleRev)
+		require.NoError(t, err)
+		stale := newMember()
+		stale.Email = "stale.change@example.com"
+
+		_, err = s.UpdateMember(ctx, stale, staleRev)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		assert.False(t, exists(t, kv, buildMemberLookupKeys(ctx, stale).unique))
+		assert.False(t, exists(t, kv, buildMemberLookupKeys(ctx, stale).byEmail))
+	})
+
+	t.Run("an email change moves the keys and delete then releases everything", func(t *testing.T) {
+		s, kv, _ := newRealMemberStorage(t)
+		original := newMember()
+		require.NoError(t, s.CreateMember(ctx, original))
+		moved := newMember()
+		moved.Email = "new.address@example.com"
+
+		_, err := s.UpdateMember(ctx, moved, revision(t, kv, "m-1"))
+		require.NoError(t, err)
+		assert.False(t, exists(t, kv, buildMemberLookupKeys(ctx, original).unique))
+		assert.True(t, exists(t, kv, buildMemberLookupKeys(ctx, moved).unique))
+
+		require.NoError(t, s.DeleteMember(ctx, "m-1", revision(t, kv, "m-1")))
+		for _, key := range append(memberKeyList(ctx, moved), "m-1") {
+			assert.False(t, exists(t, kv, key), "key %q must be gone", key)
+		}
 	})
 }
