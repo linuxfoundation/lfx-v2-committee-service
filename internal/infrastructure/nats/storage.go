@@ -95,6 +95,12 @@ func committeeLocksInUse(ctx context.Context, entry jetstream.KeyValueEntry) (ma
 	return inUse, true
 }
 
+// holdsKey reports whether key is one of the held lookup keys.
+func holdsKey(held map[string]struct{}, key string) bool {
+	_, ok := held[key]
+	return ok
+}
+
 // withoutKeys returns keys without the ones in skip.
 func withoutKeys(keys []string, skip map[string]struct{}) []string {
 	var kept []string
@@ -130,7 +136,9 @@ func (s *storage) reserveCommitteeLocks(ctx context.Context, committeeUID, nameK
 	if ssoKey != "" {
 		newlyReserved, errSSO := s.reserveCommitteeLock(ctx, committeeUID, ssoKey)
 		if errSSO != nil {
-			s.releaseCommitteeLocks(ctx, committeeUID, reserved...)
+			// A concurrent update of the same committee may have reused the name lock reserved above
+			// and committed; releaseStaleCommitteeLocks leaves keys the stored committee uses alone.
+			s.releaseStaleCommitteeLocks(ctx, committeeUID, reserved)
 			if errors.Is(errSSO, jetstream.ErrKeyExists) {
 				return nil, errs.NewConflict("committee with the same SSO group name already exists", errs.ErrSSOGroupNameTaken)
 			}
@@ -257,7 +265,22 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 				"error", errCreate,
 				"committee_uid", uid,
 			)
-		case recordAbsent, recordDiffers:
+		case recordDiffers:
+			// The committee was stored and then changed by another writer before the read-back, so
+			// the stored bytes differ from what was written. If it still carries this create's lookup
+			// keys the create landed and continues; otherwise whatever is stored under the UID is not
+			// this create's committee and the reservations are released.
+			if inUse, decoded := committeeLocksInUse(rctx, stored); decoded && holdsKey(inUse, nameKey) {
+				baseRev = stored.Revision()
+				slog.WarnContext(ctx, "committee create reported an error but the committee was stored and changed; continuing",
+					"error", errCreate,
+					"committee_uid", uid,
+				)
+				break
+			}
+			s.releaseStaleCommitteeLocks(rctx, uid, reserved)
+			return errs.NewUnexpected("failed to create committee", errCreate)
+		case recordAbsent:
 			s.releaseCommitteeLocks(rctx, uid, reserved...)
 			return errs.NewUnexpected("failed to create committee", errCreate)
 		default:

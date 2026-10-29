@@ -302,9 +302,10 @@ type lockKV struct {
 	revs   map[string]uint64 // per-key revision: 1 on create, +1 on every update
 
 	// Hooks to interleave another writer with an operation under test. Each runs once.
-	beforeUpdate   func() // at the start of Update, before the revision check
-	afterUpdate    func() // after Update stored its value, before it returns
-	afterAmbiguous func() // after an ambiguous Update stored its value and before it reports the error
+	beforeCreate   map[string]func() // at the start of Create for that key
+	beforeUpdate   func()            // at the start of Update, before the revision check
+	afterUpdate    func()            // after Update stored its value, before it returns
+	afterAmbiguous func()            // after an ambiguous Update stored its value and before it reports the error
 
 	failCreateFor string // Create fails without storing for this key
 	ambiguousFor  string // Create/Update store the value, then report an error
@@ -326,6 +327,10 @@ type lockKV struct {
 func newLockKV() *lockKV { return &lockKV{values: map[string][]byte{}, revs: map[string]uint64{}} }
 
 func (k *lockKV) Create(_ context.Context, key string, value []byte, _ ...jetstream.KVCreateOpt) (uint64, error) {
+	if hook, ok := k.beforeCreate[key]; ok {
+		delete(k.beforeCreate, key)
+		hook()
+	}
 	if key == k.failCreateFor {
 		return 0, errors.New("simulated create failure")
 	}
@@ -339,6 +344,10 @@ func (k *lockKV) Create(_ context.Context, key string, value []byte, _ ...jetstr
 	k.values[key] = value
 	k.revs[key] = 1
 	if key == k.ambiguousFor {
+		if hook := k.afterAmbiguous; hook != nil {
+			k.afterAmbiguous = nil
+			hook()
+		}
 		return 0, errors.New("simulated timeout after the write was committed")
 	}
 	return 1, nil
@@ -556,6 +565,43 @@ func TestStorage_CreateCommittee(t *testing.T) {
 		assert.Empty(t, committees.values, "the locks must not stay held because the request was cancelled")
 	})
 
+	t.Run("an ambiguous committee write changed by another writer before the read-back still counts as created", func(t *testing.T) {
+		s, committees, settings := newCommitteeLockStorage()
+		committees.ambiguousFor = "c-1"
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+		committees.afterAmbiguous = func() {
+			stored := &model.CommitteeBase{}
+			require.NoError(t, json.Unmarshal(committees.values["c-1"], stored))
+			stored.HasMailingList = true
+			changed, err := json.Marshal(stored)
+			require.NoError(t, err)
+			committees.values["c-1"] = changed
+		}
+
+		require.NoError(t, s.Create(ctx, c))
+
+		assert.Contains(t, committees.values, nameLockKey(ctx, c), "the live committee must keep its name lock")
+		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc"))
+		assert.Contains(t, settings.values, "c-1", "the create continues and writes the settings")
+	})
+
+	t.Run("a committee write that something unrelated replaced releases the reservations", func(t *testing.T) {
+		s, committees, _ := newCommitteeLockStorage()
+		committees.ambiguousFor = "c-1"
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+		other := testCommittee("c-1", "project-9", "Something Else", "")
+		committees.afterAmbiguous = func() {
+			changed, err := json.Marshal(other.CommitteeBase)
+			require.NoError(t, err)
+			committees.values["c-1"] = changed
+		}
+
+		require.Error(t, s.Create(ctx, c))
+
+		assert.NotContains(t, committees.values, nameLockKey(ctx, c))
+		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc"))
+	})
+
 	t.Run("an ambiguous settings write that landed is treated as created", func(t *testing.T) {
 		s, committees, settings := newCommitteeLockStorage()
 		settings.ambiguousFor = "c-1"
@@ -733,6 +779,24 @@ func TestStorage_UpdateBaseCommittee(t *testing.T) {
 		require.NoError(t, s.UpdateBase(ctx, renamed("Steering Committee", "project-1-tsc"), 1))
 
 		assert.Equal(t, []byte("some-other-committee"), committees.values[nameLockKey(ctx, original)])
+	})
+
+	t.Run("a failed SSO reservation does not release a name lock a concurrent update committed", func(t *testing.T) {
+		s, committees, _ := seed(t)
+		require.NoError(t, s.Create(ctx, testCommittee("c-2", "project-1", "Other", "project-1-other")))
+		losing := renamed("Steering Committee", "project-1-other") // its SSO group name is taken by c-2
+		winning := renamed("Steering Committee", "project-1-tsc")
+		winning.Category = "Winner"
+		// The losing update reserves the new name first; before it tries the SSO group name, the winning
+		// update reuses that name lock and commits.
+		committees.beforeCreate = map[string]func(){
+			ssoLockKey("project-1-other"): func() { require.NoError(t, s.UpdateBase(ctx, winning, 1)) },
+		}
+
+		err := s.UpdateBase(ctx, losing, 1)
+
+		require.ErrorIs(t, err, errs.ErrSSOGroupNameTaken)
+		assert.Contains(t, committees.values, nameLockKey(ctx, winning), "the stored committee must keep its name lock")
 	})
 
 	t.Run("a stale revision fails the update and releases the new lookup keys", func(t *testing.T) {
