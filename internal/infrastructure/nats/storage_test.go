@@ -9,7 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
+	natsserver "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -991,5 +994,113 @@ func TestStorage_DeleteCommittee(t *testing.T) {
 
 		var notFound errs.NotFound
 		assert.ErrorAs(t, s.Delete(ctx, "missing", 1), &notFound)
+	})
+}
+
+// startJetStreamTestServer starts an in-process NATS server with JetStream enabled and returns a
+// connection to it. Unlike the fake KVs above, its key-value buckets enforce revisions, so tests that
+// need the real behavior of jetstream.LastRevision use it.
+func startJetStreamTestServer(t *testing.T) jetstream.JetStream {
+	t.Helper()
+
+	ns, err := natsserver.NewServer(&natsserver.Options{
+		Host:      "127.0.0.1",
+		Port:      -1,
+		NoLog:     true,
+		NoSigs:    true,
+		JetStream: true,
+		StoreDir:  t.TempDir(),
+	})
+	require.NoError(t, err)
+	go ns.Start()
+	require.True(t, ns.ReadyForConnections(4*time.Second), "NATS server not ready")
+	t.Cleanup(ns.Shutdown)
+
+	nc, err := nats.Connect(ns.ClientURL())
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	js, err := jetstream.New(nc)
+	require.NoError(t, err)
+	return js
+}
+
+// failingSettingsKV wraps a real settings bucket so its Create fails, after running beforeCreate. The
+// bucket still answers reads, so the failed write reads back as absent.
+type failingSettingsKV struct {
+	jetstream.KeyValue
+	beforeCreate func()
+}
+
+func (k *failingSettingsKV) Create(_ context.Context, _ string, _ []byte, _ ...jetstream.KVCreateOpt) (uint64, error) {
+	if k.beforeCreate != nil {
+		k.beforeCreate()
+	}
+	return 0, errors.New("simulated settings create failure")
+}
+
+// newRealCommitteeStorage builds a storage over real JetStream committee and settings buckets, with
+// the settings Create wrapped to fail.
+func newRealCommitteeStorage(t *testing.T) (*storage, jetstream.KeyValue, *failingSettingsKV) {
+	t.Helper()
+	ctx := context.Background()
+	js := startJetStreamTestServer(t)
+
+	committees, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{Bucket: constants.KVBucketNameCommittees})
+	require.NoError(t, err)
+	settings, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{Bucket: constants.KVBucketNameCommitteeSettings})
+	require.NoError(t, err)
+
+	failing := &failingSettingsKV{KeyValue: settings}
+	s := &storage{client: &NATSClient{kvStore: map[string]jetstream.KeyValue{
+		constants.KVBucketNameCommittees:        committees,
+		constants.KVBucketNameCommitteeSettings: failing,
+	}}}
+	return s, committees, failing
+}
+
+func TestStorage_CreateCommittee_RealJetStream_SettingsFailure(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("removes the committee and releases its lookup keys", func(t *testing.T) {
+		s, committees, _ := newRealCommitteeStorage(t)
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+
+		require.Error(t, s.Create(ctx, c))
+
+		for _, key := range []string{"c-1", nameLockKey(ctx, c), ssoLockKey("project-1-tsc")} {
+			_, err := committees.Get(ctx, key)
+			assert.ErrorIs(t, err, jetstream.ErrKeyNotFound, "key %q must be gone", key)
+		}
+	})
+
+	t.Run("keeps a committee another writer advanced after this create wrote it", func(t *testing.T) {
+		s, committees, failing := newRealCommitteeStorage(t)
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+		// Between this create's base write and its failing settings write, another writer updates the
+		// committee, which advances its revision past the one this create wrote.
+		failing.beforeCreate = func() {
+			entry, err := committees.Get(ctx, "c-1")
+			require.NoError(t, err)
+			stored := &model.CommitteeBase{}
+			require.NoError(t, json.Unmarshal(entry.Value(), stored))
+			stored.HasMailingList = true
+			changed, err := json.Marshal(stored)
+			require.NoError(t, err)
+			_, err = committees.Update(ctx, "c-1", changed, entry.Revision())
+			require.NoError(t, err)
+		}
+
+		require.Error(t, s.Create(ctx, c))
+
+		entry, err := committees.Get(ctx, "c-1")
+		require.NoError(t, err, "the committee the other writer updated must survive the rollback")
+		stored := &model.CommitteeBase{}
+		require.NoError(t, json.Unmarshal(entry.Value(), stored))
+		assert.True(t, stored.HasMailingList, "the other writer's change must be kept")
+		_, err = committees.Get(ctx, nameLockKey(ctx, c))
+		assert.NoError(t, err, "the committee must keep its name lock")
+		_, err = committees.Get(ctx, ssoLockKey("project-1-tsc"))
+		assert.NoError(t, err, "the committee must keep its SSO group lock")
 	})
 }
