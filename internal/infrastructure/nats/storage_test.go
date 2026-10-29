@@ -602,6 +602,27 @@ func TestStorage_CreateCommittee(t *testing.T) {
 		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc"))
 	})
 
+	t.Run("a committee changed by another writer is kept when the settings write then fails", func(t *testing.T) {
+		s, committees, settings := newCommitteeLockStorage()
+		committees.ambiguousFor = "c-1"
+		settings.failCreateFor = "c-1"
+		c := testCommittee("c-1", "project-1", "TSC", "project-1-tsc")
+		committees.afterAmbiguous = func() {
+			stored := &model.CommitteeBase{}
+			require.NoError(t, json.Unmarshal(committees.values["c-1"], stored))
+			stored.HasMailingList = true
+			changed, err := json.Marshal(stored)
+			require.NoError(t, err)
+			committees.values["c-1"] = changed
+		}
+
+		require.Error(t, s.Create(ctx, c))
+
+		assert.Contains(t, committees.values, "c-1", "the other writer's changes must not be rolled back")
+		assert.Contains(t, committees.values, nameLockKey(ctx, c))
+		assert.Contains(t, committees.values, ssoLockKey("project-1-tsc"))
+	})
+
 	t.Run("an ambiguous settings write that landed is treated as created", func(t *testing.T) {
 		s, committees, settings := newCommitteeLockStorage()
 		settings.ambiguousFor = "c-1"
@@ -752,10 +773,14 @@ func TestStorage_UpdateBaseCommittee(t *testing.T) {
 		committees.failUpdate = true
 		updated := renamed("Steering Committee", "project-1-tsc-2")
 		reqCtx, cancel := context.WithCancel(ctx)
-		cancel()
+		defer cancel()
+		// Cancel after the initial read and the lock reservations, just before the write, like a client
+		// that disconnects mid-request.
+		committees.beforeUpdate = cancel
 
 		require.Error(t, s.UpdateBase(reqCtx, updated, 1))
 
+		require.True(t, committees.updateAttempted, "the update must have been attempted, so the rollback ran")
 		assert.NotContains(t, committees.values, nameLockKey(ctx, updated))
 		assert.NotContains(t, committees.values, ssoLockKey("project-1-tsc-2"))
 	})

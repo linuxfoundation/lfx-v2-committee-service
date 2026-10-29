@@ -252,6 +252,9 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 	}
 
 	committeesKV := s.client.kvStore[constants.KVBucketNameCommittees]
+	// baseChanged is set when the committee was stored and then changed by another writer before this
+	// create could confirm it. Its revision is then not this create's, so it must never be rolled back.
+	baseChanged := false
 	baseRev, errCreate := committeesKV.Create(ctx, uid, committeeBaseBytes)
 	if errCreate != nil {
 		rctx, cancel := detachedCtx(ctx)
@@ -272,6 +275,7 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 			// this create's committee and the reservations are released.
 			if inUse, decoded := committeeLocksInUse(rctx, stored); decoded && holdsKey(inUse, nameKey) {
 				baseRev = stored.Revision()
+				baseChanged = true
 				slog.WarnContext(ctx, "committee create reported an error but the committee was stored and changed; continuing",
 					"error", errCreate,
 					"committee_uid", uid,
@@ -309,6 +313,16 @@ func (s *storage) Create(ctx context.Context, committee *model.Committee) error 
 				)
 				return nil
 			case recordAbsent:
+				if baseChanged {
+					// Another writer changed the committee after this create stored it, so it is no
+					// longer this create's to remove. Keep it and its lookup keys.
+					slog.ErrorContext(ctx, "committee settings creation failed but the committee was changed by another writer; keeping it and its lookup keys",
+						"error", errCreate,
+						"committee_uid", uid,
+						log.PriorityCritical(),
+					)
+					break
+				}
 				// Remove the committee written above so a failed create does not leave a committee
 				// without settings, and release its locks only once it is gone. The delete is
 				// conditional on the revision this create wrote, so a committee that something
