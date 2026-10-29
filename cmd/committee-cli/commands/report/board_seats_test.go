@@ -58,8 +58,7 @@ func (r *mockReader) GetBase(_ context.Context, uid string) (*model.CommitteeBas
 	}
 	return base, 0, nil
 }
-func (r *mockReader) GetRevision(_ context.Context, _ string) (uint64, error) { return 0, nil }
-func (r *mockReader) ListAllUIDs(_ context.Context) ([]string, error)         { return nil, nil }
+func (r *mockReader) ListAllUIDs(_ context.Context) ([]string, error) { return nil, nil }
 func (r *mockReader) FindUIDByProjectAndName(_ context.Context, _, _ string) (string, error) {
 	return "", errors.New("not implemented for this test")
 }

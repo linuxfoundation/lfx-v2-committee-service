@@ -263,22 +263,6 @@ func (m *MockRepository) GetBase(ctx context.Context, uid string) (*model.Commit
 	return &baseCopy, 1, nil
 }
 
-// GetRevision retrieves the revision number for a committee by UID
-func (m *MockRepository) GetRevision(ctx context.Context, uid string) (uint64, error) {
-	slog.DebugContext(ctx, "mock repository: getting committee revision", "uid", uid)
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	_, exists := m.committees[uid]
-	if !exists {
-		return 0, errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", uid))
-	}
-
-	// Return version 1 for mock (in real implementation this would be the actual revision)
-	return 1, nil
-}
-
 // FindUIDByProjectAndName looks up the UID of a live committee within a project by name,
 // mirroring the real storage's project+name uniqueness index (keyed by BuildIndexKey).
 func (m *MockRepository) FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error) {
@@ -533,26 +517,36 @@ type MockCommitteeWriter struct {
 func (w *MockCommitteeWriter) Create(ctx context.Context, committee *model.Committee) error {
 	slog.DebugContext(ctx, "mock committee writer: creating committee")
 
-	committee.CommitteeBase.UID = uuid.New().String()
+	if committee.CommitteeBase.UID == "" {
+		committee.CommitteeBase.UID = uuid.New().String()
+	}
 
 	now := time.Now()
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
 
 	// Create committee settings as well
-	committee.CommitteeSettings.UID = committee.CommitteeBase.UID
-	committee.CommitteeSettings.CreatedAt = now
-	committee.CommitteeSettings.UpdatedAt = now
+	if committee.CommitteeSettings != nil {
+		committee.CommitteeSettings.UID = committee.CommitteeBase.UID
+		committee.CommitteeSettings.CreatedAt = now
+		committee.CommitteeSettings.UpdatedAt = now
+	}
 
 	// Store committee and settings
 	w.mock.mu.Lock()
 	defer w.mock.mu.Unlock()
 
+	if errUnique := w.checkCommitteeUniqueLocked(ctx, committee, ""); errUnique != nil {
+		return errUnique
+	}
+
 	w.mock.committees[committee.CommitteeBase.UID] = committee
-	w.mock.committeeSettings[committee.CommitteeBase.UID] = committee.CommitteeSettings
+	if committee.CommitteeSettings != nil {
+		w.mock.committeeSettings[committee.CommitteeBase.UID] = committee.CommitteeSettings
+		w.mock.settingsRevisions[committee.CommitteeBase.UID] = 1
+	}
 	w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
 	w.mock.committeeRevisions[committee.CommitteeBase.UID] = 1
-	w.mock.settingsRevisions[committee.CommitteeBase.UID] = 1
 
 	return nil
 }
@@ -565,14 +559,43 @@ func (w *MockCommitteeWriter) UpdateBase(ctx context.Context, committee *model.C
 	defer w.mock.mu.Unlock()
 
 	// Check if committee exists
-	if _, exists := w.mock.committees[committee.CommitteeBase.UID]; !exists {
+	existing, exists := w.mock.committees[committee.CommitteeBase.UID]
+	if !exists {
 		return errors.NewNotFound(fmt.Sprintf("committee with UID %s not found", committee.CommitteeBase.UID))
+	}
+
+	oldKey := existing.BuildIndexKey(ctx)
+	newKey := committee.BuildIndexKey(ctx)
+	if newKey != oldKey || committee.SSOGroupName != existing.SSOGroupName {
+		if errUnique := w.checkCommitteeUniqueLocked(ctx, committee, committee.CommitteeBase.UID); errUnique != nil {
+			return errUnique
+		}
 	}
 
 	committee.CommitteeBase.UpdatedAt = time.Now()
 	w.mock.committees[committee.CommitteeBase.UID] = committee
-	w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)] = committee
+	if newKey != oldKey {
+		delete(w.mock.committeeIndexKeys, oldKey)
+	}
+	w.mock.committeeIndexKeys[newKey] = committee
 
+	return nil
+}
+
+// checkCommitteeUniqueLocked mirrors the storage layer's uniqueness rules: a committee name is unique
+// per project, and an SSO group name (when set) is unique across committees. ownUID is the committee
+// being updated, which does not conflict with itself. The caller must hold the mock's write lock.
+func (w *MockCommitteeWriter) checkCommitteeUniqueLocked(ctx context.Context, committee *model.Committee, ownUID string) error {
+	if holder, taken := w.mock.committeeIndexKeys[committee.BuildIndexKey(ctx)]; taken && holder.CommitteeBase.UID != ownUID {
+		return errors.NewConflict("committee with the same name for the project already exists")
+	}
+	if committee.SSOGroupName != "" {
+		for uid, other := range w.mock.committees {
+			if uid != ownUID && other.SSOGroupName == committee.SSOGroupName {
+				return errors.NewConflict("committee with the same SSO group name already exists", errors.ErrSSOGroupNameTaken)
+			}
+		}
+	}
 	return nil
 }
 
@@ -600,26 +623,6 @@ func (w *MockCommitteeWriter) Delete(ctx context.Context, uid string, revision u
 	delete(w.mock.settingsRevisions, uid)
 
 	return nil
-}
-
-// UniqueNameProject verifies if a committee with the same name and project exists
-// Returns conflict error if found (for uniqueness checking)
-// Returns (key, nil) when the name/project combination is unique (matches NATS storage behavior)
-func (w *MockCommitteeWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
-	nameProjectKey := committee.BuildIndexKey(ctx)
-	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by name project key", "name_project_key", nameProjectKey)
-
-	w.mock.mu.RLock()
-	defer w.mock.mu.RUnlock()
-
-	existing, exists := w.mock.committeeIndexKeys[nameProjectKey]
-	if exists {
-		// Return conflict error to indicate non-uniqueness
-		return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with name project key %s already exists", nameProjectKey))
-	}
-
-	// Return nil error when unique (matches NATS KV Create behavior)
-	return nameProjectKey, nil
 }
 
 // UpdateHasMailingList implements CommitteeBaseWriter.
@@ -658,26 +661,6 @@ func (w *MockCommitteeWriter) UpdateTotalMembers(_ context.Context, uid string, 
 	committee.TotalMembers = totalMembers
 	committee.CommitteeBase.UpdatedAt = time.Now()
 	return &committee.CommitteeBase, true, nil
-}
-
-// UniqueSSOGroupName verifies if a committee with the same SSO group name exists
-// Returns conflict error if found (for uniqueness checking)
-func (w *MockCommitteeWriter) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
-	slog.DebugContext(ctx, "mock committee writer: checking uniqueness by SSO group name", "name", committee.SSOGroupName)
-
-	w.mock.mu.RLock()
-	defer w.mock.mu.RUnlock()
-
-	for _, existing := range w.mock.committees {
-		if existing.SSOGroupName == committee.SSOGroupName {
-			// Return conflict error to indicate non-uniqueness
-			return existing.CommitteeBase.UID, errors.NewConflict(fmt.Sprintf("committee with SSO group name %s already exists", committee.SSOGroupName))
-		}
-	}
-
-	// Return nil error when unique (matches NATS KV Create behavior)
-	ssoKey := "sso:" + committee.SSOGroupName
-	return ssoKey, nil
 }
 
 // ================== CommitteeSettingsWriter implementation ==================

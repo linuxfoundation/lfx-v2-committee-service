@@ -87,16 +87,6 @@ func (w *TestMockCommitteeMemberWriter) Delete(ctx context.Context, uid string, 
 	return mockWriter.Delete(ctx, uid, revision)
 }
 
-func (w *TestMockCommitteeMemberWriter) UniqueNameProject(ctx context.Context, committee *model.Committee) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
-	return mockWriter.UniqueNameProject(ctx, committee)
-}
-
-func (w *TestMockCommitteeMemberWriter) UniqueSSOGroupName(ctx context.Context, committee *model.Committee) (string, error) {
-	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
-	return mockWriter.UniqueSSOGroupName(ctx, committee)
-}
-
 // Implement CommitteeSettingsWriter interface
 func (w *TestMockCommitteeMemberWriter) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
 	mockWriter := mock.NewMockCommitteeWriter(w.MockRepository)
@@ -316,10 +306,6 @@ type TestMockCommitteeReader struct {
 
 func (r *TestMockCommitteeReader) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 	return nil, 0, errs.NewNotFound("not implemented for this test")
-}
-
-func (r *TestMockCommitteeReader) GetRevision(ctx context.Context, uid string) (uint64, error) {
-	return 0, errs.NewNotFound("not implemented for this test")
 }
 
 func (r *TestMockCommitteeReader) ListAllUIDs(ctx context.Context) ([]string, error) {

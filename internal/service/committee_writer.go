@@ -199,107 +199,58 @@ type committeeWriterOrchestrator struct {
 	b2bOrgFallbackResolver port.B2BOrgFallbackResolver
 }
 
-// deleteKeys removes keys by getting their revision and deleting them
-// This is used both for rollback scenarios and cleanup of stale keys
-func (uc *committeeWriterOrchestrator) deleteKeys(ctx context.Context, keys []string, isRollback bool) {
-	if len(keys) == 0 {
-		return
-	}
+// maxSSOGroupNameAttempts bounds how many generated SSO group names are tried before giving up.
+const maxSSOGroupNameAttempts = 100
 
-	slog.DebugContext(ctx, "deleting keys",
-		"keys", keys,
-		"is_rollback", isRollback,
-	)
-
-	for _, key := range keys {
-		rev, errGet := uc.committeeReader.GetRevision(ctx, key)
-		if errGet != nil {
-			slog.ErrorContext(ctx, "failed to get revision for key deletion",
-				"key", key,
-				"error", errGet,
-				"is_rollback", isRollback,
-			)
-			continue
+// writeWithSSORetry runs write, which persists the committee, and when it fails because the SSO group
+// name is already in use, generates the next candidate name from the project slug and runs it again.
+// Storage enforces the uniqueness, so the retry happens only on that specific conflict; any other
+// error, including a project and name conflict, is returned as is.
+func (uc *committeeWriterOrchestrator) writeWithSSORetry(ctx context.Context, committee *model.Committee, slug string, write func() error) error {
+	for attempt := 1; ; attempt++ {
+		errWrite := write()
+		if !errors.Is(errWrite, errs.ErrSSOGroupNameTaken) {
+			return errWrite
 		}
 
-		err := uc.committeeWriter.Delete(ctx, key, rev)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to delete key",
-				"key", key,
-				"error", err,
-				"is_rollback", isRollback,
-				// This is critical because if we don't delete them,
-				// names and SSO groups would be locked for reuse for a long time.
-				log.PriorityCritical(),
-			)
+		if attempt >= maxSSOGroupNameAttempts {
+			return errs.NewUnexpected("exceeded maximum retries for SSO name generation")
 		}
-		slog.DebugContext(ctx, "successfully deleted key",
-			"key", key,
-			"is_rollback", isRollback,
+
+		slog.WarnContext(ctx, "SSO group name already exists, retrying with a new name",
+			"sso_group_name", committee.SSOGroupName,
+			"attempt", attempt,
 		)
-
-	}
-
-	slog.DebugContext(ctx, "key deletion completed",
-		"keys_count", len(keys),
-		"is_rollback", isRollback,
-	)
-}
-
-// checkReserveSSOName checks if the SSO group name is unique and reserves it if it is
-// It retries until it finds a unique name or returns an error
-// This is used to ensure that the SSO group name is unique across all committees
-// It builds the SSO group name based on the committee name and project slug
-// It returns the unique key corresponding to the SSO group name or an error if it fails to find a unique name
-func (uc *committeeWriterOrchestrator) checkReserveSSOName(ctx context.Context, committee *model.Committee, slug string) (string, error) {
-
-	slog.DebugContext(ctx, "checking SSO group name uniqueness",
-		"project_slug", slug,
-		"committee_name", committee.Name,
-	)
-
-	const maxRetries = 100
-	attempts := 0
-
-	for {
-		attempts++
-		if attempts > maxRetries {
-			return "", errs.NewUnexpected("exceeded maximum retries for SSO name generation")
-		}
-
-		errSSOGroupNameBuild := committee.SSOGroupNameBuild(ctx, slug)
-		if errSSOGroupNameBuild != nil {
+		if errBuild := committee.SSOGroupNameBuild(ctx, slug); errBuild != nil {
 			slog.ErrorContext(ctx, "failed to build SSO group name",
-				"error", errSSOGroupNameBuild,
+				"error", errBuild,
 				"project_slug", slug,
 				"committee_name", committee.Name,
 			)
-			return "", errs.NewUnexpected("failed to build SSO group name", errSSOGroupNameBuild)
+			return errs.NewUnexpected("failed to build SSO group name", errBuild)
 		}
-
-		slog.DebugContext(ctx, "checking if SSO group exists",
-			"sso_group_name", committee.SSOGroupName,
-		)
-
-		key, errBySSOGroupName := uc.committeeWriter.UniqueSSOGroupName(ctx, committee)
-		if errors.As(errBySSOGroupName, &errs.Conflict{}) {
-			slog.WarnContext(ctx, "SSO group name already exists, retrying with a new name",
-				"sso_group_name", committee.SSOGroupName,
-				"existing_uid", key,
-			)
-			continue
-		}
-
-		if errBySSOGroupName != nil {
-			return "", errBySSOGroupName
-		}
-
-		slog.DebugContext(ctx, "SSO group name is unique, proceeding with creation",
-			"sso_group_name", committee.SSOGroupName,
-		)
-		return key, nil
 	}
+}
 
+// rollbackCreatedCommittee removes a committee that was created earlier in the same request, which
+// also releases its name and SSO group reservations. It is best-effort and only logs failures.
+func (uc *committeeWriterOrchestrator) rollbackCreatedCommittee(ctx context.Context, uid string) {
+	_, rev, errGet := uc.committeeReader.GetBase(ctx, uid)
+	if errGet != nil {
+		slog.ErrorContext(ctx, "failed to read committee for rollback",
+			"error", errGet,
+			"committee_uid", uid,
+			log.PriorityCritical(),
+		)
+		return
+	}
+	if errDelete := uc.committeeWriter.Delete(ctx, uid, rev); errDelete != nil {
+		slog.ErrorContext(ctx, "failed to roll back committee",
+			"error", errDelete,
+			"committee_uid", uid,
+			log.PriorityCritical(),
+		)
+	}
 }
 
 func (uc *committeeWriterOrchestrator) buildIndexerMessage(ctx context.Context, action model.MessageAction, committee any, tags []string) (*model.CommitteeIndexerMessage, error) {
@@ -371,38 +322,6 @@ func extractUsernames(users []model.CommitteeUser) []string {
 		}
 	}
 	return result
-}
-
-func (uc *committeeWriterOrchestrator) rebuildCommitteeNameIndex(ctx context.Context, newNameKey string, existing *model.CommitteeBase) string {
-	lastSlash := strings.LastIndex(newNameKey, "/")
-	if lastSlash == -1 {
-		return ""
-	}
-	prefix := newNameKey[:lastSlash+1]
-
-	oldKeyName := &model.Committee{CommitteeBase: *existing}
-
-	oldKeyNameIndex := prefix + oldKeyName.BuildIndexKey(ctx)
-
-	slog.DebugContext(ctx, "rebuilding old name index",
-		"existing_name_index", oldKeyNameIndex,
-	)
-
-	return oldKeyNameIndex
-}
-
-func (uc *committeeWriterOrchestrator) rebuildOldSSOIndexName(ctx context.Context, newSSOKey string, existing *model.CommitteeBase) string {
-	lastSlash := strings.LastIndex(newSSOKey, "/")
-	if lastSlash == -1 {
-		return ""
-	}
-	prefix := newSSOKey[:lastSlash+1]
-
-	slog.DebugContext(ctx, "rebuilding old SSO index name",
-		"existing_sso_group_name_index", prefix+existing.SSOGroupName,
-	)
-
-	return prefix + existing.SSOGroupName
 }
 
 // mergeCommitteeData merges existing committee data with updated fields
@@ -495,14 +414,11 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		committee.Charter = nil
 	}
 
-	// for rollback purposes
-	var (
-		keys             []string
-		rollbackRequired bool
-	)
+	// created marks that the committee was persisted, so an unexpected panic afterwards removes it again
+	var created bool
 	defer func() {
-		if err := recover(); err != nil || rollbackRequired {
-			uc.deleteKeys(ctx, keys, true)
+		if err := recover(); err != nil && created {
+			uc.rollbackCreatedCommittee(ctx, committee.CommitteeBase.UID)
 		}
 	}()
 
@@ -550,34 +466,32 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 		)
 	}
 
-	// Check if the project and committee name already exist
-	uniqueNameProjectKey, errUniqueName := uc.committeeWriter.UniqueNameProject(ctx, committee)
-	if errUniqueName != nil {
-		return nil, errUniqueName
-	}
-	keys = append(keys, uniqueNameProjectKey)
-
-	// Reserve SSO group name when SSO is enabled or committee is public (used as URL slug)
+	// Generate the SSO group name when SSO is enabled or the committee is public (used as URL slug).
+	// Storage enforces that the project and name and the SSO group name are unique when the committee
+	// is created, and the SSO name is regenerated if it is already taken.
 	if committee.SSOGroupEnabled || committee.Public {
-		uniqueSSOName, errCheckReserveSSOName := uc.checkReserveSSOName(ctx, committee, slug)
-		if errCheckReserveSSOName != nil {
-			rollbackRequired = true
-			return nil, errCheckReserveSSOName
+		if errSSOGroupNameBuild := committee.SSOGroupNameBuild(ctx, slug); errSSOGroupNameBuild != nil {
+			slog.ErrorContext(ctx, "failed to build SSO group name",
+				"error", errSSOGroupNameBuild,
+				"project_slug", slug,
+				"committee_name", committee.Name,
+			)
+			return nil, errs.NewUnexpected("failed to build SSO group name", errSSOGroupNameBuild)
 		}
-		keys = append(keys, uniqueSSOName)
 	}
 
 	// Create the committee and settings (if applicable)
-	errCreate := uc.committeeWriter.Create(ctx, committee)
+	errCreate := uc.writeWithSSORetry(ctx, committee, slug, func() error {
+		return uc.committeeWriter.Create(ctx, committee)
+	})
 	if errCreate != nil {
 		slog.ErrorContext(ctx, "failed to create committee",
 			"error", errCreate,
 			"committee_uid", committee.CommitteeBase.UID,
 		)
-		rollbackRequired = true
 		return nil, errCreate
 	}
-	keys = append(keys, committee.CommitteeBase.UID)
+	created = true
 
 	slog.DebugContext(ctx, "committee created successfully",
 		"committee_uid", committee.CommitteeBase.UID,
@@ -643,32 +557,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		"sync", sync,
 	)
 
-	// For rollback purposes and cleanup
-	var (
-		staleKeys        []string
-		newKeys          []string
-		rollbackRequired bool
-		updateSucceeded  bool
-	)
-	defer func() {
-		if err := recover(); err != nil || rollbackRequired {
-			// Rollback new keys
-			uc.deleteKeys(ctx, newKeys, true)
-		}
-		if updateSucceeded && len(staleKeys) > 0 {
-			slog.DebugContext(ctx, "cleaning up stale keys",
-				"keys_count", len(staleKeys),
-			)
-			go func() {
-				// Cleanup stale keys in a separate goroutine
-				// new context to avoid blocking the main flow
-				ctxCleanup, cancel := context.WithTimeout(context.Background(), time.Second*10)
-				defer cancel()
-				uc.deleteKeys(ctxCleanup, staleKeys, false)
-			}()
-		}
-	}()
-
 	// Step 1: Retrieve existing data from the repository
 	existing, existingRevision, errGet := uc.committeeReader.GetBase(ctx, committee.CommitteeBase.UID)
 	if errGet != nil {
@@ -717,45 +605,17 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	}
 	committee.ProjectName = projectName
 
-	// Step 3: Validate name change
-	if existing.Name != committee.Name {
-		newNameKey, errNameChange := uc.committeeWriter.UniqueNameProject(ctx, committee)
-		if errNameChange != nil {
-			return nil, errNameChange
-		}
-		if newNameKey != "" {
-			newKeys = append(newKeys, newNameKey)
-			// Save old name key for cleanup
-			oldNameKey := uc.rebuildCommitteeNameIndex(ctx, newNameKey, existing)
-			staleKeys = append(staleKeys, oldNameKey)
-		}
-		// Step 3.1: Regenerate SSO group name when name changed and SSO/public active
-		if committee.SSOGroupEnabled || committee.Public {
-			newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
-			if errSSOChange != nil {
-				rollbackRequired = true
-				return nil, errSSOChange
-			}
-			if newSSOKey != "" {
-				newKeys = append(newKeys, newSSOKey)
-				// Add old SSO key for cleanup if it exists
-				if existing.SSOGroupName != "" {
-					oldSSOKey := uc.rebuildOldSSOIndexName(ctx, newSSOKey, existing)
-					if oldSSOKey != "" {
-						staleKeys = append(staleKeys, oldSSOKey)
-					}
-				}
-			}
-		}
-	} else if (committee.SSOGroupEnabled || committee.Public) && existing.SSOGroupName == "" {
-		// Step 3.2: Generate SSO name for the first time (public/SSO just enabled, no name change)
-		newSSOKey, errSSOChange := uc.checkReserveSSOName(ctx, committee, slug)
-		if errSSOChange != nil {
-			rollbackRequired = true
-			return nil, errSSOChange
-		}
-		if newSSOKey != "" {
-			newKeys = append(newKeys, newSSOKey)
+	// Step 3: Generate the next SSO group name when the committee name changed and SSO or public is
+	// active, or when SSO or public was just enabled on a committee without an SSO group name. Storage
+	// enforces the new name and SSO group name are unique when the committee is updated.
+	if (committee.SSOGroupEnabled || committee.Public) && (existing.Name != committee.Name || existing.SSOGroupName == "") {
+		if errSSOChange := committee.SSOGroupNameBuild(ctx, slug); errSSOChange != nil {
+			slog.ErrorContext(ctx, "failed to build SSO group name",
+				"error", errSSOChange,
+				"project_slug", slug,
+				"committee_name", committee.Name,
+			)
+			return nil, errs.NewUnexpected("failed to build SSO group name", errSSOChange)
 		}
 	}
 
@@ -771,7 +631,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 					"error", errParent,
 					"parent_uid", *committee.ParentUID,
 				)
-				rollbackRequired = true
 				return nil, errParent
 			}
 			slog.DebugContext(ctx, "new parent committee found",
@@ -786,13 +645,14 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	uc.mergeCommitteeData(ctx, existing, committee)
 
 	// Step 6: Update the committee in storage
-	errUpdate := uc.committeeWriter.UpdateBase(ctx, committee, revision)
+	errUpdate := uc.writeWithSSORetry(ctx, committee, slug, func() error {
+		return uc.committeeWriter.UpdateBase(ctx, committee, revision)
+	})
 	if errUpdate != nil {
 		slog.ErrorContext(ctx, "failed to update committee",
 			"error", errUpdate,
 			"committee_uid", committee.CommitteeBase.UID,
 		)
-		rollbackRequired = true
 		return nil, errUpdate
 	}
 
@@ -801,8 +661,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 		"project_uid", committee.ProjectUID,
 		"name", committee.Name,
 	)
-
-	updateSucceeded = true
 
 	// ******************************************************
 	// Step 7: Publish messages
@@ -880,7 +738,6 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 	} else {
 		slog.DebugContext(ctx, "committee update messages published successfully",
 			"committee_uid", committee.CommitteeBase.UID,
-			"stale_keys_count", len(staleKeys),
 		)
 	}
 	// ******************************************************
@@ -1068,27 +925,8 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		"sso_group_name", existing.SSOGroupName,
 	)
 
-	// Step 2: Build list of secondary indices to delete
-	var indicesToDelete []string
-
-	// Build project+name index key
-	committee := &model.Committee{CommitteeBase: *existing}
-	nameIndexKey := fmt.Sprintf(constants.KVLookupPrefix, committee.BuildIndexKey(ctx))
-	indicesToDelete = append(indicesToDelete, nameIndexKey)
-
-	// Build SSO group name index key if it exists
-	if existing.SSOGroupName != "" {
-		ssoIndexKey := fmt.Sprintf(constants.KVLookupSSOGroupNamePrefix, existing.SSOGroupName)
-		indicesToDelete = append(indicesToDelete, ssoIndexKey)
-	}
-
-	slog.DebugContext(ctx, "secondary indices identified for deletion",
-		"committee_uid", uid,
-		"indices_count", len(indicesToDelete),
-		"indices", indicesToDelete,
-	)
-
-	// Step 3: Delete the main committee record and settings
+	// Step 2: Delete the main committee record and settings; storage also releases the committee's
+	// name and SSO group reservations
 	errDelete := uc.committeeWriter.Delete(ctx, uid, revision)
 	if errDelete != nil {
 		slog.ErrorContext(ctx, "failed to delete committee",
@@ -1101,12 +939,6 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	slog.DebugContext(ctx, "committee main record and settings deleted successfully",
 		"committee_uid", uid,
 	)
-
-	// Step 4: Delete secondary indices
-	// We use the deleteKeys method which handles errors gracefully and logs them
-	// We don't abort here - secondary indices have a minor impact during deletion compared to the main index
-	// and access control, which must be executed successfully to avoid data inconsistency in the following steps
-	uc.deleteKeys(ctx, indicesToDelete, false)
 
 	// List applications for cascade cleanup; best-effort — proceed even if listing fails.
 	applications, errListApps := uc.committeeReader.ListApplications(ctx, uid)
@@ -1215,7 +1047,6 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 
 	slog.DebugContext(ctx, "committee deletion completed successfully",
 		"committee_uid", uid,
-		"indices_deleted", len(indicesToDelete),
 	)
 
 	return nil
