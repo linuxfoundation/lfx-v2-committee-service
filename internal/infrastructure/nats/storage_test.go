@@ -1224,6 +1224,26 @@ func TestStorage_CreateMember(t *testing.T) {
 		}
 	})
 
+	t.Run("a uniqueness lock write that lands but reports an error is released", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		m := newMember("m-1")
+		kv.ambiguousFor = buildMemberLookupKeys(ctx, m).unique
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		assert.Empty(t, kv.values, "the lock that landed must not stay behind")
+	})
+
+	t.Run("an index write that lands but reports an error is removed with the member", func(t *testing.T) {
+		s, kv := newMemberLockStorage()
+		m := newMember("m-1")
+		kv.ambiguousFor = buildMemberLookupKeys(ctx, m).byEmail
+
+		require.Error(t, s.CreateMember(ctx, m))
+
+		assert.Empty(t, kv.values, "no record, lock, or index may be left behind")
+	})
+
 	t.Run("a cancelled request still releases the uniqueness lock", func(t *testing.T) {
 		s, kv := newMemberLockStorage()
 		reqCtx, cancel := context.WithCancel(ctx)
@@ -1435,6 +1455,37 @@ func TestStorage_UpdateMember(t *testing.T) {
 		assert.NotContains(t, kv.values, buildMemberLookupKeys(ctx, stale).byEmail)
 	})
 
+	t.Run("a stale revision is a conflict even when the stored member equals the requested one", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		_, err := s.UpdateMember(ctx, moved, 1)
+		require.NoError(t, err)
+
+		// A second writer read the same revision and wants to store the identical value.
+		_, err = s.UpdateMember(ctx, moved, 1)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		for _, key := range memberKeyList(ctx, moved) {
+			assert.Contains(t, kv.values, key, "the stored member's keys must stay")
+		}
+	})
+
+	t.Run("an index write that lands but reports an error is released", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		newKeys := buildMemberLookupKeys(ctx, moved)
+		kv.ambiguousFor = newKeys.byEmail
+		before := len(kv.values)
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.Error(t, err)
+		assert.NotContains(t, kv.values, newKeys.byEmail)
+		assert.NotContains(t, kv.values, newKeys.unique)
+		assert.Len(t, kv.values, before)
+	})
+
 	t.Run("an ambiguous write that landed is treated as updated and releases the old keys", func(t *testing.T) {
 		s, kv, original := seed(t)
 		kv.ambiguousFor = "m-1"
@@ -1519,6 +1570,43 @@ func TestStorage_UpdateMember(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, []byte("m-1"), kv.values[newUnique], "the member must keep the lock for its new email")
+	})
+
+	t.Run("a lock is not restored for a member deleted after the write", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		newUnique := buildMemberLookupKeys(ctx, moved).unique
+		kv.afterUpdate = func() {
+			delete(kv.values, "m-1")
+			delete(kv.revs, "m-1")
+			delete(kv.values, newUnique)
+			delete(kv.revs, newUnique)
+		}
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.NoError(t, err)
+		assert.NotContains(t, kv.values, newUnique, "a deleted member must not get its lock back")
+	})
+
+	t.Run("a lock is not restored for a member another update moved on from", func(t *testing.T) {
+		s, kv, _ := seed(t)
+		moved := changed(func(m *model.CommitteeMember) { m.Email = "new.address@example.com" })
+		newUnique := buildMemberLookupKeys(ctx, moved).unique
+		kv.afterUpdate = func() {
+			// Another update stored a third address and released the lock this update had reserved.
+			third := changed(func(m *model.CommitteeMember) { m.Email = "third.address@example.com" })
+			thirdBytes, err := json.Marshal(third)
+			require.NoError(t, err)
+			kv.values["m-1"] = thirdBytes
+			delete(kv.values, newUnique)
+			delete(kv.revs, newUnique)
+		}
+
+		_, err := s.UpdateMember(ctx, moved, 1)
+
+		require.NoError(t, err)
+		assert.NotContains(t, kv.values, newUnique, "an address the member no longer uses must stay free")
 	})
 
 	t.Run("a lock another member took after the write is not overwritten and does not fail the update", func(t *testing.T) {

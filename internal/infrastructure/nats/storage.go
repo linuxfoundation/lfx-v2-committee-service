@@ -1144,7 +1144,9 @@ func (s *storage) releaseStaleMemberKeys(ctx context.Context, memberUID string, 
 // (a duplicate returns errs.Conflict), then the secondary indexes. Keys the member already holds are
 // not returned. The keys newly reserved are returned so the caller can release them, including when a
 // later key fails: the caller knows whether the member record exists, which decides whether the keys
-// reserved so far are still wanted, so nothing is released here.
+// reserved so far are still wanted, so nothing is released here. A write that fails without a conflict
+// can still have landed (a timeout after the server stored it), so that key is returned too; releasing
+// is ownership-checked, so a key that was never written is left alone.
 func (s *storage) reserveMemberKeys(ctx context.Context, memberUID, unique string, indexes []memberIndexKey) ([]string, error) {
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
 
@@ -1155,7 +1157,7 @@ func (s *storage) reserveMemberKeys(ctx context.Context, memberUID, unique strin
 			if errors.Is(errUnique, jetstream.ErrKeyExists) {
 				return reserved, errs.NewConflict("member with the same email already exists in the committee")
 			}
-			return reserved, errs.NewUnexpected("failed to create unique key for member", errUnique)
+			return append(reserved, unique), errs.NewUnexpected("failed to create unique key for member", errUnique)
 		}
 		if newlyReserved {
 			reserved = append(reserved, unique)
@@ -1165,7 +1167,7 @@ func (s *storage) reserveMemberKeys(ctx context.Context, memberUID, unique strin
 	for _, idx := range indexes {
 		newlyReserved, errIndex := reserveOwnedKey(ctx, kv, memberUID, idx.key)
 		if errIndex != nil {
-			return reserved, errs.NewUnexpected("failed to index member by "+idx.kind, errIndex)
+			return append(reserved, idx.key), errs.NewUnexpected("failed to index member by "+idx.kind, errIndex)
 		}
 		if newlyReserved {
 			reserved = append(reserved, idx.key)
@@ -1203,6 +1205,7 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 
 	reserved, errReserve := s.reserveMemberKeys(ctx, member.UID, keys.unique, nil)
 	if errReserve != nil {
+		releaseOwnedKeys(ctx, kv, member.UID, reserved, "member")
 		return errReserve
 	}
 
@@ -1352,6 +1355,11 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 		rctx, cancel := detachedCtx(ctx)
 		defer cancel()
 		state, stored := readRecordState(rctx, kv, member.UID, memberBytes)
+		if state == recordMatches && errors.Is(errUpdate, jetstream.ErrKeyExists) {
+			// The server rejected the revision, so this write did not land even though the stored bytes
+			// equal it: another writer stored the same value. Keys that version uses stay with it.
+			state = recordDiffers
+		}
 		switch state {
 		case recordMatches:
 			slog.WarnContext(ctx, "member update reported an error but the member was updated; continuing",
@@ -1400,10 +1408,12 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 	return member, nil
 }
 
-// ensureMemberKeys re-asserts lookup keys an update just stored the member under. A key that is missing
-// is created again (a concurrent request released it), which is logged; a key another member owns now
-// is logged at critical priority because the member is stored under it without owning it. It never
-// fails the update, which has already been applied.
+// ensureMemberKeys re-asserts lookup keys an update just stored the member under. It re-reads the member
+// and only restores keys the stored record still uses, so a member that was deleted or moved on to
+// another value in the meantime never gets a lock it does not hold. A key that is missing is created
+// again (a concurrent request released it), which is logged; a key another member owns now is logged at
+// critical priority because the member is stored under it without owning it. It never fails the update,
+// which has already been applied.
 func (s *storage) ensureMemberKeys(ctx context.Context, memberUID, unique string, indexes []memberIndexKey) {
 	keys := make([]string, 0, 1+len(indexes))
 	if unique != "" {
@@ -1419,7 +1429,24 @@ func (s *storage) ensureMemberKeys(ctx context.Context, memberUID, unique string
 	defer cancel()
 
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
+	entry, errGet := kv.Get(rctx, memberUID)
+	if errGet != nil {
+		if !errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			slog.WarnContext(ctx, "could not read the member to re-assert its lookup keys",
+				"error", errGet,
+				"member_uid", memberUID,
+			)
+		}
+		return
+	}
+	inUse, decoded := memberKeysInUse(rctx, entry)
+	if !decoded {
+		return
+	}
 	for _, key := range keys {
+		if !holdsKey(inUse, key) {
+			continue
+		}
 		restored, err := reserveOwnedKey(rctx, kv, memberUID, key)
 		switch {
 		case err != nil && errors.Is(err, jetstream.ErrKeyExists):
@@ -1654,7 +1681,8 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 
 			// Defensive consistency check: the secondary index is a hint, the member record is the source
 			// of truth. The org-change stale-key cleanup is best-effort, so a failed cleanup can leave an
-			// index key pointing at a member whose organization.id has since changed. Skip such entries so a stale key never leaks a seat into another org's list.
+			// index key pointing at a member whose organization.id has since changed. Skip such entries so a
+			// stale key never leaks a seat into another org's list.
 			if memberOrg := utils.NormalizeAccountSFID(member.Organization.ID); memberOrg != orgSFID {
 				slog.WarnContext(ctx, "skipping stale org member index entry; member org no longer matches",
 					"member_uid", memberUID, "index_org_sfid", orgSFID, "member_org_sfid", memberOrg)
