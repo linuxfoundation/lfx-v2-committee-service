@@ -12,7 +12,8 @@
 --   * ids are TEXT and there are no CHECK constraints on enum-like columns, because KV does not
 --     validate either and the backfill must not fail on existing data;
 --   * there are no foreign keys, because KV has no referential integrity and the backfill may
---     find orphans (a later migration adds them NOT VALID once `verify` reports clean);
+--     find orphans (a later migration adds them NOT VALID once the planned `verify` command,
+--     lfx-self-serve-ops#1198, reports none);
 --   * dates the Go models keep as strings stay TEXT.
 
 -- One revision per row is the optimistic-concurrency token the API exposes today (revision /
@@ -220,6 +221,34 @@ CREATE TABLE group_weekly_brief_throttle (
     revision           BIGINT      NOT NULL DEFAULT nextval('committee_revision_seq'),
     PRIMARY KEY (committee_uid, window_start)
 );
+
+-- Data classification, readable by tooling (for example a warehouse export allowlist) from
+-- col_description(): PII columns hold personal data, SENSITIVE is a credential. Anything that exports
+-- these tables must exclude SENSITIVE columns and treat PII columns according to the data policy.
+COMMENT ON COLUMN committee_settings.chat_webhook_url IS 'SENSITIVE: bearer credential (chat webhook URL), never export or index';
+COMMENT ON COLUMN committee_members.username IS 'PII';
+COMMENT ON COLUMN committee_members.avatar IS 'PII';
+COMMENT ON COLUMN committee_members.email IS 'PII';
+COMMENT ON COLUMN committee_members.first_name IS 'PII';
+COMMENT ON COLUMN committee_members.last_name IS 'PII';
+COMMENT ON COLUMN committee_members.job_title IS 'PII';
+COMMENT ON COLUMN committee_members.linkedin_profile IS 'PII';
+COMMENT ON COLUMN committee_settings.writers IS 'PII';
+COMMENT ON COLUMN committee_settings.auditors IS 'PII';
+COMMENT ON COLUMN committee_settings.last_reviewed_by IS 'PII';
+COMMENT ON COLUMN committee_invites.invitee_email IS 'PII';
+COMMENT ON COLUMN committee_invites.inviter IS 'PII';
+COMMENT ON COLUMN committee_applications.applicant_email IS 'PII';
+COMMENT ON COLUMN committee_applications.applicant_username IS 'PII';
+COMMENT ON COLUMN committee_applications.message IS 'PII';
+COMMENT ON COLUMN committee_applications.reviewer_notes IS 'PII';
+COMMENT ON COLUMN committee_link_folders.created_by IS 'PII';
+COMMENT ON COLUMN committee_link_folders.updated_by IS 'PII';
+COMMENT ON COLUMN committee_links.created_by IS 'PII';
+COMMENT ON COLUMN committee_links.updated_by IS 'PII';
+COMMENT ON COLUMN committee_documents.created_by IS 'PII';
+COMMENT ON COLUMN committee_documents.updated_by IS 'PII';
+COMMENT ON COLUMN group_weekly_briefs.last_edited_by IS 'PII';
 
 -- +goose StatementEnd
 
