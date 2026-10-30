@@ -21,8 +21,11 @@
 -- lower() follows the database locale, and the Turkic locales (tr, az) lowercase I to a dotless i,
 -- which Go does not. I and the dotted capital I (U+0130) are therefore mapped to i first, which is
 -- what Go does for both, so the result does not depend on the locale. Every other character uses the
--- database's simple case mapping, which matches Go on a UTF-8 database apart from rare characters
--- whose case differs between Unicode versions; a C/POSIX database folds ASCII only.
+-- database's simple per-character case mapping, which matches Go on a database with the libc locale
+-- provider and a UTF-8 locale (the default) apart from rare characters whose case differs between
+-- Unicode versions. A C/POSIX database folds ASCII only, and an ICU-provider database applies
+-- contextual casing (final sigma: ICU lowercases to a final sigma, Go does not), so create the
+-- database with the libc provider. docs/postgres-schema.md has the details.
 CREATE FUNCTION committee_normalize_key(value TEXT) RETURNS TEXT
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
     AS $$

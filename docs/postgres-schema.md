@@ -72,11 +72,14 @@ Residual differences from the KV keys:
   the service, so the unique indexes use `committee_uid` as stored.
 - `lower()` follows the database locale. The Turkic locales (`tr`, `az`) lowercase `I` to a dotless `i`,
   which Go does not, so the function maps `I` and the dotted capital `I` (U+0130) to `i` first and the
-  result does not depend on the locale. Every other character uses the database's simple case mapping,
-  which matches Go on a UTF-8 database (the RDS default) apart from rare characters whose case differs
-  between Unicode versions. A `C`/`POSIX` database folds ASCII only, so create the database with a UTF-8
-  locale. If exact parity for every character is ever needed, the store can compute the key in Go and
-  store it in a column the database only enforces uniqueness on.
+  result does not depend on the locale. Every other character uses the database's simple per-character
+  case mapping, which matches Go on a database that uses the **libc locale provider** with a UTF-8
+  locale (the default, and the RDS default) apart from rare characters whose case differs between
+  Unicode versions. Two kinds of database do not match: a `C`/`POSIX` one folds ASCII only, and one
+  created with the **ICU provider** applies contextual casing (for example the final sigma: ICU
+  lowercases `ΟΣ` to `ος`, Go to `οσ`). Create the database with the libc provider and a UTF-8 locale;
+  a test checks that case against Go. If exact parity for every character is ever needed, the store can
+  compute the key in Go and store it in a column the database only enforces uniqueness on.
 
 ## Data classification
 
@@ -118,7 +121,7 @@ The schema tests need a real PostgreSQL. Point `TEST_DATABASE_URL` at a database
 (each test works in its own schema and drops it afterwards):
 
 ```bash
-docker run -d --rm --name committee-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=committee_test -p 5432:5432 postgres:16-alpine
+docker run -d --rm --name committee-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=committee_test -p 127.0.0.1:5432:5432 postgres:16-alpine
 TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/committee_test?sslmode=disable' make test
 ```
 

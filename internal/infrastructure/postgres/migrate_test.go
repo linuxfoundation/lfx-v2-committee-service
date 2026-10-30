@@ -451,6 +451,7 @@ func TestSchema(t *testing.T) {
 			"first.last@example.com\u0085",
 			"FIRST.LAST@EXAMPLE.COM",
 			"\u0130STANBUL@EXAMPLE.COM", // dotted capital I
+			"\u039f\u03a3@EXAMPLE.COM",  // Greek capital sigma: contextual in ICU, not in libc or Go
 			"first last@example.com",    // inner white space is kept
 			"",
 			"   ",
@@ -458,7 +459,8 @@ func TestSchema(t *testing.T) {
 		for _, in := range inputs {
 			var got string
 			require.NoError(t, db.QueryRow(`SELECT committee_normalize_key($1)`, in).Scan(&got))
-			assert.Equal(t, strings.TrimSpace(strings.ToLower(in)), got, "input %q", in)
+			assert.Equal(t, strings.TrimSpace(strings.ToLower(in)), got,
+				"input %q (the database must use the libc locale provider with a UTF-8 locale, see docs/postgres-schema.md)", in)
 		}
 	})
 
