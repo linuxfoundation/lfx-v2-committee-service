@@ -25,6 +25,7 @@ This repo owns committee resources, committee members, committee settings, invit
 - `docs/indexer-contract.md`: what this service emits on `lfx.index.*` subjects.
 - `docs/fga-contract.md`: what this service emits on `lfx.fga-sync.*` subjects.
 - `docs/invite-application-flows.md`: committee membership modes, invite/application state machines, edge cases.
+- `docs/postgres-schema.md`: the PostgreSQL schema (not used by the service yet), its mapping to the NATS KV buckets and lookup keys, and the migration rules.
 - `charts/lfx-v2-committee-service/`: service-local Helm templates and values.
 - `docs/reviews/knowledge-base/`: the empirical review knowledge base; the GitHub PR review surface also reads it, so read its `README.md` before editing an entry.
 

@@ -141,6 +141,7 @@ This service follows clean architecture principles with clear separation of conc
 
 4. **Infrastructure Layer** (`internal/infrastructure/`)
    - NATS KV, Object Store, request/reply, event, and stream-consumer implementations (`nats/`)
+   - PostgreSQL schema migrations and their runner (`postgres/`); not used by the service yet
    - JWT authentication implementation (`auth/`)
    - Mock implementations for testing (`mock/`)
    - Messaging infrastructure
@@ -342,6 +343,16 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 
    # or run go test to set custom flags
    go test . -v
+   ```
+
+   The PostgreSQL schema tests in `internal/infrastructure/postgres` need a real database and are
+   skipped when `TEST_DATABASE_URL` is not set (on CI they fail instead). To run them, start a
+   throwaway PostgreSQL bound to loopback and point the variable at it; see
+   [docs/postgres-schema.md](../../docs/postgres-schema.md#running-the-tests):
+
+   ```bash
+   docker run -d --rm --name committee-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=committee_test -p 127.0.0.1:5432:5432 postgres:16-alpine
+   TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/committee_test?sslmode=disable' make test
    ```
 
 6. **Lint the code**
