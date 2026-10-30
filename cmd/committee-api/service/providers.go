@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
@@ -28,6 +30,7 @@ import (
 
 	"github.com/auth0/go-auth0/authentication"
 	"github.com/auth0/go-auth0/authentication/oauth"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2"
 )
 
@@ -99,6 +102,112 @@ func natsInit(ctx context.Context) {
 		natsB2BOrgFallbackResolver = nats.NewB2BOrgFallbackResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
+}
+
+// postgresMigrateTimeout bounds the startup migration. goose waits up to five minutes for the
+// migration lock held by another pod, and a hung migration would wait longer; neither may hold up
+// the HTTP server, so on timeout the service logs the failure and runs without PostgreSQL.
+var postgresMigrateTimeout = 2 * time.Minute
+
+var (
+	postgresPool      *pgxpool.Pool
+	postgresReadiness []port.ReadinessChecker
+
+	postgresDoOnce sync.Once
+)
+
+// postgresUnavailable is the readiness check registered when PostgreSQL is enabled but could not be
+// set up, so an operator who opted into the readiness check sees the failure there.
+type postgresUnavailable struct{ reason error }
+
+func (p postgresUnavailable) IsReady(context.Context) error { return p.reason }
+
+// postgresInit sets up PostgreSQL behind the POSTGRES_ENABLED flag.
+func postgresInit(ctx context.Context) {
+	postgresDoOnce.Do(func() {
+		postgresPool, postgresReadiness = initPostgres(ctx, os.Getenv)
+	})
+}
+
+// initPostgres connects to PostgreSQL and applies the schema migrations, only when POSTGRES_ENABLED
+// is "true". Nothing reads or writes the database yet, so PostgreSQL must never take the service
+// down: with the flag off it is not touched at all (a POSTGRES_URL alone does nothing), and with the
+// flag on any failure (missing URL, bad settings, unreachable database, failed migration) is logged
+// and the service carries on without it. The caller gets no pool in that case.
+//
+// The opt-in readiness check (POSTGRES_READINESS_CHECK=true) is the only way PostgreSQL can affect
+// the probe, and then only by an operator's choice.
+func initPostgres(ctx context.Context, getenv func(string) string) (*pgxpool.Pool, []port.ReadinessChecker) {
+	if getenv("POSTGRES_ENABLED") != "true" {
+		slog.InfoContext(ctx, "PostgreSQL is disabled (POSTGRES_ENABLED is not true); skipping")
+		return nil, nil
+	}
+
+	pool, err := connectPostgres(ctx, getenv)
+	if err != nil {
+		slog.ErrorContext(ctx, "PostgreSQL is enabled but unavailable; continuing without it", "error", err)
+		if getenv("POSTGRES_READINESS_CHECK") == "true" {
+			return nil, []port.ReadinessChecker{postgresUnavailable{reason: err}}
+		}
+		return nil, nil
+	}
+
+	// Readiness is opt-in: until the service depends on the database, a database outage must not
+	// take pods out of rotation.
+	var checks []port.ReadinessChecker
+	if getenv("POSTGRES_READINESS_CHECK") == "true" {
+		checks = append(checks, postgres.NewReady(pool))
+	}
+	return pool, checks
+}
+
+// connectPostgres opens the pool and applies the migrations. Errors carry no credentials.
+func connectPostgres(ctx context.Context, getenv func(string) string) (*pgxpool.Pool, error) {
+	url := getenv("POSTGRES_URL")
+	if strings.TrimSpace(url) == "" {
+		return nil, fmt.Errorf("POSTGRES_URL is empty")
+	}
+
+	cfg := postgres.Config{URL: url}
+	if raw := getenv("POSTGRES_MAX_CONNS"); raw != "" {
+		n, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || n <= 0 {
+			return nil, fmt.Errorf("invalid POSTGRES_MAX_CONNS %q: must be a positive integer", raw)
+		}
+		cfg.MaxConns = int32(n)
+	}
+
+	pool, err := postgres.NewPool(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	db := postgres.OpenDB(pool)
+	migrateCtx, cancel := context.WithTimeout(ctx, postgresMigrateTimeout)
+	err = postgres.Migrate(migrateCtx, db)
+	cancel()
+	_ = db.Close() // releases only the sql.DB wrapper; the pool stays open
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
+
+	slog.InfoContext(ctx, "connected to PostgreSQL", "url", postgres.RedactURL(url), "max_conns", pool.Config().MaxConns)
+	return pool, nil
+}
+
+// PostgresReadinessImpl sets up PostgreSQL if it is enabled and returns its extra readiness checks:
+// none unless POSTGRES_READINESS_CHECK=true.
+func PostgresReadinessImpl(ctx context.Context) []port.ReadinessChecker {
+	postgresInit(ctx)
+	return postgresReadiness
+}
+
+// ClosePostgres closes the PostgreSQL pool, if one was opened.
+func ClosePostgres() {
+	if postgresPool != nil {
+		postgresPool.Close()
+	}
 }
 
 func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
