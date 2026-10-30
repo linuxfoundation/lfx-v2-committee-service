@@ -24,7 +24,7 @@ import (
 )
 
 // envTestDatabaseURL names a database the tests may modify freely, for example
-// postgres://postgres:test@127.0.0.1:5432/committee_test?sslmode=disable. Every test works in its own
+// postgres://postgres@127.0.0.1:5432/committee_test?sslmode=disable. Every test works in its own
 // schema inside it and drops the schema afterwards, so tests do not see each other's tables.
 const envTestDatabaseURL = "TEST_DATABASE_URL"
 
@@ -475,6 +475,7 @@ func TestSchema(t *testing.T) {
 		assert.True(t, strings.HasPrefix(comment("committee_settings", "chat_webhook_url"), "SENSITIVE"),
 			"the webhook URL is a bearer credential and must be marked so exports can exclude it")
 		for table, columns := range map[string][]string{
+			"committees":             {"charter"},
 			"committee_members":      {"email", "first_name", "last_name", "username", "avatar", "linkedin_profile", "job_title"},
 			"committee_settings":     {"writers", "auditors", "last_reviewed_by"},
 			"committee_invites":      {"invitee_email", "inviter"},

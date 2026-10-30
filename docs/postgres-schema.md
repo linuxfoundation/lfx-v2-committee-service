@@ -85,7 +85,8 @@ from `col_description()` instead of relying on a comment in the SQL:
   must (an export role without access to the column, or a separate table).
 - Columns holding personal data are marked `PII`: member and applicant names, emails, usernames, avatars
   and profiles, invite and application free text, the `inviter`, `created_by` / `updated_by` and
-  `last_edited_by` users, and the `writers` / `auditors` lists. A test fails when a marker is removed.
+  `last_edited_by` users, the `writers` / `auditors` lists, and the committee `charter` (it records who
+  last updated it). A test fails when a marker is removed.
 
 ## Migrations
 
@@ -112,8 +113,8 @@ The schema tests need a real PostgreSQL. Point `TEST_DATABASE_URL` at a database
 (each test works in its own schema and drops it afterwards):
 
 ```bash
-docker run -d --rm --name committee-pg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=committee_test -p 5432:5432 postgres:16-alpine
-TEST_DATABASE_URL='postgres://postgres:test@127.0.0.1:5432/committee_test?sslmode=disable' make test
+docker run -d --rm --name committee-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=committee_test -p 5432:5432 postgres:16-alpine
+TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/committee_test?sslmode=disable' make test
 ```
 
 Without `TEST_DATABASE_URL` the PostgreSQL tests are skipped locally. On CI (`CI` is set) a missing

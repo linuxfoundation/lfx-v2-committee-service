@@ -226,6 +226,7 @@ CREATE TABLE group_weekly_brief_throttle (
 -- col_description(): PII columns hold personal data, SENSITIVE is a credential. Anything that exports
 -- these tables must exclude SENSITIVE columns and treat PII columns according to the data policy.
 COMMENT ON COLUMN committee_settings.chat_webhook_url IS 'SENSITIVE: bearer credential (chat webhook URL), never export or index';
+COMMENT ON COLUMN committees.charter IS 'PII'; -- Charter.updated_by is a user (name, email, username, avatar)
 COMMENT ON COLUMN committee_members.username IS 'PII';
 COMMENT ON COLUMN committee_members.avatar IS 'PII';
 COMMENT ON COLUMN committee_members.email IS 'PII';
