@@ -4,7 +4,7 @@ This service stores all state in NATS JetStream: Key-Value (KV) buckets, one Obj
 streams. This document is the single reference for what exists, how keys are shaped, and which
 secondary indexes are maintained.
 
-> A PostgreSQL schema for this data exists but holds no data yet: NATS is still the only store (the service only connects and migrates when `POSTGRES_URL` is set). See
+> A PostgreSQL schema for this data exists but holds no data yet: NATS is still the only store (the service only connects and migrates when `POSTGRES_ENABLED=true`). See
 > [postgres-schema.md](postgres-schema.md) for how each table and unique index maps to the buckets and
 > lookup keys below.
 

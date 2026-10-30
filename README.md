@@ -60,7 +60,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 - [NATS Request-Reply Subjects](docs/nats-request-reply.md) — synchronous request/reply subjects served by this service for inter-service queries
 - [Weekly Brief](docs/weekly-brief.md) — end-to-end generation pipeline, AI adapter and prompts, API access model, release gate, and how to add an activity source
 - [NATS Storage Reference](docs/nats-storage.md) — KV buckets, Object Store, lookup/secondary-index key formats, streams, and incident tips
-- [PostgreSQL Schema](docs/postgres-schema.md) — the schema the service will move its storage to, how each table and unique index maps to its NATS KV source, the migration rules, and how to run the schema tests (nothing reads or writes it yet; the service only connects and migrates when `POSTGRES_URL` is set)
+- [PostgreSQL Schema](docs/postgres-schema.md) — the schema the service will move its storage to, how each table and unique index maps to its NATS KV source, the migration rules, and how to run the schema tests (nothing reads or writes it yet; the service only connects and migrates when `POSTGRES_ENABLED=true`)
 - [Committee CLI](cmd/committee-cli/README.md) — operational tool for running data repair and sync tasks against the service
 
 ## Releases

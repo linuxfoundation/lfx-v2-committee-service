@@ -117,24 +117,27 @@ Rules for adding a migration:
 
 ## Connecting
 
-The service connects only when `POSTGRES_URL` is set (see the PostgreSQL table in
-[cmd/committee-api/README.md](../cmd/committee-api/README.md)). At startup it opens a `pgxpool` pool, pings the
-database, and runs `postgres.Migrate`; an unreachable database or a failed migration stops the process, so a
-half-configured pod never serves traffic. The migration runner takes a session advisory lock, so replicas starting
-together do not race.
+PostgreSQL is behind a feature flag, `POSTGRES_ENABLED` (default off; only the exact value `true` enables it). With the
+flag off the service never connects, even if `POSTGRES_URL` is set, so deployments are unchanged until it is turned on
+(see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)).
+
+With the flag on, at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate`
+(a session advisory lock keeps replicas starting together from racing). Nothing reads or writes the data yet, so
+PostgreSQL must not be able to take the service down: a missing URL, bad `POSTGRES_MAX_CONNS`, an unreachable
+database or a failed migration is logged as an error and the service keeps running without it. Once the service
+depends on the database (the dual-write and PostgreSQL modes), that choice has to be revisited per mode.
 
 - The URL carries a password, so it is never logged and never appears in an error: `postgres.NewPool` removes the
   password (URL form, keyword form and `password=` query parameter) from everything it returns, and the startup log line
   uses `postgres.RedactURL`.
 - `/readyz` also pings PostgreSQL only when `POSTGRES_READINESS_CHECK=true`. Keep it off until the service depends on the
   database, so a database outage does not take pods out of rotation. A failing check returns a generic 503 and logs the
-  cause.
+  cause, and if PostgreSQL is enabled but could not be set up the check reports not ready.
 - Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
 - The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
   give the runtime role DML only.
-- With no `POSTGRES_URL` the service never touches PostgreSQL, so deployments are unchanged until a URL is provisioned.
 
 ## Running the tests
 
