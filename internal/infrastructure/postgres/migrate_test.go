@@ -525,7 +525,7 @@ func TestSchema(t *testing.T) {
 			"committee_link_folders": {"created_by", "updated_by"},
 			"committee_links":        {"created_by", "updated_by"},
 			"committee_documents":    {"created_by", "updated_by"},
-			"group_weekly_briefs":    {"last_edited_by"},
+			"group_weekly_briefs":    {"brief_text", "last_edited_by", "source_refs"},
 		} {
 			for _, column := range columns {
 				assert.Equal(t, "PII", comment(table, column), "%s.%s", table, column)

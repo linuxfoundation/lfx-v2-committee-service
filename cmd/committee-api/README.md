@@ -352,6 +352,7 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 
    ```bash
    docker run -d --rm --name committee-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=committee_test -p 127.0.0.1:5432:5432 postgres:16-alpine
+   until docker exec committee-pg pg_isready -h 127.0.0.1 -U postgres -d committee_test >/dev/null 2>&1; do sleep 1; done
    TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/committee_test?sslmode=disable' make test
    ```
 

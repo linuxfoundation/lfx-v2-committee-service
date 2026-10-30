@@ -250,6 +250,8 @@ COMMENT ON COLUMN committee_links.updated_by IS 'PII';
 COMMENT ON COLUMN committee_documents.created_by IS 'PII';
 COMMENT ON COLUMN committee_documents.updated_by IS 'PII';
 COMMENT ON COLUMN group_weekly_briefs.last_edited_by IS 'PII';
+COMMENT ON COLUMN group_weekly_briefs.source_refs IS 'PII'; -- member roster excerpts name members
+COMMENT ON COLUMN group_weekly_briefs.brief_text IS 'PII'; -- the narrative can repeat those names
 
 -- +goose StatementEnd
 
