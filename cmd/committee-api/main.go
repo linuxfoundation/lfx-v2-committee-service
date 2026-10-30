@@ -99,6 +99,10 @@ func main() {
 	linkStorage := service.CommitteeLinkReaderWriterImpl(ctx)
 	docStorage := service.CommitteeDocumentReaderWriterImpl(ctx)
 
+	// Connect to PostgreSQL and apply the schema when POSTGRES_URL is set (no-op otherwise)
+	service.PostgresReadinessImpl(ctx)
+	defer service.ClosePostgres()
+
 	// Initialize the service with use cases
 	writeCommitteeUseCase := usecaseSvc.NewCommitteeWriterOrchestrator(
 		usecaseSvc.WithCommitteeRetriever(committeeRetriever),
@@ -193,6 +197,7 @@ func main() {
 		weeklyBriefWriterUseCase,
 		weeklyBriefSharerUseCase,
 		orgCommitteeSeatReader,
+		service.PostgresReadinessImpl(ctx)...,
 	)
 
 	// Wrap the services in endpoints that can be invoked from other services

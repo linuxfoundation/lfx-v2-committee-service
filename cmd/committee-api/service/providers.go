@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
@@ -28,6 +30,7 @@ import (
 
 	"github.com/auth0/go-auth0/authentication"
 	"github.com/auth0/go-auth0/authentication/oauth"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2"
 )
 
@@ -99,6 +102,72 @@ func natsInit(ctx context.Context) {
 		natsB2BOrgFallbackResolver = nats.NewB2BOrgFallbackResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
+}
+
+var (
+	postgresPool      *pgxpool.Pool
+	postgresReadiness []port.ReadinessChecker
+
+	postgresDoOnce sync.Once
+)
+
+// postgresInit connects to PostgreSQL and applies the schema migrations when POSTGRES_URL is set.
+// Nothing reads or writes the database yet, so with no URL the service runs exactly as before. When
+// a URL is set, a database that cannot be reached or migrated stops startup: the operator asked for
+// it, and a half-configured service is worse than a crash-looping one.
+func postgresInit(ctx context.Context) {
+	postgresDoOnce.Do(func() {
+		url := os.Getenv("POSTGRES_URL")
+		if strings.TrimSpace(url) == "" {
+			slog.InfoContext(ctx, "PostgreSQL is not configured (POSTGRES_URL is empty); skipping")
+			return
+		}
+
+		cfg := postgres.Config{URL: url}
+		if raw := os.Getenv("POSTGRES_MAX_CONNS"); raw != "" {
+			n, err := strconv.ParseInt(raw, 10, 32)
+			if err != nil || n <= 0 {
+				log.Fatalf("invalid POSTGRES_MAX_CONNS %q: must be a positive integer", raw)
+			}
+			cfg.MaxConns = int32(n)
+		}
+
+		pool, err := postgres.NewPool(ctx, cfg)
+		if err != nil {
+			log.Fatalf("failed to connect to PostgreSQL: %v", err)
+		}
+
+		db := postgres.OpenDB(pool)
+		err = postgres.Migrate(ctx, db)
+		_ = db.Close() // releases only the sql.DB wrapper; the pool stays open
+		if err != nil {
+			pool.Close()
+			log.Fatalf("failed to migrate PostgreSQL: %v", err)
+		}
+
+		postgresPool = pool
+		slog.InfoContext(ctx, "connected to PostgreSQL", "url", postgres.RedactURL(url), "max_conns", pool.Config().MaxConns)
+
+		// Readiness is opt-in: until the service depends on the database, a database outage must not
+		// take pods out of rotation.
+		if os.Getenv("POSTGRES_READINESS_CHECK") == "true" {
+			postgresReadiness = append(postgresReadiness, postgres.NewReady(pool))
+		}
+	})
+}
+
+// PostgresReadinessImpl returns the extra readiness checks for PostgreSQL: none unless the database
+// is configured and POSTGRES_READINESS_CHECK=true.
+func PostgresReadinessImpl(ctx context.Context) []port.ReadinessChecker {
+	postgresInit(ctx)
+	return postgresReadiness
+}
+
+// ClosePostgres closes the PostgreSQL pool, if one was opened.
+func ClosePostgres() {
+	if postgresPool != nil {
+		postgresPool.Close()
+	}
 }
 
 func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {

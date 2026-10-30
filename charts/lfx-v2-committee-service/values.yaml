@@ -602,6 +602,28 @@ app:
           name: lfx-v2-committee-service-secrets
           key: org_seat_page_token_hmac_key
           optional: true
+    # POSTGRES_URL — connection string for the committee PostgreSQL database
+    # (postgres://user:password@host:5432/db?sslmode=require). It carries a
+    # password, so it comes only from a Secret. `optional: true` keeps the pod
+    # healthy when the key is absent: with no URL the service does not touch
+    # PostgreSQL at all (nothing reads or writes it yet). When set, the service
+    # connects and applies the schema migrations at startup, and fails to start
+    # if the database is unreachable. Create the database with a UTF-8 locale and
+    # the libc provider (see docs/postgres-schema.md).
+    POSTGRES_URL:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: postgres_url
+          optional: true
+    # POSTGRES_MAX_CONNS — connection pool size per pod (default 10 when empty).
+    POSTGRES_MAX_CONNS:
+      value: ""
+    # POSTGRES_READINESS_CHECK — set to "true" to make /readyz also ping
+    # PostgreSQL. Leave off until the service depends on the database, so a
+    # database outage does not take pods out of rotation.
+    POSTGRES_READINESS_CHECK:
+      value: "false"
 
   # otel is the configuration for OpenTelemetry tracing
   otel:

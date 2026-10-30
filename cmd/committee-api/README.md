@@ -141,7 +141,7 @@ This service follows clean architecture principles with clear separation of conc
 
 4. **Infrastructure Layer** (`internal/infrastructure/`)
    - NATS KV, Object Store, request/reply, event, and stream-consumer implementations (`nats/`)
-   - PostgreSQL schema migrations and their runner (`postgres/`); not used by the service yet
+   - PostgreSQL schema migrations and their runner, and the connection pool (`postgres/`); the service only connects and migrates when `POSTGRES_URL` is set, and reads and writes nothing else yet
    - JWT authentication implementation (`auth/`)
    - Mock implementations for testing (`mock/`)
    - Messaging infrastructure
@@ -246,6 +246,14 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 | `NATS_RECONNECT_WAIT` | `2s` | no | Delay between NATS reconnect attempts |
 | `REPOSITORY_SOURCE` | `nats` | no | Storage backend: `nats` or `mock` (mock is for local dev/testing only) |
 | `MESSAGING_SOURCE` | `nats` | no | Messaging backend for the committee publisher (indexer, FGA/access, member and domain events) and the email/invite senders: `nats` or `mock`. `mock` captures publishes in memory and skips notifications, so events never reach NATS; use it for local/test only. |
+
+**PostgreSQL** (optional, nothing reads or writes the database yet)
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `POSTGRES_URL` | — | no | PostgreSQL connection string. When set, the service connects and applies the schema migrations at startup, and refuses to start if the database is unreachable or a migration fails. Empty means PostgreSQL is not used. The URL carries a password: it is logged and returned in errors with the password removed. |
+| `POSTGRES_MAX_CONNS` | `10` | no | Connection pool size per process; must be a positive integer |
+| `POSTGRES_READINESS_CHECK` | `false` | no | Set to `true` to make `/readyz` also ping PostgreSQL (opt-in, so a database outage does not remove pods from rotation before the service depends on it) |
 
 **Authentication**
 

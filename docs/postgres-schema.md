@@ -115,6 +115,22 @@ Rules for adding a migration:
 - Reproduce KV semantics, not an idealized schema: change a constraint here only together with the
   service behavior that depends on it.
 
+## Connecting
+
+The service connects only when `POSTGRES_URL` is set (see the PostgreSQL table in
+[cmd/committee-api/README.md](../cmd/committee-api/README.md)). At startup it opens a `pgxpool` pool, pings the
+database, and runs `postgres.Migrate`; an unreachable database or a failed migration stops the process, so a
+half-configured pod never serves traffic. The migration runner takes a session advisory lock, so replicas starting
+together do not race.
+
+- The URL carries a password, so it is never logged and never appears in an error: `postgres.NewPool` removes the
+  password (URL form, keyword form and `password=` query parameter) from everything it returns, and the startup log line
+  uses `postgres.RedactURL`.
+- `/readyz` also pings PostgreSQL only when `POSTGRES_READINESS_CHECK=true`. Keep it off until the service depends on the
+  database, so a database outage does not take pods out of rotation. A failing check returns a generic 503 and logs the
+  cause.
+- With no `POSTGRES_URL` the service never touches PostgreSQL, so deployments are unchanged until a URL is provisioned.
+
 ## Running the tests
 
 The schema tests need a real PostgreSQL. Point `TEST_DATABASE_URL` at a database the tests may modify
