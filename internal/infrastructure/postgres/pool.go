@@ -120,7 +120,55 @@ func RedactURL(dsn string) string {
 		return u.String()
 	}
 	dsn = userinfoPassword.ReplaceAllString(dsn, "${1}"+redacted+"${3}")
+	dsn = redactRawQuery(dsn)
 	return kvPassword.ReplaceAllString(dsn, "${1}"+redacted)
+}
+
+// schemePrefix matches the start of a scheme://... connection string.
+var schemePrefix = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://`)
+
+// isPasswordKey reports whether a raw query key names the password, decoding it first so an encoded
+// spelling such as %70assword is recognized too.
+func isPasswordKey(key string) bool {
+	decoded, err := url.QueryUnescape(key)
+	return err == nil && strings.EqualFold(decoded, "password")
+}
+
+// redactRawQuery hides password parameters in the query string of a scheme://... connection string
+// without parsing the rest of it, so a URL net/url rejects is still scrubbed.
+func redactRawQuery(dsn string) string {
+	i := strings.IndexByte(dsn, '?')
+	if i < 0 || !schemePrefix.MatchString(dsn) {
+		return dsn
+	}
+	pairs := strings.Split(dsn[i+1:], "&")
+	for n, pair := range pairs {
+		if key, _, found := strings.Cut(pair, "="); found && isPasswordKey(key) {
+			pairs[n] = key + "=" + redacted
+		}
+	}
+	return dsn[:i+1] + strings.Join(pairs, "&")
+}
+
+// rawQueryPasswords returns the password parameter values of a scheme://... connection string, both
+// as written and decoded, read without parsing the rest of it.
+func rawQueryPasswords(dsn string) []string {
+	i := strings.IndexByte(dsn, '?')
+	if i < 0 || !schemePrefix.MatchString(dsn) {
+		return nil
+	}
+	var found []string
+	for _, pair := range strings.Split(dsn[i+1:], "&") {
+		key, value, ok := strings.Cut(pair, "=")
+		if !ok || value == "" || !isPasswordKey(key) {
+			continue
+		}
+		found = append(found, value)
+		if decoded, err := url.QueryUnescape(value); err == nil && decoded != value {
+			found = append(found, decoded)
+		}
+	}
+	return found
 }
 
 // redactError wraps err with a context message, removing the connection string and any password
@@ -149,6 +197,7 @@ func passwords(dsn string) []string {
 		}
 		return found
 	}
+	found = append(found, rawQueryPasswords(dsn)...)
 	for _, m := range kvPassword.FindAllStringSubmatch(dsn, -1) {
 		if p := strings.Trim(m[2], "'"); p != "" {
 			found = append(found, p)

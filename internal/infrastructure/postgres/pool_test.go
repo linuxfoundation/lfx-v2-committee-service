@@ -30,6 +30,7 @@ func TestRedactURL(t *testing.T) {
 		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee", "postgres://first-last:xxxxx@db.example.com:port/committee"},
 		{"url the parser rejects, with @ in the password", "postgres://first-last:p@ss-" + fakePassword + "@db.example.com:port/committee", "postgres://first-last:xxxxx@db.example.com:port/committee"},
 		{"url the parser rejects, host without a path", "postgres://first-last:" + fakePassword + "@db.example.com:port", "postgres://first-last:xxxxx@db.example.com:port"},
+		{"url the parser rejects, with an encoded password parameter", "postgres://db.example.com:port/committee?sslmode=disable&%70assword=" + fakePassword, "postgres://db.example.com:port/committee?sslmode=disable&%70assword=xxxxx"},
 		{"url form", urlWithPassword("db.example.com:5432"), "postgres://first-last:xxxxx@db.example.com:5432/committee?sslmode=disable"},
 		{"url without a password is unchanged", "postgres://first-last@db.example.com/committee", "postgres://first-last@db.example.com/committee"},
 		{"password as a query parameter", "postgres://db.example.com/committee?password=" + fakePassword, "postgres://db.example.com/committee?password=xxxxx"},
@@ -102,6 +103,7 @@ func TestRedactError(t *testing.T) {
 		echoes []string
 	}{
 		{"url form", urlWithPassword("db.example.com:5432"), []string{fakePassword}},
+		{"url the parser rejects, with an encoded password parameter", "postgres://db.example.com:port/committee?%70assword=" + fakePassword, []string{fakePassword}},
 		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee", []string{fakePassword}},
 		{"url the parser rejects, with @ in the password", "postgres://first-last:p@ss-" + fakePassword + "@db.example.com:port/committee", []string{"p@ss-" + fakePassword}},
 		{"keyword form with an escaped space", `host=db.example.com password=first\ ` + fakePassword + ` dbname=committee`, []string{`first\ ` + fakePassword, "first " + fakePassword}},

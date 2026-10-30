@@ -99,7 +99,8 @@ func main() {
 	linkStorage := service.CommitteeLinkReaderWriterImpl(ctx)
 	docStorage := service.CommitteeDocumentReaderWriterImpl(ctx)
 
-	// Connect to PostgreSQL and apply the schema when POSTGRES_URL is set (no-op otherwise)
+	// Connect to PostgreSQL and apply the schema when POSTGRES_ENABLED=true (no-op otherwise;
+	// failures are logged, never fatal)
 	postgresReadiness := service.PostgresReadinessImpl(ctx)
 	defer service.ClosePostgres()
 

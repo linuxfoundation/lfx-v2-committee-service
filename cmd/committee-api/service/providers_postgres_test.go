@@ -5,12 +5,17 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/pressly/goose/v3/lock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 )
 
 // env returns a getenv backed by a map, so the tests never touch the process environment.
@@ -118,5 +123,56 @@ func TestInitPostgres(t *testing.T) {
 		require.NotNil(t, offPool)
 		defer offPool.Close()
 		assert.Empty(t, offChecks, "readiness stays off unless opted in")
+	})
+
+	t.Run("a migration stuck behind the lock times out and the service continues", func(t *testing.T) {
+		dsn := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL"))
+		if dsn == "" {
+			if os.Getenv("CI") != "" {
+				t.Fatal("TEST_DATABASE_URL must be set on CI")
+			}
+			t.Skip("TEST_DATABASE_URL is not set; skipping the live PostgreSQL test")
+		}
+
+		// Another pod holds goose's session lock, as one in the middle of migrating would.
+		holderPool, err := postgres.NewPool(ctx, postgres.Config{URL: dsn, MaxConns: 2})
+		require.NoError(t, err)
+		defer holderPool.Close()
+		holderDB := postgres.OpenDB(holderPool)
+		defer func() { _ = holderDB.Close() }()
+		holder, err := holderDB.Conn(ctx)
+		require.NoError(t, err)
+		defer func() { _ = holder.Close() }()
+		locker, err := lock.NewPostgresSessionLocker()
+		require.NoError(t, err)
+		require.NoError(t, locker.SessionLock(ctx, holder))
+		defer func() { _ = locker.SessionUnlock(ctx, holder) }()
+
+		// goose only waits for the lock when migrations are pending, so migrate into a fresh schema
+		// (search_path is sent as a startup parameter, so it applies to every pooled connection).
+		schema := fmt.Sprintf("svc_lock_%d", time.Now().UnixNano())
+		_, err = holder.ExecContext(ctx, "CREATE SCHEMA "+schema)
+		require.NoError(t, err)
+		defer func() { _, _ = holder.ExecContext(ctx, "DROP SCHEMA "+schema+" CASCADE") }()
+		separator := "?"
+		if strings.Contains(dsn, "?") {
+			separator = "&"
+		}
+		lockedDSN := dsn + separator + "search_path=" + schema
+
+		previous := postgresMigrateTimeout
+		postgresMigrateTimeout = time.Second
+		t.Cleanup(func() { postgresMigrateTimeout = previous })
+
+		started := time.Now()
+		pool, checks := initPostgres(ctx, env(map[string]string{
+			"POSTGRES_ENABLED":         "true",
+			"POSTGRES_URL":             lockedDSN,
+			"POSTGRES_READINESS_CHECK": "true",
+		}))
+		assert.Nil(t, pool, "a migration that timed out must not leave a pool behind")
+		assert.Less(t, time.Since(started), 30*time.Second, "startup must not wait for the five-minute goose lock timeout")
+		require.Len(t, checks, 1)
+		assert.Error(t, checks[0].IsReady(ctx))
 	})
 }
