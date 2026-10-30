@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
-	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 type stubReadiness struct {
@@ -52,7 +52,9 @@ func TestCommitteeServiceReadyz(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, res)
 
-		var unavailable errs.ServiceUnavailable
+		// wrapError maps the domain error to the Goa error that is encoded as HTTP 503; a raw
+		// domain error would be encoded as a 500.
+		var unavailable *committeeservice.ServiceUnavailableError
 		require.ErrorAs(t, err, &unavailable)
 		assert.NotContains(t, err.Error(), "10.0.0.1")
 	})

@@ -129,6 +129,11 @@ together do not race.
 - `/readyz` also pings PostgreSQL only when `POSTGRES_READINESS_CHECK=true`. Keep it off until the service depends on the
   database, so a database outage does not take pods out of rotation. A failing check returns a generic 503 and logs the
   cause.
+- Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the
+  server certificate, and the driver default `prefer` can fall back to plaintext.
+- The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the
+  service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
+  give the runtime role DML only.
 - With no `POSTGRES_URL` the service never touches PostgreSQL, so deployments are unchanged until a URL is provisioned.
 
 ## Running the tests

@@ -27,6 +27,7 @@ func TestRedactURL(t *testing.T) {
 		dsn  string
 		want string
 	}{
+		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee", "postgres://first-last:xxxxx@db.example.com:port/committee"},
 		{"url form", urlWithPassword("db.example.com:5432"), "postgres://first-last:xxxxx@db.example.com:5432/committee?sslmode=disable"},
 		{"url without a password is unchanged", "postgres://first-last@db.example.com/committee", "postgres://first-last@db.example.com/committee"},
 		{"password as a query parameter", "postgres://db.example.com/committee?password=" + fakePassword, "postgres://db.example.com/committee?password=xxxxx"},
@@ -95,16 +96,27 @@ func TestRedactError(t *testing.T) {
 		dsn  string
 	}{
 		{"url form", urlWithPassword("db.example.com:5432")},
+		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee"},
+		{"percent-encoded password", "postgres://first-last:p%40ss-" + fakePassword + "@db.example.com/committee"},
 		{"password query parameter", "postgres://db.example.com/committee?password=" + fakePassword},
 		{"keyword form", "host=db.example.com user=first-last password=" + fakePassword},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			echoed := errors.New("cannot use " + tt.dsn + " (password " + fakePassword + " rejected)")
+			secrets := passwords(tt.dsn)
+			require.NotEmpty(t, secrets)
+
+			echoed := errors.New("cannot use " + tt.dsn + " (password " + secrets[0] + " rejected)")
 			got := redactError(tt.dsn, "connect to postgres", echoed)
 			require.Error(t, got)
-			assert.NotContains(t, got.Error(), fakePassword)
+			for _, secret := range secrets {
+				assert.NotContains(t, got.Error(), secret)
+			}
 			assert.True(t, strings.HasPrefix(got.Error(), "connect to postgres: "), got.Error())
+
+			// An error that echoes only the raw password fragment is scrubbed too.
+			fragment := errors.New("password " + secrets[0] + " rejected")
+			assert.NotContains(t, redactError(tt.dsn, "x", fragment).Error(), secrets[0])
 		})
 	}
 }

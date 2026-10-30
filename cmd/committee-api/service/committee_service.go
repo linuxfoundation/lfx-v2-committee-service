@@ -1559,7 +1559,7 @@ func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err erro
 	for _, checker := range s.extraReadiness {
 		if err := checker.IsReady(ctx); err != nil {
 			slog.ErrorContext(ctx, "service not ready", "error", err)
-			return nil, errors.NewServiceUnavailable("a dependency is not ready")
+			return nil, wrapError(ctx, errors.NewServiceUnavailable("a dependency is not ready"))
 		}
 	}
 

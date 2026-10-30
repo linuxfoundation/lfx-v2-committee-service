@@ -100,7 +100,7 @@ func main() {
 	docStorage := service.CommitteeDocumentReaderWriterImpl(ctx)
 
 	// Connect to PostgreSQL and apply the schema when POSTGRES_URL is set (no-op otherwise)
-	service.PostgresReadinessImpl(ctx)
+	postgresReadiness := service.PostgresReadinessImpl(ctx)
 	defer service.ClosePostgres()
 
 	// Initialize the service with use cases
@@ -197,7 +197,7 @@ func main() {
 		weeklyBriefWriterUseCase,
 		weeklyBriefSharerUseCase,
 		orgCommitteeSeatReader,
-		service.PostgresReadinessImpl(ctx)...,
+		postgresReadiness...,
 	)
 
 	// Wrap the services in endpoints that can be invoked from other services

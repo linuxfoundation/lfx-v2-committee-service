@@ -98,6 +98,10 @@ func (r *Ready) IsReady(ctx context.Context) error {
 
 var kvPassword = regexp.MustCompile(`(?i)(password\s*=\s*)('(?:[^'\\]|\\.)*'|\S+)`)
 
+// userinfoPassword matches the password of a scheme://user:password@host string without parsing it,
+// so a URL that net/url rejects (a bad port, say) is still scrubbed.
+var userinfoPassword = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://[^:/@]*:)([^@]*)(@)`)
+
 // RedactURL hides the password in a connection string, in URL or keyword/value form.
 func RedactURL(dsn string) string {
 	if u, err := url.Parse(dsn); err == nil && u.Scheme != "" {
@@ -111,6 +115,7 @@ func RedactURL(dsn string) string {
 		}
 		return u.String()
 	}
+	dsn = userinfoPassword.ReplaceAllString(dsn, "${1}"+redacted+"${3}")
 	return kvPassword.ReplaceAllString(dsn, "${1}"+redacted)
 }
 
@@ -127,6 +132,10 @@ func redactError(dsn, msg string, err error) error {
 // passwords extracts the credentials from a connection string so they can be scrubbed from text.
 func passwords(dsn string) []string {
 	var found []string
+	// The raw (still percent-encoded) password, which an error can echo without the full string.
+	if m := userinfoPassword.FindStringSubmatch(dsn); m != nil && m[2] != "" {
+		found = append(found, m[2])
+	}
 	if u, err := url.Parse(dsn); err == nil && u.Scheme != "" {
 		if p, has := u.User.Password(); has && p != "" {
 			found = append(found, p)

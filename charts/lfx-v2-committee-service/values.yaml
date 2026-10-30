@@ -603,7 +603,9 @@ app:
           key: org_seat_page_token_hmac_key
           optional: true
     # POSTGRES_URL — connection string for the committee PostgreSQL database
-    # (postgres://user:password@host:5432/db?sslmode=require). It carries a
+    # (postgres://user:password@host:5432/db?sslmode=verify-full&sslrootcert=...; require
+    # encrypts but does not verify the server certificate, and the pgx default
+    # sslmode=prefer can fall back to plaintext). It carries a
     # password, so it comes only from a Secret. `optional: true` keeps the pod
     # healthy when the key is absent: with no URL the service does not touch
     # PostgreSQL at all (nothing reads or writes it yet). When set, the service
