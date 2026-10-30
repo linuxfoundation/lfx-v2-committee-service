@@ -16,13 +16,17 @@
 -- committee_normalize_key reproduces the Go normalization the KV keys apply to emails and usernames,
 -- strings.TrimSpace(strings.ToLower(x)). PostgreSQL's btrim(x) only strips ASCII spaces, whereas Go
 -- strips every Unicode white space character (tab, newline, no-break space, ...), so the character set
--- below lists the same characters as unicode.IsSpace. Residual difference: lower() follows the
--- database's LC_CTYPE, so a UTF-8 database (the RDS default) folds case like Go does, while a C/POSIX
--- one folds ASCII only.
+-- below lists the same characters as unicode.IsSpace.
+--
+-- lower() follows the database locale, and the Turkic locales (tr, az) lowercase I to a dotless i,
+-- which Go does not. I and the dotted capital I (U+0130) are therefore mapped to i first, which is
+-- what Go does for both, so the result does not depend on the locale. Every other character uses the
+-- database's simple case mapping, which matches Go on a UTF-8 database apart from rare characters
+-- whose case differs between Unicode versions; a C/POSIX database folds ASCII only.
 CREATE FUNCTION committee_normalize_key(value TEXT) RETURNS TEXT
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
     AS $$
-        SELECT lower(btrim(value,
+        SELECT lower(btrim(replace(replace(value, 'I', 'i'), U&'\0130', 'i'),
             U&' \0009\000A\000B\000C\000D\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000'))
     $$;
 

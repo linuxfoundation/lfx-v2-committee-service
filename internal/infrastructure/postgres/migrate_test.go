@@ -449,11 +449,51 @@ func TestSchema(t *testing.T) {
 			"first.last@example.com\u00a0",
 			"\u2003first.last@example.com\u3000",
 			"first.last@example.com\u0085",
-			"first last@example.com", // inner white space is kept
+			"FIRST.LAST@EXAMPLE.COM",
+			"\u0130STANBUL@EXAMPLE.COM", // dotted capital I
+			"first last@example.com",    // inner white space is kept
 			"",
 			"   ",
 		}
 		for _, in := range inputs {
+			var got string
+			require.NoError(t, db.QueryRow(`SELECT committee_normalize_key($1)`, in).Scan(&got))
+			assert.Equal(t, strings.TrimSpace(strings.ToLower(in)), got, "input %q", in)
+		}
+	})
+
+	t.Run("the key normalization does not depend on the database locale", func(t *testing.T) {
+		dsn := testDSN(t)
+		ctx := context.Background()
+
+		// A database whose locale lowercases I to a dotless i, as a Turkish one does.
+		suffix := make([]byte, 6)
+		_, err := rand.Read(suffix)
+		require.NoError(t, err)
+		name := "committee_tr_" + hex.EncodeToString(suffix)
+		admin := openSchemaDB(t, dsn, "public")
+		_, err = admin.ExecContext(ctx, `CREATE DATABASE `+name+` TEMPLATE template0 LOCALE_PROVIDER icu ICU_LOCALE 'tr-TR' LOCALE 'C'`)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && (pgErr.Code == "42501" || pgErr.Code == "0A000" || pgErr.Code == "22023") {
+				t.Skipf("cannot create an ICU test database here: %v", err)
+			}
+			require.NoError(t, err)
+		}
+		t.Cleanup(func() { _, _ = admin.ExecContext(context.Background(), `DROP DATABASE `+name+` WITH (FORCE)`) })
+
+		cfg, err := pgx.ParseConfig(dsn)
+		require.NoError(t, err)
+		cfg.Database = name
+		db := stdlib.OpenDB(*cfg)
+		t.Cleanup(func() { _ = db.Close() })
+
+		var turkish string
+		require.NoError(t, db.QueryRow(`SELECT lower('I')`).Scan(&turkish))
+		require.Equal(t, "\u0131", turkish, "the test database must lowercase I to a dotless i, or this test proves nothing")
+
+		require.NoError(t, Migrate(ctx, db))
+		for _, in := range []string{"FIRST.LAST@EXAMPLE.COM", "First.Last@Example.com", "\u0130STANBUL@EXAMPLE.COM", "I", "\u0131"} {
 			var got string
 			require.NoError(t, db.QueryRow(`SELECT committee_normalize_key($1)`, in).Scan(&got))
 			assert.Equal(t, strings.TrimSpace(strings.ToLower(in)), got, "input %q", in)
