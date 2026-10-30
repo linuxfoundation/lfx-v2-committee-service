@@ -28,10 +28,13 @@ func TestRedactURL(t *testing.T) {
 		want string
 	}{
 		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee", "postgres://first-last:xxxxx@db.example.com:port/committee"},
+		{"url the parser rejects, with @ in the password", "postgres://first-last:p@ss-" + fakePassword + "@db.example.com:port/committee", "postgres://first-last:xxxxx@db.example.com:port/committee"},
+		{"url the parser rejects, host without a path", "postgres://first-last:" + fakePassword + "@db.example.com:port", "postgres://first-last:xxxxx@db.example.com:port"},
 		{"url form", urlWithPassword("db.example.com:5432"), "postgres://first-last:xxxxx@db.example.com:5432/committee?sslmode=disable"},
 		{"url without a password is unchanged", "postgres://first-last@db.example.com/committee", "postgres://first-last@db.example.com/committee"},
 		{"password as a query parameter", "postgres://db.example.com/committee?password=" + fakePassword, "postgres://db.example.com/committee?password=xxxxx"},
 		{"keyword form", "host=db.example.com user=first-last password=" + fakePassword + " dbname=committee", "host=db.example.com user=first-last password=xxxxx dbname=committee"},
+		{"keyword form with an escaped space", `host=db.example.com password=first\ ` + fakePassword + ` dbname=committee`, "host=db.example.com password=xxxxx dbname=committee"},
 		{"quoted keyword form", "host=db.example.com password='" + fakePassword + " with space' dbname=committee", "host=db.example.com password=xxxxx dbname=committee"},
 	}
 	for _, tt := range tests {
@@ -94,29 +97,29 @@ func TestRedactError(t *testing.T) {
 	tests := []struct {
 		name string
 		dsn  string
+		// echoes are the forms of the password a driver error could repeat. They are written out
+		// here, not derived from passwords(), so the test does not move with the code it checks.
+		echoes []string
 	}{
-		{"url form", urlWithPassword("db.example.com:5432")},
-		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee"},
-		{"percent-encoded password", "postgres://first-last:p%40ss-" + fakePassword + "@db.example.com/committee"},
-		{"password query parameter", "postgres://db.example.com/committee?password=" + fakePassword},
-		{"keyword form", "host=db.example.com user=first-last password=" + fakePassword},
+		{"url form", urlWithPassword("db.example.com:5432"), []string{fakePassword}},
+		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee", []string{fakePassword}},
+		{"url the parser rejects, with @ in the password", "postgres://first-last:p@ss-" + fakePassword + "@db.example.com:port/committee", []string{"p@ss-" + fakePassword}},
+		{"keyword form with an escaped space", `host=db.example.com password=first\ ` + fakePassword + ` dbname=committee`, []string{`first\ ` + fakePassword, "first " + fakePassword}},
+		{"percent-encoded password", "postgres://first-last:p%40ss-" + fakePassword + "@db.example.com/committee", []string{"p%40ss-" + fakePassword, "p@ss-" + fakePassword}},
+		{"password query parameter", "postgres://db.example.com/committee?password=" + fakePassword, []string{fakePassword}},
+		{"keyword form", "host=db.example.com user=first-last password=" + fakePassword, []string{fakePassword}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			secrets := passwords(tt.dsn)
-			require.NotEmpty(t, secrets)
-
-			echoed := errors.New("cannot use " + tt.dsn + " (password " + secrets[0] + " rejected)")
-			got := redactError(tt.dsn, "connect to postgres", echoed)
-			require.Error(t, got)
-			for _, secret := range secrets {
-				assert.NotContains(t, got.Error(), secret)
-			}
+			// The error repeats the whole connection string, then each form of the password alone.
+			got := redactError(tt.dsn, "connect to postgres", errors.New("cannot use "+tt.dsn))
+			assert.NotContains(t, got.Error(), fakePassword)
 			assert.True(t, strings.HasPrefix(got.Error(), "connect to postgres: "), got.Error())
 
-			// An error that echoes only the raw password fragment is scrubbed too.
-			fragment := errors.New("password " + secrets[0] + " rejected")
-			assert.NotContains(t, redactError(tt.dsn, "x", fragment).Error(), secrets[0])
+			for _, echo := range tt.echoes {
+				got := redactError(tt.dsn, "connect to postgres", errors.New("password "+echo+" rejected"))
+				assert.NotContains(t, got.Error(), echo)
+			}
 		})
 	}
 }

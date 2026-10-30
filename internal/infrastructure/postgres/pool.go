@@ -96,11 +96,15 @@ func (r *Ready) IsReady(ctx context.Context) error {
 	return nil
 }
 
-var kvPassword = regexp.MustCompile(`(?i)(password\s*=\s*)('(?:[^'\\]|\\.)*'|\S+)`)
+var kvPassword = regexp.MustCompile(`(?i)(password\s*=\s*)('(?:[^'\\]|\\.)*'|(?:[^\s\\]|\\.)+)`)
+
+// escaped matches a backslash escape in a keyword/value string, as in password=a\ b.
+var escaped = regexp.MustCompile(`\\(.)`)
 
 // userinfoPassword matches the password of a scheme://user:password@host string without parsing it,
-// so a URL that net/url rejects (a bad port, say) is still scrubbed.
-var userinfoPassword = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://[^:/@]*:)([^@]*)(@)`)
+// so a URL that net/url rejects (a bad port, say) is still scrubbed. The password is greedy and the
+// host part that follows may not contain "@", so a password holding "@" is matched up to the last one.
+var userinfoPassword = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://[^:/@]*:)(.*)(@[^@/?#]*(?:[/?#]|$))`)
 
 // RedactURL hides the password in a connection string, in URL or keyword/value form.
 func RedactURL(dsn string) string {
@@ -148,6 +152,10 @@ func passwords(dsn string) []string {
 	for _, m := range kvPassword.FindAllStringSubmatch(dsn, -1) {
 		if p := strings.Trim(m[2], "'"); p != "" {
 			found = append(found, p)
+			// An error can echo the value with its escapes resolved.
+			if plain := escaped.ReplaceAllString(p, "$1"); plain != p {
+				found = append(found, plain)
+			}
 		}
 	}
 	return found
