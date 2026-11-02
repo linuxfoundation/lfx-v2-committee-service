@@ -24,6 +24,96 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
+func TestPublicCommitteeDisplayNameFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		existing        model.CommitteeBase
+		updated         model.CommitteeBase
+		wantDisplayName string
+	}{
+		{
+			name:            "publish and rename uses new name",
+			existing:        model.CommitteeBase{Name: "Old Group"},
+			updated:         model.CommitteeBase{Name: "New Group", Public: true},
+			wantDisplayName: "New Group",
+		},
+		{
+			name:            "rename follows auto-filled display name",
+			existing:        model.CommitteeBase{Name: "Old Group", Public: true, DisplayName: "Old Group"},
+			updated:         model.CommitteeBase{Name: "New Group", Public: true},
+			wantDisplayName: "New Group",
+		},
+		{
+			name:            "publishing without rename uses name",
+			existing:        model.CommitteeBase{Name: "Group"},
+			updated:         model.CommitteeBase{Name: "Group", Public: true},
+			wantDisplayName: "Group",
+		},
+		{
+			name:            "preserve existing display name",
+			existing:        model.CommitteeBase{Name: "Old Group", DisplayName: "Alias"},
+			updated:         model.CommitteeBase{Name: "New Group", Public: true},
+			wantDisplayName: "Alias",
+		},
+		{
+			name:            "explicit display name wins",
+			existing:        model.CommitteeBase{Name: "Old Group"},
+			updated:         model.CommitteeBase{Name: "New Group", Public: true, DisplayName: "Chosen Alias"},
+			wantDisplayName: "Chosen Alias",
+		},
+		{
+			name:            "explicit old name overrides auto-filled rename fallback",
+			existing:        model.CommitteeBase{Name: "Old Group", Public: true, DisplayName: "Old Group"},
+			updated:         model.CommitteeBase{Name: "New Group", Public: true, DisplayName: "Old Group"},
+			wantDisplayName: "Old Group",
+		},
+		{
+			name:     "private committee remains unnamed",
+			existing: model.CommitteeBase{Name: "Old Group"},
+			updated:  model.CommitteeBase{Name: "New Group"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			updated := &model.Committee{CommitteeBase: tc.updated}
+			(&committeeWriterOrchestrator{}).mergeCommitteeData(context.Background(), &tc.existing, updated)
+			assert.Equal(t, tc.wantDisplayName, updated.DisplayName)
+		})
+	}
+}
+
+func TestCreatePublicCommitteeDisplayNameFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		public          bool
+		displayName     string
+		wantDisplayName string
+	}{
+		{name: "public without display name", public: true, wantDisplayName: "Group"},
+		{name: "public with explicit display name", public: true, displayName: "Alias", wantDisplayName: "Alias"},
+		{name: "private without display name"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := mock.NewMockRepository()
+			repo.ClearAll()
+			repo.AddProject("project-1", "project-one", "Project One")
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(repo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(repo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(repo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+			result, err := orchestrator.Create(context.Background(), &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					ProjectUID: "project-1", Name: "Group", Category: "Other",
+					Public: tc.public, DisplayName: tc.displayName,
+				},
+			}, true)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantDisplayName, result.DisplayName)
+		})
+	}
+}
+
 // TestMockCommitteeWriter wraps the in-memory mock writer for the orchestrator tests
 type TestMockCommitteeWriter struct {
 	mock *mock.MockRepository
