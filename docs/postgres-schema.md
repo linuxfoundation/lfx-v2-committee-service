@@ -146,6 +146,7 @@ added one port at a time. It is not selected by the service yet; the composite s
 committee base and settings (create, get, list, find by project and name, update, update settings, delete, and the
 `has_mailing_list` and `total_members` counters) and members (create, get, update, delete, and the by-committee,
 by-organization, by-email and by-username listings).
+Invites (create, get, update, list) and applications (create, get, update, delete, list) follow the same rules.
 
 - **Duplicates come from the schema.** The store does not check names itself. A violation of
   `committees_project_name_key`, `committees_sso_group_name_key` or a primary key becomes `errs.Conflict` (the SSO one
@@ -167,6 +168,12 @@ by-organization, by-email and by-username listings).
   member. The by-email and by-username listings compare through the same function. The KV by-organization index is keyed
   by the 18-character form of the Salesforce account ID, so a member stored with the 15-character form is listed under
   either spelling: the query matches the 18-character form and its 15-character prefix.
+- **Invites and applications** have the same per-committee unique email as members, so an email that was invited or
+  applied from once is a conflict whatever the case, spacing or status of the first record. The model has no update
+  time, so `updated_at` is the creation time on insert and the current time on every update, and is not read back.
+  An invite with no expiry is stored as `NULL`. `UpdateInvite` checks a changed email against the unique index, where
+  KV keeps the lookup key of the email the invite was created with. `DeleteApplication` is not an error when the
+  application is already gone, as in KV, where the committee cascade may have removed it.
 - **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
   `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
   port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
