@@ -207,6 +207,9 @@ func (s *Store) listLinks(ctx context.Context, where string, args ...any) ([]*mo
 
 // DeleteLink removes the link when the revision is still current.
 func (s *Store) DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error {
+	if linkUID == "" {
+		return errs.NewValidation("link UID cannot be empty")
+	}
 	tag, err := s.pool.Exec(ctx, deleteLink, linkUID, committeeUID, int64(revision))
 	if err != nil {
 		return unexpected("failed to delete link", err)
@@ -316,6 +319,9 @@ func (s *Store) listFolders(ctx context.Context, where string, args ...any) ([]*
 // DeleteLinkFolder removes the folder when the revision is still current. Links in the folder are
 // left alone, as in KV; the schema has no foreign key.
 func (s *Store) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64) error {
+	if folderUID == "" {
+		return errs.NewValidation("folder UID cannot be empty")
+	}
 	tag, err := s.pool.Exec(ctx, deleteFolder, folderUID, committeeUID, int64(revision))
 	if err != nil {
 		return unexpected("failed to delete folder", err)

@@ -226,6 +226,8 @@ func TestStore_DeleteLink(t *testing.T) {
 	_, revision, err := store.GetLink(ctx, "committee-1", "l-1")
 	require.NoError(t, err)
 
+	var validation errs.Validation
+	require.ErrorAs(t, store.DeleteLink(ctx, "committee-1", "", revision), &validation)
 	requireConflict(t, store.DeleteLink(ctx, "committee-1", "l-1", revision+1000))
 	requireNotFound(t, store.DeleteLink(ctx, "committee-2", "l-1", revision))
 	_, _, err = store.GetLink(ctx, "committee-1", "l-1")
@@ -340,8 +342,9 @@ func TestStore_UpdateLinkFolder(t *testing.T) {
 	})
 
 	t.Run("taking another folder's name in the committee is a conflict", func(t *testing.T) {
+		require.NoError(t, store.CreateLinkFolder(ctx, testFolder("f-taken", "committee-1", "Taken")))
 		folder, revision := current(t, "f-2")
-		folder.Name = "Legal documents"
+		folder.Name = "Taken"
 		requireConflict(t, store.UpdateLinkFolder(ctx, folder, revision))
 	})
 
@@ -360,6 +363,8 @@ func TestStore_DeleteLinkFolder(t *testing.T) {
 	_, revision, err := store.GetLinkFolder(ctx, "committee-1", "f-1")
 	require.NoError(t, err)
 
+	var validation errs.Validation
+	require.ErrorAs(t, store.DeleteLinkFolder(ctx, "committee-1", "", revision), &validation)
 	requireConflict(t, store.DeleteLinkFolder(ctx, "committee-1", "f-1", revision+1000))
 	requireNotFound(t, store.DeleteLinkFolder(ctx, "committee-2", "f-1", revision))
 	_, _, err = store.GetLinkFolder(ctx, "committee-1", "f-1")

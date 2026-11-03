@@ -328,7 +328,7 @@ const (
 )
 
 // missingOrStale explains why a revision-guarded write matched no row: the record is gone (not
-// found) or its revision moved on (conflict). existsQuery is committeeExists, settingsExist or memberExists and uidLabel names the uid in the error.
+// found) or its revision moved on (conflict). existsQuery is one of the constant existence queries (committeeExists, memberExists, linkExists and so on) and uidLabel names the uid in the error.
 func (s *Store) missingOrStale(ctx context.Context, existsQuery, uidLabel, uid, notFound, stale string) error {
 	return s.classifyRejected(ctx, existsQuery, []any{uid}, uidLabel, uid, notFound, stale)
 }

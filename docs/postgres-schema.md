@@ -179,7 +179,9 @@ Links and link folders (create, get, update, delete, list) follow them too.
   get and delete, as in KV. Links have no unique name; a folder name is unique per committee and case-sensitive, so
   `Legal` and `legal` can both exist. Deleting a folder leaves its links alone (no foreign key, as in KV). `UpdateLinkFolder`
   checks a changed name against the unique index, where KV keeps the lookup key of the name the folder was created with.
-  `ListAllLinks` and `ListAllLinkFolders` return every record when the committee is empty.
+  `UpdateLink` and `UpdateLinkFolder` find the record by uid and revision alone, as KV does, so they are for the
+  audit-sync tooling, not for a request path that must keep a record in its committee. `ListAllLinks` and
+  `ListAllLinkFolders` return every record when the committee is empty.
 - **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
   `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
   port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
