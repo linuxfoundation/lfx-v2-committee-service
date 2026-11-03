@@ -115,135 +115,150 @@ func TestStore_GetMember(t *testing.T) {
 	ctx := context.Background()
 	store := seedMembers(t)
 
-	_, _, err := store.GetMember(ctx, "missing")
-	requireNotFound(t, err)
-	_, err = store.GetMemberRevision(ctx, "missing")
+	member, _, err := store.GetMember(ctx, "m-1")
+	require.NoError(t, err)
+	assert.Equal(t, "first.last@example.com", member.Email)
+
+	_, _, err = store.GetMember(ctx, "missing")
 	requireNotFound(t, err)
 
 	var validation errs.Validation
 	_, _, err = store.GetMember(ctx, "")
 	require.ErrorAs(t, err, &validation)
-	_, err = store.GetMemberRevision(ctx, "")
-	require.ErrorAs(t, err, &validation)
+	assert.Contains(t, err.Error(), "member UID")
+}
+
+func TestStore_GetMemberRevision(t *testing.T) {
+	ctx := context.Background()
+	store := seedMembers(t)
 
 	_, revision, err := store.GetMember(ctx, "m-1")
 	require.NoError(t, err)
 	got, err := store.GetMemberRevision(ctx, "m-1")
 	require.NoError(t, err)
 	assert.Equal(t, revision, got)
+
+	_, err = store.GetMemberRevision(ctx, "missing")
+	requireNotFound(t, err)
+
+	var validation errs.Validation
+	_, err = store.GetMemberRevision(ctx, "")
+	require.ErrorAs(t, err, &validation)
 }
 
-func TestStore_ListMembers(t *testing.T) {
+func TestStore_ListMembersByCommittee(t *testing.T) {
 	ctx := context.Background()
 	store := seedMembers(t)
+
+	members, err := store.ListMembersByCommittee(ctx, "committee-1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"m-1", "m-2"}, memberUIDs(members))
+
+	members, err = store.ListMembersByCommittee(ctx, "no-such-committee")
+	require.NoError(t, err)
+	assert.Empty(t, members)
+
 	var validation errs.Validation
+	_, err = store.ListMembersByCommittee(ctx, "")
+	require.ErrorAs(t, err, &validation)
+}
 
-	t.Run("by committee", func(t *testing.T) {
-		members, err := store.ListMembersByCommittee(ctx, "committee-1")
+func TestStore_ListMembersByEmail(t *testing.T) {
+	ctx := context.Background()
+	store := seedMembers(t)
+
+	for _, email := range []string{"first.last@example.com", "FIRST.LAST@EXAMPLE.COM", "  first.last@example.com "} {
+		members, err := store.ListMembersByEmail(ctx, email)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"m-1", "m-2"}, memberUIDs(members))
+		assert.Equal(t, []string{"m-1", "m-3"}, memberUIDs(members), email)
+	}
 
-		members, err = store.ListMembersByCommittee(ctx, "no-such-committee")
+	var validation errs.Validation
+	_, err := store.ListMembersByEmail(ctx, "  ")
+	require.ErrorAs(t, err, &validation)
+}
+
+func TestStore_ListMembersByUsername(t *testing.T) {
+	ctx := context.Background()
+	store := seedMembers(t)
+
+	members, err := store.ListMembersByUsername(ctx, " First-Last-M-2 ")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"m-2"}, memberUIDs(members))
+
+	var validation errs.Validation
+	_, err = store.ListMembersByUsername(ctx, " ")
+	require.ErrorAs(t, err, &validation)
+}
+
+func TestStore_ListMembersByOrganization(t *testing.T) {
+	ctx := context.Background()
+	store := seedMembers(t)
+	short := testMember("m-short", "committee-4", "first.last-short@example.com")
+	short.Organization.ID = sfid15
+	require.NoError(t, store.CreateMember(ctx, short))
+
+	for _, query := range []string{sfid15, sfid18, " " + sfid18 + " "} {
+		members, err := store.ListMembersByOrganization(ctx, query)
 		require.NoError(t, err)
-		assert.Empty(t, members)
+		assert.Equal(t, []string{"m-1", "m-2", "m-3", "m-short"}, memberUIDs(members), query)
+	}
 
-		_, err = store.ListMembersByCommittee(ctx, "")
-		require.ErrorAs(t, err, &validation)
+	members, err := store.ListMembersByOrganization(ctx, utils.NormalizeAccountSFID("001A000001zzzzz"))
+	require.NoError(t, err)
+	assert.Empty(t, members)
+
+	var validation errs.Validation
+	_, err = store.ListMembersByOrganization(ctx, "")
+	require.ErrorAs(t, err, &validation)
+}
+
+func TestStore_ListAllMembers(t *testing.T) {
+	members, err := seedMembers(t).ListAllMembers(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"m-1", "m-2", "m-3"}, memberUIDs(members))
+}
+
+// testEach checks the streaming contract shared by EachMember and EachMemberStrict.
+func testEach(t *testing.T, each func(*Store) func(context.Context, func(*model.CommitteeMember) error) error) {
+	ctx := context.Background()
+	store := seedMembers(t)
+
+	t.Run("visits every member", func(t *testing.T) {
+		var seen []string
+		require.NoError(t, each(store)(ctx, func(m *model.CommitteeMember) error {
+			seen = append(seen, m.UID)
+			return nil
+		}))
+		assert.Equal(t, []string{"m-1", "m-2", "m-3"}, seen)
 	})
 
-	t.Run("by email ignores case and spacing and spans committees", func(t *testing.T) {
-		for _, email := range []string{"first.last@example.com", "FIRST.LAST@EXAMPLE.COM", "  first.last@example.com "} {
-			members, err := store.ListMembersByEmail(ctx, email)
-			require.NoError(t, err)
-			assert.Equal(t, []string{"m-1", "m-3"}, memberUIDs(members), email)
-		}
-		_, err := store.ListMembersByEmail(ctx, "  ")
-		require.ErrorAs(t, err, &validation)
+	t.Run("stops at the first error fn returns", func(t *testing.T) {
+		stop := errors.New("stop")
+		calls := 0
+		err := each(store)(ctx, func(*model.CommitteeMember) error {
+			calls++
+			return stop
+		})
+		assert.ErrorIs(t, err, stop)
+		assert.Equal(t, 1, calls)
 	})
 
-	t.Run("by username ignores case and spacing", func(t *testing.T) {
-		members, err := store.ListMembersByUsername(ctx, " First-Last-M-2 ")
-		require.NoError(t, err)
-		assert.Equal(t, []string{"m-2"}, memberUIDs(members))
-		_, err = store.ListMembersByUsername(ctx, "")
-		require.ErrorAs(t, err, &validation)
-	})
-
-	t.Run("a member without a username is not listed under the empty one", func(t *testing.T) {
-		bare := testMember("m-bare", "committee-1", "first.last-bare@example.com")
-		bare.Username = ""
-		require.NoError(t, store.CreateMember(ctx, bare))
-		_, err := store.ListMembersByUsername(ctx, " ")
-		require.ErrorAs(t, err, &validation)
-	})
-
-	t.Run("by organization finds both spellings of the SFID", func(t *testing.T) {
-		short := testMember("m-short", "committee-4", "first.last-short@example.com")
-		short.Organization.ID = sfid15
-		require.NoError(t, store.CreateMember(ctx, short))
-
-		for _, query := range []string{sfid15, sfid18, " " + sfid18 + " "} {
-			members, err := store.ListMembersByOrganization(ctx, query)
-			require.NoError(t, err)
-			assert.Equal(t, []string{"m-1", "m-2", "m-3", "m-bare", "m-short"}, memberUIDs(members), query)
-		}
-
-		members, err := store.ListMembersByOrganization(ctx, utils.NormalizeAccountSFID("001A000001zzzzz"))
-		require.NoError(t, err)
-		assert.Empty(t, members)
-		_, err = store.ListMembersByOrganization(ctx, "")
-		require.ErrorAs(t, err, &validation)
-	})
-
-	t.Run("members without an organization are not listed under the empty one", func(t *testing.T) {
-		none := testMember("m-none", "committee-5", "first.last-none@example.com")
-		none.Organization = model.CommitteeMemberOrganization{}
-		require.NoError(t, store.CreateMember(ctx, none))
-		members, err := store.ListMembersByOrganization(ctx, sfid18)
-		require.NoError(t, err)
-		assert.NotContains(t, memberUIDs(members), "m-none")
-	})
-
-	t.Run("all", func(t *testing.T) {
-		members, err := store.ListAllMembers(ctx)
-		require.NoError(t, err)
-		assert.Len(t, members, 6)
+	t.Run("fn may call back into the store", func(t *testing.T) {
+		require.NoError(t, each(store)(ctx, func(m *model.CommitteeMember) error {
+			_, _, err := store.GetMember(ctx, m.UID)
+			return err
+		}))
 	})
 }
 
 func TestStore_EachMember(t *testing.T) {
-	ctx := context.Background()
-	store := seedMembers(t)
+	testEach(t, func(s *Store) func(context.Context, func(*model.CommitteeMember) error) error { return s.EachMember })
+}
 
-	for name, each := range map[string]func(context.Context, func(*model.CommitteeMember) error) error{
-		"EachMember": store.EachMember, "EachMemberStrict": store.EachMemberStrict,
-	} {
-		t.Run(name+" visits every member", func(t *testing.T) {
-			var seen []string
-			require.NoError(t, each(ctx, func(m *model.CommitteeMember) error {
-				seen = append(seen, m.UID)
-				return nil
-			}))
-			assert.Equal(t, []string{"m-1", "m-2", "m-3"}, seen)
-		})
-
-		t.Run(name+" stops at the first error fn returns", func(t *testing.T) {
-			stop := errors.New("stop")
-			calls := 0
-			err := each(ctx, func(*model.CommitteeMember) error {
-				calls++
-				return stop
-			})
-			assert.ErrorIs(t, err, stop)
-			assert.Equal(t, 1, calls)
-		})
-	}
-
-	t.Run("fn may call back into the store", func(t *testing.T) {
-		require.NoError(t, store.EachMember(ctx, func(m *model.CommitteeMember) error {
-			_, _, err := store.GetMember(ctx, m.UID)
-			return err
-		}))
+func TestStore_EachMemberStrict(t *testing.T) {
+	testEach(t, func(s *Store) func(context.Context, func(*model.CommitteeMember) error) error {
+		return s.EachMemberStrict
 	})
 }
 
@@ -291,6 +306,9 @@ func TestStore_UpdateMember(t *testing.T) {
 
 		var validation errs.Validation
 		_, err = store.UpdateMember(ctx, nil, 1)
+		require.ErrorAs(t, err, &validation)
+		member.UID = ""
+		_, err = store.UpdateMember(ctx, member, revision)
 		require.ErrorAs(t, err, &validation)
 	})
 
@@ -362,5 +380,7 @@ func TestStore_DeleteMember(t *testing.T) {
 
 	t.Run("a missing member is not found", func(t *testing.T) {
 		requireNotFound(t, store.DeleteMember(ctx, "missing", 1))
+		var validation errs.Validation
+		require.ErrorAs(t, store.DeleteMember(ctx, "", 1), &validation)
 	})
 }

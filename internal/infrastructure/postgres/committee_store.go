@@ -294,7 +294,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 		return unexpected("failed to update committee base", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.missingOrStale(ctx, committeeExists, committee.CommitteeBase.UID, "committee not found", "committee has been modified by another process")
+		return s.missingOrStale(ctx, committeeExists, "committee UID", committee.CommitteeBase.UID, "committee not found", "committee has been modified by another process")
 	}
 	return nil
 }
@@ -315,7 +315,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 		return unexpected("failed to update committee settings", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.missingOrStale(ctx, settingsExist, settings.UID, "committee settings not found", "committee settings have been modified by another process")
+		return s.missingOrStale(ctx, settingsExist, "committee UID", settings.UID, "committee settings not found", "committee settings have been modified by another process")
 	}
 	return nil
 }
@@ -328,14 +328,14 @@ const (
 )
 
 // missingOrStale explains why a revision-guarded write matched no row: the record is gone (not
-// found) or its revision moved on (conflict). existsQuery is committeeExists or settingsExist.
-func (s *Store) missingOrStale(ctx context.Context, existsQuery, uid, notFound, stale string) error {
+// found) or its revision moved on (conflict). existsQuery is committeeExists, settingsExist or memberExists and uidLabel names the uid in the error.
+func (s *Store) missingOrStale(ctx context.Context, existsQuery, uidLabel, uid, notFound, stale string) error {
 	var exists bool
 	if err := s.pool.QueryRow(ctx, existsQuery, uid).Scan(&exists); err != nil {
 		return unexpected("failed to check the record after a rejected write", err)
 	}
 	if !exists {
-		return errs.NewNotFound(notFound, fmt.Errorf("committee UID: %s", uid))
+		return errs.NewNotFound(notFound, fmt.Errorf("%s: %s", uidLabel, uid))
 	}
 	return errs.NewConflict(stale)
 }
@@ -404,7 +404,7 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return nil
 	})
 	if errors.Is(err, errNoMatch) {
-		return s.missingOrStale(ctx, committeeExists, uid, "committee not found", "committee has been modified by another process")
+		return s.missingOrStale(ctx, committeeExists, "committee UID", uid, "committee not found", "committee has been modified by another process")
 	}
 	return err
 }

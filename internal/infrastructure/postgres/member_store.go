@@ -110,6 +110,9 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	if member == nil {
 		return nil, errs.NewValidation("committee member cannot be nil")
 	}
+	if member.UID == "" {
+		return nil, errs.NewValidation("committee member UID cannot be empty")
+	}
 	values := memberValues(member)
 	args := append([]any{values[0], int64(revision)}, values[1:]...)
 
@@ -121,7 +124,7 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 		return nil, unexpected("failed to update committee member", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return nil, s.missingOrStale(ctx, memberExists, member.UID, "committee member not found", "committee member revision conflict")
+		return nil, s.missingOrStale(ctx, memberExists, "member UID", member.UID, "committee member not found", "committee member revision conflict")
 	}
 	return member, nil
 }
@@ -129,12 +132,15 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 // DeleteMember removes the member when the revision is still current; its email is free again once
 // it returns.
 func (s *Store) DeleteMember(ctx context.Context, uid string, revision uint64) error {
+	if uid == "" {
+		return errs.NewValidation("committee member UID cannot be empty")
+	}
 	tag, err := s.pool.Exec(ctx, "DELETE FROM committee_members WHERE uid = $1 AND revision = $2", uid, int64(revision))
 	if err != nil {
 		return unexpected("failed to delete committee member", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.missingOrStale(ctx, memberExists, uid, "committee member not found", "committee member revision conflict")
+		return s.missingOrStale(ctx, memberExists, "member UID", uid, "committee member not found", "committee member revision conflict")
 	}
 	return nil
 }
@@ -142,7 +148,7 @@ func (s *Store) DeleteMember(ctx context.Context, uid string, revision uint64) e
 // GetMember returns the member and its revision.
 func (s *Store) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
 	if uid == "" {
-		return nil, 0, errs.NewValidation("committee UID cannot be empty")
+		return nil, 0, errs.NewValidation("committee member UID cannot be empty")
 	}
 	member, revision, err := scanMember(s.pool.QueryRow(ctx, selectMember+" WHERE uid = $1", uid))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -157,7 +163,7 @@ func (s *Store) GetMember(ctx context.Context, uid string) (*model.CommitteeMemb
 // GetMemberRevision returns the member's current revision.
 func (s *Store) GetMemberRevision(ctx context.Context, uid string) (uint64, error) {
 	if uid == "" {
-		return 0, errs.NewValidation("committee UID cannot be empty")
+		return 0, errs.NewValidation("committee member UID cannot be empty")
 	}
 	var revision int64
 	err := s.pool.QueryRow(ctx, "SELECT revision FROM committee_members WHERE uid = $1", uid).Scan(&revision)
@@ -203,6 +209,7 @@ func (s *Store) ListMembersByOrganization(ctx context.Context, orgSFID string) (
 	if len(orgSFID) == 18 {
 		short = orgSFID[:15]
 	}
+	// organization_id <> '' repeats the predicate of the partial index so the planner can use it.
 	return s.listMembers(ctx, "failed to list committee members by organization",
 		" WHERE organization_id IN ($1, $2) AND organization_id <> ''", orgSFID, short)
 }
@@ -222,6 +229,7 @@ func (s *Store) ListMembersByUsername(ctx context.Context, username string) ([]*
 	if strings.TrimSpace(strings.ToLower(username)) == "" {
 		return nil, errs.NewValidation("username cannot be empty")
 	}
+	// username <> '' repeats the predicate of the partial index so the planner can use it.
 	return s.listMembers(ctx, "failed to list committee members by username",
 		" WHERE username <> '' AND committee_normalize_key(username) = committee_normalize_key($1)", username)
 }
