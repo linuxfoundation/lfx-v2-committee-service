@@ -57,6 +57,7 @@ type committeeServicesrvc struct {
 	weeklyBriefWriter           service.GroupWeeklyBriefDataWriter
 	weeklyBriefSharer           service.GroupWeeklyBriefDataSharer
 	orgSeatReader               port.OrgCommitteeSeatReader
+	extraReadiness              []port.ReadinessChecker
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -734,12 +735,12 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		invite.Role = *p.Role
 	}
 
-	// Check uniqueness — allow re-inviting if the existing invite is revoked
-	_, errUnique := s.storage.UniqueInvite(ctx, invite)
-	if errUnique != nil {
+	// Create the invite; storage reports a conflict when one already exists for this email, in
+	// which case a revoked invite is reinstated instead
+	if errCreate := s.storage.CreateInvite(ctx, invite); errCreate != nil {
 		var conflictErr errors.Conflict
-		if !stderrors.As(errUnique, &conflictErr) {
-			return nil, wrapError(ctx, errUnique)
+		if !stderrors.As(errCreate, &conflictErr) {
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Uniqueness conflict: look for a revoked invite to reinstate
@@ -755,7 +756,7 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 			}
 		}
 		if revokedInvite == nil {
-			return nil, wrapError(ctx, errUnique)
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Reinstate the revoked invite by setting it back to pending
@@ -789,10 +790,6 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
 
 		return s.convertInviteDomainToResponse(revokedInvite), nil
-	}
-
-	if err := s.storage.CreateInvite(ctx, invite); err != nil {
-		return nil, wrapError(ctx, err)
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
@@ -1278,12 +1275,12 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		application.Organization = organizationPtrFromFields(p.Organization.ID, p.Organization.Name, p.Organization.Website)
 	}
 
-	// Check uniqueness — allow reapplying if the existing application is rejected
-	_, errUnique := s.storage.UniqueApplication(ctx, application)
-	if errUnique != nil {
+	// Create the application; storage reports a conflict when one already exists for this
+	// applicant, in which case a rejected application is reinstated instead
+	if errCreate := s.storage.CreateApplication(ctx, application); errCreate != nil {
 		var conflictErr errors.Conflict
-		if !stderrors.As(errUnique, &conflictErr) {
-			return nil, wrapError(ctx, errUnique)
+		if !stderrors.As(errCreate, &conflictErr) {
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Uniqueness conflict: look for a rejected application to reinstate
@@ -1299,7 +1296,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 			}
 		}
 		if rejectedApp == nil {
-			return nil, wrapError(ctx, errUnique)
+			return nil, wrapError(ctx, errCreate)
 		}
 
 		// Reinstate the rejected application by setting it back to pending.
@@ -1331,10 +1328,6 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 
 		return s.convertApplicationDomainToResponse(current), nil
-	}
-
-	if err := s.storage.CreateApplication(ctx, application); err != nil {
-		return nil, wrapError(ctx, err)
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)
@@ -1559,7 +1552,15 @@ func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err erro
 	// Check NATS readiness
 	if err := s.storage.IsReady(ctx); err != nil {
 		slog.ErrorContext(ctx, "service not ready", "error", err)
-		return nil, err // This will automatically return ServiceUnavailable
+		return nil, wrapError(ctx, err) // maps the domain error to the 503 the probes expect
+	}
+
+	// Check the opt-in dependencies (PostgreSQL when POSTGRES_READINESS_CHECK=true)
+	for _, checker := range s.extraReadiness {
+		if err := checker.IsReady(ctx); err != nil {
+			slog.ErrorContext(ctx, "service not ready", "error", err)
+			return nil, wrapError(ctx, errors.NewServiceUnavailable("a dependency is not ready"))
+		}
 	}
 
 	return []byte("OK\n"), nil
@@ -2136,6 +2137,7 @@ func NewCommitteeService(
 	weeklyBriefWriter service.GroupWeeklyBriefDataWriter,
 	weeklyBriefSharer service.GroupWeeklyBriefDataSharer,
 	orgSeatReader port.OrgCommitteeSeatReader,
+	extraReadiness ...port.ReadinessChecker,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
@@ -2155,6 +2157,7 @@ func NewCommitteeService(
 		weeklyBriefWriter:           weeklyBriefWriter,
 		weeklyBriefSharer:           weeklyBriefSharer,
 		orgSeatReader:               orgSeatReader,
+		extraReadiness:              extraReadiness,
 	}
 }
 

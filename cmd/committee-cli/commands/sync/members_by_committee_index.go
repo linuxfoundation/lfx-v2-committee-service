@@ -48,8 +48,8 @@ func (s *membersByCommitteeIndexSubcommand) Run(ctx context.Context, rc commands
 	if rc.CommitteeReader == nil {
 		return fmt.Errorf("CommitteeReader is not wired in RunContext")
 	}
-	if rc.CommitteeMemberWriter == nil {
-		return fmt.Errorf("CommitteeMemberWriter is not wired in RunContext")
+	if rc.MemberIndexBackfiller == nil {
+		return fmt.Errorf("MemberIndexBackfiller is not wired in RunContext")
 	}
 
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
@@ -80,7 +80,7 @@ func (s *membersByCommitteeIndexSubcommand) Run(ctx context.Context, rc commands
 			continue
 		}
 
-		_, errIdx := rc.CommitteeMemberWriter.IndexMemberByCommittee(ctx, member)
+		_, errIdx := rc.MemberIndexBackfiller.IndexMemberByCommittee(ctx, member)
 		if errIdx != nil {
 			slog.WarnContext(ctx, "failed to index member by committee",
 				"error", errIdx,

@@ -11,11 +11,10 @@ import (
 
 // CommitteeInviteWriter provides access to committee invite writing operations
 type CommitteeInviteWriter interface {
-	// CreateInvite creates a new committee invite
+	// CreateInvite creates a new committee invite. At most one invite exists per
+	// (committee, invitee email); a second create for the same pair returns errs.Conflict and
+	// leaves storage unchanged.
 	CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error
 	// UpdateInvite updates an existing committee invite
 	UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error
-
-	// Checkers for uniqueness
-	UniqueInvite(ctx context.Context, invite *model.CommitteeInvite) (string, error)
 }

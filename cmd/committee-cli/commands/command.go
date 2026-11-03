@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
+
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 )
@@ -26,14 +28,27 @@ type Subcommand interface {
 	Run(ctx context.Context, rc RunContext) error
 }
 
+// OfflineSubcommand is implemented by subcommands that can answer some invocations without any
+// infrastructure, such as printing a static catalog. main runs those invocations before it
+// connects to NATS, the way it does for --help.
+type OfflineSubcommand interface {
+	Subcommand
+	// RunsOffline reports whether an invocation with these args needs no infrastructure.
+	RunsOffline(args []string) bool
+}
+
 // RunContext carries the wired infrastructure and global flags into a subcommand.
 type RunContext struct {
 	CommitteeReader             port.CommitteeReader
 	CommitteeWriterOrchestrator service.CommitteeWriter
 	// CommitteeMemberWriter provides direct storage-layer access to member write operations
-	// (e.g. IndexMemberByCommittee). This is used by data-repair subcommands that bypass the
+	// (create, update, delete). This is used by data-repair subcommands that bypass the
 	// business-logic orchestrator and write to the storage layer directly.
 	CommitteeMemberWriter port.CommitteeMemberWriter
+	// MemberIndexBackfiller writes the NATS KV member secondary indexes directly, for the
+	// members-by-*-index backfill subcommands. It is KV-specific and goes away with the KV member
+	// storage.
+	MemberIndexBackfiller port.MemberIndexBackfiller
 	// CommitteeInviteWriter provides direct storage-layer access to invite write operations
 	// (e.g. backfilling fields during reindex). Bypasses the business-logic orchestrator.
 	CommitteeInviteWriter port.CommitteeInviteWriter
@@ -57,8 +72,12 @@ type RunContext struct {
 	// used by data-repair subcommands that need to resolve an organization identity
 	// without a direct SFID (e.g. member-cdp-org-id).
 	B2BOrgFallbackResolver port.B2BOrgFallbackResolver
-	DryRun                 bool
-	Args                   []string // remaining args after command + subcommand, for subcommand flag parsing
+	// KVStore binds a NATS KV bucket by name. Subcommands that read buckets owned by another
+	// service (e.g. committee-fields reading the v1 sync helper's mirror) use it, so that
+	// knowledge stays in the subcommand and out of the storage ports.
+	KVStore func(ctx context.Context, bucket string) (jetstream.KeyValue, error)
+	DryRun  bool
+	Args    []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

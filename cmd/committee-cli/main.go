@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/report"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/sync"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
@@ -84,6 +85,12 @@ func run() error {
 		return fmt.Errorf("unknown subcommand: %s %s", commandName, subcommandName)
 	}
 
+	// Run invocations that need no infrastructure (e.g. --list-fields) before connecting to NATS,
+	// so they work when the broker is unreachable.
+	if offline, ok := sub.(commands.OfflineSubcommand); ok && offline.RunsOffline(parsed.SubArgs) {
+		return sub.Run(ctx, commands.RunContext{Args: parsed.SubArgs})
+	}
+
 	natsURL := env.Get("NATS_URL", "nats://localhost:4222")
 	natsTimeout := 120 * time.Second
 	if raw := strings.TrimSpace(env.Get("NATS_TIMEOUT", "")); raw != "" {
@@ -126,12 +133,14 @@ func run() error {
 		CommitteeReader:             storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
 		CommitteeMemberWriter:       storage,
+		MemberIndexBackfiller:       storage,
 		CommitteeInviteWriter:       storage,
 		DocumentAuditSync:           storage,
 		Publisher:                   publisher,
 		UserReader:                  userReader,
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
+		KVStore:                     client.GetOrBindKVStore,
 		CommitteeApplicationReader:  storage,
 		CommitteeApplicationWriter:  storage,
 		B2BOrgFallbackResolver:      b2bOrgFallbackResolver,
@@ -143,8 +152,10 @@ func run() error {
 
 func buildRegistry() map[string]commands.Command {
 	syncCmd := sync.NewCommand()
+	reportCmd := report.NewCommand()
 	return map[string]commands.Command{
-		syncCmd.Name(): syncCmd,
+		syncCmd.Name():   syncCmd,
+		reportCmd.Name(): reportCmd,
 	}
 }
 

@@ -25,9 +25,16 @@ type CommitteeMemberReader interface {
 	// independently of the secondary index.
 	ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error)
 	// EachMember streams every committee member to fn one at a time via a full bucket scan, without
-	// materializing the whole set in memory — for backfill/repair over large buckets. Per-member read
-	// errors are skipped (logged); iteration stops and returns the first error fn returns.
+	// materializing the whole set in memory — for best-effort backfill/repair over large buckets. A
+	// per-member read error is logged and skipped rather than aborting the scan or being reported back
+	// to the caller; iteration stops and returns the first error fn returns. Use EachMemberStrict
+	// instead when a partial scan must not be mistaken for a complete one.
 	EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error
+	// EachMemberStrict behaves like EachMember, except a per-member read error — while still logged and
+	// skipped during iteration, same as EachMember — is aggregated and reported back as the returned
+	// error once the scan completes, so a caller that only checks the returned error (e.g. "report
+	// board-seats") cannot mistake a partial scan for a complete one.
+	EachMemberStrict(ctx context.Context, fn func(*model.CommitteeMember) error) error
 	// ListMembersByEmail retrieves all committee members whose normalized email matches the given
 	// address, using the by-email secondary index. The email is normalized (TrimSpace+ToLower) and
 	// SHA-256-hashed before the scan.

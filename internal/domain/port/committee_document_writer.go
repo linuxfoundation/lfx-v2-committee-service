@@ -11,13 +11,15 @@ import (
 
 // CommitteeDocumentWriter handles document write operations.
 type CommitteeDocumentWriter interface {
+	// CreateDocumentMetadata creates the document metadata. Document names are unique per
+	// committee; a second create with the same name returns errs.Conflict and leaves storage
+	// unchanged.
 	CreateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument) error
 	PutDocumentFile(ctx context.Context, documentUID string, fileData []byte) error
 	DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error
-	// UniqueDocumentName enforces uniqueness of document name per committee. Returns the lookup key.
-	UniqueDocumentName(ctx context.Context, doc *model.CommitteeDocument) (string, error)
-	// DeleteUniqueDocumentName removes a document name uniqueness reservation by its lookup key.
-	DeleteUniqueDocumentName(ctx context.Context, uniqueKey string) error
+	// DeleteDocumentFile removes the stored file for a document. Deleting a file that does not
+	// exist is not an error.
+	DeleteDocumentFile(ctx context.Context, documentUID string) error
 }
 
 // CommitteeDocumentReaderWriter combines read and write interfaces for document storage.

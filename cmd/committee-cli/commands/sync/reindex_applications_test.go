@@ -142,10 +142,6 @@ func (w *mockApplicationWriter) DeleteApplication(_ context.Context, _ *model.Co
 	return nil
 }
 
-func (w *mockApplicationWriter) UniqueApplication(_ context.Context, _ *model.CommitteeApplication) (string, error) {
-	return "", nil
-}
-
 func TestReindexApplications_NoApplications_Succeeds(t *testing.T) {
 	t.Parallel()
 	sub := &reindexApplicationsSubcommand{}

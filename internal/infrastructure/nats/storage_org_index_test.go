@@ -45,6 +45,15 @@ func (m *mockKV) ListKeysFiltered(_ context.Context, _ ...string) (jetstream.Key
 	return &mockKeyLister{keys: m.listKeys}, nil
 }
 
+// ListKeys backs the full-bucket scan used by EachMember/EachMemberStrict (as opposed to
+// ListKeysFiltered, used by the secondary-index lookups above).
+func (m *mockKV) ListKeys(_ context.Context, _ ...jetstream.WatchOpt) (jetstream.KeyLister, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
+	return &mockKeyLister{keys: m.listKeys}, nil
+}
+
 func (m *mockKV) Get(_ context.Context, key string) (jetstream.KeyValueEntry, error) {
 	if err, ok := m.getErrs[key]; ok {
 		return nil, err

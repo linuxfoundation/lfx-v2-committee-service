@@ -141,6 +141,7 @@ This service follows clean architecture principles with clear separation of conc
 
 4. **Infrastructure Layer** (`internal/infrastructure/`)
    - NATS KV, Object Store, request/reply, event, and stream-consumer implementations (`nats/`)
+   - PostgreSQL schema migrations and their runner, and the connection pool (`postgres/`); the service only connects and migrates when `POSTGRES_ENABLED=true`, and reads and writes nothing else yet
    - JWT authentication implementation (`auth/`)
    - Mock implementations for testing (`mock/`)
    - Messaging infrastructure
@@ -246,6 +247,15 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 | `REPOSITORY_SOURCE` | `nats` | no | Storage backend: `nats` or `mock` (mock is for local dev/testing only) |
 | `MESSAGING_SOURCE` | `nats` | no | Messaging backend for the committee publisher (indexer, FGA/access, member and domain events) and the email/invite senders: `nats` or `mock`. `mock` captures publishes in memory and skips notifications, so events never reach NATS; use it for local/test only. |
 
+**PostgreSQL** (off by default; nothing reads or writes the database yet)
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `POSTGRES_ENABLED` | `false` | no | Feature flag. Only the exact value `true` turns PostgreSQL on; otherwise the service never connects, even if `POSTGRES_URL` is set. When on, a missing URL, bad settings, an unreachable database or a failed migration is logged as an error and the service keeps running without PostgreSQL, so the database cannot take the service down. |
+| `POSTGRES_URL` | — | when `POSTGRES_ENABLED=true` | PostgreSQL connection string. With the flag on, the service connects and applies the schema migrations at startup. The URL carries a password: it is logged and returned in errors with the password removed. |
+| `POSTGRES_MAX_CONNS` | `10` | no | Connection pool size per process; must be a positive integer |
+| `POSTGRES_READINESS_CHECK` | `false` | no | Set to `true` to make `/readyz` also ping PostgreSQL (opt-in, so a database outage does not remove pods from rotation before the service depends on it). If PostgreSQL is enabled but could not be set up, the check reports not ready |
+
 **Authentication**
 
 | Environment Variable | Default | Required | Description |
@@ -342,6 +352,17 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 
    # or run go test to set custom flags
    go test . -v
+   ```
+
+   The PostgreSQL schema tests in `internal/infrastructure/postgres` need a real database and are
+   skipped when `TEST_DATABASE_URL` is not set (on CI they fail instead). To run them, start a
+   throwaway PostgreSQL bound to loopback and point the variable at it; see
+   [docs/postgres-schema.md](../../docs/postgres-schema.md#running-the-tests):
+
+   ```bash
+   docker run -d --rm --name committee-pg -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=committee_test -p 127.0.0.1:5432:5432 postgres:16-alpine
+   until docker exec committee-pg pg_isready -h 127.0.0.1 -U postgres -d committee_test >/dev/null 2>&1; do sleep 1; done
+   TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/committee_test?sslmode=disable' make test
    ```
 
 6. **Lint the code**

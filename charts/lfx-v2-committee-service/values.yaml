@@ -602,6 +602,39 @@ app:
           name: lfx-v2-committee-service-secrets
           key: org_seat_page_token_hmac_key
           optional: true
+    # POSTGRES_ENABLED — feature flag for PostgreSQL. Only the exact value
+    # "true" turns it on; anything else (the default) means the service never
+    # connects to PostgreSQL, even if POSTGRES_URL is set. When enabled, a
+    # missing URL, an unreachable database or a failed migration is logged as an
+    # error and the service keeps running without PostgreSQL: nothing reads or
+    # writes the database yet, so it must not be able to take the service down.
+    POSTGRES_ENABLED:
+      value: "false"
+    # POSTGRES_URL — connection string for the committee PostgreSQL database
+    # (postgres://user:password@host:5432/db?sslmode=verify-full&sslrootcert=...; require
+    # encrypts but does not verify the server certificate, and the pgx default
+    # sslmode=prefer can fall back to plaintext). It carries a
+    # password, so it comes only from a Secret. `optional: true` keeps the pod
+    # healthy when the key is absent: with no URL the service does not touch
+    # PostgreSQL at all (nothing reads or writes it yet). Used only when
+    # POSTGRES_ENABLED is "true": the service then connects and applies the schema
+    # migrations at startup. Create the database with a UTF-8 locale and
+    # the libc provider (see docs/postgres-schema.md).
+    POSTGRES_URL:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: postgres_url
+          optional: true
+    # POSTGRES_MAX_CONNS — connection pool size per pod (default 10 when empty).
+    POSTGRES_MAX_CONNS:
+      value: ""
+    # POSTGRES_READINESS_CHECK — set to "true" to make /readyz also ping
+    # PostgreSQL (and report not ready if it could not be set up). Leave off until
+    # the service depends on the database, so a database outage does not take pods
+    # out of rotation.
+    POSTGRES_READINESS_CHECK:
+      value: "false"
 
   # otel is the configuration for OpenTelemetry tracing
   otel:

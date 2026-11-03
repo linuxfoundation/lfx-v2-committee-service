@@ -21,10 +21,9 @@ type CommitteeReader interface {
 // CommitteeBaseReader handles committee base data reading operations
 type CommitteeBaseReader interface {
 	GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error)
-	GetRevision(ctx context.Context, uid string) (uint64, error)
 	ListAllUIDs(ctx context.Context) ([]string, error)
 	// FindUIDByProjectAndName looks up the UID of a live committee within a project by
-	// name, using the same project+name uniqueness index maintained by UniqueNameProject.
+	// name, using the project+name uniqueness reservation maintained on create, update and delete.
 	// Returns a NotFound error when no live committee matches.
 	FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error)
 }

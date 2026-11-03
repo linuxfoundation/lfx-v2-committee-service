@@ -37,9 +37,14 @@ func (m *MockDocumentRepository) CreateDocumentMetadata(ctx context.Context, doc
 	slog.DebugContext(ctx, "mock document repository: creating document metadata", "uid", doc.UID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	nameKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
+	if _, exists := m.nameKeys[nameKey]; exists {
+		return errs.NewConflict("document with the same name already exists for this committee")
+	}
 	copied := *doc
 	m.documents[doc.UID] = &copied
 	m.documentRevisions[doc.UID] = 1
+	m.nameKeys[nameKey] = doc.UID
 	return nil
 }
 
@@ -99,20 +104,18 @@ func (m *MockDocumentRepository) DeleteDocumentMetadata(ctx context.Context, com
 	return nil
 }
 
-func (m *MockDocumentRepository) UniqueDocumentName(ctx context.Context, doc *model.CommitteeDocument) (string, error) {
-	uniqueKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if _, exists := m.nameKeys[uniqueKey]; exists {
-		return uniqueKey, errs.NewConflict("document with the same name already exists for this committee")
-	}
-	m.nameKeys[uniqueKey] = doc.UID
-	return uniqueKey, nil
+func (m *MockDocumentRepository) DocumentNameExists(ctx context.Context, committeeUID, name string) (bool, error) {
+	probe := &model.CommitteeDocument{CommitteeUID: committeeUID, Name: name}
+	nameKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, probe.BuildIndexKey(ctx))
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, exists := m.nameKeys[nameKey]
+	return exists, nil
 }
 
-func (m *MockDocumentRepository) DeleteUniqueDocumentName(ctx context.Context, uniqueKey string) error {
+func (m *MockDocumentRepository) DeleteDocumentFile(_ context.Context, documentUID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.nameKeys, uniqueKey)
+	delete(m.files, documentUID)
 	return nil
 }

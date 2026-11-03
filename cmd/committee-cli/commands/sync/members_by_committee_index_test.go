@@ -17,12 +17,12 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
-// mockMemberWriter is a full implementation of port.CommitteeMemberWriter shared
+// mockMemberWriter implements port.CommitteeMemberWriter and port.MemberIndexBackfiller, shared
 // across the sync backfill tests (members-by-committee, members-by-organization,
-// members-by-email-index, and member-project-attribute). IndexMemberByCommittee,
-// IndexMemberByOrganization, IndexMemberByEmail, and UpdateMember are exercised; call
-// recording (indexed, orgIndexed, emailIndexed, updated) and error simulation
-// (indexError, updateError) support those tests.
+// members-by-email-index, members-by-username-index, and member-project-attribute).
+// The IndexMemberBy* methods and UpdateMember are exercised; call recording (indexed, orgIndexed,
+// emailIndexed, usernameIndexed, updated) and error simulation (indexError, updateError) support
+// those tests.
 type mockMemberWriter struct {
 	indexed         []string                 // committee_uid+"."+member_uid keys that were written
 	orgIndexed      []string                 // org_sfid+"."+member_uid keys that were written
@@ -44,9 +44,6 @@ func (w *mockMemberWriter) UpdateMember(_ context.Context, m *model.CommitteeMem
 	return m, nil
 }
 func (w *mockMemberWriter) DeleteMember(_ context.Context, _ string, _ uint64) error { return nil }
-func (w *mockMemberWriter) UniqueMember(_ context.Context, _ *model.CommitteeMember) (string, error) {
-	return "", nil
-}
 func (w *mockMemberWriter) IndexMemberByCommittee(_ context.Context, m *model.CommitteeMember) (string, error) {
 	if w.indexError != nil {
 		return "", w.indexError
@@ -99,6 +96,7 @@ func newBackfillRC(r *mockReader, w *mockMemberWriter, args ...string) commands.
 	return commands.RunContext{
 		CommitteeReader:       r,
 		CommitteeMemberWriter: w,
+		MemberIndexBackfiller: w,
 		Args:                  args,
 	}
 }

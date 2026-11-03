@@ -4,6 +4,10 @@ This service stores all state in NATS JetStream: Key-Value (KV) buckets, one Obj
 streams. This document is the single reference for what exists, how keys are shaped, and which
 secondary indexes are maintained.
 
+> A PostgreSQL schema for this data exists but holds no data yet: NATS is still the only store (the service only connects and migrates when `POSTGRES_ENABLED=true`). See
+> [postgres-schema.md](postgres-schema.md) for how each table and unique index maps to the buckets and
+> lookup keys below.
+
 Sources of truth:
 
 - Bucket, prefix, stream, and consumer names: `pkg/constants/storage.go`
@@ -44,6 +48,7 @@ Weekly-brief keys pass through `sanitizeKVKey`, which rewrites `/`, `:`, and spa
 
 These keys live in the same bucket as the record they protect. They are created with KV `Create`
 (fails if present) so a duplicate write returns a conflict. The value is the owning record's UID.
+
 `<hash>` is a lowercase SHA-256 hex digest of the inputs joined with `|`. Normalization is per row, as
 stated in the "Hash input" column: only the email-bearing rows are trimmed and lowercased; committee,
 folder, and document names are hashed verbatim and stay case-sensitive.
@@ -57,6 +62,57 @@ folder, and document names are hashed verbatim and stay case-sensitive.
 | `committee-applications` | `lookup/committee-applications/<hash>` | `committee_uid\|applicant_email` (trimmed, lowercased) | One application per applicant per committee |
 | `committee-folders` | `lookup/committee-folders/<hash>` | `committee_uid\|folder name` | Unique folder name per committee |
 | `committee-documents-metadata` | `lookup/committee-documents/<hash>` | `committee_uid\|document name` | Unique document name per committee |
+
+For invites, applications, link folders, and documents the key is an internal detail of the KV store:
+the storage layer's `Create*` method reserves the key, writes the record, and returns a conflict error
+on a duplicate. If the record write fails and the record is confirmed absent, the key is released so
+the email or name is not left locked. If the write error is ambiguous (the record may have been
+stored), the key is kept, which blocks re-creation instead of allowing a duplicate. Deleting a folder,
+document, or application releases its key. Callers never see or build these keys.
+
+Document upload pre-checks the name before storing the file, removes the stored file if metadata
+creation fails (unless the metadata is found to exist), and treats the metadata create as the
+authoritative uniqueness check.
+
+For committees the keys are an internal detail of the KV store: `Create` reserves the project+name lock
+and, when the committee has an SSO group name, the SSO group lock; `UpdateBase` reserves the new keys when
+the project, name, or SSO group name changed and releases the old ones after the write; `Delete` releases
+both as soon as the committee record is gone. A duplicate name returns a conflict. A duplicate SSO group
+name returns a conflict that wraps `errs.ErrSSOGroupNameTaken`, which the service uses to generate the
+next candidate name and try again.
+
+When a write fails, a read-back decides what happened. If the write is confirmed not to have landed, the
+keys reserved by that call are released. If it landed despite the error, the operation continues as a
+success. If the state cannot be read, the keys are kept, which blocks reuse instead of allowing a
+duplicate. The cleanup runs on a context detached from the request, so a cancelled request still
+releases its keys. A key is only released when its value is the committee's own UID, and a key the
+committee already owns is not treated as a conflict. A failed or superseded update never releases a key
+that the committee as currently stored still uses, and an old SSO group name is released when it was
+cleared as well as when it was replaced. Callers never see or build these keys.
+
+NATS KV has no multi-key transaction, so a rename racing exactly between the read that checks which keys
+the committee uses and the release of a stale key cannot be ruled out. Closing that window would take a
+per-committee lock across service instances.
+
+For members the uniqueness lock and the four secondary indexes (see below) are an internal detail of the
+KV store, maintained by `CreateMember`, `UpdateMember`, and `DeleteMember`:
+
+- `CreateMember` reserves the (committee, email) lock (a duplicate email in the committee returns a
+  conflict), writes the member record, then writes the indexes by committee, organization, email, and
+  username. If a step fails, the member and every key written by that call are removed again.
+- `UpdateMember` compares the stored member with the new one. When the email changes it reserves the new
+  lock (a taken email returns a conflict); it moves the organization, email, and username indexes when
+  those values change, re-asserts the new keys after the write (two in-flight updates of the same member
+  share a reservation, so one's failure can release a key the other still needs), and releases the keys
+  the member no longer uses. A stale revision returns a conflict and releases whatever the call reserved.
+- `DeleteMember` releases the lock and every index as soon as the record is gone. A record that cannot be
+  decoded is still deleted, without releasing keys that cannot be derived from it.
+
+The same read-back rules as for committees apply: a write error is checked by reading the record back, a
+write that landed despite the error continues, an unreadable state keeps the keys, cleanup runs on a
+context detached from the request, and a key is only released when its value is the member's own UID.
+Callers never see or build these keys. The only code that writes an index directly is the KV-only
+`MemberIndexBackfiller` used by the `committee-cli sync members-by-*-index` repair commands.
 
 Constants `KVLookupSettingsInvitePrefix` (`lookup/committee-settings-invite/<invite_uid>`) and
 `KVSlugPrefix` (`slug/`) are defined, but no current write path creates keys with them. The `slug/`
@@ -77,9 +133,10 @@ keeps keys dot-free and avoids storing raw emails or usernames in key names.
 | `lookup/committee-members-by-email/` | `<email_hash>` | All seats held by an email; used to react to alternate-email changes and user merges (LFXV2-2521) | Member create; re-keyed when email changes | `committee-cli sync members-by-email-index` |
 | `lookup/committee-members-by-username/` | `<username_hash>` | All seats held by an LFID username; used by the user-deleted scrub flow (LFXV2-2645) | Member create when a username is set; re-keyed when it changes | `committee-cli sync members-by-username-index` |
 
-Writers: `IndexMemberBy*` in `internal/infrastructure/nats/storage.go`, called from
-`internal/service/committee_member_writer.go` (create, update, delete). On update, stale keys are
-removed after the new ones are written; on delete, all of the member's index keys are removed. See
+Writers: `CreateMember`, `UpdateMember`, and `DeleteMember` in `internal/infrastructure/nats/storage.go`
+maintain these indexes (the service layer does not see them). On update, stale keys are removed after the
+new ones are written; on delete, all of the member's index keys are removed. The `IndexMemberBy*` methods
+(the `MemberIndexBackfiller` port) exist only for the repair commands in the last column. See
 [`cmd/committee-cli/README.md`](../cmd/committee-cli/README.md) for the `sync` flags. `--dry-run` defaults differ per command (for example `members-by-committee-index` defaults to
 `false`), so check each command's flags before running.
 
