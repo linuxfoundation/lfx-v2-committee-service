@@ -330,8 +330,14 @@ const (
 // missingOrStale explains why a revision-guarded write matched no row: the record is gone (not
 // found) or its revision moved on (conflict). existsQuery is committeeExists, settingsExist or memberExists and uidLabel names the uid in the error.
 func (s *Store) missingOrStale(ctx context.Context, existsQuery, uidLabel, uid, notFound, stale string) error {
+	return s.classifyRejected(ctx, existsQuery, []any{uid}, uidLabel, uid, notFound, stale)
+}
+
+// classifyRejected is missingOrStale for an existence query with more than the uid, such as one
+// that also scopes the record to its committee.
+func (s *Store) classifyRejected(ctx context.Context, existsQuery string, args []any, uidLabel, uid, notFound, stale string) error {
 	var exists bool
-	if err := s.pool.QueryRow(ctx, existsQuery, uid).Scan(&exists); err != nil {
+	if err := s.pool.QueryRow(ctx, existsQuery, args...).Scan(&exists); err != nil {
 		return unexpected("failed to check the record after a rejected write", err)
 	}
 	if !exists {

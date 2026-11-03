@@ -147,6 +147,7 @@ committee base and settings (create, get, list, find by project and name, update
 `has_mailing_list` and `total_members` counters) and members (create, get, update, delete, and the by-committee,
 by-organization, by-email and by-username listings).
 Invites (create, get, update, list) and applications (create, get, update, delete, list) follow the same rules.
+Links and link folders (create, get, update, delete, list) follow them too.
 
 - **Duplicates come from the schema.** The store does not check names itself. A violation of
   `committees_project_name_key`, `committees_sso_group_name_key` or a primary key becomes `errs.Conflict` (the SSO one
@@ -174,6 +175,11 @@ Invites (create, get, update, list) and applications (create, get, update, delet
   An invite with no expiry is stored as `NULL`. `UpdateInvite` checks a changed email against the unique index, where
   KV keeps the lookup key of the email the invite was created with. `DeleteApplication` is not an error when the
   application is already gone, as in KV, where the committee cascade may have removed it.
+- **Links and folders** are found by uid within their committee: a record of another committee is `errs.NotFound` for
+  get and delete, as in KV. Links have no unique name; a folder name is unique per committee and case-sensitive, so
+  `Legal` and `legal` can both exist. Deleting a folder leaves its links alone (no foreign key, as in KV). `UpdateLinkFolder`
+  checks a changed name against the unique index, where KV keeps the lookup key of the name the folder was created with.
+  `ListAllLinks` and `ListAllLinkFolders` return every record when the committee is empty.
 - **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
   `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
   port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
