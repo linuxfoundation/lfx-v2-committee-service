@@ -139,6 +139,24 @@ depends on the database (the dual-write and PostgreSQL modes), that choice has t
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
   give the runtime role DML only.
 
+## Store
+
+`postgres.Store` (`internal/infrastructure/postgres`) is the PostgreSQL implementation of the committee storage ports,
+added one port at a time. It is not selected by the service yet; the composite store (#1197) does that. It covers the
+committee base and settings so far: create, get, list, find by project and name, update, update settings and delete.
+
+- **Duplicates come from the schema.** The store does not check names itself. A violation of
+  `committees_project_name_key`, `committees_sso_group_name_key` or a primary key becomes `errs.Conflict` (the SSO one
+  wraps `errs.ErrSSOGroupNameTaken`), so the HTTP mapping is the same as with KV.
+- **Revision is the concurrency token.** It is assigned from `committee_revision_seq` on insert and replaced on every
+  update. An update or delete whose revision is stale matches no row and returns `errs.Conflict`, the error the service
+  returns today when it finds the revision has moved; a missing record is `errs.NotFound`. The check is a single
+  `UPDATE ... WHERE revision = $n`, so two writers with the same token cannot both win.
+- **Multi-row operations are one transaction.** Creating a committee with settings, and deleting a committee with its
+  settings, commit or roll back together. A failed create leaves nothing behind, with no lookup keys to clean up.
+- **JSONB lists read back like KV.** An empty list is stored as `[]` and read as `nil`, as the KV records omit empty
+  lists. Timestamps are returned in UTC.
+
 ## Running the tests
 
 The schema tests need a real PostgreSQL. Point `TEST_DATABASE_URL` at a database the tests may modify
