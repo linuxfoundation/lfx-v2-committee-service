@@ -31,6 +31,10 @@ func TestRedactURL(t *testing.T) {
 		{"url the parser rejects, with @ in the password", "postgres://first-last:p@ss-" + fakePassword + "@db.example.com:port/committee", "postgres://first-last:xxxxx@db.example.com:port/committee"},
 		{"url the parser rejects, host without a path", "postgres://first-last:" + fakePassword + "@db.example.com:port", "postgres://first-last:xxxxx@db.example.com:port"},
 		{"url the parser rejects, with an encoded password parameter", "postgres://db.example.com:port/committee?sslmode=disable&%70assword=" + fakePassword, "postgres://db.example.com:port/committee?sslmode=disable&%70assword=xxxxx"},
+		{"url the parser rejects, with a newline in the password", "postgres://first-last:a\n" + fakePassword + "@db.example.com/committee", "postgres://first-last:xxxxx@db.example.com/committee"},
+		{"url the parser rejects, password parameter after an @ in the query", "postgres://db.example.com:port/committee?application_name=a@b&%70assword=" + fakePassword, "postgres://db.example.com:xxxxx@b&%70assword=xxxxx"},
+		{"query with a semicolon separator", "postgres://first-last@db.example.com/committee?sslmode=require;password=" + fakePassword, "postgres://first-last@db.example.com/committee?sslmode=require;password=xxxxx"},
+		{"query with a bad escape", "postgres://first-last@db.example.com/committee?password=" + fakePassword + "%ZZ", "postgres://first-last@db.example.com/committee?password=xxxxx"},
 		{"url form", urlWithPassword("db.example.com:5432"), "postgres://first-last:xxxxx@db.example.com:5432/committee?sslmode=disable"},
 		{"url without a password is unchanged", "postgres://first-last@db.example.com/committee", "postgres://first-last@db.example.com/committee"},
 		{"password as a query parameter", "postgres://db.example.com/committee?password=" + fakePassword, "postgres://db.example.com/committee?password=xxxxx"},
@@ -103,6 +107,10 @@ func TestRedactError(t *testing.T) {
 		echoes []string
 	}{
 		{"url form", urlWithPassword("db.example.com:5432"), []string{fakePassword}},
+		{"url the parser rejects, with a newline in the password", "postgres://first-last:a\n" + fakePassword + "@db.example.com/committee", []string{"a\n" + fakePassword}},
+		{"url the parser rejects, password parameter after an @ in the query", "postgres://db.example.com:port/committee?application_name=a@b&%70assword=" + fakePassword, []string{fakePassword}},
+		{"query with a semicolon separator", "postgres://first-last@db.example.com/committee?sslmode=require;password=" + fakePassword, []string{fakePassword}},
+		{"query with a bad escape", "postgres://first-last@db.example.com/committee?password=" + fakePassword + "%ZZ", []string{fakePassword + "%ZZ"}},
 		{"url the parser rejects, with an encoded password parameter", "postgres://db.example.com:port/committee?%70assword=" + fakePassword, []string{fakePassword}},
 		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee", []string{fakePassword}},
 		{"url the parser rejects, with @ in the password", "postgres://first-last:p@ss-" + fakePassword + "@db.example.com:port/committee", []string{"p@ss-" + fakePassword}},

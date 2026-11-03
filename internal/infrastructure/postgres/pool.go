@@ -104,7 +104,8 @@ var escaped = regexp.MustCompile(`\\(.)`)
 // userinfoPassword matches the password of a scheme://user:password@host string without parsing it,
 // so a URL that net/url rejects (a bad port, say) is still scrubbed. The password is greedy and the
 // host part that follows may not contain "@", so a password holding "@" is matched up to the last one.
-var userinfoPassword = regexp.MustCompile(`(?i)^([a-z][a-z0-9+.-]*://[^:/@]*:)(.*)(@[^@/?#]*(?:[/?#]|$))`)
+// The s flag lets the password hold a newline.
+var userinfoPassword = regexp.MustCompile(`(?is)^([a-z][a-z0-9+.-]*://[^:/@]*:)(.*)(@[^@/?#]*(?:[/?#]|$))`)
 
 // RedactURL hides the password in a connection string, in URL or keyword/value form.
 func RedactURL(dsn string) string {
@@ -112,15 +113,19 @@ func RedactURL(dsn string) string {
 		if _, has := u.User.Password(); has {
 			u.User = url.UserPassword(u.User.Username(), redacted)
 		}
-		// A password can also be passed as a query parameter.
-		if q := u.Query(); q.Has("password") {
+		// A password can also be passed as a query parameter. A query net/url cannot parse (a ";"
+		// separator, a bad escape) would be dropped by Query(), so it is scrubbed as raw text.
+		if q, err := url.ParseQuery(u.RawQuery); err != nil {
+			u.RawQuery = redactQueryString(u.RawQuery)
+		} else if q.Has("password") {
 			q.Set("password", redacted)
 			u.RawQuery = q.Encode()
 		}
 		return u.String()
 	}
-	dsn = userinfoPassword.ReplaceAllString(dsn, "${1}"+redacted+"${3}")
+	// The query goes first: the greedy userinfo match below can run through it up to a later "@".
 	dsn = redactRawQuery(dsn)
+	dsn = userinfoPassword.ReplaceAllString(dsn, "${1}"+redacted+"${3}")
 	return kvPassword.ReplaceAllString(dsn, "${1}"+redacted)
 }
 
@@ -134,6 +139,21 @@ func isPasswordKey(key string) bool {
 	return err == nil && strings.EqualFold(decoded, "password")
 }
 
+// queryPair matches a key=value pair of a query string split on "&" or ";", which net/url's parser
+// does not do together, so a query it rejects can still be read.
+var queryPair = regexp.MustCompile(`([^&;=]+)=([^&;]*)`)
+
+// redactQueryString hides the value of password parameters in a raw query string.
+func redactQueryString(query string) string {
+	return queryPair.ReplaceAllStringFunc(query, func(pair string) string {
+		key, _, _ := strings.Cut(pair, "=")
+		if isPasswordKey(key) {
+			return key + "=" + redacted
+		}
+		return pair
+	})
+}
+
 // redactRawQuery hides password parameters in the query string of a scheme://... connection string
 // without parsing the rest of it, so a URL net/url rejects is still scrubbed.
 func redactRawQuery(dsn string) string {
@@ -141,26 +161,16 @@ func redactRawQuery(dsn string) string {
 	if i < 0 || !schemePrefix.MatchString(dsn) {
 		return dsn
 	}
-	pairs := strings.Split(dsn[i+1:], "&")
-	for n, pair := range pairs {
-		if key, _, found := strings.Cut(pair, "="); found && isPasswordKey(key) {
-			pairs[n] = key + "=" + redacted
-		}
-	}
-	return dsn[:i+1] + strings.Join(pairs, "&")
+	return dsn[:i+1] + redactQueryString(dsn[i+1:])
 }
 
-// rawQueryPasswords returns the password parameter values of a scheme://... connection string, both
-// as written and decoded, read without parsing the rest of it.
-func rawQueryPasswords(dsn string) []string {
-	i := strings.IndexByte(dsn, '?')
-	if i < 0 || !schemePrefix.MatchString(dsn) {
-		return nil
-	}
+// queryPasswords returns the password parameter values of a raw query string, both as written and
+// decoded.
+func queryPasswords(query string) []string {
 	var found []string
-	for _, pair := range strings.Split(dsn[i+1:], "&") {
-		key, value, ok := strings.Cut(pair, "=")
-		if !ok || value == "" || !isPasswordKey(key) {
+	for _, m := range queryPair.FindAllStringSubmatch(query, -1) {
+		key, value := m[1], m[2]
+		if value == "" || !isPasswordKey(key) {
 			continue
 		}
 		found = append(found, value)
@@ -169,6 +179,16 @@ func rawQueryPasswords(dsn string) []string {
 		}
 	}
 	return found
+}
+
+// rawQueryPasswords returns the password parameter values of a scheme://... connection string, read
+// without parsing the rest of it.
+func rawQueryPasswords(dsn string) []string {
+	i := strings.IndexByte(dsn, '?')
+	if i < 0 || !schemePrefix.MatchString(dsn) {
+		return nil
+	}
+	return queryPasswords(dsn[i+1:])
 }
 
 // redactError wraps err with a context message, removing the connection string and any password
@@ -192,7 +212,9 @@ func passwords(dsn string) []string {
 		if p, has := u.User.Password(); has && p != "" {
 			found = append(found, p)
 		}
-		if p := u.Query().Get("password"); p != "" {
+		if _, err := url.ParseQuery(u.RawQuery); err != nil {
+			found = append(found, queryPasswords(u.RawQuery)...)
+		} else if p := u.Query().Get("password"); p != "" {
 			found = append(found, p)
 		}
 		return found

@@ -106,8 +106,10 @@ func natsInit(ctx context.Context) {
 
 // postgresMigrateTimeout bounds the startup migration. goose waits up to five minutes for the
 // migration lock held by another pod, and a hung migration would wait longer; neither may hold up
-// the HTTP server, so on timeout the service logs the failure and runs without PostgreSQL.
-var postgresMigrateTimeout = 2 * time.Minute
+// the HTTP server, so on timeout the service logs the failure and runs without PostgreSQL. The
+// HTTP server only listens after this returns and the chart's startup probe gives the pod about 30
+// seconds, so the connect timeout (10s) plus this must stay well inside that budget.
+var postgresMigrateTimeout = 15 * time.Second
 
 var (
 	postgresPool      *pgxpool.Pool
