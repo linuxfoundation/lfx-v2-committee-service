@@ -342,6 +342,15 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 	updated.TotalMembers = existing.TotalMembers
 	updated.TotalVotingRepos = existing.TotalVotingRepos
 	updated.HasMailingList = existing.HasMailingList
+	if updated.Public && updated.DisplayName == "" {
+		// Preserve a distinct public alias, but let a display name matching
+		// the old name follow the submitted name on rename.
+		if existing.DisplayName != "" && existing.DisplayName != existing.Name {
+			updated.DisplayName = existing.DisplayName
+		} else {
+			updated.DisplayName = updated.Name
+		}
+	}
 
 	// Update timestamp
 	updated.CommitteeBase.UpdatedAt = time.Now()
@@ -396,6 +405,10 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	committee.CommitteeBase.UID = uuid.New().String()
 	committee.CommitteeBase.CreatedAt = now
 	committee.CommitteeBase.UpdatedAt = now
+	// Public committees need a display name even when the caller omits one.
+	if committee.Public && committee.DisplayName == "" {
+		committee.DisplayName = committee.Name
+	}
 
 	// Set timestamps and derived fields for committee settings if they exist
 	if committee.CommitteeSettings != nil {
