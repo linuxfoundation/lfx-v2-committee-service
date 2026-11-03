@@ -98,7 +98,7 @@ func requireNotFound(t *testing.T, err error) {
 	require.ErrorAs(t, err, &notFound)
 }
 
-func TestStoreCreateAndGet(t *testing.T) {
+func TestStore_Create(t *testing.T) {
 	ctx := context.Background()
 	store := newTestStore(t)
 	want := testCommittee("uid-1", "project-1", "Committee One")
@@ -126,12 +126,6 @@ func TestStoreCreateAndGet(t *testing.T) {
 		_, _, err = store.GetSettings(ctx, "uid-min")
 		requireNotFound(t, err)
 	})
-}
-
-func TestStoreCreateConflicts(t *testing.T) {
-	ctx := context.Background()
-	store := newTestStore(t)
-	require.NoError(t, store.Create(ctx, testCommittee("uid-1", "project-1", "Committee One")))
 
 	t.Run("the same name in the same project", func(t *testing.T) {
 		dup := testCommittee("uid-2", "project-1", "Committee One")
@@ -170,11 +164,18 @@ func TestStoreCreateConflicts(t *testing.T) {
 	})
 }
 
-func TestStoreReads(t *testing.T) {
-	ctx := context.Background()
+// seedAlphaBeta returns a store holding two committees in one project.
+func seedAlphaBeta(t *testing.T) *Store {
+	t.Helper()
 	store := newTestStore(t)
-	require.NoError(t, store.Create(ctx, testCommittee("uid-b", "project-1", "Beta")))
-	require.NoError(t, store.Create(ctx, testCommittee("uid-a", "project-1", "Alpha")))
+	require.NoError(t, store.Create(context.Background(), testCommittee("uid-b", "project-1", "Beta")))
+	require.NoError(t, store.Create(context.Background(), testCommittee("uid-a", "project-1", "Alpha")))
+	return store
+}
+
+func TestStore_GetBase(t *testing.T) {
+	ctx := context.Background()
+	store := seedAlphaBeta(t)
 
 	t.Run("a missing committee is not found", func(t *testing.T) {
 		_, _, err := store.GetBase(ctx, "missing")
@@ -183,27 +184,47 @@ func TestStoreReads(t *testing.T) {
 		requireNotFound(t, err)
 	})
 
-	t.Run("ListAllUIDs", func(t *testing.T) {
-		uids, err := store.ListAllUIDs(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"uid-a", "uid-b"}, uids)
+	t.Run("an empty uid is a validation error", func(t *testing.T) {
+		var validation errs.Validation
+		_, _, err := store.GetBase(ctx, "")
+		require.ErrorAs(t, err, &validation)
+		_, _, err = store.GetSettings(ctx, "")
+		require.ErrorAs(t, err, &validation)
 	})
 
-	t.Run("FindUIDByProjectAndName is exact", func(t *testing.T) {
-		uid, err := store.FindUIDByProjectAndName(ctx, "project-1", "Alpha")
+	t.Run("timestamps come back in UTC at microsecond precision", func(t *testing.T) {
+		withNanos := testCommittee("uid-nanos", "project-1", "Nanos")
+		withNanos.CommitteeBase.CreatedAt = time.Date(2026, 1, 2, 3, 4, 5, 123456789, time.FixedZone("x", 3600))
+		require.NoError(t, store.Create(ctx, withNanos))
+		got, _, err := store.GetBase(ctx, "uid-nanos")
 		require.NoError(t, err)
-		assert.Equal(t, "uid-a", uid)
-
-		for _, tc := range []struct{ project, name string }{
-			{"project-1", "alpha"}, {"project-2", "Alpha"}, {"project-1", "Gamma"},
-		} {
-			_, err := store.FindUIDByProjectAndName(ctx, tc.project, tc.name)
-			requireNotFound(t, err)
-		}
+		assert.Equal(t, time.Date(2026, 1, 2, 2, 4, 5, 123456000, time.UTC), got.CreatedAt)
 	})
 }
 
-func TestStoreUpdateBase(t *testing.T) {
+func TestStore_ListAllUIDs(t *testing.T) {
+	uids, err := seedAlphaBeta(t).ListAllUIDs(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"uid-a", "uid-b"}, uids)
+}
+
+func TestStore_FindUIDByProjectAndName(t *testing.T) {
+	ctx := context.Background()
+	store := seedAlphaBeta(t)
+
+	uid, err := store.FindUIDByProjectAndName(ctx, "project-1", "Alpha")
+	require.NoError(t, err)
+	assert.Equal(t, "uid-a", uid)
+
+	for _, tc := range []struct{ project, name string }{
+		{"project-1", "alpha"}, {"project-2", "Alpha"}, {"project-1", "Gamma"},
+	} {
+		_, err := store.FindUIDByProjectAndName(ctx, tc.project, tc.name)
+		requireNotFound(t, err)
+	}
+}
+
+func TestStore_UpdateBase(t *testing.T) {
 	ctx := context.Background()
 	store := newTestStore(t)
 	require.NoError(t, store.Create(ctx, testCommittee("uid-1", "project-1", "Committee One")))
@@ -238,6 +259,11 @@ func TestStoreUpdateBase(t *testing.T) {
 		requireConflict(t, store.UpdateBase(ctx, committee, revision))
 		got, _ := current(t, "uid-1")
 		assert.Equal(t, "first writer", got.Description)
+	})
+
+	t.Run("a nil committee is a validation error", func(t *testing.T) {
+		var validation errs.Validation
+		require.ErrorAs(t, store.UpdateBase(ctx, nil, 1), &validation)
 	})
 
 	t.Run("a missing committee is not found", func(t *testing.T) {
@@ -275,14 +301,14 @@ func TestStoreUpdateBase(t *testing.T) {
 	})
 
 	t.Run("two writers with the same revision: one wins", func(t *testing.T) {
-		_, revision := current(t, "uid-3")
+		original, revision := current(t, "uid-3")
 		var wg sync.WaitGroup
 		results := make([]error, 8)
 		for i := range results {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				committee, _ := current(t, "uid-3")
+				committee := &model.Committee{CommitteeBase: original.CommitteeBase}
 				committee.Description = fmt.Sprintf("writer %d", i)
 				results[i] = store.UpdateBase(ctx, committee, revision)
 			}()
@@ -301,7 +327,7 @@ func TestStoreUpdateBase(t *testing.T) {
 	})
 }
 
-func TestStoreUpdateSetting(t *testing.T) {
+func TestStore_UpdateSetting(t *testing.T) {
 	ctx := context.Background()
 	store := newTestStore(t)
 	require.NoError(t, store.Create(ctx, testCommittee("uid-1", "project-1", "Committee One")))
@@ -333,6 +359,25 @@ func TestStoreUpdateSetting(t *testing.T) {
 		assert.Equal(t, "first writer", got.MemberVisibility)
 	})
 
+	t.Run("an empty list stays empty and an unset list stays unset", func(t *testing.T) {
+		settings, revision, err := store.GetSettings(ctx, "uid-1")
+		require.NoError(t, err)
+		settings.Writers = []model.CommitteeUser{}
+		settings.Auditors = nil
+		require.NoError(t, store.UpdateSetting(ctx, settings, revision))
+
+		got, _, err := store.GetSettings(ctx, "uid-1")
+		require.NoError(t, err)
+		assert.NotNil(t, got.Writers)
+		assert.Empty(t, got.Writers)
+		assert.Nil(t, got.Auditors)
+	})
+
+	t.Run("nil settings are a validation error", func(t *testing.T) {
+		var validation errs.Validation
+		require.ErrorAs(t, store.UpdateSetting(ctx, nil, 1), &validation)
+	})
+
 	t.Run("missing settings are not found", func(t *testing.T) {
 		settings, revision, err := store.GetSettings(ctx, "uid-1")
 		require.NoError(t, err)
@@ -341,7 +386,7 @@ func TestStoreUpdateSetting(t *testing.T) {
 	})
 }
 
-func TestStoreDelete(t *testing.T) {
+func TestStore_Delete(t *testing.T) {
 	ctx := context.Background()
 	store := newTestStore(t)
 	require.NoError(t, store.Create(ctx, testCommittee("uid-1", "project-1", "Committee One")))
@@ -374,9 +419,14 @@ func TestStoreDelete(t *testing.T) {
 	t.Run("a missing committee is not found", func(t *testing.T) {
 		requireNotFound(t, store.Delete(ctx, "missing", 1))
 	})
+
+	t.Run("an empty uid is a validation error", func(t *testing.T) {
+		var validation errs.Validation
+		require.ErrorAs(t, store.Delete(ctx, "", 1), &validation)
+	})
 }
 
-func TestStoreIsReady(t *testing.T) {
+func TestStore_IsReady(t *testing.T) {
 	store := newTestStore(t)
 	require.NoError(t, store.IsReady(context.Background()))
 

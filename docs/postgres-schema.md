@@ -154,8 +154,14 @@ committee base and settings so far: create, get, list, find by project and name,
   `UPDATE ... WHERE revision = $n`, so two writers with the same token cannot both win.
 - **Multi-row operations are one transaction.** Creating a committee with settings, and deleting a committee with its
   settings, commit or roll back together. A failed create leaves nothing behind, with no lookup keys to clean up.
-- **JSONB lists read back like KV.** An empty list is stored as `[]` and read as `nil`, as the KV records omit empty
-  lists. Timestamps are returned in UTC.
+- **JSONB lists read back like KV.** `scope`, `deliverables`, `key_dates` and `external_sources` are `omitempty` in the
+  KV record, so an empty list is stored as `[]` and read as `nil`. `writers` and `auditors` are not `omitempty`, and the
+  service tells "not set" from "set to empty", so they keep the difference: `nil` is stored as JSON `null` and an empty
+  list as `[]`.
+- **Timestamps** come back in UTC and truncated to microseconds, the precision of `TIMESTAMPTZ`; KV keeps nanoseconds
+  and the writer's zone. Comparisons between the stores (the composite store, `verify`) must normalise the same way.
+- **Explicit revisions** are not supported yet: the store always takes the revision from the sequence. The composite
+  store (#1197) needs a way to write the KV revision into the row during dual-write, and that comes with it.
 
 ## Running the tests
 

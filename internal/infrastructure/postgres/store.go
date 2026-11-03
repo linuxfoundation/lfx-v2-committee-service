@@ -57,11 +57,8 @@ func (s *Store) withTx(ctx context.Context, fn func(tx pgx.Tx) error) (err error
 	if err != nil {
 		return unexpected("failed to start a transaction", err)
 	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback(ctx)
-		}
-	}()
+	// Rolling back after a commit is a no-op, so this also releases the connection if fn panics.
+	defer func() { _ = tx.Rollback(ctx) }()
 	if err = fn(tx); err != nil {
 		return err
 	}
@@ -112,6 +109,22 @@ func jsonObject[T any](v *T) (any, error) {
 	return json.Marshal(v)
 }
 
+// jsonList encodes a list so that nil and empty stay different: nil is stored as the JSON value
+// null and an empty list as []. Use it for lists the KV record keeps without omitempty, where the
+// service tells "not set" from "set to empty".
+func jsonList[T any](list []T) ([]byte, error) {
+	return json.Marshal(list)
+}
+
+// decodeList reads a list written by jsonList, keeping nil and empty apart.
+func decodeList[T any](raw []byte) ([]T, error) {
+	var list []T
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 // decodeArray reads a JSONB array. An empty array decodes to nil, which is what the KV store
 // returns for a list its records omit when empty.
 func decodeArray[T any](raw []byte) ([]T, error) {
@@ -138,7 +151,9 @@ func decodeObject[T any](raw []byte) (*T, error) {
 }
 
 // unexpected wraps a database failure as the service's internal error. The cause stays on the error
-// for logs; it holds no credentials because every error from the pool is already redacted.
+// for logs. Connection errors hold no credentials because the pool redacts them, but a constraint
+// violation from the driver can carry the failing row (pgconn.PgError.Detail), which for settings
+// includes the webhook URL: log the error's text, never the PgError value itself.
 func unexpected(message string, err error) error {
 	return errs.NewUnexpected(message, err)
 }

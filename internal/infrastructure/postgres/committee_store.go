@@ -119,11 +119,11 @@ func scanCommittee(row pgx.Row) (*model.CommitteeBase, uint64, error) {
 
 // settingsValues returns the values for settingsColumns.
 func settingsValues(s *model.CommitteeSettings) ([]any, error) {
-	writers, err := jsonArray(s.Writers)
+	writers, err := jsonList(s.Writers)
 	if err != nil {
 		return nil, err
 	}
-	auditors, err := jsonArray(s.Auditors)
+	auditors, err := jsonList(s.Auditors)
 	if err != nil {
 		return nil, err
 	}
@@ -149,10 +149,10 @@ func scanSettings(row pgx.Row) (*model.CommitteeSettings, uint64, error) {
 	}
 	s.CreatedAt, s.UpdatedAt = s.CreatedAt.UTC(), s.UpdatedAt.UTC()
 	var err error
-	if s.Writers, err = decodeArray[model.CommitteeUser](writers); err != nil {
+	if s.Writers, err = decodeList[model.CommitteeUser](writers); err != nil {
 		return nil, 0, fmt.Errorf("decode writers: %w", err)
 	}
-	if s.Auditors, err = decodeArray[model.CommitteeUser](auditors); err != nil {
+	if s.Auditors, err = decodeList[model.CommitteeUser](auditors); err != nil {
 		return nil, 0, fmt.Errorf("decode auditors: %w", err)
 	}
 	return s, uint64(revision), nil
@@ -274,6 +274,9 @@ func (s *Store) GetSettings(ctx context.Context, uid string) (*model.CommitteeSe
 // conflict; a missing committee is not found. A changed name or SSO group name is checked by the
 // unique indexes, and the old name is free again as soon as the update commits.
 func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+	if committee == nil {
+		return errs.NewValidation("committee cannot be nil")
+	}
 	values, err := committeeValues(&committee.CommitteeBase)
 	if err != nil {
 		return unexpected("failed to encode committee", err)
@@ -289,13 +292,16 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 		return unexpected("failed to update committee base", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.missingOrStale(ctx, "committees", "uid", committee.CommitteeBase.UID, "committee not found", "committee has been modified by another process")
+		return s.missingOrStale(ctx, committeeExists, committee.CommitteeBase.UID, "committee not found", "committee has been modified by another process")
 	}
 	return nil
 }
 
 // UpdateSetting replaces the committee's settings when the revision is still current.
 func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
+	if settings == nil {
+		return errs.NewValidation("committee settings cannot be nil")
+	}
 	values, err := settingsValues(settings)
 	if err != nil {
 		return unexpected("failed to encode committee settings", err)
@@ -307,17 +313,23 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 		return unexpected("failed to update committee settings", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.missingOrStale(ctx, "committee_settings", "committee_uid", settings.UID, "committee settings not found", "committee settings have been modified by another process")
+		return s.missingOrStale(ctx, settingsExist, settings.UID, "committee settings not found", "committee settings have been modified by another process")
 	}
 	return nil
 }
 
+// The existence checks behind missingOrStale, as constants so no caller can pass request data into
+// the query text.
+const (
+	committeeExists = "SELECT EXISTS (SELECT 1 FROM committees WHERE uid = $1)"
+	settingsExist   = "SELECT EXISTS (SELECT 1 FROM committee_settings WHERE committee_uid = $1)"
+)
+
 // missingOrStale explains why a revision-guarded write matched no row: the record is gone (not
-// found) or its revision moved on (conflict). table and column are fixed by the callers.
-func (s *Store) missingOrStale(ctx context.Context, table, column, uid, notFound, stale string) error {
+// found) or its revision moved on (conflict). existsQuery is committeeExists or settingsExist.
+func (s *Store) missingOrStale(ctx context.Context, existsQuery, uid, notFound, stale string) error {
 	var exists bool
-	query := fmt.Sprintf("SELECT EXISTS (SELECT 1 FROM %s WHERE %s = $1)", table, column)
-	if err := s.pool.QueryRow(ctx, query, uid).Scan(&exists); err != nil {
+	if err := s.pool.QueryRow(ctx, existsQuery, uid).Scan(&exists); err != nil {
 		return unexpected("failed to check the record after a rejected write", err)
 	}
 	if !exists {
@@ -329,6 +341,9 @@ func (s *Store) missingOrStale(ctx context.Context, table, column, uid, notFound
 // Delete removes the committee and its settings in one transaction when the revision is still
 // current. Its name and SSO group name are free again once it commits.
 func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
+	if uid == "" {
+		return errs.NewValidation("committee UID cannot be empty")
+	}
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, "DELETE FROM committees WHERE uid = $1 AND revision = $2", uid, int64(revision))
 		if err != nil {
@@ -343,7 +358,7 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return nil
 	})
 	if errors.Is(err, errNoMatch) {
-		return s.missingOrStale(ctx, "committees", "uid", uid, "committee not found", "committee has been modified by another process")
+		return s.missingOrStale(ctx, committeeExists, uid, "committee not found", "committee has been modified by another process")
 	}
 	return err
 }
