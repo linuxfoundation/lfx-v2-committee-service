@@ -183,7 +183,8 @@ Document metadata (create, get, update, delete, name check, list) does too.
   `UpdateLink` and `UpdateLinkFolder` find the record by uid and revision alone, as KV does, so they are for the
   audit-sync tooling, not for a request path that must keep a record in its committee. `ListAllLinks` and
   `ListAllLinkFolders` return every record when the committee is empty.
-- **Document metadata** is found by uid within its committee, like links. A document name is unique per committee and
+- **Document metadata** is found by uid within its committee for get and delete, like links; `UpdateDocumentMetadata`
+  matches on the uid and revision alone, as KV does, for the audit-sync tooling. A document name is unique per committee and
   case-sensitive, and `UpdateDocumentMetadata` checks a changed name against the unique index, where KV keeps the lookup
   key of the original name. `DocumentNameExists` is the same query the unique index answers. The file bytes stay in the
   NATS Object Store, keyed by the document uid: the store implements no file method (`GetDocumentFile`, `PutDocumentFile`,

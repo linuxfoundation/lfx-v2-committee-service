@@ -16,6 +16,9 @@ type CommitteeDocumentWriter interface {
 	// unchanged.
 	CreateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument) error
 	PutDocumentFile(ctx context.Context, documentUID string, fileData []byte) error
+	// DeleteDocumentMetadata removes the document metadata. Whether the stored file goes with it is
+	// up to the implementation: the NATS adapter removes it best-effort, the PostgreSQL store holds
+	// metadata only and leaves it, so a caller that composes stores must call DeleteDocumentFile.
 	DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error
 	// DeleteDocumentFile removes the stored file for a document. Deleting a file that does not
 	// exist is not an error.
