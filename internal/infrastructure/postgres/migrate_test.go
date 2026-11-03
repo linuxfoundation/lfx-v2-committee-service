@@ -121,15 +121,6 @@ func currentSchema(t *testing.T, db *sql.DB) string {
 	return schema
 }
 
-// uniqueViolation returns the violated constraint or index name when err is a unique violation.
-func uniqueViolation(err error) (string, bool) {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return pgErr.ConstraintName, true
-	}
-	return "", false
-}
-
 // TestMigrate covers the runner: applying, re-applying, reversing and locking.
 func TestMigrate(t *testing.T) {
 	t.Run("applies to an empty database", func(t *testing.T) {
