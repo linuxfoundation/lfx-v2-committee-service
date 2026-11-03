@@ -57,6 +57,7 @@ type committeeServicesrvc struct {
 	weeklyBriefWriter           service.GroupWeeklyBriefDataWriter
 	weeklyBriefSharer           service.GroupWeeklyBriefDataSharer
 	orgSeatReader               port.OrgCommitteeSeatReader
+	extraReadiness              []port.ReadinessChecker
 }
 
 // JWTAuth implements the authorization logic for service "committee-service"
@@ -1554,6 +1555,14 @@ func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err erro
 		return nil, err // This will automatically return ServiceUnavailable
 	}
 
+	// Check the opt-in dependencies (PostgreSQL when POSTGRES_READINESS_CHECK=true)
+	for _, checker := range s.extraReadiness {
+		if err := checker.IsReady(ctx); err != nil {
+			slog.ErrorContext(ctx, "service not ready", "error", err)
+			return nil, wrapError(ctx, errors.NewServiceUnavailable("a dependency is not ready"))
+		}
+	}
+
 	return []byte("OK\n"), nil
 }
 
@@ -2128,6 +2137,7 @@ func NewCommitteeService(
 	weeklyBriefWriter service.GroupWeeklyBriefDataWriter,
 	weeklyBriefSharer service.GroupWeeklyBriefDataSharer,
 	orgSeatReader port.OrgCommitteeSeatReader,
+	extraReadiness ...port.ReadinessChecker,
 ) committeeservice.Service {
 	return &committeeServicesrvc{
 		committeeWriterOrchestrator: createCommitteeUseCase,
@@ -2147,6 +2157,7 @@ func NewCommitteeService(
 		weeklyBriefWriter:           weeklyBriefWriter,
 		weeklyBriefSharer:           weeklyBriefSharer,
 		orgSeatReader:               orgSeatReader,
+		extraReadiness:              extraReadiness,
 	}
 }
 
