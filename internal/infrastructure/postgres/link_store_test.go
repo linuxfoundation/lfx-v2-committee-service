@@ -87,6 +87,12 @@ func seedFolders(t *testing.T) *Store {
 // failure must be a conflict.
 func raceWriters(t *testing.T, write func() error) int {
 	t.Helper()
+	return raceWritersLosing(t, write, requireConflict)
+}
+
+// raceWritersLosing is raceWriters for a store whose lost race is another error: requireLoss checks each failure.
+func raceWritersLosing(t *testing.T, write func() error, requireLoss func(*testing.T, error)) int {
+	t.Helper()
 	var wg sync.WaitGroup
 	results := make([]error, 8)
 	for i := range results {
@@ -103,7 +109,7 @@ func raceWriters(t *testing.T, write func() error) int {
 			wins++
 			continue
 		}
-		requireConflict(t, err)
+		requireLoss(t, err)
 	}
 	return wins
 }
