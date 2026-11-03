@@ -2183,3 +2183,25 @@ func TestRollbackCreatedMember(t *testing.T) {
 		assert.Empty(t, memberWriter.deletedKeys)
 	})
 }
+
+// panickingCommitteeReader panics when the member flow reads the committee.
+type panickingCommitteeReader struct{ port.CommitteeReader }
+
+func (panickingCommitteeReader) GetBase(context.Context, string) (*model.CommitteeBase, uint64, error) {
+	panic("committee read blew up: secret-detail")
+}
+
+// A panic during create used to be recovered and swallowed, so the caller got (nil, nil).
+func TestCreateMember_PanicReturnsError(t *testing.T) {
+	orchestrator, _, memberWriter := setupMemberWriterTest()
+	orchestrator.committeeReader = panickingCommitteeReader{}
+
+	created, err := orchestrator.CreateMember(context.Background(),
+		testMember("", "committee-123", "first.last@example.com", "", ""), false, true)
+
+	assert.Nil(t, created)
+	var unexpected errs.Unexpected
+	require.ErrorAs(t, err, &unexpected)
+	assert.NotContains(t, err.Error(), "secret-detail")
+	assert.Empty(t, memberWriter.members, "nothing was persisted, so nothing is left behind")
+}
