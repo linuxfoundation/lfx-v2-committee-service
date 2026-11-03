@@ -136,7 +136,7 @@ func (s *Store) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite,
 	if err != nil {
 		return unexpected("failed to encode committee invite", err)
 	}
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateInvite, args...)
 	if err != nil {

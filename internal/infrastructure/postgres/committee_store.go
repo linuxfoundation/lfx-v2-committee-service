@@ -284,7 +284,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 		return unexpected("failed to encode committee", err)
 	}
 	// $1 is the uid and $2 the revision; the rest follow committeeColumns without the uid.
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateCommittee, args...)
 	if err != nil {
@@ -308,7 +308,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	if err != nil {
 		return unexpected("failed to encode committee settings", err)
 	}
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateSettings, args...)
 	if err != nil {
@@ -328,10 +328,16 @@ const (
 )
 
 // missingOrStale explains why a revision-guarded write matched no row: the record is gone (not
-// found) or its revision moved on (conflict). existsQuery is committeeExists, settingsExist or memberExists and uidLabel names the uid in the error.
+// found) or its revision moved on (conflict). existsQuery is one of the constant existence queries (committeeExists, memberExists, linkExists and so on) and uidLabel names the uid in the error.
 func (s *Store) missingOrStale(ctx context.Context, existsQuery, uidLabel, uid, notFound, stale string) error {
+	return s.classifyRejected(ctx, existsQuery, []any{uid}, uidLabel, uid, notFound, stale)
+}
+
+// classifyRejected is missingOrStale for an existence query with more than the uid, such as one
+// that also scopes the record to its committee.
+func (s *Store) classifyRejected(ctx context.Context, existsQuery string, args []any, uidLabel, uid, notFound, stale string) error {
 	var exists bool
-	if err := s.pool.QueryRow(ctx, existsQuery, uid).Scan(&exists); err != nil {
+	if err := s.pool.QueryRow(ctx, existsQuery, args...).Scan(&exists); err != nil {
 		return unexpected("failed to check the record after a rejected write", err)
 	}
 	if !exists {
@@ -391,7 +397,7 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return errs.NewValidation("committee UID cannot be empty")
 	}
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, "DELETE FROM committees WHERE uid = $1 AND revision = $2", uid, int64(revision))
+		tag, err := tx.Exec(ctx, "DELETE FROM committees WHERE uid = $1 AND revision = $2", uid, revisionArg(revision))
 		if err != nil {
 			return unexpected("failed to delete committee base", err)
 		}

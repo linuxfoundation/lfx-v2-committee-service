@@ -114,7 +114,7 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 		return nil, errs.NewValidation("committee member UID cannot be empty")
 	}
 	values := memberValues(member)
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateMember, args...)
 	if err != nil {
@@ -135,7 +135,7 @@ func (s *Store) DeleteMember(ctx context.Context, uid string, revision uint64) e
 	if uid == "" {
 		return errs.NewValidation("committee member UID cannot be empty")
 	}
-	tag, err := s.pool.Exec(ctx, "DELETE FROM committee_members WHERE uid = $1 AND revision = $2", uid, int64(revision))
+	tag, err := s.pool.Exec(ctx, "DELETE FROM committee_members WHERE uid = $1 AND revision = $2", uid, revisionArg(revision))
 	if err != nil {
 		return unexpected("failed to delete committee member", err)
 	}
