@@ -14,7 +14,15 @@ import (
 	committeeservice "github.com/linuxfoundation/lfx-v2-committee-service/gen/committee_service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
+
+// notReadyStorage reports the same error the NATS client returns when its connection is down.
+type notReadyStorage struct{ port.CommitteeReaderWriter }
+
+func (notReadyStorage) IsReady(context.Context) error {
+	return errs.NewServiceUnavailable("NATS client is not ready, connection is not established or is draining")
+}
 
 type stubReadiness struct {
 	err   error
@@ -28,6 +36,18 @@ func (s *stubReadiness) IsReady(context.Context) error {
 
 func TestCommitteeServiceReadyz(t *testing.T) {
 	storage := &infrastructure.MockCommitteeReaderWriter{}
+
+	t.Run("not ready when NATS is down, as a 503", func(t *testing.T) {
+		svc := &committeeServicesrvc{storage: notReadyStorage{}}
+		res, err := svc.Readyz(context.Background())
+		require.Error(t, err)
+		assert.Nil(t, res)
+
+		// The NATS error is a domain error; only wrapError maps it to the Goa error encoded as HTTP
+		// 503, a raw one would be a 500.
+		var unavailable *committeeservice.ServiceUnavailableError
+		require.ErrorAs(t, err, &unavailable)
+	})
 
 	t.Run("ready with no extra checks", func(t *testing.T) {
 		svc := &committeeServicesrvc{storage: storage}
