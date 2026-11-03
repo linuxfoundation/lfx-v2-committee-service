@@ -433,3 +433,59 @@ func TestStore_IsReady(t *testing.T) {
 	store.pool.Close()
 	assert.Error(t, store.IsReady(context.Background()))
 }
+
+func TestStore_UpdateCounters(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	committee := testCommittee("uid-1", "project-1", "Committee One")
+	committee.TotalMembers = 4
+	committee.HasMailingList = false
+	require.NoError(t, store.Create(ctx, committee))
+
+	counters := map[string]struct {
+		update func(uid string, changed bool) (*model.CommitteeBase, bool, error)
+		value  func(*model.CommitteeBase) any
+		want   any
+	}{
+		"UpdateTotalMembers": {
+			update: func(uid string, _ bool) (*model.CommitteeBase, bool, error) {
+				return store.UpdateTotalMembers(ctx, uid, 9)
+			},
+			value: func(b *model.CommitteeBase) any { return b.TotalMembers },
+			want:  9,
+		},
+		"UpdateHasMailingList": {
+			update: func(uid string, _ bool) (*model.CommitteeBase, bool, error) {
+				return store.UpdateHasMailingList(ctx, uid, true)
+			},
+			value: func(b *model.CommitteeBase) any { return b.HasMailingList },
+			want:  true,
+		},
+	}
+	for name, tc := range counters {
+		t.Run(name, func(t *testing.T) {
+			_, before, err := store.GetBase(ctx, "uid-1")
+			require.NoError(t, err)
+
+			base, changed, err := tc.update("uid-1", true)
+			require.NoError(t, err)
+			assert.True(t, changed)
+			assert.Equal(t, tc.want, tc.value(base))
+			assert.True(t, base.UpdatedAt.After(committee.CommitteeBase.UpdatedAt))
+			_, afterChange, err := store.GetBase(ctx, "uid-1")
+			require.NoError(t, err)
+			assert.NotEqual(t, before, afterChange)
+
+			base, changed, err = tc.update("uid-1", true)
+			require.NoError(t, err)
+			assert.False(t, changed, "an unchanged value writes nothing")
+			assert.Nil(t, base)
+			_, afterSame, err := store.GetBase(ctx, "uid-1")
+			require.NoError(t, err)
+			assert.Equal(t, afterChange, afterSame, "the revision stays when nothing changed")
+
+			_, _, err = tc.update("missing", true)
+			requireNotFound(t, err)
+		})
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,6 +19,7 @@ import (
 var (
 	_ port.CommitteeBaseReader     = (*Store)(nil)
 	_ port.CommitteeSettingsReader = (*Store)(nil)
+	_ port.CommitteeBaseWriter     = (*Store)(nil)
 	_ port.CommitteeSettingsWriter = (*Store)(nil)
 )
 
@@ -336,6 +338,50 @@ func (s *Store) missingOrStale(ctx context.Context, existsQuery, uid, notFound, 
 		return errs.NewNotFound(notFound, fmt.Errorf("committee UID: %s", uid))
 	}
 	return errs.NewConflict(stale)
+}
+
+// The counter updates change one column in one statement, so concurrent updates cannot lose each
+// other, and write nothing when the column already has the value. The text is built once here from
+// fixed column names.
+var (
+	updateHasMailingList = counterUpdate("has_mailing_list")
+	updateTotalMembers   = counterUpdate("total_members")
+)
+
+func counterUpdate(column string) string {
+	return fmt.Sprintf("UPDATE committees SET %[1]s = $2, updated_at = $3, revision = nextval('committee_revision_seq') "+
+		"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 RETURNING %[2]s, revision", column, columnList(committeeColumns))
+}
+
+// UpdateHasMailingList sets has_mailing_list. It returns (nil, false, nil) when the flag already has
+// that value and nothing is written.
+func (s *Store) UpdateHasMailingList(ctx context.Context, uid string, hasMailingList bool) (*model.CommitteeBase, bool, error) {
+	return s.updateCommitteeField(ctx, uid, updateHasMailingList, hasMailingList, "failed to update committee has_mailing_list flag")
+}
+
+// UpdateTotalMembers sets total_members; see UpdateHasMailingList.
+func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	return s.updateCommitteeField(ctx, uid, updateTotalMembers, totalMembers, "failed to update committee total_members counter")
+}
+
+// updateCommitteeField runs one of the counter updates above.
+func (s *Store) updateCommitteeField(ctx context.Context, uid, query string, value any, failure string) (*model.CommitteeBase, bool, error) {
+	base, _, err := scanCommittee(s.pool.QueryRow(ctx, query, uid, value, time.Now()))
+	if err == nil {
+		return base, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, unexpected(failure, err)
+	}
+	// No row changed: the committee is missing or already has the value.
+	var exists bool
+	if errExists := s.pool.QueryRow(ctx, committeeExists, uid).Scan(&exists); errExists != nil {
+		return nil, false, unexpected(failure, errExists)
+	}
+	if !exists {
+		return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+	}
+	return nil, false, nil
 }
 
 // Delete removes the committee and its settings in one transaction when the revision is still
