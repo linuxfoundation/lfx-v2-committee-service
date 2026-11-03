@@ -129,11 +129,11 @@ func RedactURL(dsn string) string {
 // schemePrefix matches the start of a scheme://... connection string.
 var schemePrefix = regexp.MustCompile(`(?i)^[a-z][a-z0-9+.-]*://`)
 
-// isPasswordKey reports whether a raw query key names the password, decoding it first so an encoded
-// spelling such as %70assword is recognized too.
+// isPasswordKey reports whether a raw query key names a secret, decoding it first so an encoded
+// spelling such as %70assword is recognized too. sslpassword is the passphrase of a client key.
 func isPasswordKey(key string) bool {
 	decoded, err := url.QueryUnescape(key)
-	return err == nil && strings.EqualFold(decoded, "password")
+	return err == nil && (strings.EqualFold(decoded, "password") || strings.EqualFold(decoded, "sslpassword"))
 }
 
 // passwordParam finds the password parameter in one "&"-separated segment of a raw query string.
