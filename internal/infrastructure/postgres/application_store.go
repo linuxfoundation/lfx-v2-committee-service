@@ -121,7 +121,7 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	if err != nil {
 		return unexpected("failed to encode committee application", err)
 	}
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateApplication, args...)
 	if err != nil {

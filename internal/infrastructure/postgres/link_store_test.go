@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -229,6 +230,8 @@ func TestStore_DeleteLink(t *testing.T) {
 	var validation errs.Validation
 	require.ErrorAs(t, store.DeleteLink(ctx, "committee-1", "", revision), &validation)
 	requireConflict(t, store.DeleteLink(ctx, "committee-1", "l-1", revision+1000))
+	// A revision beyond the column range never matches a row.
+	requireConflict(t, store.DeleteLink(ctx, "committee-1", "l-1", math.MaxUint64))
 	requireNotFound(t, store.DeleteLink(ctx, "committee-2", "l-1", revision))
 	_, _, err = store.GetLink(ctx, "committee-1", "l-1")
 	require.NoError(t, err, "a rejected delete changes nothing")

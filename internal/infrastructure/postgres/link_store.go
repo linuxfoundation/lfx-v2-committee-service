@@ -154,7 +154,7 @@ func (s *Store) UpdateLink(ctx context.Context, link *model.CommitteeLink, revis
 	if err != nil {
 		return unexpected("failed to encode link", err)
 	}
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 	tag, err := s.pool.Exec(ctx, updateLink, args...)
 	if err != nil {
 		return unexpected("failed to update link", err)
@@ -210,7 +210,7 @@ func (s *Store) DeleteLink(ctx context.Context, committeeUID, linkUID string, re
 	if linkUID == "" {
 		return errs.NewValidation("link UID cannot be empty")
 	}
-	tag, err := s.pool.Exec(ctx, deleteLink, linkUID, committeeUID, int64(revision))
+	tag, err := s.pool.Exec(ctx, deleteLink, linkUID, committeeUID, revisionArg(revision))
 	if err != nil {
 		return unexpected("failed to delete link", err)
 	}
@@ -262,7 +262,7 @@ func (s *Store) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	if err != nil {
 		return unexpected("failed to encode folder", err)
 	}
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 	tag, err := s.pool.Exec(ctx, updateFolder, args...)
 	if err != nil {
 		if conflict := folderConflict(err); conflict != nil {
@@ -322,7 +322,7 @@ func (s *Store) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID st
 	if folderUID == "" {
 		return errs.NewValidation("folder UID cannot be empty")
 	}
-	tag, err := s.pool.Exec(ctx, deleteFolder, folderUID, committeeUID, int64(revision))
+	tag, err := s.pool.Exec(ctx, deleteFolder, folderUID, committeeUID, revisionArg(revision))
 	if err != nil {
 		return unexpected("failed to delete folder", err)
 	}

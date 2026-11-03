@@ -284,7 +284,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 		return unexpected("failed to encode committee", err)
 	}
 	// $1 is the uid and $2 the revision; the rest follow committeeColumns without the uid.
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateCommittee, args...)
 	if err != nil {
@@ -308,7 +308,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	if err != nil {
 		return unexpected("failed to encode committee settings", err)
 	}
-	args := append([]any{values[0], int64(revision)}, values[1:]...)
+	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateSettings, args...)
 	if err != nil {
@@ -397,7 +397,7 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return errs.NewValidation("committee UID cannot be empty")
 	}
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, "DELETE FROM committees WHERE uid = $1 AND revision = $2", uid, int64(revision))
+		tag, err := tx.Exec(ctx, "DELETE FROM committees WHERE uid = $1 AND revision = $2", uid, revisionArg(revision))
 		if err != nil {
 			return unexpected("failed to delete committee base", err)
 		}

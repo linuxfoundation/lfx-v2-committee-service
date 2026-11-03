@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -48,6 +49,17 @@ func uniqueViolation(err error) (string, bool) {
 		return pgErr.ConstraintName, true
 	}
 	return "", false
+}
+
+// revisionArg converts a revision from the API (unsigned) to the BIGINT the column holds. A value
+// above the BIGINT range cannot be any row's revision, so it becomes -1, which the sequence never
+// issues: the guarded write then matches no row and is reported as not found or stale like any
+// other revision that is not current, with no wrap-around to a value that could match.
+func revisionArg(revision uint64) int64 {
+	if revision > math.MaxInt64 {
+		return -1
+	}
+	return int64(revision)
 }
 
 // withTx runs fn in a transaction and commits it, or rolls it back when fn returns an error, which
