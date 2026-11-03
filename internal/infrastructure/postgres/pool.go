@@ -113,14 +113,11 @@ func RedactURL(dsn string) string {
 		if _, has := u.User.Password(); has {
 			u.User = url.UserPassword(u.User.Username(), redacted)
 		}
-		// A password can also be passed as a query parameter. A query net/url cannot parse (a ";"
-		// separator, a bad escape) would be dropped by Query(), so it is scrubbed as raw text.
-		if q, err := url.ParseQuery(u.RawQuery); err != nil {
-			u.RawQuery = redactQueryString(u.RawQuery)
-		} else if q.Has("password") {
-			q.Set("password", redacted)
-			u.RawQuery = q.Encode()
-		}
+		// A password can also be passed as a query parameter. The raw query is scrubbed as text: Query()
+		// drops a pair it cannot parse (a ";" separator, a bad escape) and matches the key case-sensitively.
+		u.RawQuery = redactQueryString(u.RawQuery)
+		// A DSN has no use for a fragment, and one can only be password text after a "#".
+		u.Fragment, u.RawFragment = "", ""
 		return u.String()
 	}
 	// The query goes first: the greedy userinfo match below can run through it up to a later "@".
@@ -234,10 +231,9 @@ func passwords(dsn string) []string {
 		if p, has := u.User.Password(); has && p != "" {
 			found = append(found, p)
 		}
-		if _, err := url.ParseQuery(u.RawQuery); err != nil {
-			found = append(found, queryPasswords(u.RawQuery)...)
-		} else if p := u.Query().Get("password"); p != "" {
-			found = append(found, p)
+		found = append(found, queryPasswords(u.RawQuery)...)
+		if u.Fragment != "" {
+			found = append(found, u.Fragment)
 		}
 		return found
 	}
