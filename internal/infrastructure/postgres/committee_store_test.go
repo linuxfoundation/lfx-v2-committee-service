@@ -433,3 +433,53 @@ func TestStore_IsReady(t *testing.T) {
 	store.pool.Close()
 	assert.Error(t, store.IsReady(context.Background()))
 }
+
+// testCounter checks a counter update: it writes and bumps the revision when the value changes,
+// writes nothing when it does not, and reports a missing committee.
+func testCounter(t *testing.T, update func(*Store, string) (*model.CommitteeBase, bool, error), value func(*model.CommitteeBase) any, want any) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	committee := testCommittee("uid-1", "project-1", "Committee One")
+	committee.TotalMembers = 4
+	committee.HasMailingList = false
+	require.NoError(t, store.Create(ctx, committee))
+
+	_, before, err := store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+
+	base, changed, err := update(store, "uid-1")
+	require.NoError(t, err)
+	assert.True(t, changed)
+	assert.Equal(t, want, value(base))
+	assert.True(t, base.UpdatedAt.After(committee.CommitteeBase.UpdatedAt))
+	_, afterChange, err := store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	assert.NotEqual(t, before, afterChange)
+
+	base, changed, err = update(store, "uid-1")
+	require.NoError(t, err)
+	assert.False(t, changed, "an unchanged value writes nothing")
+	assert.Nil(t, base)
+	_, afterSame, err := store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	assert.Equal(t, afterChange, afterSame, "the revision stays when nothing changed")
+
+	_, _, err = update(store, "missing")
+	requireNotFound(t, err)
+}
+
+func TestStore_UpdateTotalMembers(t *testing.T) {
+	testCounter(t,
+		func(s *Store, uid string) (*model.CommitteeBase, bool, error) {
+			return s.UpdateTotalMembers(context.Background(), uid, 9)
+		},
+		func(b *model.CommitteeBase) any { return b.TotalMembers }, 9)
+}
+
+func TestStore_UpdateHasMailingList(t *testing.T) {
+	testCounter(t,
+		func(s *Store, uid string) (*model.CommitteeBase, bool, error) {
+			return s.UpdateHasMailingList(context.Background(), uid, true)
+		},
+		func(b *model.CommitteeBase) any { return b.HasMailingList }, true)
+}

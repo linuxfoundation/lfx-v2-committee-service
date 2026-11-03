@@ -143,7 +143,9 @@ depends on the database (the dual-write and PostgreSQL modes), that choice has t
 
 `postgres.Store` (`internal/infrastructure/postgres`) is the PostgreSQL implementation of the committee storage ports,
 added one port at a time. It is not selected by the service yet; the composite store (#1197) does that. It covers the
-committee base and settings so far: create, get, list, find by project and name, update, update settings and delete.
+committee base and settings (create, get, list, find by project and name, update, update settings, delete, and the
+`has_mailing_list` and `total_members` counters) and members (create, get, update, delete, and the by-committee,
+by-organization, by-email and by-username listings).
 
 - **Duplicates come from the schema.** The store does not check names itself. A violation of
   `committees_project_name_key`, `committees_sso_group_name_key` or a primary key becomes `errs.Conflict` (the SSO one
@@ -160,6 +162,14 @@ committee base and settings so far: create, get, list, find by project and name,
   list as `[]`.
 - **Timestamps** come back in UTC and truncated to microseconds, the precision of `TIMESTAMPTZ`; KV keeps nanoseconds
   and the writer's zone. Comparisons between the stores (the composite store, `verify`) must normalise the same way.
+- **Member lookups use the schema's indexes.** A member's email is unique per committee after the trim and lowercase
+  that `committee_normalize_key` applies, so `First.Last@Example.com` and ` first.last@example.com ` are the same
+  member. The by-email and by-username listings compare through the same function. The KV by-organization index is keyed
+  by the 18-character form of the Salesforce account ID, so a member stored with the 15-character form is listed under
+  either spelling: the query matches the 18-character form and its 15-character prefix.
+- **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
+  `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
+  port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
 - **Explicit revisions** are not supported yet: the store always takes the revision from the sequence. The composite
   store (#1197) needs a way to write the KV revision into the row during dual-write, and that comes with it.
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -18,6 +19,7 @@ import (
 var (
 	_ port.CommitteeBaseReader     = (*Store)(nil)
 	_ port.CommitteeSettingsReader = (*Store)(nil)
+	_ port.CommitteeBaseWriter     = (*Store)(nil)
 	_ port.CommitteeSettingsWriter = (*Store)(nil)
 )
 
@@ -292,7 +294,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 		return unexpected("failed to update committee base", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.missingOrStale(ctx, committeeExists, committee.CommitteeBase.UID, "committee not found", "committee has been modified by another process")
+		return s.missingOrStale(ctx, committeeExists, "committee UID", committee.CommitteeBase.UID, "committee not found", "committee has been modified by another process")
 	}
 	return nil
 }
@@ -313,7 +315,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 		return unexpected("failed to update committee settings", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return s.missingOrStale(ctx, settingsExist, settings.UID, "committee settings not found", "committee settings have been modified by another process")
+		return s.missingOrStale(ctx, settingsExist, "committee UID", settings.UID, "committee settings not found", "committee settings have been modified by another process")
 	}
 	return nil
 }
@@ -326,16 +328,60 @@ const (
 )
 
 // missingOrStale explains why a revision-guarded write matched no row: the record is gone (not
-// found) or its revision moved on (conflict). existsQuery is committeeExists or settingsExist.
-func (s *Store) missingOrStale(ctx context.Context, existsQuery, uid, notFound, stale string) error {
+// found) or its revision moved on (conflict). existsQuery is committeeExists, settingsExist or memberExists and uidLabel names the uid in the error.
+func (s *Store) missingOrStale(ctx context.Context, existsQuery, uidLabel, uid, notFound, stale string) error {
 	var exists bool
 	if err := s.pool.QueryRow(ctx, existsQuery, uid).Scan(&exists); err != nil {
 		return unexpected("failed to check the record after a rejected write", err)
 	}
 	if !exists {
-		return errs.NewNotFound(notFound, fmt.Errorf("committee UID: %s", uid))
+		return errs.NewNotFound(notFound, fmt.Errorf("%s: %s", uidLabel, uid))
 	}
 	return errs.NewConflict(stale)
+}
+
+// The counter updates change one column in one statement, so concurrent updates cannot lose each
+// other, and write nothing when the column already has the value. The text is built once here from
+// fixed column names.
+var (
+	updateHasMailingList = counterUpdate("has_mailing_list")
+	updateTotalMembers   = counterUpdate("total_members")
+)
+
+func counterUpdate(column string) string {
+	return fmt.Sprintf("UPDATE committees SET %[1]s = $2, updated_at = $3, revision = nextval('committee_revision_seq') "+
+		"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 RETURNING %[2]s, revision", column, columnList(committeeColumns))
+}
+
+// UpdateHasMailingList sets has_mailing_list. It returns (nil, false, nil) when the flag already has
+// that value and nothing is written.
+func (s *Store) UpdateHasMailingList(ctx context.Context, uid string, hasMailingList bool) (*model.CommitteeBase, bool, error) {
+	return s.updateCommitteeField(ctx, uid, updateHasMailingList, hasMailingList, "failed to update committee has_mailing_list flag")
+}
+
+// UpdateTotalMembers sets total_members; see UpdateHasMailingList.
+func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers int) (*model.CommitteeBase, bool, error) {
+	return s.updateCommitteeField(ctx, uid, updateTotalMembers, totalMembers, "failed to update committee total_members counter")
+}
+
+// updateCommitteeField runs one of the counter updates above.
+func (s *Store) updateCommitteeField(ctx context.Context, uid, query string, value any, failure string) (*model.CommitteeBase, bool, error) {
+	base, _, err := scanCommittee(s.pool.QueryRow(ctx, query, uid, value, time.Now()))
+	if err == nil {
+		return base, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, unexpected(failure, err)
+	}
+	// No row changed: the committee is missing or already has the value.
+	var exists bool
+	if errExists := s.pool.QueryRow(ctx, committeeExists, uid).Scan(&exists); errExists != nil {
+		return nil, false, unexpected(failure, errExists)
+	}
+	if !exists {
+		return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
+	}
+	return nil, false, nil
 }
 
 // Delete removes the committee and its settings in one transaction when the revision is still
@@ -358,7 +404,7 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return nil
 	})
 	if errors.Is(err, errNoMatch) {
-		return s.missingOrStale(ctx, committeeExists, uid, "committee not found", "committee has been modified by another process")
+		return s.missingOrStale(ctx, committeeExists, "committee UID", uid, "committee not found", "committee has been modified by another process")
 	}
 	return err
 }
