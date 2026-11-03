@@ -139,19 +139,30 @@ func isPasswordKey(key string) bool {
 	return err == nil && strings.EqualFold(decoded, "password")
 }
 
-// queryPair matches a key=value pair of a query string split on "&" or ";", which net/url's parser
-// does not do together, so a query it rejects can still be read.
-var queryPair = regexp.MustCompile(`([^&;=]+)=([^&;]*)`)
+// passwordParam finds the password parameter in one "&"-separated segment of a raw query string.
+// net/url's parser rejects ";" separators, so a segment can hold several pairs, and a password may
+// itself contain a ";". To stay on the safe side the password is taken to run to the end of the
+// segment, so nothing after a ";" is left visible. It returns the pieces of the segment split on ";",
+// the index of the one that starts the password, and the key as written.
+func passwordParam(segment string) (pieces []string, at int, key string, found bool) {
+	pieces = strings.Split(segment, ";")
+	for n, piece := range pieces {
+		if k, _, ok := strings.Cut(piece, "="); ok && isPasswordKey(k) {
+			return pieces, n, k, true
+		}
+	}
+	return pieces, 0, "", false
+}
 
 // redactQueryString hides the value of password parameters in a raw query string.
 func redactQueryString(query string) string {
-	return queryPair.ReplaceAllStringFunc(query, func(pair string) string {
-		key, _, _ := strings.Cut(pair, "=")
-		if isPasswordKey(key) {
-			return key + "=" + redacted
+	segments := strings.Split(query, "&")
+	for n, segment := range segments {
+		if pieces, at, key, ok := passwordParam(segment); ok {
+			segments[n] = strings.Join(append(pieces[:at], key+"="+redacted), ";")
 		}
-		return pair
-	})
+	}
+	return strings.Join(segments, "&")
 }
 
 // redactRawQuery hides password parameters in the query string of a scheme://... connection string
@@ -164,18 +175,29 @@ func redactRawQuery(dsn string) string {
 	return dsn[:i+1] + redactQueryString(dsn[i+1:])
 }
 
-// queryPasswords returns the password parameter values of a raw query string, both as written and
-// decoded.
+// queryPasswords returns the password parameter values of a raw query string: the value as written
+// (a ";" and what follows it included), decoded, and each ";"-separated piece of it.
 func queryPasswords(query string) []string {
 	var found []string
-	for _, m := range queryPair.FindAllStringSubmatch(query, -1) {
-		key, value := m[1], m[2]
-		if value == "" || !isPasswordKey(key) {
+	for _, segment := range strings.Split(query, "&") {
+		pieces, at, _, ok := passwordParam(segment)
+		if !ok {
+			continue
+		}
+		_, first, _ := strings.Cut(pieces[at], "=")
+		pieces[at] = first
+		value := strings.Join(pieces[at:], ";")
+		if value == "" {
 			continue
 		}
 		found = append(found, value)
 		if decoded, err := url.QueryUnescape(value); err == nil && decoded != value {
 			found = append(found, decoded)
+		}
+		for _, piece := range pieces[at:] {
+			if piece != "" && piece != value {
+				found = append(found, piece)
+			}
 		}
 	}
 	return found

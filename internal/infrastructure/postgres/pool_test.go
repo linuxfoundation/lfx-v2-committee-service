@@ -17,6 +17,9 @@ import (
 // is committed (secret scanners flag those, even for obvious placeholders).
 const fakePassword = "not-a-real-secret"
 
+// fakeTail is the part of a fake password that follows a ";", which a query parser would split off.
+const fakeTail = "not-a-real-tail"
+
 func urlWithPassword(host string) string {
 	return "postgres" + "://first-last:" + fakePassword + "@" + host + "/committee?sslmode=disable"
 }
@@ -35,6 +38,9 @@ func TestRedactURL(t *testing.T) {
 		{"url the parser rejects, password parameter after an @ in the query", "postgres://db.example.com:port/committee?application_name=a@b&%70assword=" + fakePassword, "postgres://db.example.com:xxxxx@b&%70assword=xxxxx"},
 		{"query with a semicolon separator", "postgres://first-last@db.example.com/committee?sslmode=require;password=" + fakePassword, "postgres://first-last@db.example.com/committee?sslmode=require;password=xxxxx"},
 		{"query with a bad escape", "postgres://first-last@db.example.com/committee?password=" + fakePassword + "%ZZ", "postgres://first-last@db.example.com/committee?password=xxxxx"},
+		{"password holding a semicolon", "postgres://first-last@db.example.com/committee?password=" + fakePassword + ";" + fakeTail, "postgres://first-last@db.example.com/committee?password=xxxxx"},
+		{"url the parser rejects, encoded password key holding a semicolon", "postgres://db.example.com:port/committee?%70assword=" + fakePassword + ";" + fakeTail, "postgres://db.example.com:port/committee?%70assword=xxxxx"},
+		{"password holding a semicolon, followed by another parameter", "postgres://first-last@db.example.com/committee?password=" + fakePassword + ";" + fakeTail + "&sslmode=require", "postgres://first-last@db.example.com/committee?password=xxxxx&sslmode=require"},
 		{"url form", urlWithPassword("db.example.com:5432"), "postgres://first-last:xxxxx@db.example.com:5432/committee?sslmode=disable"},
 		{"url without a password is unchanged", "postgres://first-last@db.example.com/committee", "postgres://first-last@db.example.com/committee"},
 		{"password as a query parameter", "postgres://db.example.com/committee?password=" + fakePassword, "postgres://db.example.com/committee?password=xxxxx"},
@@ -47,6 +53,7 @@ func TestRedactURL(t *testing.T) {
 			got := RedactURL(tt.dsn)
 			assert.Equal(t, tt.want, got)
 			assert.NotContains(t, got, fakePassword)
+			assert.NotContains(t, got, fakeTail)
 		})
 	}
 }
@@ -111,6 +118,8 @@ func TestRedactError(t *testing.T) {
 		{"url the parser rejects, password parameter after an @ in the query", "postgres://db.example.com:port/committee?application_name=a@b&%70assword=" + fakePassword, []string{fakePassword}},
 		{"query with a semicolon separator", "postgres://first-last@db.example.com/committee?sslmode=require;password=" + fakePassword, []string{fakePassword}},
 		{"query with a bad escape", "postgres://first-last@db.example.com/committee?password=" + fakePassword + "%ZZ", []string{fakePassword + "%ZZ"}},
+		{"password holding a semicolon", "postgres://first-last@db.example.com/committee?password=" + fakePassword + ";" + fakeTail, []string{fakePassword + ";" + fakeTail, fakePassword, fakeTail}},
+		{"url the parser rejects, encoded password key holding a semicolon", "postgres://db.example.com:port/committee?%70assword=" + fakePassword + ";" + fakeTail, []string{fakePassword + ";" + fakeTail, fakePassword, fakeTail}},
 		{"url the parser rejects, with an encoded password parameter", "postgres://db.example.com:port/committee?%70assword=" + fakePassword, []string{fakePassword}},
 		{"url the parser rejects", "postgres://first-last:" + fakePassword + "@db.example.com:port/committee", []string{fakePassword}},
 		{"url the parser rejects, with @ in the password", "postgres://first-last:p@ss-" + fakePassword + "@db.example.com:port/committee", []string{"p@ss-" + fakePassword}},
