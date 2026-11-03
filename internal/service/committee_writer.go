@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -232,6 +233,22 @@ func (uc *committeeWriterOrchestrator) writeWithSSORetry(ctx context.Context, co
 	}
 }
 
+// handleCreatePanic turns a panic recovered while creating an entity into an error for the caller. It
+// logs the panic with its stack, runs rollback when the entity was already persisted so a half-created
+// record does not stay behind, and returns an error that does not expose the panic value. Without it a
+// recovered panic would end the request with no error and no result.
+func handleCreatePanic(ctx context.Context, entity string, recovered any, created bool, rollback func()) error {
+	slog.ErrorContext(ctx, "panic while creating "+entity,
+		"panic", recovered,
+		"stack", string(debug.Stack()),
+		"rolling_back", created,
+	)
+	if created {
+		rollback()
+	}
+	return errs.NewUnexpected("failed to create " + entity)
+}
+
 // rollbackCreatedCommittee removes a committee that was created earlier in the same request, which
 // also releases its name and SSO group reservations. It is best-effort and only logs failures.
 func (uc *committeeWriterOrchestrator) rollbackCreatedCommittee(ctx context.Context, uid string) {
@@ -392,7 +409,7 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 }
 
 // Execute orchestrates the committee creation process
-func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (*model.Committee, error) {
+func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (result *model.Committee, err error) {
 
 	slog.DebugContext(ctx, "executing create committee use case",
 		"project_uid", committee.ProjectUID,
@@ -430,8 +447,10 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 	// created marks that the committee was persisted, so an unexpected panic afterwards removes it again
 	var created bool
 	defer func() {
-		if err := recover(); err != nil && created {
-			uc.rollbackCreatedCommittee(ctx, committee.CommitteeBase.UID)
+		if r := recover(); r != nil {
+			result, err = nil, handleCreatePanic(ctx, "committee", r, created, func() {
+				uc.rollbackCreatedCommittee(ctx, committee.CommitteeBase.UID)
+			})
 		}
 	}()
 

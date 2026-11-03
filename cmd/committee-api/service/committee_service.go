@@ -1552,7 +1552,7 @@ func (s *committeeServicesrvc) Readyz(ctx context.Context) (res []byte, err erro
 	// Check NATS readiness
 	if err := s.storage.IsReady(ctx); err != nil {
 		slog.ErrorContext(ctx, "service not ready", "error", err)
-		return nil, err // This will automatically return ServiceUnavailable
+		return nil, wrapError(ctx, err) // maps the domain error to the 503 the probes expect
 	}
 
 	// Check the opt-in dependencies (PostgreSQL when POSTGRES_READINESS_CHECK=true)

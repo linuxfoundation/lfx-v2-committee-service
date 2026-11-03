@@ -50,7 +50,7 @@ func (uc *committeeWriterOrchestrator) rollbackCreatedMember(ctx context.Context
 }
 
 // CreateMember creates a new committee member includes validation and rollback support
-func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
+func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (result *model.CommitteeMember, err error) {
 	slog.DebugContext(ctx, "creating committee member",
 		"committee_uid", member.CommitteeUID,
 		"member_email", redaction.RedactEmail(member.Email),
@@ -66,8 +66,10 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	// created marks that the member was persisted, so an unexpected panic afterwards removes it again
 	var created bool
 	defer func() {
-		if err := recover(); err != nil && created {
-			uc.rollbackCreatedMember(ctx, member.UID)
+		if r := recover(); r != nil {
+			result, err = nil, handleCreatePanic(ctx, "committee member", r, created, func() {
+				uc.rollbackCreatedMember(ctx, member.UID)
+			})
 		}
 	}()
 
