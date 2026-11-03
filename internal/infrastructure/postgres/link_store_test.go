@@ -47,6 +47,14 @@ func linkUIDs(links []*model.CommitteeLink) []string {
 	return uids
 }
 
+func folderNames(folders []*model.CommitteeLinkFolder) []string {
+	names := []string{}
+	for _, f := range folders {
+		names = append(names, f.Name)
+	}
+	return names
+}
+
 func folderUIDs(folders []*model.CommitteeLinkFolder) []string {
 	uids := []string{}
 	for _, f := range folders {
@@ -122,11 +130,13 @@ func TestStore_CreateLink(t *testing.T) {
 		assert.Equal(t, want, got)
 	})
 
-	t.Run("two links may share a name; the same uid is a conflict; a nil link is invalid", func(t *testing.T) {
+	t.Run("two links may share a name; the same uid is a conflict; a nil link or missing uids are invalid", func(t *testing.T) {
 		require.NoError(t, store.CreateLink(ctx, testLink("l-same-name", "committee-1")))
 		requireConflict(t, store.CreateLink(ctx, testLink("l-1", "committee-9")))
 		var validation errs.Validation
 		require.ErrorAs(t, store.CreateLink(ctx, nil), &validation)
+		require.ErrorAs(t, store.CreateLink(ctx, testLink("", "committee-1")), &validation)
+		require.ErrorAs(t, store.CreateLink(ctx, testLink("l-x", "")), &validation)
 	})
 }
 
@@ -264,10 +274,17 @@ func TestStore_CreateLinkFolder(t *testing.T) {
 		require.NoError(t, store.CreateLinkFolder(ctx, testFolder("f-other", "committee-3", "Legal")))
 	})
 
-	t.Run("the same uid is a conflict; a nil folder is invalid", func(t *testing.T) {
+	t.Run("the same uid is a conflict; a nil folder or missing uids are invalid", func(t *testing.T) {
 		requireConflict(t, store.CreateLinkFolder(ctx, testFolder("f-1", "committee-9", "Elsewhere")))
 		var validation errs.Validation
 		require.ErrorAs(t, store.CreateLinkFolder(ctx, nil), &validation)
+		require.ErrorAs(t, store.CreateLinkFolder(ctx, testFolder("", "committee-1", "No uid")), &validation)
+		require.ErrorAs(t, store.CreateLinkFolder(ctx, testFolder("f-x", "", "No committee")), &validation)
+		_, _, err := store.GetLinkFolder(ctx, "committee-1", "")
+		require.ErrorAs(t, err, &validation)
+		exists, err := store.ListLinkFolders(ctx, "committee-1")
+		require.NoError(t, err)
+		assert.NotContains(t, folderNames(exists), "No uid", "a rejected create reserves no name")
 	})
 }
 

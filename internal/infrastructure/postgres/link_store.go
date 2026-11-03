@@ -41,8 +41,9 @@ var (
 		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
 )
 
-// The existence checks and deletes are scoped to the committee, as the KV store does by comparing
-// the committee of the record it read: a record of another committee is not found.
+// linkExistsIn, folderExistsIn and the deletes are scoped to the committee, as the KV store does by
+// comparing the committee of the record it read: a record of another committee is not found.
+// linkExists and folderExists match on the uid alone, for the audit-sync updates.
 const (
 	linkExists   = "SELECT EXISTS (SELECT 1 FROM committee_links WHERE uid = $1)"
 	folderExists = "SELECT EXISTS (SELECT 1 FROM committee_link_folders WHERE uid = $1)"
@@ -130,6 +131,9 @@ func collectFolder(row pgx.CollectableRow) (*model.CommitteeLinkFolder, error) {
 func (s *Store) CreateLink(ctx context.Context, link *model.CommitteeLink) error {
 	if link == nil {
 		return errs.NewValidation("link cannot be nil")
+	}
+	if link.UID == "" || link.CommitteeUID == "" {
+		return errs.NewValidation("link UID and CommitteeUID must be non-empty")
 	}
 	values, err := linkValues(link)
 	if err != nil {
@@ -238,6 +242,9 @@ func folderConflict(err error) error {
 func (s *Store) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) error {
 	if folder == nil {
 		return errs.NewValidation("folder cannot be nil")
+	}
+	if folder.UID == "" || folder.CommitteeUID == "" {
+		return errs.NewValidation("folder UID and CommitteeUID must be non-empty")
 	}
 	values, err := folderValues(folder)
 	if err != nil {
