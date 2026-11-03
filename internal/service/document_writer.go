@@ -178,7 +178,8 @@ func (o *documentWriterOrchestrator) DeleteDocument(ctx context.Context, committ
 		return err
 	}
 
-	// File deletion is handled fire-and-forget inside DeleteDocumentMetadata in the NATS adapter.
+	// The NATS adapter deletes the file fire-and-forget inside DeleteDocumentMetadata; a store that
+	// does not (see port.CommitteeDocumentWriter) needs the file removed by whatever composes it.
 	// FGA tuples and index entries are cleaned up via fire-and-forget messages below.
 
 	o.publishDocumentIndexerMessage(ctx, model.ActionDeleted, doc, sync)

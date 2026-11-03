@@ -148,6 +148,7 @@ committee base and settings (create, get, list, find by project and name, update
 by-organization, by-email and by-username listings).
 Invites (create, get, update, list) and applications (create, get, update, delete, list) follow the same rules.
 Links and link folders (create, get, update, delete, list) follow them too.
+Document metadata (create, get, update, delete, name check, list) does too.
 
 - **Duplicates come from the schema.** The store does not check names itself. A violation of
   `committees_project_name_key`, `committees_sso_group_name_key` or a primary key becomes `errs.Conflict` (the SSO one
@@ -182,6 +183,12 @@ Links and link folders (create, get, update, delete, list) follow them too.
   `UpdateLink` and `UpdateLinkFolder` find the record by uid and revision alone, as KV does, so they are for the
   audit-sync tooling, not for a request path that must keep a record in its committee. `ListAllLinks` and
   `ListAllLinkFolders` return every record when the committee is empty.
+- **Document metadata** is found by uid within its committee for get and delete, like links; `UpdateDocumentMetadata`
+  matches on the uid and revision alone, as KV does, for the audit-sync tooling. A document name is unique per committee and
+  case-sensitive, and `UpdateDocumentMetadata` checks a changed name against the unique index, where KV keeps the lookup
+  key of the original name. `DocumentNameExists` is the same query the unique index answers. The file bytes stay in the
+  NATS Object Store, keyed by the document uid: the store implements no file method (`GetDocumentFile`, `PutDocumentFile`,
+  `DeleteDocumentFile`), so the composite store keeps calling the object store and deletes the file after the metadata.
 - **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
   `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
   port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
