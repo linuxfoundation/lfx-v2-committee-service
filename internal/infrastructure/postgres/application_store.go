@@ -95,6 +95,9 @@ func (s *Store) CreateApplication(ctx context.Context, application *model.Commit
 	if application == nil {
 		return errs.NewValidation("committee application cannot be nil")
 	}
+	if application.UID == "" || application.CommitteeUID == "" {
+		return errs.NewValidation("committee application UID and CommitteeUID must be non-empty")
+	}
 	values, err := applicationValues(application, application.CreatedAt)
 	if err != nil {
 		return unexpected("failed to encode committee application", err)

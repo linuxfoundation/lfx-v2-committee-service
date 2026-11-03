@@ -109,6 +109,9 @@ func (s *Store) CreateInvite(ctx context.Context, invite *model.CommitteeInvite)
 	if invite == nil {
 		return errs.NewValidation("committee invite cannot be nil")
 	}
+	if invite.UID == "" || invite.CommitteeUID == "" {
+		return errs.NewValidation("committee invite UID and CommitteeUID must be non-empty")
+	}
 	values, err := inviteValues(invite, invite.CreatedAt)
 	if err != nil {
 		return unexpected("failed to encode committee invite", err)

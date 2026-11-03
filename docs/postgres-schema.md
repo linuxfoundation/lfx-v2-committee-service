@@ -145,8 +145,8 @@ depends on the database (the dual-write and PostgreSQL modes), that choice has t
 added one port at a time. It is not selected by the service yet; the composite store (#1197) does that. It covers the
 committee base and settings (create, get, list, find by project and name, update, update settings, delete, and the
 `has_mailing_list` and `total_members` counters) and members (create, get, update, delete, and the by-committee,
-by-organization, by-email and by-username listings). Invites (create, get, update, list) and applications (create, get, update, delete, list)
-follow the same rules.
+by-organization, by-email and by-username listings).
+Invites (create, get, update, list) and applications (create, get, update, delete, list) follow the same rules.
 
 - **Duplicates come from the schema.** The store does not check names itself. A violation of
   `committees_project_name_key`, `committees_sso_group_name_key` or a primary key becomes `errs.Conflict` (the SSO one

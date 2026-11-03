@@ -102,10 +102,12 @@ func TestStore_CreateInvite(t *testing.T) {
 		require.NoError(t, store.CreateInvite(ctx, testInvite("i-other", "committee-3", "first.last@example.com")))
 	})
 
-	t.Run("the same uid is a conflict and a nil invite is invalid", func(t *testing.T) {
+	t.Run("the same uid is a conflict; a nil invite or missing uids are invalid", func(t *testing.T) {
 		requireConflict(t, store.CreateInvite(ctx, testInvite("i-2", "committee-9", "first.last9@example.com")))
 		var validation errs.Validation
 		require.ErrorAs(t, store.CreateInvite(ctx, nil), &validation)
+		require.ErrorAs(t, store.CreateInvite(ctx, testInvite("", "committee-1", "a@example.com")), &validation)
+		require.ErrorAs(t, store.CreateInvite(ctx, testInvite("i-x", "", "a@example.com")), &validation)
 	})
 }
 

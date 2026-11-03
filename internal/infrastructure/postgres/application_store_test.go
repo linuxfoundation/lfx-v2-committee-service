@@ -88,10 +88,12 @@ func TestStore_CreateApplication(t *testing.T) {
 		require.NoError(t, store.CreateApplication(ctx, testApplication("a-other", "committee-3", "first.last@example.com")))
 	})
 
-	t.Run("the same uid is a conflict and a nil application is invalid", func(t *testing.T) {
+	t.Run("the same uid is a conflict; a nil application or missing uids are invalid", func(t *testing.T) {
 		requireConflict(t, store.CreateApplication(ctx, testApplication("a-2", "committee-9", "first.last9@example.com")))
 		var validation errs.Validation
 		require.ErrorAs(t, store.CreateApplication(ctx, nil), &validation)
+		require.ErrorAs(t, store.CreateApplication(ctx, testApplication("", "committee-1", "a@example.com")), &validation)
+		require.ErrorAs(t, store.CreateApplication(ctx, testApplication("a-x", "", "a@example.com")), &validation)
 	})
 }
 
