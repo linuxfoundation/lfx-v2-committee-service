@@ -260,11 +260,11 @@ func runFolderContract(t *testing.T, newStore LinkFactory) {
 		// The same committee and name as the folder that holds the uid, but other content: not a create that
 		// already landed.
 		impostor := NewFolder("f-1", "committee-1", "Legal")
-		impostor.CreatedBy = &model.CommitteeUser{Name: "Impostor", Username: "impostor", Email: "first.last2@example.com"}
+		impostor.CreatedBy = &model.CommitteeUser{Name: "First Last", Username: "first-last-impostor", Email: "first.last2@example.com"}
 		requireConflict(t, store.CreateLinkFolder(ctx, impostor))
 		got, _, err := store.GetLinkFolder(ctx, "committee-1", "f-1")
 		require.NoError(t, err)
-		assert.Equal(t, "first-last", got.CreatedBy.Username)
+		assert.Equal(t, "first-last", got.CreatedBy.Username, "the stored folder is the first one")
 	})
 
 	t.Run("ListLinkFolders lists the committee's folders, and ListAllLinkFolders every folder or the committee's", func(t *testing.T) {
@@ -305,14 +305,14 @@ func runFolderContract(t *testing.T, newStore LinkFactory) {
 		store := seed(t)
 		folder, revision, err := store.GetLinkFolder(ctx, "committee-1", "f-2")
 		require.NoError(t, err)
-		folder.UpdatedBy = &model.CommitteeUser{Name: "First Writer", Username: "first-writer", Email: "first.last2@example.com"}
+		folder.UpdatedBy = &model.CommitteeUser{Name: "First Last", Username: "first-last-first", Email: "first.last2@example.com"}
 		require.NoError(t, store.UpdateLinkFolder(ctx, folder, revision))
 
-		folder.UpdatedBy = &model.CommitteeUser{Name: "Second Writer", Username: "second-writer", Email: "first.last3@example.com"}
+		folder.UpdatedBy = &model.CommitteeUser{Name: "First Last", Username: "first-last-second", Email: "first.last3@example.com"}
 		requireConflict(t, store.UpdateLinkFolder(ctx, folder, revision))
 		got, _, err := store.GetLinkFolder(ctx, "committee-1", "f-2")
 		require.NoError(t, err)
-		assert.Equal(t, "first-writer", got.UpdatedBy.Username)
+		assert.Equal(t, "first-last-first", got.UpdatedBy.Username)
 	})
 
 	t.Run("UpdateLinkFolder of a missing folder is not found, and a nil folder is invalid", func(t *testing.T) {
@@ -332,6 +332,9 @@ func runFolderContract(t *testing.T, newStore LinkFactory) {
 		requireNotFound(t, store.DeleteLinkFolder(ctx, "committee-2", "f-1", revision))
 		_, _, err = store.GetLinkFolder(ctx, "committee-1", "f-1")
 		require.NoError(t, err, "a rejected delete changes nothing")
+		// A rejected delete leaves the name taken, in this committee and in the other.
+		requireConflict(t, store.CreateLinkFolder(ctx, NewFolder("f-dup", "committee-1", "Legal")))
+		requireConflict(t, store.CreateLinkFolder(ctx, NewFolder("f-dup", "committee-2", "Legal")))
 
 		require.NoError(t, store.DeleteLinkFolder(ctx, "committee-1", "f-1", revision))
 		_, _, err = store.GetLinkFolder(ctx, "committee-1", "f-1")
@@ -349,7 +352,7 @@ func runFolderContract(t *testing.T, newStore LinkFactory) {
 		require.NoError(t, err)
 		wins := race(t, func(writer int) error {
 			update := *folder
-			update.UpdatedBy = &model.CommitteeUser{Name: "Writer", Username: fmt.Sprintf("writer-%d", writer), Email: "first.last2@example.com"}
+			update.UpdatedBy = &model.CommitteeUser{Name: "First Last", Username: fmt.Sprintf("first-last-%d", writer), Email: "first.last2@example.com"}
 			return store.UpdateLinkFolder(ctx, &update, revision)
 		}, requireConflict)
 		assert.Equal(t, 1, wins)
