@@ -34,6 +34,14 @@ func requireNotFound(t *testing.T, err error) {
 	require.True(t, ok, "want not found as the outer error, got %T: %v", err, err)
 }
 
+// requireUnavailable checks for the outer type the brief stores use for a lost swap, which the HTTP layer
+// answers with a 503 so the caller retries.
+func requireUnavailable(t *testing.T, err error) {
+	t.Helper()
+	_, ok := err.(errs.ServiceUnavailable)
+	require.True(t, ok, "want service unavailable as the outer error, got %T: %v", err, err)
+}
+
 func requireValidation(t *testing.T, err error) {
 	t.Helper()
 	_, ok := err.(errs.Validation)

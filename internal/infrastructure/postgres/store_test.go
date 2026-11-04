@@ -441,3 +441,9 @@ func TestContract_Documents(t *testing.T) {
 		return newTestStore(t)
 	})
 }
+
+func TestContract_Briefs(t *testing.T) {
+	storetest.RunBriefContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) storetest.BriefStore {
+		return newTestStore(t)
+	})
+}

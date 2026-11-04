@@ -2272,3 +2272,9 @@ func TestContract_Documents(t *testing.T) {
 		return kvDocumentStore{CommitteeDocumentReaderWriter: NewDocumentStorage(client), sync: NewStorageBackend(client)}
 	})
 }
+
+func TestContract_Briefs(t *testing.T) {
+	storetest.RunBriefContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) storetest.BriefStore {
+		return NewStorageBackend(newKVClient(t))
+	})
+}

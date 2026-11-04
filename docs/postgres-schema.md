@@ -285,7 +285,13 @@ in the KV store are fixed, and it now answers as PostgreSQL does:
 - deleting a link folder or a document releases its name lock only while the lock still holds that record's uid, so a
   lock another record has taken over is left alone.
 
-One benign difference remains and is not an error:
+Two benign differences remain and are not errors:
+
+- **A second brief for a window that has one.** The brief generator reuses the uid of the brief it finds, so this
+  happens only when two first generations race. KV lets the second brief take over the window's index key and leaves
+  the first in the briefs bucket, unreachable; PostgreSQL refuses it with `errs.ServiceUnavailable`, because of the
+  unique index on (committee, window), and the retry reads the brief that won. The suite checks only what both
+  guarantee: the window reads one brief and has one index key.
 
 - **Identical writers with the same revision.** KV treats a failed swap whose stored record equals what the writer
   wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed,
@@ -300,4 +306,7 @@ the delete of an application, concurrent writers), and links and link folders (c
 the audit-sync list and update, delete with the revision within the committee, the folder name unique per committee
 and case-sensitive, concurrent writers), and document metadata (create, get within the committee, the name check, the
 audit-sync list and update, delete with the revision within the committee, the name unique per committee and
-case-sensitive, concurrent writers). Weekly briefs follow.
+case-sensitive, concurrent writers). and weekly briefs with their throttle entries (put with and without a revision, the read by committee and the UTC date
+of the window, the index keys and their separators, the throttle create and compare-and-swap, concurrent writers). The
+brief suite found no KV defect: a lost swap on a brief or a throttle entry is `errs.ServiceUnavailable` in both stores,
+the answer the callers retry on.
