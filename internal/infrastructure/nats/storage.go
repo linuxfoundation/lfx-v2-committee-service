@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -450,7 +451,7 @@ func readError(message string, err error) error {
 // same error when the key does not exist, so a re-read tells the two apart: an absent key is not found,
 // a 404, as PostgreSQL reports it. The conflict carries no cause, so no NATS error text reaches a client.
 // Anything else, including a re-read that fails, is an internal error.
-func (s *storage) writeError(ctx context.Context, kv jetstream.KeyValue, key, notFound, conflict, message string, err error) error {
+func writeError(ctx context.Context, kv jetstream.KeyValue, key, notFound, conflict, message string, err error) error {
 	if !isJetStreamCASConflict(err) {
 		return errs.NewUnexpected(message, err)
 	}
@@ -605,7 +606,7 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 			if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 				return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 			}
-			return s.writeError(ctx, committeesKV, uid, "committee not found", "committee has been modified by another process", "failed to update committee base", errUpdate)
+			return writeError(ctx, committeesKV, uid, "committee not found", "committee has been modified by another process", "failed to update committee base", errUpdate)
 		}
 	}
 
@@ -649,7 +650,7 @@ func (s *storage) UpdateHasMailingList(ctx context.Context, uid string, hasMaili
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommittees], uid, "committee not found", "committee has been modified by another process", "failed to update committee has_mailing_list flag", err)
+		return nil, false, writeError(ctx, s.client.kvStore[constants.KVBucketNameCommittees], uid, "committee not found", "committee has been modified by another process", "failed to update committee has_mailing_list flag", err)
 	}
 
 	slog.DebugContext(ctx, "updated has_mailing_list in NATS storage",
@@ -690,7 +691,7 @@ func (s *storage) UpdateTotalMembers(ctx context.Context, uid string, totalMembe
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommittees], uid, "committee not found", "committee has been modified by another process", "failed to update committee total_members counter", err)
+		return nil, false, writeError(ctx, s.client.kvStore[constants.KVBucketNameCommittees], uid, "committee not found", "committee has been modified by another process", "failed to update committee total_members counter", err)
 	}
 
 	slog.DebugContext(ctx, "updated total_members in NATS storage",
@@ -718,7 +719,7 @@ func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSe
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", settings.UID))
 		}
-		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeSettings], settings.UID, "committee settings not found", "committee settings have been modified by another process", "failed to update committee settings", errUpdate)
+		return writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeSettings], settings.UID, "committee settings not found", "committee settings have been modified by another process", "failed to update committee settings", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee settings in NATS storage",
@@ -793,7 +794,7 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 		rctx, cancel := detachedCtx(ctx)
 		defer cancel()
 		if _, errGet := committeesKV.Get(rctx, uid); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
-			return s.writeError(ctx, committeesKV, uid, "committee not found", "committee has been modified by another process", "failed to delete committee base", errDeleteBase)
+			return writeError(ctx, committeesKV, uid, "committee not found", "committee has been modified by another process", "failed to delete committee base", errDeleteBase)
 		}
 		slog.WarnContext(ctx, "committee delete reported an error but the committee is gone; continuing",
 			"error", errDeleteBase,
@@ -1258,7 +1259,11 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 				"member_uid", member.UID,
 			)
 		case recordDiffers:
-			if inUse, decoded := memberKeysInUse(rctx, stored); decoded && holdsKey(inUse, keys.unique) {
+			// The stored record is this create's own write, changed by another writer since, only if this
+			// call took the uniqueness lock. A lock the uid already held means the stored record predates
+			// this create: a second member with the same uid, committee and email is a conflict, not a
+			// create that landed.
+			if inUse, decoded := memberKeysInUse(rctx, stored); decoded && holdsKey(inUse, keys.unique) && slices.Contains(reserved, keys.unique) {
 				baseRev = stored.Revision()
 				baseChanged = true
 				slog.WarnContext(ctx, "member create reported an error but the member was stored and changed; continuing",
@@ -1268,6 +1273,10 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 				break
 			}
 			s.releaseStaleMemberKeys(rctx, member.UID, reserved)
+			if isJetStreamCASConflict(errCreate) {
+				// A different member already holds the uid.
+				return errs.NewConflict("committee member already exists")
+			}
 			return errs.NewUnexpected("failed to create committee member", errCreate)
 		case recordAbsent:
 			releaseOwnedKeys(rctx, kv, member.UID, reserved, "member")
@@ -1576,7 +1585,7 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 				"member_uid", uid,
 				"revision", revision,
 			)
-			return s.writeError(ctx, kv, uid, "committee member not found", "committee member revision conflict", "failed to delete committee member", err)
+			return writeError(ctx, kv, uid, "committee member not found", "committee member revision conflict", "failed to delete committee member", err)
 		}
 		slog.WarnContext(ctx, "member delete reported an error but the member is gone; continuing",
 			"error", err,
@@ -2002,6 +2011,9 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 	if invite == nil {
 		return errs.NewValidation("committee invite cannot be nil")
 	}
+	if invite.UID == "" || invite.CommitteeUID == "" {
+		return errs.NewValidation("committee invite UID and CommitteeUID must be non-empty")
+	}
 
 	inviteBytes, errMarshal := json.Marshal(invite)
 	if errMarshal != nil {
@@ -2011,7 +2023,8 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeInvites]
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
-	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(invite.UID)); errUnique != nil {
+	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(invite.UID))
+	if errUnique != nil {
 		if errors.Is(errUnique, jetstream.ErrKeyExists) {
 			return errs.NewConflict("invite for the same email already exists in the committee")
 		}
@@ -2020,6 +2033,11 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 
 	rev, errCreate := kv.Create(ctx, invite.UID, inviteBytes)
 	if errCreate != nil {
+		if isJetStreamCASConflict(errCreate) {
+			// A different invite already holds the uid, so the key reserved for this one is nobody's.
+			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
+			return errs.NewConflict("committee invite already exists")
+		}
 		rollbackLookupKey(ctx, kv, invite.UID, uniqueKey, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee invite", errCreate)
 	}
@@ -2050,7 +2068,7 @@ func (s *storage) UpdateInvite(ctx context.Context, invite *model.CommitteeInvit
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee invite not found", fmt.Errorf("invite UID: %s", invite.UID))
 		}
-		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeInvites], invite.UID, "committee invite not found", "committee invite has been modified by another process", "failed to update committee invite", errUpdate)
+		return writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeInvites], invite.UID, "committee invite not found", "committee invite has been modified by another process", "failed to update committee invite", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee invite in NATS storage",
@@ -2179,6 +2197,9 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 	if application == nil {
 		return errs.NewValidation("committee application cannot be nil")
 	}
+	if application.UID == "" || application.CommitteeUID == "" {
+		return errs.NewValidation("committee application UID and CommitteeUID must be non-empty")
+	}
 
 	applicationBytes, errMarshal := json.Marshal(application)
 	if errMarshal != nil {
@@ -2188,7 +2209,8 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeApplications]
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
-	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(application.UID)); errUnique != nil {
+	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(application.UID))
+	if errUnique != nil {
 		if errors.Is(errUnique, jetstream.ErrKeyExists) {
 			return errs.NewConflict("application from the same user already exists in the committee")
 		}
@@ -2197,6 +2219,11 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 
 	rev, errCreate := kv.Create(ctx, application.UID, applicationBytes)
 	if errCreate != nil {
+		if isJetStreamCASConflict(errCreate) {
+			// A different application already holds the uid, so the key reserved for this one is nobody's.
+			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
+			return errs.NewConflict("committee application already exists")
+		}
 		rollbackLookupKey(ctx, kv, application.UID, uniqueKey, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee application", errCreate)
 	}
@@ -2227,7 +2254,7 @@ func (s *storage) UpdateApplication(ctx context.Context, application *model.Comm
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee application not found", fmt.Errorf("application UID: %s", application.UID))
 		}
-		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeApplications], application.UID, "committee application not found", "committee application has been modified by another process", "failed to update committee application", errUpdate)
+		return writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeApplications], application.UID, "committee application not found", "committee application has been modified by another process", "failed to update committee application", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee application in NATS storage",
@@ -2305,11 +2332,58 @@ func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lo
 		return
 	}
 
-	if errPurge := kv.Purge(ctx, lookupKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs)
+}
+
+// releaseLookupKey releases the lookup key a create reserved, when the record write was refused because
+// the uid is already held by another record. The key is this call's own: its reservation succeeded a
+// moment ago, so the record that holds the uid cannot own it (the reservation would have failed), and no
+// record of this create exists. reserved is the revision the reservation returned: the purge is guarded by
+// it, so a key another create took over in the meantime is left alone. It runs on a context detached from
+// the request, like rollbackLookupKey. Unlike the rollback after an ambiguous write error, it does not
+// need to confirm the record is absent: the server refused the write on the existing key.
+func releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, reserved uint64, createErr error, attrs ...any) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs, jetstream.LastRevision(reserved))
+}
+
+// purgeLookupKey purges a lookup key and logs a failure. A purge guarded by a revision that no longer
+// matches means the key is not the caller's any more, which is left as it is.
+func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, createErr error, attrs []any, opts ...jetstream.KVDeleteOpt) {
+	errPurge := kv.Purge(ctx, lookupKey, opts...)
+	switch {
+	case errPurge == nil, errors.Is(errPurge, jetstream.ErrKeyNotFound):
+	case isJetStreamCASConflict(errPurge):
+		slog.WarnContext(ctx, "lookup key was taken over before this create could release it; leaving it",
+			append([]any{"create_error", createErr}, attrs...)...,
+		)
+	default:
 		slog.ErrorContext(ctx, "failed to release lookup key; the name or email stays locked until it is removed",
 			append([]any{"error", errPurge, "create_error", createErr, log.PriorityCritical()}, attrs...)...,
 		)
 	}
+}
+
+// purgeOwnedLookupKey purges a uniqueness lookup key after its record was deleted, only while the key
+// still holds the record's uid and by the revision it was read at: a key that another record now holds
+// is left alone. A key already gone is fine; a failed purge is logged.
+func purgeOwnedLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey, ownerUID string) {
+	// The record is already deleted, so the release must not be cut short by the request ending.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	entry, errGet := kv.Get(ctx, lookupKey)
+	if errGet != nil {
+		if !errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			slog.ErrorContext(ctx, "failed to read lookup key before releasing it; the name stays locked until it is removed",
+				"error", errGet, "key", lookupKey, "owner_uid", ownerUID, log.PriorityCritical())
+		}
+		return
+	}
+	if string(entry.Value()) != ownerUID {
+		return
+	}
+	purgeLookupKey(ctx, kv, lookupKey, nil, []any{"key", lookupKey, "owner_uid", ownerUID}, jetstream.LastRevision(entry.Revision()))
 }
 
 // rollbackTimeout bounds how long a lookup-key rollback may take once detached from the request.

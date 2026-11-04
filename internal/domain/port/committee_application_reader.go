@@ -11,7 +11,8 @@ import (
 
 // CommitteeApplicationReader provides access to committee application reading operations
 type CommitteeApplicationReader interface {
-	// GetApplication retrieves a committee application by UID
+	// GetApplication retrieves a committee application by UID: a missing application returns
+	// errs.NotFound and an empty UID errs.Validation.
 	GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error)
 	// ListApplications retrieves all applications for a given committee UID
 	ListApplications(ctx context.Context, committeeUID string) ([]*model.CommitteeApplication, error)

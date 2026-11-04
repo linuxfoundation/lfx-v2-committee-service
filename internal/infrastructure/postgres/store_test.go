@@ -405,3 +405,45 @@ func TestContract_Committee(t *testing.T) {
 		return newTestStore(t)
 	})
 }
+
+func TestContract_Members(t *testing.T) {
+	storetest.RunMemberContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return newTestStore(t)
+	})
+}
+
+func TestContract_Invites(t *testing.T) {
+	storetest.RunInviteContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return newTestStore(t)
+	})
+}
+
+func TestContract_Applications(t *testing.T) {
+	storetest.RunApplicationContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return newTestStore(t)
+	})
+}
+
+func TestContract_Links(t *testing.T) {
+	storetest.RunLinkContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) storetest.LinkStore {
+		return newTestStore(t)
+	})
+}
+
+func TestContract_LinkFolders(t *testing.T) {
+	storetest.RunFolderContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) storetest.LinkStore {
+		return newTestStore(t)
+	})
+}
+
+func TestContract_Documents(t *testing.T) {
+	storetest.RunDocumentContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) storetest.DocumentStore {
+		return newTestStore(t)
+	})
+}
+
+func TestContract_Briefs(t *testing.T) {
+	storetest.RunBriefContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) storetest.BriefStore {
+		return newTestStore(t)
+	})
+}

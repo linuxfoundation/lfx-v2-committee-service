@@ -2298,6 +2298,14 @@ type DeleteCommitteeLinkBadRequestResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// DeleteCommitteeLinkConflictResponseBody is the type of the
+// "committee-service" service "delete-committee-link" endpoint HTTP response
+// body for the "Conflict" error.
+type DeleteCommitteeLinkConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // DeleteCommitteeLinkInternalServerErrorResponseBody is the type of the
 // "committee-service" service "delete-committee-link" endpoint HTTP response
 // body for the "InternalServerError" error.
@@ -2414,6 +2422,14 @@ type CreateCommitteeLinkFolderServiceUnavailableResponseBody struct {
 // "committee-service" service "delete-committee-link-folder" endpoint HTTP
 // response body for the "BadRequest" error.
 type DeleteCommitteeLinkFolderBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// DeleteCommitteeLinkFolderConflictResponseBody is the type of the
+// "committee-service" service "delete-committee-link-folder" endpoint HTTP
+// response body for the "Conflict" error.
+type DeleteCommitteeLinkFolderConflictResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -6053,6 +6069,16 @@ func NewDeleteCommitteeLinkBadRequestResponseBody(res *committeeservice.BadReque
 	return body
 }
 
+// NewDeleteCommitteeLinkConflictResponseBody builds the HTTP response body
+// from the result of the "delete-committee-link" endpoint of the
+// "committee-service" service.
+func NewDeleteCommitteeLinkConflictResponseBody(res *committeeservice.ConflictError) *DeleteCommitteeLinkConflictResponseBody {
+	body := &DeleteCommitteeLinkConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewDeleteCommitteeLinkInternalServerErrorResponseBody builds the HTTP
 // response body from the result of the "delete-committee-link" endpoint of the
 // "committee-service" service.
@@ -6198,6 +6224,16 @@ func NewCreateCommitteeLinkFolderServiceUnavailableResponseBody(res *committeese
 // "committee-service" service.
 func NewDeleteCommitteeLinkFolderBadRequestResponseBody(res *committeeservice.BadRequestError) *DeleteCommitteeLinkFolderBadRequestResponseBody {
 	body := &DeleteCommitteeLinkFolderBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewDeleteCommitteeLinkFolderConflictResponseBody builds the HTTP response
+// body from the result of the "delete-committee-link-folder" endpoint of the
+// "committee-service" service.
+func NewDeleteCommitteeLinkFolderConflictResponseBody(res *committeeservice.ConflictError) *DeleteCommitteeLinkFolderConflictResponseBody {
+	body := &DeleteCommitteeLinkFolderConflictResponseBody{
 		Message: res.Message,
 	}
 	return body

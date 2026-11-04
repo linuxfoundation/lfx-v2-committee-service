@@ -11,7 +11,8 @@ import (
 
 // CommitteeInviteReader provides access to committee invite reading operations
 type CommitteeInviteReader interface {
-	// GetInvite retrieves a committee invite by UID
+	// GetInvite retrieves a committee invite by UID: a missing invite returns errs.NotFound and an empty
+	// UID errs.Validation.
 	GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error)
 	// ListInvites retrieves all invites for a given committee UID
 	ListInvites(ctx context.Context, committeeUID string) ([]*model.CommitteeInvite, error)

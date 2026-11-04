@@ -578,6 +578,7 @@ func (c *Client) CreateCommitteeLink(ctx context.Context, p *CreateCommitteeLink
 // DeleteCommitteeLink may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
@@ -641,6 +642,7 @@ func (c *Client) CreateCommitteeLinkFolder(ctx context.Context, p *CreateCommitt
 // DeleteCommitteeLinkFolder may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error

@@ -255,17 +255,58 @@ uses the per-test schema above.
 
 A backend may declare where it differs, and the suites show any other difference as a failing case. The checks look at
 the outer error, the one the HTTP layer maps, not anywhere in its chain, so an internal error that wraps a validation
-error cannot pass as a validation error. The committee suite currently declares nothing. Two earlier differences are
-fixed: the KV store used to report a lost compare-and-swap ("wrong last sequence") as `errs.Unexpected`, a 500, and a
-read with an empty uid as an internal error wrapping the validation error, also a 500; both now match PostgreSQL
-(`errs.Conflict`, a 409, and `errs.Validation`, a 400). JetStream also reports an update of a key that does not exist as a
-lost swap, so the KV store re-reads on a lost swap and answers not found, a 404, for an absent record, as PostgreSQL
-does; the conflict carries no NATS error text. One benign difference remains and is not an error:
+error cannot pass as a validation error. The suites currently declare nothing. One known difference is deliberately
+not exercised: in PostgreSQL, `UpdateInvite` and `UpdateApplication` check a changed email against the unique index,
+where KV keeps the lookup key of the email the record was created with (see above). The differences the suites did find
+in the KV store are fixed, and it now answers as PostgreSQL does:
+
+- a lost compare-and-swap ("wrong last sequence") is `errs.Conflict`, a 409, where it was `errs.Unexpected`, a 500;
+- JetStream also reports an update of a key that does not exist as a lost swap, so the KV store re-reads on a lost swap
+  and answers not found, a 404, for an absent record; the conflict carries no NATS error text;
+- a read with an empty uid is `errs.Validation`, a 400, where it was an internal error wrapping the validation error;
+- creating a member with a uid that another member already holds is `errs.Conflict`, where it was an internal error,
+  or, when the second member had the same committee and email, a success that wrote lookups for content that was never
+  stored;
+- creating an invite or an application with a uid that another one already holds is `errs.Conflict`, where it was an
+  internal error that also left the reserved (committee, email) lock behind, so the same person could not be invited or
+  apply to that committee afterwards;
+- creating a link or a folder with a uid that another one already holds is `errs.Conflict`, where it was an internal
+  error that, for a folder, also left the reserved (committee, name) lock behind, so the name stayed taken;
+- creating a link or a folder with an empty uid or committee uid is `errs.Validation`, a 400, where an empty uid reached
+  the bucket as an invalid key (an internal error);
+- deleting a link or a folder with a stale revision is `errs.Conflict`, a 409, where it was an internal error, and the
+  audit-sync update of a link or folder that does not exist is `errs.NotFound`, where it was a conflict;
+- creating an invite or an application with an empty uid or committee uid is `errs.Validation`, a 400, where an empty uid
+  reached the bucket as an invalid key (an internal error) and an empty committee uid was accepted and stored with no
+  committee;
+- creating a document with a uid that another one already holds is `errs.Conflict`, where it was an internal error that
+  also left the reserved (committee, name) lock behind, and an empty uid or committee uid is `errs.Validation`; deleting
+  one with a stale revision is `errs.Conflict` and updating one that does not exist is `errs.NotFound`, as for links;
+- deleting a link folder or a document releases its name lock only while the lock still holds that record's uid, so a
+  lock another record has taken over is left alone.
+
+Two benign differences remain and are not errors:
+
+- **A second brief for a window that has one.** The brief generator reuses the uid of the brief it finds, so this
+  happens only when two first generations race. KV lets the second brief take over the window's index key and leaves
+  the first in the briefs bucket, unreachable; PostgreSQL refuses it with `errs.ServiceUnavailable`, because of the
+  unique index on (committee, window), and the retry reads the brief that won. The suite checks only what both
+  guarantee: the window reads one brief and has one index key.
 
 - **Identical writers with the same revision.** KV treats a failed swap whose stored record equals what the writer
-  wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed;
-  PostgreSQL gives one of them a conflict. The race case has each writer write different content for that reason.
+  wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed,
+  and so does a create repeated with identical content; PostgreSQL gives the second a conflict. The race cases have
+  each writer write different content, and the duplicate cases use different content, for that reason.
 
 Suites so far: committee and settings (create, get, update, delete, the name and SSO group name uniqueness, the
-lookups, the counters, concurrent writers). Members, invites, applications, links, folders, document metadata and
-weekly briefs follow.
+lookups, the counters, concurrent writers) and members (create, get, update, delete, the email uniqueness per
+committee, the by-committee, organization, email and username lookups with their normalization, the streaming reads,
+concurrent writers), invites and applications (create, get, update, the email uniqueness per committee, the listings,
+the delete of an application, concurrent writers), and links and link folders (create, get within the committee, list,
+the audit-sync list and update, delete with the revision within the committee, the folder name unique per committee
+and case-sensitive, concurrent writers), and document metadata (create, get within the committee, the name check, the
+audit-sync list and update, delete with the revision within the committee, the name unique per committee and
+case-sensitive, concurrent writers), and weekly briefs with their throttle entries (put with and without a revision,
+the read by committee and the UTC date of the window, the index keys and their separators, the throttle create and
+compare-and-swap, concurrent writers). The brief suite found no KV defect: a lost swap on a brief or a throttle entry is
+`errs.ServiceUnavailable` in both stores, the answer the callers retry on.
