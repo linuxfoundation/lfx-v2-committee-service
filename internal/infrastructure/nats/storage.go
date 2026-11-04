@@ -446,13 +446,20 @@ func readError(message string, err error) error {
 }
 
 // writeError is the error of a failed write guarded by a revision. A lost compare-and-swap (JetStream's
-// "wrong last sequence") is a conflict, a 409, as the PostgreSQL store reports it; anything else is an
-// internal error.
-func writeError(conflict, message string, err error) error {
-	if isJetStreamCASConflict(err) {
-		return errs.NewConflict(conflict, err)
+// "wrong last sequence") is a conflict, a 409, as the PostgreSQL store reports it. JetStream reports the
+// same error when the key does not exist, so a re-read tells the two apart: an absent key is not found,
+// a 404, as PostgreSQL reports it. The conflict carries no cause, so no NATS error text reaches a client.
+// Anything else is an internal error.
+func (s *storage) writeError(ctx context.Context, kv jetstream.KeyValue, key, notFound, conflict, message string, err error) error {
+	if !isJetStreamCASConflict(err) {
+		return errs.NewUnexpected(message, err)
 	}
-	return errs.NewUnexpected(message, err)
+	rctx, cancel := detachedCtx(ctx)
+	defer cancel()
+	if _, errGet := kv.Get(rctx, key); errors.Is(errGet, jetstream.ErrKeyNotFound) {
+		return errs.NewNotFound(notFound)
+	}
+	return errs.NewConflict(conflict)
 }
 
 // GetBase retrieves a committee's base data and its current revision from the KV store by UID.
@@ -593,7 +600,7 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 			if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 				return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 			}
-			return writeError("committee has been modified by another process", "failed to update committee base", errUpdate)
+			return s.writeError(ctx, committeesKV, uid, "committee not found", "committee has been modified by another process", "failed to update committee base", errUpdate)
 		}
 	}
 
@@ -637,7 +644,7 @@ func (s *storage) UpdateHasMailingList(ctx context.Context, uid string, hasMaili
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, writeError("committee has been modified by another process", "failed to update committee has_mailing_list flag", err)
+		return nil, false, s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommittees], uid, "committee not found", "committee has been modified by another process", "failed to update committee has_mailing_list flag", err)
 	}
 
 	slog.DebugContext(ctx, "updated has_mailing_list in NATS storage",
@@ -678,7 +685,7 @@ func (s *storage) UpdateTotalMembers(ctx context.Context, uid string, totalMembe
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, writeError("committee has been modified by another process", "failed to update committee total_members counter", err)
+		return nil, false, s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommittees], uid, "committee not found", "committee has been modified by another process", "failed to update committee total_members counter", err)
 	}
 
 	slog.DebugContext(ctx, "updated total_members in NATS storage",
@@ -706,7 +713,7 @@ func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSe
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", settings.UID))
 		}
-		return writeError("committee settings have been modified by another process", "failed to update committee settings", errUpdate)
+		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeSettings], settings.UID, "committee settings not found", "committee settings have been modified by another process", "failed to update committee settings", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee settings in NATS storage",
@@ -781,7 +788,7 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 		rctx, cancel := detachedCtx(ctx)
 		defer cancel()
 		if _, errGet := committeesKV.Get(rctx, uid); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
-			return writeError("committee has been modified by another process", "failed to delete committee base", errDeleteBase)
+			return s.writeError(ctx, committeesKV, uid, "committee not found", "committee has been modified by another process", "failed to delete committee base", errDeleteBase)
 		}
 		slog.WarnContext(ctx, "committee delete reported an error but the committee is gone; continuing",
 			"error", errDeleteBase,
@@ -1497,7 +1504,7 @@ func mapMemberUpdateError(err error) error {
 	case errors.Is(err, jetstream.ErrKeyNotFound):
 		return errs.NewNotFound("committee member not found")
 	case errors.Is(err, jetstream.ErrKeyExists):
-		return errs.NewConflict("committee member revision conflict", err)
+		return errs.NewConflict("committee member revision conflict")
 	default:
 		return errs.NewUnexpected("failed to update committee member", err)
 	}
@@ -1559,7 +1566,7 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 				"member_uid", uid,
 				"revision", revision,
 			)
-			return writeError("committee member revision conflict", "failed to delete committee member", err)
+			return s.writeError(ctx, kv, uid, "committee member not found", "committee member revision conflict", "failed to delete committee member", err)
 		}
 		slog.WarnContext(ctx, "member delete reported an error but the member is gone; continuing",
 			"error", err,
@@ -2033,7 +2040,7 @@ func (s *storage) UpdateInvite(ctx context.Context, invite *model.CommitteeInvit
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee invite not found", fmt.Errorf("invite UID: %s", invite.UID))
 		}
-		return writeError("committee invite has been modified by another process", "failed to update committee invite", errUpdate)
+		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeInvites], invite.UID, "committee invite not found", "committee invite has been modified by another process", "failed to update committee invite", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee invite in NATS storage",
@@ -2210,7 +2217,7 @@ func (s *storage) UpdateApplication(ctx context.Context, application *model.Comm
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee application not found", fmt.Errorf("application UID: %s", application.UID))
 		}
-		return writeError("committee application has been modified by another process", "failed to update committee application", errUpdate)
+		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeApplications], application.UID, "committee application not found", "committee application has been modified by another process", "failed to update committee application", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee application in NATS storage",

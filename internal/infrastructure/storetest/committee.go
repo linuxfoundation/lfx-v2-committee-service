@@ -237,6 +237,13 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		assert.Equal(t, "hidden", got.MemberVisibility)
 	})
 
+	t.Run("UpdateSetting of missing settings is not found", func(t *testing.T) {
+		store := newStore(t)
+		ghost := NewCommittee("ghost", "project-1", "Ghost")
+		ghost.CommitteeSettings.UID = "ghost"
+		requireNotFound(t, store.UpdateSetting(ctx, ghost.CommitteeSettings, 1))
+	})
+
 	t.Run("settings keep a list that was never set apart from one set to empty", func(t *testing.T) {
 		store := newStore(t)
 		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))

@@ -27,6 +27,19 @@ func requireOuterConflict(t *testing.T, err error) {
 	require.True(t, ok, "want a conflict as the outer error, got %T: %v", err, err)
 }
 
+func requireOuterNotFound(t *testing.T, err error) {
+	t.Helper()
+	_, ok := err.(errs.NotFound)
+	require.True(t, ok, "want not found as the outer error, got %T: %v", err, err)
+}
+
+// requireNoBackendText checks that an error a client can see carries no NATS error text.
+func requireNoBackendText(t *testing.T, err error) {
+	t.Helper()
+	assert.NotContains(t, err.Error(), "nats")
+	assert.NotContains(t, err.Error(), "sequence")
+}
+
 func requireOuterValidation(t *testing.T, err error) {
 	t.Helper()
 	_, ok := err.(errs.Validation)
@@ -61,8 +74,10 @@ func TestStorage_LostSwapIsConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("delete member", func(t *testing.T) {
-		requireOuterConflict(t, s.DeleteMember(ctx, "m-1", memberRevision+1000))
-		_, _, err := s.GetMember(ctx, "m-1")
+		err := s.DeleteMember(ctx, "m-1", memberRevision+1000)
+		requireOuterConflict(t, err)
+		requireNoBackendText(t, err)
+		_, _, err = s.GetMember(ctx, "m-1")
 		require.NoError(t, err, "a rejected delete changes nothing")
 	})
 
@@ -70,7 +85,9 @@ func TestStorage_LostSwapIsConflict(t *testing.T) {
 		invite.Status = "accepted"
 		require.NoError(t, s.UpdateInvite(ctx, invite, inviteRevision))
 		invite.Status = "stale writer"
-		requireOuterConflict(t, s.UpdateInvite(ctx, invite, inviteRevision))
+		err := s.UpdateInvite(ctx, invite, inviteRevision)
+		requireOuterConflict(t, err)
+		requireNoBackendText(t, err)
 		got, _, err := s.GetInvite(ctx, "i-1")
 		require.NoError(t, err)
 		assert.Equal(t, "accepted", got.Status)
@@ -95,6 +112,14 @@ func TestStorage_LostSwapIsConflict(t *testing.T) {
 		member.JobTitle = "stale writer"
 		_, err = s.UpdateMember(ctx, member, revision)
 		requireOuterConflict(t, err)
+		requireNoBackendText(t, err)
+	})
+
+	// JetStream reports an update of a key that does not exist as a lost swap too, so the store re-reads
+	// to tell the two apart, as the PostgreSQL store does.
+	t.Run("an update of a missing record is not found", func(t *testing.T) {
+		requireOuterNotFound(t, s.UpdateInvite(ctx, &model.CommitteeInvite{UID: "missing", CommitteeUID: "c-1", InviteeEmail: "first.last@example.com"}, 1))
+		requireOuterNotFound(t, s.UpdateApplication(ctx, &model.CommitteeApplication{UID: "missing", CommitteeUID: "c-1", ApplicantEmail: "first.last@example.com"}, 1))
 	})
 
 	t.Run("an empty uid is a validation error", func(t *testing.T) {
@@ -136,6 +161,7 @@ func TestStorage_CounterLostSwapIsConflict(t *testing.T) {
 	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists}
 	_, _, err := s.UpdateTotalMembers(ctx, "uid-1", 9)
 	requireOuterConflict(t, err)
+	requireNoBackendText(t, err)
 	_, _, err = s.UpdateHasMailingList(ctx, "uid-1", false)
 	requireOuterConflict(t, err)
 

@@ -257,7 +257,9 @@ the outer error, the one the HTTP layer maps, not anywhere in its chain, so an i
 error cannot pass as a validation error. The committee suite currently declares nothing. Two earlier differences are
 fixed: the KV store used to report a lost compare-and-swap ("wrong last sequence") as `errs.Unexpected`, a 500, and a
 read with an empty uid as an internal error wrapping the validation error, also a 500; both now match PostgreSQL
-(`errs.Conflict`, a 409, and `errs.Validation`, a 400). One benign difference remains and is not an error:
+(`errs.Conflict`, a 409, and `errs.Validation`, a 400). JetStream also reports an update of a key that does not exist as a
+lost swap, so the KV store re-reads on a lost swap and answers not found, a 404, for an absent record, as PostgreSQL
+does; the conflict carries no NATS error text. One benign difference remains and is not an error:
 
 - **Identical writers with the same revision.** KV treats a failed swap whose stored record equals what the writer
   wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed;
