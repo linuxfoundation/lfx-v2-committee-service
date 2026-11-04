@@ -20,14 +20,21 @@ type Backend struct {
 	// longer current. The default is errs.Conflict; a backend that reports something else says so
 	// here, and the difference is documented where the backend is.
 	StaleRevision func(t *testing.T, err error)
+	// EmptyUID checks the error of a read with an empty uid. The default is errs.Validation.
+	EmptyUID func(t *testing.T, err error)
 }
 
-// RequireUnexpected is a StaleRevision check for a backend that reports a lost compare-and-swap as an
-// internal error (the NATS KV store does, where PostgreSQL reports a conflict).
+// The checks below look at the outer error, the one the HTTP layer switches on (cmd/committee-api/service
+// error.go), not anywhere in its chain: an internal error that wraps a validation error is a 500, not a
+// 400, and errors.As would accept it as either.
+
+// RequireUnexpected checks for an internal error. It is the StaleRevision check of a backend that
+// reports a lost compare-and-swap that way (the NATS KV store does, where PostgreSQL reports a conflict),
+// and the EmptyUID check of one that does for an empty uid.
 func RequireUnexpected(t *testing.T, err error) {
 	t.Helper()
-	var unexpected errs.Unexpected
-	require.ErrorAs(t, err, &unexpected)
+	_, ok := err.(errs.Unexpected)
+	require.True(t, ok, "want an internal error as the outer error, got %T: %v", err, err)
 }
 
 func (b Backend) requireStale(t *testing.T, err error) {
@@ -39,22 +46,31 @@ func (b Backend) requireStale(t *testing.T, err error) {
 	requireConflict(t, err)
 }
 
+func (b Backend) requireEmptyUID(t *testing.T, err error) {
+	t.Helper()
+	if b.EmptyUID != nil {
+		b.EmptyUID(t, err)
+		return
+	}
+	requireValidation(t, err)
+}
+
 func requireConflict(t *testing.T, err error) {
 	t.Helper()
-	var conflict errs.Conflict
-	require.ErrorAs(t, err, &conflict)
+	_, ok := err.(errs.Conflict)
+	require.True(t, ok, "want a conflict as the outer error, got %T: %v", err, err)
 }
 
 func requireNotFound(t *testing.T, err error) {
 	t.Helper()
-	var notFound errs.NotFound
-	require.ErrorAs(t, err, &notFound)
+	_, ok := err.(errs.NotFound)
+	require.True(t, ok, "want not found as the outer error, got %T: %v", err, err)
 }
 
 func requireValidation(t *testing.T, err error) {
 	t.Helper()
-	var validation errs.Validation
-	require.ErrorAs(t, err, &validation)
+	_, ok := err.(errs.Validation)
+	require.True(t, ok, "want a validation error as the outer error, got %T: %v", err, err)
 }
 
 // race runs write from several goroutines at once and returns how many succeeded. Every failure is

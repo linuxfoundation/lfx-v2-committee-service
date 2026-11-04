@@ -73,7 +73,7 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		_, _, err = store.GetSettings(ctx, "missing")
 		requireNotFound(t, err)
 		_, _, err = store.GetBase(ctx, "")
-		requireValidation(t, err)
+		backend.requireEmptyUID(t, err)
 	})
 
 	t.Run("a committee name is unique per project", func(t *testing.T) {
@@ -268,7 +268,9 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		_, _, err = store.GetSettings(ctx, "uid-1")
 		requireNotFound(t, err)
 		requireNotFound(t, store.Delete(ctx, "uid-1", revision))
-		require.NoError(t, store.Create(ctx, NewCommittee("uid-2", "project-1", "Committee One")), "the name is free again")
+		reuse := NewCommittee("uid-2", "project-1", "Committee One")
+		reuse.SSOGroupName = "sso-uid-1"
+		require.NoError(t, store.Create(ctx, reuse), "the name and the SSO group name are free again")
 	})
 
 	t.Run("the counters write only when the value changes", func(t *testing.T) {
@@ -297,9 +299,15 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		require.NoError(t, err)
 		require.True(t, changed)
 		assert.False(t, got.HasMailingList)
+		_, mailingListRevision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		assert.NotEqual(t, sameRevision, mailingListRevision)
 		_, changed, err = store.UpdateHasMailingList(ctx, "uid-1", false)
 		require.NoError(t, err)
 		assert.False(t, changed)
+		_, unchangedRevision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		assert.Equal(t, mailingListRevision, unchangedRevision, "an unchanged value writes nothing")
 
 		_, _, err = store.UpdateTotalMembers(ctx, "missing", 1)
 		requireNotFound(t, err)

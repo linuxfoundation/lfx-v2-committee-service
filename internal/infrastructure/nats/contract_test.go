@@ -54,10 +54,14 @@ func newKVClient(t *testing.T) *NATSClient {
 //
 // A lost compare-and-swap on a committee, its settings or a delete is reported as errs.Unexpected, not
 // errs.Conflict as the PostgreSQL store does. That is a known defect of the KV store (the knowledge base
-// records the mapping to 409 as the intended one, and the link and document writes already do it), kept
+// records the mapping to 409 as the intended one, and the link, document and member-update writes already do it), kept
 // visible here until it is fixed; see docs/postgres-schema.md.
+//
+// A read with an empty uid is the same kind of defect: the validation error is wrapped in an internal
+// error, which the HTTP layer answers with a 500 where PostgreSQL answers 400.
 func TestContract_Committee(t *testing.T) {
-	storetest.RunCommitteeContract(t, storetest.Backend{Name: "kv", StaleRevision: storetest.RequireUnexpected}, func(t *testing.T) port.CommitteeReaderWriter {
+	kv := storetest.Backend{Name: "kv", StaleRevision: storetest.RequireUnexpected, EmptyUID: storetest.RequireUnexpected}
+	storetest.RunCommitteeContract(t, kv, func(t *testing.T) port.CommitteeReaderWriter {
 		return NewStorage(newKVClient(t))
 	})
 }

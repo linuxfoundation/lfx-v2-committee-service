@@ -252,7 +252,7 @@ runs it from its own package: `internal/infrastructure/nats/contract_test.go` st
 with the buckets the deployment creates (no external NATS is needed), and
 `internal/infrastructure/postgres/contract_test.go` uses the per-test schema above.
 
-A backend may declare where it differs, and the suites show any other difference as a failing case. Two are known:
+A backend may declare where it differs, and the suites show any other difference as a failing case. The checks look at the outer error, the one the HTTP layer maps, not anywhere in its chain, so an internal error that wraps a validation error cannot pass as a validation error. Three are known:
 
 - **A lost compare-and-swap.** The KV store reports a stale revision on a committee, its settings or a delete as
   `errs.Unexpected` (a 500, JetStream's "wrong last sequence" wrapped as is), where PostgreSQL returns `errs.Conflict`,
@@ -260,6 +260,8 @@ A backend may declare where it differs, and the suites show any other difference
   accepted behavior: the knowledge base records the mapping to 409 as the intended one, and the link, document and
   member-update writes already do it. The KV backend declares it (`StaleRevision`) only so the suite stays green until
   the mapping is fixed; the declaration goes with the fix.
+- **A read with an empty uid.** KV wraps the validation error in `errs.Unexpected` (a 500, where PostgreSQL returns the
+  validation error, a 400). Also a defect of the KV store, declared the same way (`EmptyUID`).
 - **Identical writers with the same revision.** KV treats a failed swap whose stored record equals what the writer
   wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed;
   PostgreSQL gives one of them a conflict. It is benign, and the race case has each writer write different content for
