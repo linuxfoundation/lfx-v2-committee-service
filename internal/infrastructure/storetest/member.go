@@ -97,6 +97,8 @@ func runMemberContract(t *testing.T, newStore CommitteeFactory) {
 		store := newStore(t)
 		seedMembers(t, store)
 		requireConflict(t, store.CreateMember(ctx, NewMember("m-1", "committee-9", "first.last9@example.com")))
+		// A rejected create reserves nothing: the same email can still join that committee.
+		require.NoError(t, store.CreateMember(ctx, NewMember("m-new", "committee-9", "first.last9@example.com")))
 
 		// The same committee and email as the member that holds the uid, but other content: it must not be
 		// mistaken for a create that already landed, and must leave no lookup behind.

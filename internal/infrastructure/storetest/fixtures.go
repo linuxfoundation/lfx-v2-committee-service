@@ -141,3 +141,50 @@ func normalizeMember(m *model.CommitteeMember) *model.CommitteeMember {
 	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
 	return &c
 }
+
+// NewInvite returns an invite with every field set, for the committee and invitee email.
+func NewInvite(uid, committeeUID, email string) *model.CommitteeInvite {
+	created := FixtureTime
+	return &model.CommitteeInvite{
+		UID:                  uid,
+		CommitteeUID:         committeeUID,
+		CommitteeName:        "Committee One",
+		OrganizationRequired: true,
+		InviteeEmail:         email,
+		Role:                 "Member",
+		Organization:         &model.CommitteeMemberOrganization{ID: SFID18, Name: "Example Org", Website: "https://example.com"},
+		Status:               "pending",
+		CreatedAt:            created,
+		Inviter:              &model.CommitteeUser{Name: "First Last", Username: "first-last", Email: "first.last@example.com"},
+		ExpiresAt:            created.Add(30 * 24 * time.Hour),
+	}
+}
+
+// normalizeInvite makes an invite comparable across backends: times at the shared precision.
+func normalizeInvite(i *model.CommitteeInvite) *model.CommitteeInvite {
+	c := *i
+	c.CreatedAt, c.ExpiresAt = micro(c.CreatedAt), micro(c.ExpiresAt)
+	return &c
+}
+
+// NewApplication returns an application with every field set, for the committee and applicant email.
+func NewApplication(uid, committeeUID, email string) *model.CommitteeApplication {
+	return &model.CommitteeApplication{
+		UID:               uid,
+		CommitteeUID:      committeeUID,
+		ApplicantEmail:    email,
+		ApplicantUsername: "first-last-" + uid,
+		Message:           "Please let me join",
+		Status:            "pending",
+		ReviewerNotes:     "Looks good",
+		CreatedAt:         FixtureTime,
+		Organization:      &model.CommitteeMemberOrganization{ID: SFID18, Name: "Example Org", Website: "https://example.com"},
+	}
+}
+
+// normalizeApplication makes an application comparable across backends: times at the shared precision.
+func normalizeApplication(a *model.CommitteeApplication) *model.CommitteeApplication {
+	c := *a
+	c.CreatedAt = micro(c.CreatedAt)
+	return &c
+}

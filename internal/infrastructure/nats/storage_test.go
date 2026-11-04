@@ -2120,3 +2120,98 @@ func TestContract_Members(t *testing.T) {
 		return NewStorage(newKVClient(t))
 	})
 }
+
+func TestContract_Invites(t *testing.T) {
+	storetest.RunInviteContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return NewStorage(newKVClient(t))
+	})
+}
+
+func TestContract_Applications(t *testing.T) {
+	storetest.RunApplicationContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return NewStorage(newKVClient(t))
+	})
+}
+
+// A create that is refused because its uid is taken releases the lookup key it reserved, guarded by the
+// revision of its own reservation: a key another create took over since is left alone.
+func TestReleaseLookupKey(t *testing.T) {
+	ctx := context.Background()
+	kv := newKVClient(t).kvStore[constants.KVBucketNameCommitteeInvites]
+	present := func(key string) bool {
+		_, err := kv.Get(ctx, key)
+		return err == nil
+	}
+
+	reserved, err := kv.Create(ctx, "lookup/one", []byte("i-1"))
+	require.NoError(t, err)
+	releaseLookupKey(ctx, kv, "lookup/one", reserved+1000, errors.New("refused"), "invite_uid", "i-1")
+	assert.True(t, present("lookup/one"), "a key that is no longer the caller's reservation is left alone")
+
+	releaseLookupKey(ctx, kv, "lookup/one", reserved, errors.New("refused"), "invite_uid", "i-1")
+	assert.False(t, present("lookup/one"), "the caller's own reservation is released")
+
+	// A second release of the same reservation hits the revision guard, and a key that never existed is not
+	// found: neither is an error, and nothing is created.
+	releaseLookupKey(ctx, kv, "lookup/one", reserved, errors.New("refused"), "invite_uid", "i-1")
+	releaseLookupKey(ctx, kv, "lookup/never-existed", 1, errors.New("refused"), "invite_uid", "i-1")
+	assert.False(t, present("lookup/one"))
+	assert.False(t, present("lookup/never-existed"))
+}
+
+// failingCreateKV wraps a real bucket so Create of one key fails with err, which is how a refused write
+// looks to the store.
+type failingCreateKV struct {
+	jetstream.KeyValue
+	key string
+	err error
+}
+
+func (k *failingCreateKV) Create(ctx context.Context, key string, value []byte, opts ...jetstream.KVCreateOpt) (uint64, error) {
+	if key == k.key {
+		return 0, k.err
+	}
+	return k.KeyValue.Create(ctx, key, value, opts...)
+}
+
+// On a clustered stream the server can refuse an expected-sequence check with error 10164 ("wrong last
+// sequence", without the sequence) instead of 10071, which nats.go maps to ErrKeyExists and not 10164. Both are
+// the same refusal, so a create refused with either releases the lookup key it reserved and is a conflict.
+func TestStorage_TakenUIDRefusedWithEitherWrongLastSequenceCode(t *testing.T) {
+	ctx := context.Background()
+	inflight := &jetstream.APIError{Code: 400, ErrorCode: 10164, Description: "wrong last sequence"}
+	require.NotErrorIs(t, inflight, jetstream.ErrKeyExists, "nats.go does not map 10164 to ErrKeyExists")
+
+	client := newKVClient(t)
+	s := NewStorage(client)
+	require.NoError(t, s.CreateMember(ctx, newConflictTestMember("m-1", "first.last@example.com")))
+
+	cases := map[string]struct {
+		bucket string
+		key    string
+		create func(uid string) error
+	}{
+		"invite": {constants.KVBucketNameCommitteeInvites, "i-new", func(uid string) error {
+			return s.CreateInvite(ctx, storetest.NewInvite(uid, "committee-9", "first.last9@example.com"))
+		}},
+		"application": {constants.KVBucketNameCommitteeApplications, "a-new", func(uid string) error {
+			return s.CreateApplication(ctx, storetest.NewApplication(uid, "committee-9", "first.last9@example.com"))
+		}},
+		"member": {constants.KVBucketNameCommitteeMembers, "m-1", func(uid string) error {
+			member := newConflictTestMember(uid, "first.last9@example.com")
+			member.CommitteeUID = "committee-9"
+			return s.CreateMember(ctx, member)
+		}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			real := client.kvStore[c.bucket]
+			client.kvStore[c.bucket] = &failingCreateKV{KeyValue: real, key: c.key, err: inflight}
+			requireOuterConflict(t, c.create(c.key))
+
+			// The refused create reserved nothing: the same email can still be used in that committee.
+			client.kvStore[c.bucket] = real
+			require.NoError(t, c.create(c.key+"-retry"))
+		})
+	}
+}
