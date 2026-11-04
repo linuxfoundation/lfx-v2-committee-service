@@ -252,10 +252,18 @@ runs it from its own package: `internal/infrastructure/nats/contract_test.go` st
 with the buckets the deployment creates (no external NATS is needed), and
 `internal/infrastructure/postgres/contract_test.go` uses the per-test schema above.
 
-A backend may declare where it differs. The only declared difference so far is the error of a stale revision: KV
-reports its "wrong last sequence" as `errs.Unexpected` (a 500), PostgreSQL as `errs.Conflict`, the error the service
-returns when it finds the revision has moved. Anything else a suite shows that differs is a bug in one of the stores,
-or a deviation to document here.
+A backend may declare where it differs, and the suites show any other difference as a failing case. Two are known:
+
+- **A lost compare-and-swap.** The KV store reports a stale revision on a committee, its settings or a delete as
+  `errs.Unexpected` (a 500, JetStream's "wrong last sequence" wrapped as is), where PostgreSQL returns `errs.Conflict`,
+  the error the service returns when it finds the revision has moved. This is a defect of the KV store, not an
+  accepted behavior: the knowledge base records the mapping to 409 as the intended one, and the link, document and
+  member-update writes already do it. The KV backend declares it (`StaleRevision`) only so the suite stays green until
+  the mapping is fixed; the declaration goes with the fix.
+- **Identical writers with the same revision.** KV treats a failed swap whose stored record equals what the writer
+  wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed;
+  PostgreSQL gives one of them a conflict. It is benign, and the race case has each writer write different content for
+  that reason.
 
 Suites so far: committee and settings (create, get, update, delete, the name and SSO group name uniqueness, the
 lookups, the counters, concurrent writers). Members, invites, applications, links, folders, document metadata and

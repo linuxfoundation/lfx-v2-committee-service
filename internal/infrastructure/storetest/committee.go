@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,11 +23,15 @@ type CommitteeFactory func(t *testing.T) port.CommitteeReaderWriter
 // RunCommitteeContract runs the committee and settings cases against the backend: create, read,
 // update, delete, the name and SSO group name uniqueness, the lookups and the counters.
 func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFactory) {
+	t.Run(backend.Name, func(t *testing.T) { runCommitteeContract(t, backend, newStore) })
+}
+
+func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFactory) {
 	ctx := context.Background()
 
 	t.Run("create and get round-trip every field", func(t *testing.T) {
 		store := newStore(t)
-		want := Committee("uid-1", "project-1", "Committee One")
+		want := NewCommittee("uid-1", "project-1", "Committee One")
 		require.NoError(t, store.Create(ctx, want))
 
 		base, revision, err := store.GetBase(ctx, "uid-1")
@@ -47,7 +52,7 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		store := newStore(t)
 		minimal := &model.Committee{CommitteeBase: model.CommitteeBase{
 			UID: "uid-min", ProjectUID: "project-1", Name: "Minimal",
-			CreatedAt: Committee("x", "p", "n").CommitteeBase.CreatedAt, UpdatedAt: Committee("x", "p", "n").CommitteeBase.UpdatedAt,
+			CreatedAt: FixtureTime, UpdatedAt: FixtureTime.Add(time.Hour),
 		}}
 		require.NoError(t, store.Create(ctx, minimal))
 		base, _, err := store.GetBase(ctx, "uid-min")
@@ -73,10 +78,10 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("a committee name is unique per project", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
-		requireConflict(t, store.Create(ctx, Committee("uid-2", "project-1", "Committee One")))
-		require.NoError(t, store.Create(ctx, Committee("uid-3", "project-2", "Committee One")), "the same name in another project")
-		require.NoError(t, store.Create(ctx, Committee("uid-4", "project-1", "Committee Two")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
+		requireConflict(t, store.Create(ctx, NewCommittee("uid-2", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-3", "project-2", "Committee One")), "the same name in another project")
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-4", "project-1", "Committee Two")))
 
 		_, _, err := store.GetBase(ctx, "uid-2")
 		requireNotFound(t, err)
@@ -84,16 +89,16 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("an SSO group name is unique, and the conflict says why", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 
-		clash := Committee("uid-2", "project-2", "Committee Two")
+		clash := NewCommittee("uid-2", "project-2", "Committee Two")
 		clash.SSOGroupName = "sso-uid-1"
 		err := store.Create(ctx, clash)
 		requireConflict(t, err)
 		assert.ErrorIs(t, err, errs.ErrSSOGroupNameTaken)
 
 		// A failed create reserves nothing: its name is still free.
-		require.NoError(t, store.Create(ctx, Committee("uid-3", "project-2", "Committee Two")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-3", "project-2", "Committee Two")))
 	})
 
 	t.Run("ListAllUIDs lists every committee", func(t *testing.T) {
@@ -102,7 +107,7 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		require.NoError(t, err)
 		assert.Empty(t, uids)
 
-		for _, c := range []*model.Committee{Committee("uid-1", "p", "One"), Committee("uid-2", "p", "Two"), Committee("uid-3", "q", "One")} {
+		for _, c := range []*model.Committee{NewCommittee("uid-1", "p", "One"), NewCommittee("uid-2", "p", "Two"), NewCommittee("uid-3", "q", "One")} {
 			require.NoError(t, store.Create(ctx, c))
 		}
 		uids, err = store.ListAllUIDs(ctx)
@@ -112,7 +117,7 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("FindUIDByProjectAndName follows creates, renames and deletes", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 
 		uid, err := store.FindUIDByProjectAndName(ctx, "project-1", "Committee One")
 		require.NoError(t, err)
@@ -141,7 +146,7 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("UpdateBase replaces the committee and the revision", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 		base, revision, err := store.GetBase(ctx, "uid-1")
 		require.NoError(t, err)
 
@@ -158,7 +163,7 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("UpdateBase with a stale revision fails and changes nothing", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 		base, revision, err := store.GetBase(ctx, "uid-1")
 		require.NoError(t, err)
 		base.Description = "first writer"
@@ -173,19 +178,21 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("UpdateBase of a missing committee is not found", func(t *testing.T) {
 		store := newStore(t)
-		ghost := Committee("ghost", "project-1", "Ghost")
+		ghost := NewCommittee("ghost", "project-1", "Ghost")
 		requireNotFound(t, store.UpdateBase(ctx, ghost, 1))
 	})
 
 	t.Run("UpdateBase enforces the name and SSO group name, and frees the old ones", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
-		require.NoError(t, store.Create(ctx, Committee("uid-2", "project-1", "Committee Two")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-2", "project-1", "Committee Two")))
 
 		base, revision, err := store.GetBase(ctx, "uid-2")
 		require.NoError(t, err)
 		base.Name = "Committee One"
-		requireConflict(t, store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+		err = store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision)
+		requireConflict(t, err)
+		assert.NotErrorIs(t, err, errs.ErrSSOGroupNameTaken, "a name conflict is not an SSO group name conflict")
 
 		base.Name = "Committee Two"
 		base.SSOGroupName = "sso-uid-1"
@@ -193,16 +200,25 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		requireConflict(t, err)
 		assert.ErrorIs(t, err, errs.ErrSSOGroupNameTaken)
 
-		// Moving to a new name frees the old one for another committee.
-		base.SSOGroupName = "sso-uid-2"
+		// Moving to a new name and a new SSO group name frees both old ones for another committee.
 		base.Name = "Committee Three"
+		base.SSOGroupName = "sso-renamed"
 		require.NoError(t, store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
-		require.NoError(t, store.Create(ctx, Committee("uid-3", "project-1", "Committee Two")))
+		reuse := NewCommittee("uid-3", "project-1", "Committee Two")
+		reuse.SSOGroupName = "sso-uid-2"
+		require.NoError(t, store.Create(ctx, reuse), "the old name and the old SSO group name are free")
+
+		// ... and the new SSO group name is taken.
+		clash := NewCommittee("uid-4", "project-2", "Committee Four")
+		clash.SSOGroupName = "sso-renamed"
+		err = store.Create(ctx, clash)
+		requireConflict(t, err)
+		assert.ErrorIs(t, err, errs.ErrSSOGroupNameTaken)
 	})
 
 	t.Run("UpdateSetting replaces the settings and the revision", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 		settings, revision, err := store.GetSettings(ctx, "uid-1")
 		require.NoError(t, err)
 
@@ -223,7 +239,7 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("settings keep a list that was never set apart from one set to empty", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 		settings, revision, err := store.GetSettings(ctx, "uid-1")
 		require.NoError(t, err)
 
@@ -238,7 +254,7 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 
 	t.Run("Delete removes the committee and its settings and frees its names", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 		_, revision, err := store.GetBase(ctx, "uid-1")
 		require.NoError(t, err)
 
@@ -252,12 +268,12 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		_, _, err = store.GetSettings(ctx, "uid-1")
 		requireNotFound(t, err)
 		requireNotFound(t, store.Delete(ctx, "uid-1", revision))
-		require.NoError(t, store.Create(ctx, Committee("uid-2", "project-1", "Committee One")), "the name is free again")
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-2", "project-1", "Committee One")), "the name is free again")
 	})
 
 	t.Run("the counters write only when the value changes", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 		_, revision, err := store.GetBase(ctx, "uid-1")
 		require.NoError(t, err)
 
@@ -291,9 +307,9 @@ func RunCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		requireNotFound(t, err)
 	})
 
-	t.Run("two writers with the same revision: one wins", func(t *testing.T) {
+	t.Run("concurrent writers with the same revision: one wins", func(t *testing.T) {
 		store := newStore(t)
-		require.NoError(t, store.Create(ctx, Committee("uid-1", "project-1", "Committee One")))
+		require.NoError(t, store.Create(ctx, NewCommittee("uid-1", "project-1", "Committee One")))
 		base, revision, err := store.GetBase(ctx, "uid-1")
 		require.NoError(t, err)
 

@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 // Package storetest holds the behavioral test suites that every committee storage backend must pass.
+// It is test support: import it only from _test.go files, never from code that ships in a binary,
+// because it imports the testing package.
+//
 // A suite takes a Backend, which builds a fresh, empty store, so the same cases run against the NATS
 // KV store and the PostgreSQL store and any difference between them shows up as a failing case.
 package storetest
@@ -14,10 +17,13 @@ import (
 
 func strPtr(s string) *string { return &s }
 
-// Committee returns a committee with every field set, so a round trip shows any field that is not
+// FixtureTime is the creation time the fixtures use.
+var FixtureTime = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+// NewCommittee returns a committee with every field set, so a round trip shows any field that is not
 // stored or read back.
-func Committee(uid, project, name string) *model.Committee {
-	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+func NewCommittee(uid, project, name string) *model.Committee {
+	created := FixtureTime
 	return &model.Committee{
 		CommitteeBase: model.CommitteeBase{
 			UID:              uid,

@@ -16,9 +16,9 @@ import (
 type Backend struct {
 	// Name labels the backend in test names.
 	Name string
-	// StaleRevision checks the error of an update or delete whose revision is no longer current. The
-	// default is errs.Conflict; a backend that reports something else says so here, and the difference
-	// is documented where the backend is.
+	// StaleRevision checks the error of a committee, settings or delete write whose revision is no
+	// longer current. The default is errs.Conflict; a backend that reports something else says so
+	// here, and the difference is documented where the backend is.
 	StaleRevision func(t *testing.T, err error)
 }
 
