@@ -2011,6 +2011,9 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 	if invite == nil {
 		return errs.NewValidation("committee invite cannot be nil")
 	}
+	if invite.UID == "" || invite.CommitteeUID == "" {
+		return errs.NewValidation("committee invite UID and CommitteeUID must be non-empty")
+	}
 
 	inviteBytes, errMarshal := json.Marshal(invite)
 	if errMarshal != nil {
@@ -2029,6 +2032,11 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 
 	rev, errCreate := kv.Create(ctx, invite.UID, inviteBytes)
 	if errCreate != nil {
+		if errors.Is(errCreate, jetstream.ErrKeyExists) {
+			// A different invite already holds the uid, so the key reserved for this one is nobody's.
+			releaseLookupKey(ctx, kv, uniqueKey, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
+			return errs.NewConflict("committee invite already exists")
+		}
 		rollbackLookupKey(ctx, kv, invite.UID, uniqueKey, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee invite", errCreate)
 	}
@@ -2188,6 +2196,9 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 	if application == nil {
 		return errs.NewValidation("committee application cannot be nil")
 	}
+	if application.UID == "" || application.CommitteeUID == "" {
+		return errs.NewValidation("committee application UID and CommitteeUID must be non-empty")
+	}
 
 	applicationBytes, errMarshal := json.Marshal(application)
 	if errMarshal != nil {
@@ -2206,6 +2217,11 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 
 	rev, errCreate := kv.Create(ctx, application.UID, applicationBytes)
 	if errCreate != nil {
+		if errors.Is(errCreate, jetstream.ErrKeyExists) {
+			// A different application already holds the uid, so the key reserved for this one is nobody's.
+			releaseLookupKey(ctx, kv, uniqueKey, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
+			return errs.NewConflict("committee application already exists")
+		}
 		rollbackLookupKey(ctx, kv, application.UID, uniqueKey, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
 		return errs.NewUnexpected("failed to create committee application", errCreate)
 	}
@@ -2314,6 +2330,21 @@ func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lo
 		return
 	}
 
+	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs...)
+}
+
+// releaseLookupKey releases the lookup key a create reserved when the record write was refused because
+// the uid is already held by another record. Unlike an ambiguous write error, that refusal is
+// definitive: no record of this create exists, and the key cannot belong to the record that holds the
+// uid, because reserving it would have failed if that record used it. It runs on a context detached
+// from the request, like rollbackLookupKey.
+func releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, createErr error, attrs ...any) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs...)
+}
+
+func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, createErr error, attrs ...any) {
 	if errPurge := kv.Purge(ctx, lookupKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
 		slog.ErrorContext(ctx, "failed to release lookup key; the name or email stays locked until it is removed",
 			append([]any{"error", errPurge, "create_error", createErr, log.PriorityCritical()}, attrs...)...,

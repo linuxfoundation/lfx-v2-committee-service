@@ -264,7 +264,12 @@ store are fixed, and it now answers as PostgreSQL does:
 - a read with an empty uid is `errs.Validation`, a 400, where it was an internal error wrapping the validation error;
 - creating a member with a uid that another member already holds is `errs.Conflict`, where it was an internal error,
   or, when the second member had the same committee and email, a success that wrote lookups for content that was never
-  stored.
+  stored;
+- creating an invite or an application with a uid that another one already holds is `errs.Conflict`, where it was an
+  internal error that also left the reserved (committee, email) lock behind, so the same person could not be invited or
+  apply to that committee afterwards;
+- creating an invite or an application with an empty uid or committee uid is `errs.Validation`, a 400, where an empty uid
+  reached the bucket as an invalid key, an internal error.
 
 One benign difference remains and is not an error:
 
@@ -276,4 +281,5 @@ One benign difference remains and is not an error:
 Suites so far: committee and settings (create, get, update, delete, the name and SSO group name uniqueness, the
 lookups, the counters, concurrent writers) and members (create, get, update, delete, the email uniqueness per
 committee, the by-committee, organization, email and username lookups with their normalization, the streaming reads,
-concurrent writers). Invites, applications, links, folders, document metadata and weekly briefs follow.
+concurrent writers), invites and applications (create, get, update, the email uniqueness per committee, the listings,
+the delete of an application, concurrent writers). Links, folders, document metadata and weekly briefs follow.

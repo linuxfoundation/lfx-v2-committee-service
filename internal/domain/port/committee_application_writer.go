@@ -13,7 +13,7 @@ import (
 type CommitteeApplicationWriter interface {
 	// CreateApplication creates a new committee application. At most one application exists per
 	// (committee, applicant email); a second create for the same pair returns errs.Conflict and
-	// leaves storage unchanged.
+	// leaves storage unchanged, and so does a uid that another application already holds.
 	CreateApplication(ctx context.Context, application *model.CommitteeApplication) error
 	// UpdateApplication updates an existing committee application
 	UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error

@@ -411,3 +411,15 @@ func TestContract_Members(t *testing.T) {
 		return newTestStore(t)
 	})
 }
+
+func TestContract_Invites(t *testing.T) {
+	storetest.RunInviteContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return newTestStore(t)
+	})
+}
+
+func TestContract_Applications(t *testing.T) {
+	storetest.RunApplicationContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return newTestStore(t)
+	})
+}

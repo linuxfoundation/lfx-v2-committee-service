@@ -2120,3 +2120,15 @@ func TestContract_Members(t *testing.T) {
 		return NewStorage(newKVClient(t))
 	})
 }
+
+func TestContract_Invites(t *testing.T) {
+	storetest.RunInviteContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return NewStorage(newKVClient(t))
+	})
+}
+
+func TestContract_Applications(t *testing.T) {
+	storetest.RunApplicationContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return NewStorage(newKVClient(t))
+	})
+}

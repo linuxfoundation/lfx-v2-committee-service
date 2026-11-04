@@ -13,7 +13,7 @@ import (
 type CommitteeInviteWriter interface {
 	// CreateInvite creates a new committee invite. At most one invite exists per
 	// (committee, invitee email); a second create for the same pair returns errs.Conflict and
-	// leaves storage unchanged.
+	// leaves storage unchanged, and so does a uid that another invite already holds.
 	CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error
 	// UpdateInvite updates an existing committee invite
 	UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error
