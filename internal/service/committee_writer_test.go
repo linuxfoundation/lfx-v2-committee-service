@@ -3505,8 +3505,10 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 		}
 		removed.InviteUIDs = []string{"i-1"}
 		removed.LinkUIDs = []string{"l-1"}
+		removed.Applications = []*model.CommitteeApplication{{UID: "a-1", CommitteeUID: "committee-1", ApplicantEmail: "first.last@example.com", Status: "pending"}}
 		for name, failing := range map[string]string{
 			"a child": constants.IndexCommitteeMemberSubject, "the committee itself": constants.IndexCommitteeSubject,
+			"an application": constants.IndexCommitteeApplicationSubject,
 		} {
 			t.Run(name, func(t *testing.T) {
 				_, publisher, orchestrator := setup(removed)
@@ -3522,13 +3524,26 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 				assert.Equal(t, len(removed.MemberUIDs), counts[constants.IndexCommitteeMemberSubject], "every member was attempted")
 				assert.Equal(t, 1, counts[constants.IndexCommitteeInviteSubject])
 				assert.Equal(t, 1, counts[constants.IndexCommitteeLinkSubject])
-				assert.Equal(t, 2, publisher.DeleteAccessCallCount, "the committee's and the invite's access deletes")
+				assert.Equal(t, 1, counts[constants.IndexCommitteeApplicationSubject])
+				// The committee's own access delete is not asserted: it is published with the committee's
+				// messages, where a failing committee index publish can cancel it. The children's always go.
+				deleted := map[string]bool{}
+				for _, raw := range publisher.DeleteAccessMessages {
+					msg, ok := raw.(fgatypes.GenericFGAMessage)
+					require.True(t, ok)
+					deleted[msg.ObjectType] = true
+				}
+				assert.True(t, deleted["committee_invite"], "the invite's access delete")
+				assert.True(t, deleted["committee_application"], "the application's access delete")
 			})
 		}
 	})
 
 	t.Run("a request that ends after the delete committed still cleans up the children", func(t *testing.T) {
-		_, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{MemberUIDs: []string{"m-1"}, InviteUIDs: []string{"i-1"}})
+		_, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{
+			MemberUIDs: []string{"m-1"}, InviteUIDs: []string{"i-1"},
+			Applications: []*model.CommitteeApplication{{UID: "a-1", CommitteeUID: "committee-1", ApplicantEmail: "first.last@example.com", Status: "pending"}},
+		})
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
@@ -3536,6 +3551,15 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 
 		assert.Contains(t, publisher.IndexerSubjects, constants.IndexCommitteeMemberSubject)
 		assert.Contains(t, publisher.IndexerSubjects, constants.IndexCommitteeInviteSubject)
+		assert.Contains(t, publisher.IndexerSubjects, constants.IndexCommitteeApplicationSubject)
+		deleted := map[string]bool{}
+		for _, raw := range publisher.DeleteAccessMessages {
+			msg, ok := raw.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			deleted[msg.ObjectType] = true
+		}
+		assert.True(t, deleted["committee_invite"])
+		assert.True(t, deleted["committee_application"])
 	})
 
 	t.Run("a committee with many children has every one of them cleaned up", func(t *testing.T) {

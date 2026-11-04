@@ -989,7 +989,7 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		if removed == nil {
 			removed = &model.CommitteeRemovedChildren{}
 		}
-		applications = removed.Applications
+		// The applications are cleaned up with the other children, below, not with the committee's messages.
 	} else {
 		// List applications for cascade cleanup; best-effort — proceed even if listing fails.
 		var errListApps error
@@ -1076,18 +1076,16 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 			return uc.committeePublisher.DeleteAccess(ctx, appDeleteMsg)
 		})
 
-		if !cascades {
-			messages = append(messages, func() error {
-				if errKV := uc.committeeWriter.DeleteApplication(ctx, localApp); errKV != nil {
-					slog.WarnContext(ctx, "failed to delete application KV record during cascade — skipping",
-						"error", errKV,
-						"application_uid", localApp.UID,
-						log.PriorityCritical(),
-					)
-				}
-				return nil
-			})
-		}
+		messages = append(messages, func() error {
+			if errKV := uc.committeeWriter.DeleteApplication(ctx, localApp); errKV != nil {
+				slog.WarnContext(ctx, "failed to delete application KV record during cascade — skipping",
+					"error", errKV,
+					"application_uid", localApp.UID,
+					log.PriorityCritical(),
+				)
+			}
+			return nil
+		})
 	}
 
 	// Execute all messages concurrently
@@ -1120,10 +1118,10 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 // committee can hold thousands of them.
 const maxCascadePublishers = 32
 
-// cleanUpRemovedChildren publishes the index delete of every child, other than applications, that a
-// cascading committee delete removed, and the access delete of each invite, which has an FGA object of its
-// own. The committee's own delete_access removes the tuples on the committee, which covers members; the
-// applications are handled with the committee's messages. It publishes on a context detached from the
+// cleanUpRemovedChildren publishes the index delete of every child that a cascading committee delete
+// removed (an application's carries its tags), and the access delete of each application and invite, which
+// have an FGA object of their own. The committee's own delete_access removes the tuples on the committee,
+// which covers members. It publishes on a context detached from the
 // request, because the delete has committed, runs every message even when one fails, and returns an error
 // when any did. A message that cannot be built is logged and counted as a failure.
 func (uc *committeeWriterOrchestrator) cleanUpRemovedChildren(ctx context.Context, removed *model.CommitteeRemovedChildren) error {
@@ -1164,18 +1162,41 @@ func (uc *committeeWriterOrchestrator) cleanUpRemovedChildren(ctx context.Contex
 			})
 		}
 	}
-	for _, inviteUID := range removed.InviteUIDs {
-		deleteMsg := fgatypes.GenericFGAMessage{
-			ObjectType: "committee_invite",
-			Operation:  "delete_access",
-			Data:       fgatypes.GenericDeleteData{UID: inviteUID},
+	for _, application := range removed.Applications {
+		indexerMessage := model.CommitteeIndexerMessage{Action: model.ActionDeleted, Tags: application.Tags()}
+		built, errBuild := indexerMessage.Build(ctx, application.UID)
+		if errBuild != nil {
+			fail(errBuild, "subject", constants.IndexCommitteeApplicationSubject, "child_uid", application.UID)
+		} else {
+			messages = append(messages, func() error {
+				if err := uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeApplicationSubject, built, false); err != nil {
+					fail(err, "subject", constants.IndexCommitteeApplicationSubject, "child_uid", application.UID)
+				}
+				return nil
+			})
 		}
-		messages = append(messages, func() error {
-			if err := uc.committeePublisher.DeleteAccess(ctx, deleteMsg); err != nil {
-				fail(err, "object_type", "committee_invite", "child_uid", inviteUID)
+	}
+	for _, access := range []struct {
+		objectType string
+		uids       []string
+	}{
+		{"committee_application", applicationUIDs(removed.Applications)},
+		{"committee_invite", removed.InviteUIDs},
+	} {
+		for _, childUID := range access.uids {
+			deleteMsg := fgatypes.GenericFGAMessage{
+				ObjectType: access.objectType,
+				Operation:  "delete_access",
+				Data:       fgatypes.GenericDeleteData{UID: childUID},
 			}
-			return nil
-		})
+			objectType := access.objectType
+			messages = append(messages, func() error {
+				if err := uc.committeePublisher.DeleteAccess(ctx, deleteMsg); err != nil {
+					fail(err, "object_type", objectType, "child_uid", childUID)
+				}
+				return nil
+			})
+		}
 	}
 
 	// The functions report their own failures and return nil, so none cancels the rest.
@@ -1184,6 +1205,15 @@ func (uc *committeeWriterOrchestrator) cleanUpRemovedChildren(ctx context.Contex
 		return errs.NewUnexpected(fmt.Sprintf("failed to clean up %d children of the deleted committee", n))
 	}
 	return nil
+}
+
+// applicationUIDs returns the uids of the applications.
+func applicationUIDs(applications []*model.CommitteeApplication) []string {
+	uids := make([]string, 0, len(applications))
+	for _, application := range applications {
+		uids = append(uids, application.UID)
+	}
+	return uids
 }
 
 // NewcommitteeWriterOrchestrator creates a new create committee use case using the option pattern

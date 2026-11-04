@@ -187,8 +187,8 @@ are the ones it reports as removed, `ListApplications` is not called and no per-
 of their own (`committee_invite`), so each removed invite also gets a `delete_access` with `object_type: committee_invite`:
 the defensive branch described under [delete_access (Delete)](#delete_access-delete), of which a cascade is the first
 caller. A plain invite delete keeps the object so history queries work; after a cascade the invite and its index entry
-are gone, so nothing could read those tuples. The invite messages are published after the committee's own, on a
-context detached from the request and one at a time of at most 32, and a failure of one does not skip the rest.
+are gone, so nothing could read those tuples. The application and invite messages are published after the committee's own, on a
+context detached from the request, at most 32 at a time, and a failure of one does not skip the rest.
 
 ### Event Summary
 
