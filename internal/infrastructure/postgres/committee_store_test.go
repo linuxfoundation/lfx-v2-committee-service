@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -40,59 +41,10 @@ func newTestStoreWith(t *testing.T, params map[string]string) *Store {
 	return NewStore(pool)
 }
 
-func strPtr(s string) *string { return &s }
-
 // testCommittee returns a committee with every field set, so a round trip shows any column that is
-// not stored or read back.
+// not stored or read back. The fixture is shared with the contract tests.
 func testCommittee(uid, project, name string) *model.Committee {
-	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	return &model.Committee{
-		CommitteeBase: model.CommitteeBase{
-			UID:              uid,
-			ProjectUID:       project,
-			ProjectName:      "Project Name",
-			ProjectSlug:      "project-slug",
-			Name:             name,
-			Category:         "Technical Steering Committee",
-			Description:      "A committee",
-			Website:          strPtr("https://example.com"),
-			MailingList:      strPtr("first-last@example.com"),
-			ChatChannel:      strPtr("#first-last"),
-			EnableVoting:     true,
-			SSOGroupEnabled:  true,
-			SSOGroupName:     "sso-" + uid,
-			RequiresReview:   true,
-			Public:           true,
-			JoinMode:         "invite_only",
-			Calendar:         model.Calendar{Public: true},
-			DisplayName:      "Display Name",
-			ParentUID:        strPtr("parent-uid"),
-			Repository:       strPtr("https://example.com/repo"),
-			Scope:            []string{"scope-a", "scope-b"},
-			Deliverables:     []string{"deliverable"},
-			KeyDates:         []model.KeyDate{{Date: "2026-06-01", Label: "Kickoff"}},
-			ExternalSources:  []model.ExternalSource{{Provider: "provider", EntityType: "group", Label: "Label", URL: "https://example.com/source", ExternalID: "id"}},
-			Charter:          &model.Charter{URL: "https://example.com/charter", Version: 3, UpdatedAt: created, UpdatedBy: &model.CommitteeUser{Name: "First Last", Username: "first-last", Email: "first.last@example.com"}},
-			TotalMembers:     4,
-			TotalVotingRepos: 2,
-			HasMailingList:   true,
-			CreatedAt:        created,
-			UpdatedAt:        created.Add(time.Hour),
-		},
-		CommitteeSettings: &model.CommitteeSettings{
-			BusinessEmailRequired: true,
-			ShowMeetingAttendees:  true,
-			MemberVisibility:      "basic_profile",
-			ChatWebhookURL:        strPtr("https://example.com/hook"),
-			HasChatWebhook:        true,
-			LastReviewedAt:        strPtr("2026-05-01"),
-			LastReviewedBy:        strPtr("first-last"),
-			Writers:               []model.CommitteeUser{{Name: "First Last", Username: "first-last", Email: "first.last@example.com"}},
-			Auditors:              []model.CommitteeUser{{Name: "First Last", Username: "first-last-2", Email: "first.last2@example.com"}},
-			CreatedAt:             created,
-			UpdatedAt:             created.Add(time.Hour),
-		},
-	}
+	return storetest.NewCommittee(uid, project, name)
 }
 
 func requireConflict(t *testing.T, err error) {
