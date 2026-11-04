@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -141,7 +142,8 @@ func scanThrottle(row pgx.Row) (*model.GroupWeeklyBriefThrottle, error) {
 
 // GetGroupWeeklyBriefForWindow returns the committee's brief for the UTC day of window.WindowStart
 // and the JSON of the throttle entry for the same window (nil when there is none). A miss is not
-// an error. Like KV, a window with no brief returns no throttle either.
+// an error. Like KV, a window with no brief returns no throttle either, and a failed throttle lookup is
+// logged and leaves the throttle out rather than failing the read.
 func (s *Store) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error) {
 	brief, err := scanBrief(s.pool.QueryRow(ctx, selectBrief+" WHERE committee_uid = $1 AND "+windowDate, committeeUID, windowDay(window.WindowStart)))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -150,9 +152,11 @@ func (s *Store) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID s
 	if err != nil {
 		return nil, nil, unexpected("failed to read weekly brief", err)
 	}
+	// The throttle is advisory metadata for GET /current: as in KV, a failed lookup does not fail the brief read.
 	throttle, err := s.GetGroupWeeklyBriefThrottle(ctx, committeeUID, window.WindowStart)
 	if err != nil {
-		return nil, nil, err
+		slog.WarnContext(ctx, "failed to read weekly-brief throttle entry", "committee_uid", committeeUID, "error", err)
+		return brief, nil, nil
 	}
 	if throttle == nil {
 		return brief, nil, nil

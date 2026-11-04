@@ -194,12 +194,18 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   `<committee_uid>.<yyyymmdd>`, whatever time zone the connection uses (the queries use the same
   `(window_start AT TIME ZONE 'UTC')::date` as the unique indexes). A put with a revision is a compare-and-swap and
   without one replaces the brief with the same uid, as in KV, and a lost swap is `errs.ServiceUnavailable`, the error KV
-  returns, which callers answer by reading again; the throttle works the same way (revision 0 creates). Differences from
-  KV: a window holds one brief, so a second brief with another uid for the same window is that same retryable error,
-  where KV lets it take over the index entry and orphans the first; `window_end` keeps microseconds, so the last
+  returns; the throttle works the same way (revision 0 creates). Edits re-read and answer a lost swap with a revision
+  mismatch, and generation is redelivered, but `Claim`, which inserts a new brief, returns it to the HTTP client.
+  Differences from KV: a window holds one brief, so a second brief with another uid for the same window is that same
+  retryable error, where KV lets it take over the index entry and orphans the first (`Claim` may then answer 503 after
+  it has charged the throttle); `window_end` keeps microseconds, so the last
   nanosecond of the week (`23:59:59.999999999`) reads back as `23:59:59.999999`, still the same week. The throttle
-  entry is returned as JSON for the brief's window, and `ListGroupWeeklyBriefIndexKeys` rebuilds the KV keys,
-  with `/`, `:` and spaces replaced by dots as KV does.
+  entry is returned as JSON for the brief's window, and a failed throttle lookup is logged and leaves it out, as in KV.
+  `ListGroupWeeklyBriefIndexKeys` rebuilds the KV keys, with `/`, `:` and spaces replaced by dots as KV does (the
+  replacer is repeated from the NATS adapter, so change both together). A put finds the brief by uid and writes the
+  committee and window it is given, as KV does: the composite store must take the uid from a lookup by committee and
+  window, never from a request. Revisions come from the shared sequence, not a bucket's, so a revision a client holds
+  across the switch from KV gets one revision mismatch.
 - **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
   `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
   port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.

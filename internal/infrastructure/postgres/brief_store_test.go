@@ -201,6 +201,15 @@ func TestStore_GetGroupWeeklyBriefForWindow(t *testing.T) {
 		got.Revision = want.Revision // the revision is not part of the JSON
 		assert.Equal(t, *want, got)
 	})
+
+	t.Run("a failed throttle lookup does not fail the brief read", func(t *testing.T) {
+		_, err := store.pool.Exec(ctx, "DROP TABLE group_weekly_brief_throttle")
+		require.NoError(t, err)
+		brief, throttleJSON, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", model.GroupWeeklyBrief{WindowStart: testWindow})
+		require.NoError(t, err)
+		require.NotNil(t, brief)
+		assert.Nil(t, throttleJSON)
+	})
 }
 
 func TestStore_ListGroupWeeklyBriefIndexKeys(t *testing.T) {
