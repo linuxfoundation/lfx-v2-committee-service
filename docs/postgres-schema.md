@@ -306,7 +306,7 @@ the delete of an application, concurrent writers), and links and link folders (c
 the audit-sync list and update, delete with the revision within the committee, the folder name unique per committee
 and case-sensitive, concurrent writers), and document metadata (create, get within the committee, the name check, the
 audit-sync list and update, delete with the revision within the committee, the name unique per committee and
-case-sensitive, concurrent writers). and weekly briefs with their throttle entries (put with and without a revision, the read by committee and the UTC date
-of the window, the index keys and their separators, the throttle create and compare-and-swap, concurrent writers). The
-brief suite found no KV defect: a lost swap on a brief or a throttle entry is `errs.ServiceUnavailable` in both stores,
-the answer the callers retry on.
+case-sensitive, concurrent writers), and weekly briefs with their throttle entries (put with and without a revision,
+the read by committee and the UTC date of the window, the index keys and their separators, the throttle create and
+compare-and-swap, concurrent writers). The brief suite found no KV defect: a lost swap on a brief or a throttle entry is
+`errs.ServiceUnavailable` in both stores, the answer the callers retry on.

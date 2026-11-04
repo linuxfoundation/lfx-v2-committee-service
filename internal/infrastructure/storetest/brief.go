@@ -130,6 +130,7 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 		requireUnavailable(t, err)
 		got, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", window)
 		require.NoError(t, err)
+		require.NotNil(t, got)
 		assert.Equal(t, "first writer", got.BriefText)
 		assert.Equal(t, second.Revision, got.Revision)
 	})
@@ -270,6 +271,7 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 		requireUnavailable(t, err)
 		got, err := store.GetGroupWeeklyBriefThrottle(ctx, "committee-1", FixtureWindow)
 		require.NoError(t, err)
+		require.NotNil(t, got)
 		assert.Equal(t, 1, got.GeneratesUsed)
 	})
 
@@ -291,6 +293,7 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 		requireUnavailable(t, err)
 		got, err := store.GetGroupWeeklyBriefThrottle(ctx, "committee-1", FixtureWindow)
 		require.NoError(t, err)
+		require.NotNil(t, got)
 		assert.Equal(t, 2, got.GeneratesUsed)
 		assert.Equal(t, second.Revision, got.Revision)
 	})
