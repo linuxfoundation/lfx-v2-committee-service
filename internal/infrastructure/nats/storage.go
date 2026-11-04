@@ -449,15 +449,20 @@ func readError(message string, err error) error {
 // "wrong last sequence") is a conflict, a 409, as the PostgreSQL store reports it. JetStream reports the
 // same error when the key does not exist, so a re-read tells the two apart: an absent key is not found,
 // a 404, as PostgreSQL reports it. The conflict carries no cause, so no NATS error text reaches a client.
-// Anything else is an internal error.
+// Anything else, including a re-read that fails, is an internal error.
 func (s *storage) writeError(ctx context.Context, kv jetstream.KeyValue, key, notFound, conflict, message string, err error) error {
 	if !isJetStreamCASConflict(err) {
 		return errs.NewUnexpected(message, err)
 	}
 	rctx, cancel := detachedCtx(ctx)
 	defer cancel()
-	if _, errGet := kv.Get(rctx, key); errors.Is(errGet, jetstream.ErrKeyNotFound) {
+	_, errGet := kv.Get(rctx, key)
+	switch {
+	case errors.Is(errGet, jetstream.ErrKeyNotFound):
 		return errs.NewNotFound(notFound)
+	case errGet != nil:
+		// The re-read failed, so whether the record exists is not known: not a conflict.
+		return errs.NewUnexpected(message, err)
 	}
 	return errs.NewConflict(conflict)
 }
@@ -1413,6 +1418,11 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 				// landed and was then changed by another writer), so the old keys are released unless
 				// the stored member still uses them.
 				s.releaseStaleMemberKeys(ctx, member.UID, stale)
+			}
+			if state == recordAbsent && isJetStreamCASConflict(errUpdate) {
+				// The member was deleted after it was read: JetStream reports the update of a missing key
+				// as a lost swap, but it is not found, as in the PostgreSQL store.
+				return nil, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", member.UID))
 			}
 			return nil, mapMemberUpdateError(errUpdate)
 		}

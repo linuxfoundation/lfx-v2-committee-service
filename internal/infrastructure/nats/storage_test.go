@@ -1969,14 +1969,45 @@ func TestStorage_LostSwapIsConflict(t *testing.T) {
 }
 
 // failingUpdateKV wraps a real bucket so every Update fails with err, which is how a lost compare-and-swap
-// looks to the store: jetstream.ErrKeyExists is JetStream's "wrong last sequence".
+// looks to the store: jetstream.ErrKeyExists is JetStream's "wrong last sequence". After okGets reads,
+// every Get fails with getErr, when it is set, so a test can make the re-read that follows a lost swap fail.
 type failingUpdateKV struct {
 	jetstream.KeyValue
-	err error
+	err    error
+	getErr error
+	okGets int
+	gets   int
 }
 
 func (k *failingUpdateKV) Update(context.Context, string, []byte, uint64) (uint64, error) {
 	return 0, k.err
+}
+
+func (k *failingUpdateKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	k.gets++
+	if k.getErr != nil && k.gets > k.okGets {
+		return nil, k.getErr
+	}
+	return k.KeyValue.Get(ctx, key)
+}
+
+// vanishingKV wraps a real bucket so Update fails with a lost swap and the key is gone afterwards, which
+// is a record deleted between the read and the guarded write.
+type vanishingKV struct {
+	jetstream.KeyValue
+	updated bool
+}
+
+func (k *vanishingKV) Update(context.Context, string, []byte, uint64) (uint64, error) {
+	k.updated = true
+	return 0, jetstream.ErrKeyExists
+}
+
+func (k *vanishingKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if k.updated {
+		return nil, jetstream.ErrKeyNotFound
+	}
+	return k.KeyValue.Get(ctx, key)
 }
 
 // The counter updates read the committee and write it back guarded by the revision they read, so another
@@ -2042,4 +2073,44 @@ func TestContract_Committee(t *testing.T) {
 	storetest.RunCommitteeContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) port.CommitteeReaderWriter {
 		return NewStorage(newKVClient(t))
 	})
+}
+
+// JetStream reports an update of a missing key as a lost swap, so a lost swap re-reads the key. A re-read that
+// itself fails says nothing about whether the record exists: that is an internal error, not a conflict. A key
+// that is gone is not found.
+func TestStorage_LostSwapRereadOutcome(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	s := NewStorage(client)
+	require.NoError(t, s.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	real := client.kvStore[constants.KVBucketNameCommittees]
+
+	// The counter reads the committee once before it writes, so the second read is the re-read.
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists, getErr: errors.New("simulated read failure"), okGets: 1}
+	_, _, err := s.UpdateTotalMembers(ctx, "uid-1", 9)
+	_, ok := err.(errs.Unexpected)
+	require.True(t, ok, "want an internal error when the re-read fails, got %T: %v", err, err)
+
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists, getErr: jetstream.ErrKeyNotFound, okGets: 1}
+	_, _, err = s.UpdateTotalMembers(ctx, "uid-1", 9)
+	requireOuterNotFound(t, err)
+
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists}
+	_, _, err = s.UpdateTotalMembers(ctx, "uid-1", 9)
+	requireOuterConflict(t, err)
+}
+
+// A member deleted after it was read, before the guarded update, is not found (a 404), not a conflict.
+func TestStorage_UpdateMemberDeletedBeforeSwapIsNotFound(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	s := NewStorage(client)
+	require.NoError(t, s.CreateMember(ctx, newConflictTestMember("m-1", "first.last@example.com")))
+	member, revision, err := s.GetMember(ctx, "m-1")
+	require.NoError(t, err)
+
+	client.kvStore[constants.KVBucketNameCommitteeMembers] = &vanishingKV{KeyValue: client.kvStore[constants.KVBucketNameCommitteeMembers]}
+	member.JobTitle = "updated"
+	_, err = s.UpdateMember(ctx, member, revision)
+	requireOuterNotFound(t, err)
 }
