@@ -57,6 +57,7 @@ func TestStore_PutGroupWeeklyBrief(t *testing.T) {
 		put, err := store.PutGroupWeeklyBrief(ctx, want)
 		require.NoError(t, err)
 		assert.NotZero(t, put.Revision)
+		assert.Zero(t, put.UpdatedAt.Nanosecond()%1000, "the stamped update time has the column's precision")
 
 		got, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", model.GroupWeeklyBrief{WindowStart: testWindow})
 		require.NoError(t, err)

@@ -215,7 +215,8 @@ func (s *Store) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeekl
 	if brief.UID == "" {
 		brief.UID = uuid.NewString()
 	}
-	now := time.Now().UTC()
+	// The column keeps microseconds, so stamp that precision: the brief returned is then what a read returns.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if brief.CreatedAt.IsZero() {
 		brief.CreatedAt = now
 	}
