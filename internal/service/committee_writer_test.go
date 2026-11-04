@@ -3450,9 +3450,19 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 		assert.True(t, syncBySubject[constants.IndexCommitteeSubject], "the committee's own messages keep the caller's sync")
 		assert.False(t, syncBySubject[constants.IndexCommitteeMemberSubject])
 
-		// Access: the committee and the application have objects of their own; members do not, and no member
-		// event goes out, so nothing reacts to a member leaving a committee that no longer exists.
-		assert.Equal(t, 2, publisher.DeleteAccessCallCount)
+		// Access: the committee, the application and the invite have objects of their own; members do not, and no
+		// member event goes out, so nothing reacts to a member leaving a committee that no longer exists.
+		deleted := map[string]string{}
+		for _, raw := range publisher.DeleteAccessMessages {
+			msg, ok := raw.(fgatypes.GenericFGAMessage)
+			require.True(t, ok)
+			assert.Equal(t, "delete_access", msg.Operation)
+			data, ok := msg.Data.(fgatypes.GenericDeleteData)
+			require.True(t, ok)
+			deleted[msg.ObjectType] = data.UID
+		}
+		assert.Equal(t, map[string]string{"committee": "committee-1", "committee_application": "a-1", "committee_invite": "i-1"}, deleted)
+		assert.Equal(t, 3, publisher.DeleteAccessCallCount)
 		assert.Zero(t, publisher.MemberRemoveCallCount)
 		assert.Nil(t, publisher.LastEvent)
 	})
@@ -3469,6 +3479,14 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 		assert.Zero(t, publisher.DeleteAccessCallCount)
 	})
 
+	t.Run("a store that reports no removed children is not a panic", func(t *testing.T) {
+		_, publisher, orchestrator := setup(nil)
+
+		require.NoError(t, orchestrator.Delete(context.Background(), "committee-1", 1, false))
+
+		assert.Equal(t, 1, publisher.DeleteAccessCallCount, "only the committee's access delete")
+	})
+
 	t.Run("a stale revision is a conflict before the store is asked", func(t *testing.T) {
 		writer, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{})
 
@@ -3478,6 +3496,46 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 		require.ErrorAs(t, err, &conflict)
 		assert.Zero(t, writer.cascadeCalls)
 		assert.Empty(t, publisher.IndexerSubjects)
+	})
+
+	t.Run("a failed publish does not skip the others, and is reported", func(t *testing.T) {
+		removed := &model.CommitteeRemovedChildren{}
+		for i := range 2 * maxCascadePublishers {
+			removed.MemberUIDs = append(removed.MemberUIDs, fmt.Sprintf("m-%d", i))
+		}
+		removed.InviteUIDs = []string{"i-1"}
+		removed.LinkUIDs = []string{"l-1"}
+		for name, failing := range map[string]string{
+			"a child": constants.IndexCommitteeMemberSubject, "the committee itself": constants.IndexCommitteeSubject,
+		} {
+			t.Run(name, func(t *testing.T) {
+				_, publisher, orchestrator := setup(removed)
+				publisher.IndexerErrors = map[string]error{failing: errors.New("simulated publish failure")}
+
+				err := orchestrator.Delete(context.Background(), "committee-1", 1, false)
+
+				require.Error(t, err)
+				counts := map[string]int{}
+				for _, subject := range publisher.IndexerSubjects {
+					counts[subject]++
+				}
+				assert.Equal(t, len(removed.MemberUIDs), counts[constants.IndexCommitteeMemberSubject], "every member was attempted")
+				assert.Equal(t, 1, counts[constants.IndexCommitteeInviteSubject])
+				assert.Equal(t, 1, counts[constants.IndexCommitteeLinkSubject])
+				assert.Equal(t, 2, publisher.DeleteAccessCallCount, "the committee's and the invite's access deletes")
+			})
+		}
+	})
+
+	t.Run("a request that ends after the delete committed still cleans up the children", func(t *testing.T) {
+		_, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{MemberUIDs: []string{"m-1"}, InviteUIDs: []string{"i-1"}})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_ = orchestrator.Delete(ctx, "committee-1", 1, false)
+
+		assert.Contains(t, publisher.IndexerSubjects, constants.IndexCommitteeMemberSubject)
+		assert.Contains(t, publisher.IndexerSubjects, constants.IndexCommitteeInviteSubject)
 	})
 
 	t.Run("a committee with many children has every one of them cleaned up", func(t *testing.T) {

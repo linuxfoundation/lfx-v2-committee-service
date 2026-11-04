@@ -233,7 +233,7 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   application, link, link folder, document metadata row, weekly brief and throttle entry of the committee in one
   transaction, so a failure part way removes nothing. The revision guards the committee as in `Delete`. It returns the
   uids it removed (the applications whole, for their tags), and the service publishes an index delete for each and
-  an access delete for each application; see `fga-contract.md` and `indexer-contract.md`. The tables have no foreign
+  an access delete for each application and each invite; see `fga-contract.md` and `indexer-contract.md`. The tables have no foreign
   keys, so a row another writer commits for the committee after the statement that clears its table is left behind,
   as an orphan would be in KV. The stored files of the removed documents are not touched: the caller deletes the
   Object Store file of each returned document uid (the composite store's to do). In KV, `Delete` still removes only the

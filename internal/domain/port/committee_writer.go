@@ -55,7 +55,8 @@ type CommitteeCascadeDeleter interface {
 	// links, link folders, document metadata, weekly briefs and throttle entries in one operation: if it
 	// returns an error nothing was removed. The revision guards the committee as in Delete. It returns
 	// what it removed besides the committee so the caller can clean up the search index and the access
-	// tuples of each child. It removes document metadata only: the caller deletes the stored files of the
-	// returned DocumentUIDs.
+	// tuples of each child. It removes document metadata only: it does not touch the stored files of the
+	// returned DocumentUIDs, and the service does not delete them either, so whatever composes the stores
+	// around this one has to.
 	DeleteCommitteeCascade(ctx context.Context, uid string, revision uint64) (*model.CommitteeRemovedChildren, error)
 }

@@ -222,7 +222,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
 
-**Indexed on:** create, update, delete of a committee member.
+**Indexed on:** create, update, delete of a committee member. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -308,7 +308,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_document.go` — `CommitteeDocument`
 
-**Indexed on:** upload/create and delete of a committee document. There is no document update endpoint today.
+**Indexed on:** upload/create and delete of a committee document. There is no document update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -374,7 +374,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_invite.go` — `CommitteeInvite`
 
-**Indexed on:** create and status updates of a committee invite (reinstate, revoke, accept, decline).
+**Indexed on:** create and status updates of a committee invite (reinstate, revoke, accept, decline). Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -506,7 +506,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLink`
 
-**Indexed on:** create and delete of a committee link. There is no link update endpoint today.
+**Indexed on:** create and delete of a committee link. There is no link update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -570,7 +570,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLinkFolder`
 
-**Indexed on:** create and delete of a committee link folder. There is no link-folder update endpoint today.
+**Indexed on:** create and delete of a committee link folder. There is no link-folder update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -629,7 +629,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief`
 
-**Indexed on:** successful terminal writes in the `generated`, `edited`, and `error` states — specifically the generator's `Fulfill` path and the writer's `Update` path. The initial `generating` write issued by `Request()` does **not** emit a live index event. The `backfill-weekly-brief-index` CLI command (re-)indexes stored briefs in **all** states including `generating`; a `generating` entry will be overwritten automatically when the brief reaches a terminal state via live emission.
+**Indexed on:** successful terminal writes in the `generated`, `edited`, and `error` states — specifically the generator's `Fulfill` path and the writer's `Update` path. The initial `generating` write issued by `Request()` does **not** emit a live index event. The `backfill-weekly-brief-index` CLI command (re-)indexes stored briefs in **all** states including `generating`; a `generating` entry will be overwritten automatically when the brief reaches a terminal state via live emission. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
