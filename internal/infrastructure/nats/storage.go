@@ -124,7 +124,7 @@ func (s *storage) reserveCommitteeLocks(ctx context.Context, committeeUID, nameK
 	if nameKey != "" {
 		newlyReserved, errUnique := s.reserveCommitteeLock(ctx, committeeUID, nameKey)
 		if errUnique != nil {
-			if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			if isJetStreamCASConflict(errUnique) {
 				return nil, errs.NewConflict("committee with the same name for the project already exists")
 			}
 			return nil, errs.NewUnexpected("failed to create unique key for committee", errUnique)
@@ -140,7 +140,7 @@ func (s *storage) reserveCommitteeLocks(ctx context.Context, committeeUID, nameK
 			// A concurrent update of the same committee may have reused the name lock reserved above
 			// and committed; releaseStaleCommitteeLocks leaves keys the stored committee uses alone.
 			s.releaseStaleCommitteeLocks(ctx, committeeUID, reserved)
-			if errors.Is(errSSO, jetstream.ErrKeyExists) {
+			if isJetStreamCASConflict(errSSO) {
 				return nil, errs.NewConflict("committee with the same SSO group name already exists", errs.ErrSSOGroupNameTaken)
 			}
 			return nil, errs.NewUnexpected("failed to create unique key for SSO group name", errSSO)
@@ -154,21 +154,21 @@ func (s *storage) reserveCommitteeLocks(ctx context.Context, committeeUID, nameK
 }
 
 // reserveCommitteeLock creates one lock owned by committeeUID. It returns (true, nil) when the key was
-// newly reserved, (false, nil) when it already belongs to committeeUID, and an error wrapping
-// jetstream.ErrKeyExists when another committee owns it.
+// newly reserved, (false, nil) when it already belongs to committeeUID, and the create
+// error, a compare-and-swap conflict (see isJetStreamCASConflict), when another committee owns it.
 func (s *storage) reserveCommitteeLock(ctx context.Context, committeeUID, key string) (bool, error) {
 	return reserveOwnedKey(ctx, s.client.kvStore[constants.KVBucketNameCommittees], committeeUID, key)
 }
 
 // reserveOwnedKey creates key with ownerUID as its value. It returns (true, nil) when the key was newly
-// reserved, (false, nil) when it already belongs to ownerUID, and an error wrapping
-// jetstream.ErrKeyExists when someone else owns it.
+// reserved, (false, nil) when it already belongs to ownerUID, and the create
+// error, a compare-and-swap conflict (see isJetStreamCASConflict), when someone else owns it.
 func reserveOwnedKey(ctx context.Context, kv jetstream.KeyValue, ownerUID, key string) (bool, error) {
 	_, errCreate := kv.Create(ctx, key, []byte(ownerUID))
 	if errCreate == nil {
 		return true, nil
 	}
-	if !errors.Is(errCreate, jetstream.ErrKeyExists) {
+	if !isJetStreamCASConflict(errCreate) {
 		return false, errCreate
 	}
 	if entry, errGet := kv.Get(ctx, key); errGet == nil && string(entry.Value()) == ownerUID {
@@ -1188,7 +1188,7 @@ func (s *storage) reserveMemberKeys(ctx context.Context, memberUID, unique strin
 	if unique != "" {
 		newlyReserved, errUnique := reserveOwnedKey(ctx, kv, memberUID, unique)
 		if errUnique != nil {
-			if errors.Is(errUnique, jetstream.ErrKeyExists) {
+			if isJetStreamCASConflict(errUnique) {
 				return reserved, errs.NewConflict("member with the same email already exists in the committee")
 			}
 			return append(reserved, unique), errs.NewUnexpected("failed to create unique key for member", errUnique)
@@ -1389,15 +1389,15 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 	}
 
 	// Update the committee member using optimistic locking (revision check).
-	// jetstream.ErrKeyExists is returned when the supplied revision does not match the
-	// current last-sequence — i.e. a concurrent write won the race. Map it to Conflict so
+	// A compare-and-swap conflict (see isJetStreamCASConflict) is returned when the supplied revision does
+	// not match the current last-sequence — i.e. a concurrent write won the race. Map it to Conflict so
 	// callers can detect and retry with a fresh revision.
 	newRevision, errUpdate := kv.Update(ctx, member.UID, memberBytes, revision)
 	if errUpdate != nil {
 		rctx, cancel := detachedCtx(ctx)
 		defer cancel()
 		state, stored := readRecordState(rctx, kv, member.UID, memberBytes)
-		if state == recordMatches && errors.Is(errUpdate, jetstream.ErrKeyExists) {
+		if state == recordMatches && isJetStreamCASConflict(errUpdate) {
 			// The server rejected the revision, so this write did not land even though the stored bytes
 			// equal it: another writer stored the same value. Keys that version uses stay with it.
 			state = recordDiffers
@@ -1496,7 +1496,7 @@ func (s *storage) ensureMemberKeys(ctx context.Context, memberUID, unique string
 		}
 		restored, err := reserveOwnedKey(rctx, kv, memberUID, key)
 		switch {
-		case err != nil && errors.Is(err, jetstream.ErrKeyExists):
+		case err != nil && isJetStreamCASConflict(err):
 			slog.ErrorContext(ctx, "member was stored under a lookup key that another member owns",
 				"key", key,
 				"member_uid", memberUID,
@@ -1522,7 +1522,7 @@ func mapMemberUpdateError(err error) error {
 	switch {
 	case errors.Is(err, jetstream.ErrKeyNotFound):
 		return errs.NewNotFound("committee member not found")
-	case errors.Is(err, jetstream.ErrKeyExists):
+	case isJetStreamCASConflict(err):
 		return errs.NewConflict("committee member revision conflict")
 	default:
 		return errs.NewUnexpected("failed to update committee member", err)
@@ -1613,7 +1613,7 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 // into the committee-members bucket. This enables ListMembersByCommittee to use a server-side
 // filtered scan instead of a full bucket scan.
 // Returns the written key (for rollback tracking) and nil on success.
-// jetstream.ErrKeyExists is treated as idempotent — the entry already exists, which is fine.
+// A compare-and-swap conflict is treated as idempotent — the entry already exists, which is fine.
 func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	if member == nil {
 		return "", errs.NewValidation("committee member cannot be nil")
@@ -1623,7 +1623,7 @@ func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.Comm
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByCommitteePrefix, member.CommitteeUID, member.UID)
 	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
-		if errors.Is(err, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(err) {
 			// Already present — idempotent; treat as success.
 			return key, nil
 		}
@@ -1638,7 +1638,7 @@ func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.Comm
 // filtered scan instead of a full bucket scan. The org SFID is normalized to its 18-char form.
 //
 // Members without an organization.id are NOT org-affiliated seats, so no index entry is written and an
-// empty key is returned (the caller treats that as a no-op). jetstream.ErrKeyExists is idempotent.
+// empty key is returned (the caller treats that as a no-op). A compare-and-swap conflict (see isJetStreamCASConflict) is idempotent.
 func (s *storage) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	if member == nil {
 		return "", errs.NewValidation("committee member cannot be nil")
@@ -1653,7 +1653,7 @@ func (s *storage) IndexMemberByOrganization(ctx context.Context, member *model.C
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByOrganizationPrefix, orgSFID, member.UID)
 	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
-		if errors.Is(err, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(err) {
 			return key, nil
 		}
 		return key, errs.NewUnexpected("failed to index member by organization", err)
@@ -1767,7 +1767,7 @@ func (s *storage) ListMembersByOrganization(ctx context.Context, orgSFID string)
 // (strings.TrimSpace + strings.ToLower), matching model.CommitteeMember.BuildEmailIndexKey.
 //
 // Members without an email produce an empty hash and no index entry is written (returns "", nil).
-// jetstream.ErrKeyExists is treated as idempotent success.
+// A compare-and-swap conflict is treated as idempotent success.
 func (s *storage) IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	if member == nil {
 		return "", errs.NewValidation("committee member cannot be nil")
@@ -1781,7 +1781,7 @@ func (s *storage) IndexMemberByEmail(ctx context.Context, member *model.Committe
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByEmailPrefix, hash, member.UID)
 	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
-		if errors.Is(err, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(err) {
 			return key, nil
 		}
 		return key, errs.NewUnexpected("failed to index member by email", err)
@@ -1858,7 +1858,7 @@ func (s *storage) ListMembersByEmail(ctx context.Context, email string) ([]*mode
 // (strings.TrimSpace + strings.ToLower), matching model.CommitteeMember.BuildUsernameIndexKey.
 //
 // Members without a username produce an empty hash and no index entry is written (returns "", nil).
-// jetstream.ErrKeyExists is treated as idempotent success.
+// A compare-and-swap conflict is treated as idempotent success.
 func (s *storage) IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	if member == nil {
 		return "", errs.NewValidation("committee member cannot be nil")
@@ -1872,7 +1872,7 @@ func (s *storage) IndexMemberByUsername(ctx context.Context, member *model.Commi
 	}
 	key := fmt.Sprintf(constants.KVLookupMembersByUsernamePrefix, hash, member.UID)
 	if _, err := s.client.kvStore[constants.KVBucketNameCommitteeMembers].Create(ctx, key, []byte(member.UID)); err != nil {
-		if errors.Is(err, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(err) {
 			return key, nil
 		}
 		return key, errs.NewUnexpected("failed to index member by username", err)
@@ -2025,7 +2025,7 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
 	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(invite.UID))
 	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(errUnique) {
 			return errs.NewConflict("invite for the same email already exists in the committee")
 		}
 		return errs.NewUnexpected("failed to create unique key for invite", errUnique)
@@ -2211,7 +2211,7 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
 	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(application.UID))
 	if errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(errUnique) {
 			return errs.NewConflict("application from the same user already exists in the committee")
 		}
 		return errs.NewUnexpected("failed to create unique key for application", errUnique)

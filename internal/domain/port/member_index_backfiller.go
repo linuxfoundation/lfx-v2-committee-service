@@ -17,27 +17,27 @@ type MemberIndexBackfiller interface {
 	// IndexMemberByCommittee writes the secondary index entry mapping
 	// committee_uid → member_uid so that ListMembersByCommittee can use a server-side
 	// filtered scan instead of a full bucket scan.
-	// Returns the written key and nil on success. Treats ErrKeyExists as idempotent success.
+	// Returns the written key and nil on success. An entry that already exists is idempotent success.
 	IndexMemberByCommittee(ctx context.Context, member *model.CommitteeMember) (string, error)
 
 	// IndexMemberByOrganization writes the secondary index entry mapping the holding org SFID
 	// (committee_member.organization.id, normalized to 18 chars) → member_uid so that
 	// ListMembersByOrganization can use a server-side filtered scan (Org Lens, LFXV2-1865).
 	// Returns the written key, or an empty key (no-op) when the member has no organization.id.
-	// Treats ErrKeyExists as idempotent success.
+	// An entry that already exists is idempotent success.
 	IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error)
 
 	// IndexMemberByEmail writes the secondary index entry mapping the member's normalized email
 	// (SHA-256 hex of strings.TrimSpace+strings.ToLower) → member_uid into the committee-members
 	// bucket, so ListMembersByEmail can use a server-side filtered scan rather than a full bucket
-	// scan. Returns the written key, or an empty key (no-op) when the member has no email. Treats
-	// ErrKeyExists as idempotent success.
+	// scan. Returns the written key, or an empty key (no-op) when the member has no email. An entry
+	// that already exists is idempotent success.
 	IndexMemberByEmail(ctx context.Context, member *model.CommitteeMember) (string, error)
 
 	// IndexMemberByUsername writes the secondary index entry mapping the member's normalized username
 	// (SHA-256 hex of strings.TrimSpace+strings.ToLower) → member_uid into the committee-members
 	// bucket, so ListMembersByUsername can use a server-side filtered scan rather than a full bucket
-	// scan. Returns the written key, or an empty key (no-op) when the member has no username. Treats
-	// ErrKeyExists as idempotent success.
+	// scan. Returns the written key, or an empty key (no-op) when the member has no username. An entry
+	// that already exists is idempotent success.
 	IndexMemberByUsername(ctx context.Context, member *model.CommitteeMember) (string, error)
 }
