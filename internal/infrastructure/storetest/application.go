@@ -139,11 +139,15 @@ func runApplicationContract(t *testing.T, newStore CommitteeFactory) {
 		application, revision, err := store.GetApplication(ctx, "a-1")
 		require.NoError(t, err)
 		application.Status = "approved"
+		application.ReviewerNotes = "Reviewed again"
+		application.Message = "Updated message"
+		application.ApplicantUsername = "first-last-renamed"
+		application.Organization = &model.CommitteeMemberOrganization{ID: "001A000001zzzzzAAA", Name: "Other Org", Website: "https://example.org"}
 		require.NoError(t, store.UpdateApplication(ctx, application, revision))
 
 		got, newRevision, err := store.GetApplication(ctx, "a-1")
 		require.NoError(t, err)
-		assert.Equal(t, "approved", got.Status)
+		assert.Equal(t, normalizeApplication(application), normalizeApplication(got), "every edited field is stored")
 		assert.NotEqual(t, revision, newRevision)
 	})
 

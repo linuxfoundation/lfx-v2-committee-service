@@ -141,11 +141,17 @@ func runInviteContract(t *testing.T, newStore CommitteeFactory) {
 		invite, revision, err := store.GetInvite(ctx, "i-1")
 		require.NoError(t, err)
 		invite.Status = "accepted"
+		invite.Role = "Chair"
+		invite.CommitteeName = "Renamed Committee"
+		invite.OrganizationRequired = false
+		invite.Organization = &model.CommitteeMemberOrganization{ID: "001A000001zzzzzAAA", Name: "Other Org", Website: "https://example.org"}
+		invite.Inviter = &model.CommitteeUser{Name: "First Last", Username: "first-last-2", Email: "first.last2@example.com"}
+		invite.ExpiresAt = invite.ExpiresAt.Add(24 * time.Hour)
 		require.NoError(t, store.UpdateInvite(ctx, invite, revision))
 
 		got, newRevision, err := store.GetInvite(ctx, "i-1")
 		require.NoError(t, err)
-		assert.Equal(t, "accepted", got.Status)
+		assert.Equal(t, normalizeInvite(invite), normalizeInvite(got), "every edited field is stored")
 		assert.NotEqual(t, revision, newRevision)
 	})
 

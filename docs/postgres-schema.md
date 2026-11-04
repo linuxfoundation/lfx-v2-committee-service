@@ -255,10 +255,10 @@ uses the per-test schema above.
 
 A backend may declare where it differs, and the suites show any other difference as a failing case. The checks look at
 the outer error, the one the HTTP layer maps, not anywhere in its chain, so an internal error that wraps a validation
-error cannot pass as a validation error. The suites currently declare nothing, and one known difference is deliberately not exercised: `UpdateInvite` checks a
-changed email against the unique index, where KV keeps the lookup key of the email the invite was created with (see
-above). The differences they found in the KV
-store are fixed, and it now answers as PostgreSQL does:
+error cannot pass as a validation error. The suites currently declare nothing. One known difference is deliberately
+not exercised: in PostgreSQL, `UpdateInvite` and `UpdateApplication` check a changed email against the unique index,
+where KV keeps the lookup key of the email the record was created with (see above). The differences the suites did find
+in the KV store are fixed, and it now answers as PostgreSQL does:
 
 - a lost compare-and-swap ("wrong last sequence") is `errs.Conflict`, a 409, where it was `errs.Unexpected`, a 500;
 - JetStream also reports an update of a key that does not exist as a lost swap, so the KV store re-reads on a lost swap

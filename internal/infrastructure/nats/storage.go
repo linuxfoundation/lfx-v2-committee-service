@@ -1273,7 +1273,7 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 				break
 			}
 			s.releaseStaleMemberKeys(rctx, member.UID, reserved)
-			if errors.Is(errCreate, jetstream.ErrKeyExists) {
+			if isJetStreamCASConflict(errCreate) {
 				// A different member already holds the uid.
 				return errs.NewConflict("committee member already exists")
 			}
@@ -2033,7 +2033,7 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 
 	rev, errCreate := kv.Create(ctx, invite.UID, inviteBytes)
 	if errCreate != nil {
-		if errors.Is(errCreate, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(errCreate) {
 			// A different invite already holds the uid, so the key reserved for this one is nobody's.
 			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
 			return errs.NewConflict("committee invite already exists")
@@ -2219,7 +2219,7 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 
 	rev, errCreate := kv.Create(ctx, application.UID, applicationBytes)
 	if errCreate != nil {
-		if errors.Is(errCreate, jetstream.ErrKeyExists) {
+		if isJetStreamCASConflict(errCreate) {
 			// A different application already holds the uid, so the key reserved for this one is nobody's.
 			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
 			return errs.NewConflict("committee application already exists")
