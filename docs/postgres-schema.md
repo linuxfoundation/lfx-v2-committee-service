@@ -262,7 +262,9 @@ store are fixed, and it now answers as PostgreSQL does:
 - JetStream also reports an update of a key that does not exist as a lost swap, so the KV store re-reads on a lost swap
   and answers not found, a 404, for an absent record; the conflict carries no NATS error text;
 - a read with an empty uid is `errs.Validation`, a 400, where it was an internal error wrapping the validation error;
-- creating a member with a uid that another member already holds is `errs.Conflict`, where it was an internal error.
+- creating a member with a uid that another member already holds is `errs.Conflict`, where it was an internal error,
+  or, when the second member had the same committee and email, a success that wrote lookups for content that was never
+  stored.
 
 One benign difference remains and is not an error:
 

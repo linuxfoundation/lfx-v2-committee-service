@@ -12,8 +12,8 @@ import (
 // CommitteeMemberWriter provides access to committee member writing operations
 type CommitteeMemberWriter interface {
 	// CreateMember creates a new committee member. A committee holds at most one member per email; a
-	// second create for the same email returns errs.Conflict and leaves storage unchanged. A failed
-	// create leaves nothing behind.
+	// second create for the same email returns errs.Conflict and leaves storage unchanged, and so does a
+	// uid that another member already holds. A failed create leaves nothing behind.
 	CreateMember(ctx context.Context, member *model.CommitteeMember) error
 	// UpdateMember updates an existing committee member using the revision as an optimistic-concurrency
 	// token (a stale revision returns errs.Conflict). When the member's email changed, the new email is

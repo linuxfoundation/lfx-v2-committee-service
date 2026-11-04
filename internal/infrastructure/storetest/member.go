@@ -93,11 +93,33 @@ func runMemberContract(t *testing.T, newStore CommitteeFactory) {
 		require.NoError(t, store.CreateMember(ctx, NewMember("m-other", "committee-3", "first.last@example.com")), "the same email in another committee")
 	})
 
-	t.Run("the same uid is a conflict, and a username may repeat", func(t *testing.T) {
+	t.Run("the same uid is a conflict, whatever else the second member holds", func(t *testing.T) {
 		store := newStore(t)
 		seedMembers(t, store)
 		requireConflict(t, store.CreateMember(ctx, NewMember("m-1", "committee-9", "first.last9@example.com")))
 
+		// The same committee and email as the member that holds the uid, but other content: it must not be
+		// mistaken for a create that already landed, and must leave no lookup behind.
+		impostor := NewMember("m-1", "committee-1", " First.Last@example.com ")
+		impostor.JobTitle = "Impostor"
+		impostor.Username = "first-last-impostor"
+		impostor.Organization.ID = "001A000001zzzzzAAA"
+		requireConflict(t, store.CreateMember(ctx, impostor))
+
+		got, _, err := store.GetMember(ctx, "m-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Engineer", got.JobTitle)
+		byUsername, err := store.ListMembersByUsername(ctx, "first-last-impostor")
+		require.NoError(t, err)
+		assert.Empty(t, byUsername)
+		byOrg, err := store.ListMembersByOrganization(ctx, "001A000001zzzzzAAA")
+		require.NoError(t, err)
+		assert.Empty(t, byOrg)
+	})
+
+	t.Run("a username may repeat", func(t *testing.T) {
+		store := newStore(t)
+		seedMembers(t, store)
 		repeat := NewMember("m-4", "committee-1", "first.last4@example.com")
 		repeat.Username = "first-last-m-1"
 		require.NoError(t, store.CreateMember(ctx, repeat))
