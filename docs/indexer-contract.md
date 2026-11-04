@@ -21,6 +21,14 @@ stream: durable consumer, at-least-once delivery, exponential-backoff NAK on han
 `conn.Publish` returns after the NATS client buffers the message locally — it is not a broker
 acknowledgement and does not confirm that the JetStream stream has accepted the message.
 
+### Committee delete
+
+Deleting a committee publishes `ActionDeleted` for the committee and its settings. The applications get one too,
+and, when the store removes the committee's children itself (the PostgreSQL store's `DeleteCommitteeCascade`), so does
+every removed member, invite, link, link folder, document and group weekly brief, on its own subject with the uid as
+the data and no tags. They are published fire-and-forget, with at most 32 in flight. The KV store removes only the
+committee, its settings and its applications, so no other child gets one there.
+
 ---
 
 ## Resource Types

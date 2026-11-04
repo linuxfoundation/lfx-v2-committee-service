@@ -958,8 +958,20 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	)
 
 	// Step 2: Delete the main committee record and settings; storage also releases the committee's
-	// name and SSO group reservations
-	errDelete := uc.committeeWriter.Delete(ctx, uid, revision)
+	// name and SSO group reservations. A store that cascades removes the committee's children in the
+	// same operation and reports them, so their search index entries and access tuples are cleaned up
+	// below; the others leave them, and only the applications are cleaned up one by one.
+	var (
+		errDelete    error
+		removed      *model.CommitteeRemovedChildren
+		applications []*model.CommitteeApplication
+	)
+	cascader, cascades := uc.committeeWriter.(port.CommitteeCascadeDeleter)
+	if cascades {
+		removed, errDelete = cascader.DeleteCommitteeCascade(ctx, uid, revision)
+	} else {
+		errDelete = uc.committeeWriter.Delete(ctx, uid, revision)
+	}
 	if errDelete != nil {
 		slog.ErrorContext(ctx, "failed to delete committee",
 			"error", errDelete,
@@ -972,15 +984,20 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		"committee_uid", uid,
 	)
 
-	// List applications for cascade cleanup; best-effort — proceed even if listing fails.
-	applications, errListApps := uc.committeeReader.ListApplications(ctx, uid)
-	if errListApps != nil {
-		slog.WarnContext(ctx, "failed to list applications for cascade delete — skipping cascade",
-			"error", errListApps,
-			"committee_uid", uid,
-			log.PriorityCritical(),
-		)
-		applications = nil
+	if cascades {
+		applications = removed.Applications
+	} else {
+		// List applications for cascade cleanup; best-effort — proceed even if listing fails.
+		var errListApps error
+		applications, errListApps = uc.committeeReader.ListApplications(ctx, uid)
+		if errListApps != nil {
+			slog.WarnContext(ctx, "failed to list applications for cascade delete — skipping cascade",
+				"error", errListApps,
+				"committee_uid", uid,
+				log.PriorityCritical(),
+			)
+			applications = nil
+		}
 	}
 
 	// Prepare messages for publishing
@@ -1055,20 +1072,30 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 			return uc.committeePublisher.DeleteAccess(ctx, appDeleteMsg)
 		})
 
-		messages = append(messages, func() error {
-			if errKV := uc.committeeWriter.DeleteApplication(ctx, localApp); errKV != nil {
-				slog.WarnContext(ctx, "failed to delete application KV record during cascade — skipping",
-					"error", errKV,
-					"application_uid", localApp.UID,
-					log.PriorityCritical(),
-				)
-			}
-			return nil
-		})
+		if !cascades {
+			messages = append(messages, func() error {
+				if errKV := uc.committeeWriter.DeleteApplication(ctx, localApp); errKV != nil {
+					slog.WarnContext(ctx, "failed to delete application KV record during cascade — skipping",
+						"error", errKV,
+						"application_uid", localApp.UID,
+						log.PriorityCritical(),
+					)
+				}
+				return nil
+			})
+		}
+	}
+
+	// The other children a cascade removed have no access object of their own: the committee's
+	// delete_access above removes the tuples that grant access to them, so only their index entries go.
+	workers := len(messages)
+	if cascades {
+		messages = append(messages, uc.childIndexDeleteMessages(ctx, removed)...)
+		workers = min(len(messages), maxCascadePublishers)
 	}
 
 	// Execute all messages concurrently
-	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
+	errPublishingMessage := concurrent.NewWorkerPool(workers).Run(ctx, messages...)
 	if errPublishingMessage != nil {
 		slog.ErrorContext(ctx, "failed to publish deletion messages",
 			"error", errPublishingMessage,
@@ -1082,6 +1109,47 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	)
 
 	return nil
+}
+
+// maxCascadePublishers bounds the messages published at once when a committee delete removes children: a
+// committee can hold thousands of them.
+const maxCascadePublishers = 32
+
+// childIndexDeleteMessages returns the publishers of the index delete message of every child, other than
+// applications, that a cascading committee delete removed. A message that cannot be built is logged and
+// skipped, as for the committee's own messages.
+func (uc *committeeWriterOrchestrator) childIndexDeleteMessages(ctx context.Context, removed *model.CommitteeRemovedChildren) []func() error {
+	var messages []func() error
+	for _, children := range []struct {
+		subject string
+		uids    []string
+	}{
+		{constants.IndexCommitteeMemberSubject, removed.MemberUIDs},
+		{constants.IndexCommitteeInviteSubject, removed.InviteUIDs},
+		{constants.IndexCommitteeLinkSubject, removed.LinkUIDs},
+		{constants.IndexCommitteeLinkFolderSubject, removed.FolderUIDs},
+		{constants.IndexCommitteeDocumentSubject, removed.DocumentUIDs},
+		{constants.IndexGroupWeeklyBriefSubject, removed.BriefUIDs},
+	} {
+		for _, childUID := range children.uids {
+			indexerMessage := model.CommitteeIndexerMessage{Action: model.ActionDeleted}
+			built, errBuild := indexerMessage.Build(ctx, childUID)
+			if errBuild != nil {
+				slog.WarnContext(ctx, "failed to build child indexer delete message — skipping",
+					"error", errBuild,
+					"subject", children.subject,
+					"child_uid", childUID,
+					log.PriorityCritical(),
+				)
+				continue
+			}
+			subject := children.subject
+			messages = append(messages, func() error {
+				return uc.committeePublisher.Indexer(ctx, subject, built, false)
+			})
+		}
+	}
+	return messages
 }
 
 // NewcommitteeWriterOrchestrator creates a new create committee use case using the option pattern

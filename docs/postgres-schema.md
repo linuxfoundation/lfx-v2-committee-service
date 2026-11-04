@@ -229,6 +229,17 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   are in flight, because the read and the set are not one atomic step. Rolling back from PostgreSQL to KV, and
   invalidating the tokens issued in between, is the composite store's to define: it needs no primitive here.
 
+- **Cascade delete.** `Store.DeleteCommitteeCascade` removes the committee, its settings and every member, invite,
+  application, link, link folder, document metadata row, weekly brief and throttle entry of the committee in one
+  transaction, so a failure part way removes nothing. The revision guards the committee as in `Delete`. It returns the
+  uids it removed (the applications whole, for their tags), and the service publishes an index delete for each and
+  an access delete for each application; see `fga-contract.md` and `indexer-contract.md`. The tables have no foreign
+  keys, so a row another writer commits for the committee after the statement that clears its table is left behind,
+  as an orphan would be in KV. The stored files of the removed documents are not touched: the caller deletes the
+  Object Store file of each returned document uid (the composite store's to do). In KV, `Delete` still removes only the
+  committee and its settings, and the service removes only the applications, so a committee's members, invites, links,
+  folders, documents and briefs stay behind as orphans there; this difference lasts until KV mode is retired.
+
 ## Running the tests
 
 The schema tests need a real PostgreSQL. Point `TEST_DATABASE_URL` at a database the tests may modify

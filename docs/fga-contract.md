@@ -180,6 +180,12 @@ When a committee is deleted, `committeeWriterOrchestrator.Delete` lists all `com
 
 Both messages are published fire-and-forget (`X-Sync: false`) as part of the same concurrent worker pool as the committee's own deletion messages. The application's KV record is also removed from storage in the same pool call. If `ListApplications` fails the cascade is skipped with a critical-priority warning; the committee delete itself still succeeds. There is no explicit withdraw or delete endpoint — cascade on committee delete is the only current callsite for `delete_access` on `committee_application`.
 
+When the store removes a committee's children itself (the PostgreSQL store's `DeleteCommitteeCascade`), the applications
+are the ones it reports as removed, `ListApplications` is not called and no per-application record delete is made; the
+`delete_access` message per application is unchanged. No other child type has an FGA object of its own (members are
+tuples on the committee), so the committee's `delete_access` is the only access message for them: no `member_remove` is
+sent for the members a cascade removes.
+
 ### Event Summary
 
 | Event | Object Type | Subject | Notes |

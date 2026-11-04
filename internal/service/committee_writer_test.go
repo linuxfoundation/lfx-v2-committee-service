@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -3353,4 +3354,147 @@ func TestCommitteeWriterOrchestrator_Create_PanicReturnsError(t *testing.T) {
 	var unexpected errs.Unexpected
 	require.ErrorAs(t, err, &unexpected)
 	assert.NotContains(t, err.Error(), "secret-detail")
+}
+
+// cascadingTestWriter is the in-memory committee writer with the cascade a PostgreSQL store does: it
+// removes the committee and reports the children it was told to have removed.
+type cascadingTestWriter struct {
+	*TestMockCommitteeWriter
+	removed                *model.CommitteeRemovedChildren
+	cascadeErr             error
+	cascadeCalls           int
+	deleteCalls            int
+	deleteApplicationCalls int
+}
+
+func (w *cascadingTestWriter) Delete(ctx context.Context, uid string, revision uint64) error {
+	w.deleteCalls++
+	return w.TestMockCommitteeWriter.Delete(ctx, uid, revision)
+}
+
+func (w *cascadingTestWriter) DeleteApplication(ctx context.Context, application *model.CommitteeApplication) error {
+	w.deleteApplicationCalls++
+	return w.TestMockCommitteeWriter.DeleteApplication(ctx, application)
+}
+
+func (w *cascadingTestWriter) DeleteCommitteeCascade(ctx context.Context, uid string, revision uint64) (*model.CommitteeRemovedChildren, error) {
+	w.cascadeCalls++
+	if w.cascadeErr != nil {
+		return nil, w.cascadeErr
+	}
+	if err := w.TestMockCommitteeWriter.Delete(ctx, uid, revision); err != nil {
+		return nil, err
+	}
+	return w.removed, nil
+}
+
+// A store that cascades removes the children itself, so the service cleans up their index entries, and the
+// access tuples of the children that have their own, from what the store reports.
+func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
+	setup := func(removed *model.CommitteeRemovedChildren) (*cascadingTestWriter, *mock.MockCommitteePublisher, CommitteeWriter) {
+		mockRepo := mock.NewMockRepository()
+		mockRepo.ClearAll()
+		mockRepo.AddProject("project-1", "test-project", "Test Project")
+		mockRepo.AddCommittee(&model.Committee{
+			CommitteeBase:     model.CommitteeBase{UID: "committee-1", ProjectUID: "project-1", Name: "Test Committee", Category: "governance"},
+			CommitteeSettings: &model.CommitteeSettings{UID: "committee-1"},
+		})
+		writer := &cascadingTestWriter{TestMockCommitteeWriter: NewTestMockCommitteeWriter(mockRepo), removed: removed}
+		publisher := &mock.MockCommitteePublisher{}
+		return writer, publisher, NewCommitteeWriterOrchestrator(
+			WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+			WithCommitteeWriter(writer),
+			WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+			WithCommitteePublisher(publisher),
+		)
+	}
+
+	t.Run("every removed child gets an index delete, and applications an access delete too", func(t *testing.T) {
+		application := &model.CommitteeApplication{UID: "a-1", CommitteeUID: "committee-1", ApplicantEmail: "first.last@example.com", Status: "pending"}
+		writer, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{
+			MemberUIDs: []string{"m-1", "m-2"}, InviteUIDs: []string{"i-1"}, LinkUIDs: []string{"l-1"}, FolderUIDs: []string{"f-1"},
+			DocumentUIDs: []string{"d-1"}, BriefUIDs: []string{"b-1"}, Applications: []*model.CommitteeApplication{application},
+		})
+
+		require.NoError(t, orchestrator.Delete(context.Background(), "committee-1", 1, true))
+
+		assert.Equal(t, 1, writer.cascadeCalls)
+		assert.Zero(t, writer.deleteCalls, "the cascade replaces the plain delete")
+		assert.Zero(t, writer.deleteApplicationCalls, "the store already removed the applications")
+
+		uidsBySubject := map[string][]string{}
+		syncBySubject := map[string]bool{}
+		for i, subject := range publisher.IndexerSubjects {
+			msg, ok := publisher.IndexerMessages[i].(*model.CommitteeIndexerMessage)
+			require.True(t, ok)
+			assert.Equal(t, model.ActionDeleted, msg.Action, subject)
+			uid, ok := msg.Data.(string)
+			require.True(t, ok, subject)
+			uidsBySubject[subject] = append(uidsBySubject[subject], uid)
+			syncBySubject[subject] = publisher.IndexerSyncValues[i]
+		}
+		for subject := range uidsBySubject {
+			slices.Sort(uidsBySubject[subject])
+		}
+		assert.Equal(t, map[string][]string{
+			constants.IndexCommitteeSubject:            {"committee-1"},
+			constants.IndexCommitteeSettingsSubject:    {"committee-1"},
+			constants.IndexCommitteeMemberSubject:      {"m-1", "m-2"},
+			constants.IndexCommitteeInviteSubject:      {"i-1"},
+			constants.IndexCommitteeLinkSubject:        {"l-1"},
+			constants.IndexCommitteeLinkFolderSubject:  {"f-1"},
+			constants.IndexCommitteeDocumentSubject:    {"d-1"},
+			constants.IndexGroupWeeklyBriefSubject:     {"b-1"},
+			constants.IndexCommitteeApplicationSubject: {"a-1"},
+		}, uidsBySubject)
+		assert.True(t, syncBySubject[constants.IndexCommitteeSubject], "the committee's own messages keep the caller's sync")
+		assert.False(t, syncBySubject[constants.IndexCommitteeMemberSubject])
+
+		// Access: the committee and the application have objects of their own; members do not, and no member
+		// event goes out, so nothing reacts to a member leaving a committee that no longer exists.
+		assert.Equal(t, 2, publisher.DeleteAccessCallCount)
+		assert.Zero(t, publisher.MemberRemoveCallCount)
+		assert.Nil(t, publisher.LastEvent)
+	})
+
+	t.Run("a failed cascade publishes nothing", func(t *testing.T) {
+		writer, publisher, orchestrator := setup(nil)
+		writer.cascadeErr = errs.NewUnexpected("failed to delete from committee_documents")
+
+		err := orchestrator.Delete(context.Background(), "committee-1", 1, false)
+
+		var unexpected errs.Unexpected
+		require.ErrorAs(t, err, &unexpected)
+		assert.Empty(t, publisher.IndexerSubjects)
+		assert.Zero(t, publisher.DeleteAccessCallCount)
+	})
+
+	t.Run("a stale revision is a conflict before the store is asked", func(t *testing.T) {
+		writer, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{})
+
+		err := orchestrator.Delete(context.Background(), "committee-1", 99, false)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		assert.Zero(t, writer.cascadeCalls)
+		assert.Empty(t, publisher.IndexerSubjects)
+	})
+
+	t.Run("a committee with many children has every one of them cleaned up", func(t *testing.T) {
+		removed := &model.CommitteeRemovedChildren{}
+		for i := range 5 * maxCascadePublishers {
+			removed.MemberUIDs = append(removed.MemberUIDs, fmt.Sprintf("m-%d", i))
+		}
+		_, publisher, orchestrator := setup(removed)
+
+		require.NoError(t, orchestrator.Delete(context.Background(), "committee-1", 1, false))
+
+		members := 0
+		for _, subject := range publisher.IndexerSubjects {
+			if subject == constants.IndexCommitteeMemberSubject {
+				members++
+			}
+		}
+		assert.Equal(t, len(removed.MemberUIDs), members)
+	})
 }

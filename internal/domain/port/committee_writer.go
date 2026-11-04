@@ -47,3 +47,15 @@ type CommitteeBaseWriter interface {
 type CommitteeSettingsWriter interface {
 	UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error
 }
+
+// CommitteeCascadeDeleter is implemented by a store that removes a committee together with everything
+// that belongs to it. The service uses it, when the writer provides it, in place of CommitteeWriter.Delete.
+type CommitteeCascadeDeleter interface {
+	// DeleteCommitteeCascade removes the committee, its settings and its members, invites, applications,
+	// links, link folders, document metadata, weekly briefs and throttle entries in one operation: if it
+	// returns an error nothing was removed. The revision guards the committee as in Delete. It returns
+	// what it removed besides the committee so the caller can clean up the search index and the access
+	// tuples of each child. It removes document metadata only: the caller deletes the stored files of the
+	// returned DocumentUIDs.
+	DeleteCommitteeCascade(ctx context.Context, uid string, revision uint64) (*model.CommitteeRemovedChildren, error)
+}
