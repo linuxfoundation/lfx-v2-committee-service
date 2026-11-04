@@ -22,12 +22,18 @@ func (s *storage) CreateLink(ctx context.Context, link *model.CommitteeLink) err
 	if link == nil {
 		return errs.NewValidation("link cannot be nil")
 	}
+	if link.UID == "" || link.CommitteeUID == "" {
+		return errs.NewValidation("link UID and CommitteeUID must be non-empty")
+	}
 	linkBytes, errMarshal := json.Marshal(link)
 	if errMarshal != nil {
 		return errs.NewUnexpected("failed to marshal link", errMarshal)
 	}
 	rev, errCreate := s.client.kvStore[constants.KVBucketNameCommitteeLinks].Create(ctx, link.UID, linkBytes)
 	if errCreate != nil {
+		if isJetStreamCASConflict(errCreate) {
+			return errs.NewConflict("link already exists")
+		}
 		return errs.NewUnexpected("failed to create link", errCreate)
 	}
 	slog.DebugContext(ctx, "created link in NATS storage", "link_uid", link.UID, "committee_uid", link.CommitteeUID, "revision", rev)
@@ -84,7 +90,7 @@ func (s *storage) DeleteLink(ctx context.Context, committeeUID, linkUID string, 
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("link not found", fmt.Errorf("link UID: %s", linkUID))
 		}
-		return errs.NewUnexpected("failed to delete link", errDelete)
+		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeLinks], linkUID, "link not found", "link has been modified since it was last read", "failed to delete link", errDelete)
 	}
 	slog.DebugContext(ctx, "deleted link from NATS storage", "link_uid", linkUID, "committee_uid", committeeUID, "revision", revision)
 	return nil
@@ -97,6 +103,9 @@ func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeL
 	if folder == nil {
 		return errs.NewValidation("folder cannot be nil")
 	}
+	if folder.UID == "" || folder.CommitteeUID == "" {
+		return errs.NewValidation("folder UID and CommitteeUID must be non-empty")
+	}
 	folderBytes, errMarshal := json.Marshal(folder)
 	if errMarshal != nil {
 		return errs.NewUnexpected("failed to marshal folder", errMarshal)
@@ -105,8 +114,9 @@ func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeL
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeFolders]
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))
-	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(folder.UID)); errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(folder.UID))
+	if errUnique != nil {
+		if isJetStreamCASConflict(errUnique) {
 			return errs.NewConflict("folder with the same name already exists for this committee")
 		}
 		return errs.NewUnexpected("failed to create unique key for folder name", errUnique)
@@ -114,6 +124,11 @@ func (s *storage) CreateLinkFolder(ctx context.Context, folder *model.CommitteeL
 
 	rev, errCreate := kv.Create(ctx, folder.UID, folderBytes)
 	if errCreate != nil {
+		if isJetStreamCASConflict(errCreate) {
+			// A different folder already holds the uid, so the name reserved for this one is nobody's.
+			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID)
+			return errs.NewConflict("folder already exists")
+		}
 		rollbackLookupKey(ctx, kv, folder.UID, uniqueKey, errCreate, "folder_uid", folder.UID, "committee_uid", folder.CommitteeUID)
 		return errs.NewUnexpected("failed to create folder", errCreate)
 	}
@@ -173,7 +188,7 @@ func (s *storage) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID 
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("folder not found", fmt.Errorf("folder UID: %s", folderUID))
 		}
-		return errs.NewUnexpected("failed to delete folder", errDelete)
+		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeFolders], folderUID, "folder not found", "folder has been modified since it was last read", "failed to delete folder", errDelete)
 	}
 	// Best-effort cleanup of the name uniqueness lookup key; log if it fails
 	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))

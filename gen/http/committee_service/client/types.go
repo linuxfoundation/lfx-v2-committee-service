@@ -2286,6 +2286,14 @@ type DeleteCommitteeLinkBadRequestResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// DeleteCommitteeLinkConflictResponseBody is the type of the
+// "committee-service" service "delete-committee-link" endpoint HTTP response
+// body for the "Conflict" error.
+type DeleteCommitteeLinkConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // DeleteCommitteeLinkInternalServerErrorResponseBody is the type of the
 // "committee-service" service "delete-committee-link" endpoint HTTP response
 // body for the "InternalServerError" error.
@@ -2402,6 +2410,14 @@ type CreateCommitteeLinkFolderServiceUnavailableResponseBody struct {
 // "committee-service" service "delete-committee-link-folder" endpoint HTTP
 // response body for the "BadRequest" error.
 type DeleteCommitteeLinkFolderBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// DeleteCommitteeLinkFolderConflictResponseBody is the type of the
+// "committee-service" service "delete-committee-link-folder" endpoint HTTP
+// response body for the "Conflict" error.
+type DeleteCommitteeLinkFolderConflictResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -6477,6 +6493,16 @@ func NewDeleteCommitteeLinkBadRequest(body *DeleteCommitteeLinkBadRequestRespons
 	return v
 }
 
+// NewDeleteCommitteeLinkConflict builds a committee-service service
+// delete-committee-link endpoint Conflict error.
+func NewDeleteCommitteeLinkConflict(body *DeleteCommitteeLinkConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewDeleteCommitteeLinkInternalServerError builds a committee-service service
 // delete-committee-link endpoint InternalServerError error.
 func NewDeleteCommitteeLinkInternalServerError(body *DeleteCommitteeLinkInternalServerErrorResponseBody) *committeeservice.InternalServerError {
@@ -6678,6 +6704,16 @@ func NewCreateCommitteeLinkFolderServiceUnavailable(body *CreateCommitteeLinkFol
 // delete-committee-link-folder endpoint BadRequest error.
 func NewDeleteCommitteeLinkFolderBadRequest(body *DeleteCommitteeLinkFolderBadRequestResponseBody) *committeeservice.BadRequestError {
 	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewDeleteCommitteeLinkFolderConflict builds a committee-service service
+// delete-committee-link-folder endpoint Conflict error.
+func NewDeleteCommitteeLinkFolderConflict(body *DeleteCommitteeLinkFolderConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
 		Message: *body.Message,
 	}
 
@@ -10248,6 +10284,15 @@ func ValidateDeleteCommitteeLinkBadRequestResponseBody(body *DeleteCommitteeLink
 	return
 }
 
+// ValidateDeleteCommitteeLinkConflictResponseBody runs the validations defined
+// on delete-committee-link_Conflict_response_body
+func ValidateDeleteCommitteeLinkConflictResponseBody(body *DeleteCommitteeLinkConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateDeleteCommitteeLinkInternalServerErrorResponseBody runs the
 // validations defined on
 // delete-committee-link_InternalServerError_response_body
@@ -10384,6 +10429,15 @@ func ValidateCreateCommitteeLinkFolderServiceUnavailableResponseBody(body *Creat
 // ValidateDeleteCommitteeLinkFolderBadRequestResponseBody runs the validations
 // defined on delete-committee-link-folder_BadRequest_response_body
 func ValidateDeleteCommitteeLinkFolderBadRequestResponseBody(body *DeleteCommitteeLinkFolderBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateDeleteCommitteeLinkFolderConflictResponseBody runs the validations
+// defined on delete-committee-link-folder_Conflict_response_body
+func ValidateDeleteCommitteeLinkFolderConflictResponseBody(body *DeleteCommitteeLinkFolderConflictResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

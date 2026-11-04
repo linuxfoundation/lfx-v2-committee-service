@@ -2215,3 +2215,15 @@ func TestStorage_TakenUIDRefusedWithEitherWrongLastSequenceCode(t *testing.T) {
 		})
 	}
 }
+
+func TestContract_Links(t *testing.T) {
+	storetest.RunLinkContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) storetest.LinkStore {
+		return NewStorageBackend(newKVClient(t))
+	})
+}
+
+func TestContract_LinkFolders(t *testing.T) {
+	storetest.RunFolderContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) storetest.LinkStore {
+		return NewStorageBackend(newKVClient(t))
+	})
+}
