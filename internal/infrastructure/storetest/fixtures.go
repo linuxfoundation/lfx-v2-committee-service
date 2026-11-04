@@ -251,7 +251,7 @@ func NewBrief(uid, committeeUID string, window time.Time) *model.GroupWeeklyBrie
 	edited := FixtureTime.Add(2 * time.Hour)
 	return &model.GroupWeeklyBrief{
 		UID: uid, CommitteeUID: committeeUID, WindowStart: window, WindowEnd: window.AddDate(0, 0, 7),
-		State: model.GroupWeeklyBriefState("ready"), ErrorReason: "none", BriefText: "The group met twice.",
+		State: model.GroupWeeklyBriefStateEdited, ErrorReason: "none", BriefText: "The group met twice.",
 		SourceRefs:    []model.SourceRef{{Kind: "meeting", ID: "m-1"}, {Kind: "doc", ID: "https://example.com/doc", Title: "Doc", Excerpt: "An excerpt"}},
 		PromptVersion: "v1", Model: "model-1", RegenerationCount: 2, PrivateSourcePresent: true,
 		CreatedAt: FixtureTime, UpdatedAt: FixtureTime.Add(time.Hour), LastEditedAt: &edited, LastEditedBy: "first-last",

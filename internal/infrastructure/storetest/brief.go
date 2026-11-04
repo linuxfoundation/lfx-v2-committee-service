@@ -37,6 +37,7 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 	ctx := context.Background()
 	window := model.GroupWeeklyBrief{WindowStart: FixtureWindow}
 	nextWeek := FixtureWindow.AddDate(0, 0, 7)
+	utcMinus5 := time.FixedZone("UTC-5", -5*60*60)
 
 	t.Run("put and get round-trip every field", func(t *testing.T) {
 		store := newStore(t)
@@ -62,6 +63,7 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 		require.NoError(t, err)
 		got, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", window)
 		require.NoError(t, err)
+		require.NotNil(t, got)
 		assert.Equal(t, normalizeBrief(want), normalizeBrief(got))
 		assert.Nil(t, got.LastEditedAt)
 	})
@@ -77,7 +79,25 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 		assert.False(t, put.UpdatedAt.IsZero())
 		got, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", window)
 		require.NoError(t, err)
+		require.NotNil(t, got)
 		assert.Equal(t, put.UID, got.UID)
+	})
+
+	t.Run("put without a revision replaces the brief with the same uid", func(t *testing.T) {
+		store := newStore(t)
+		first, err := store.PutGroupWeeklyBrief(ctx, NewBrief("b-1", "committee-1", FixtureWindow))
+		require.NoError(t, err)
+		again := NewBrief("b-1", "committee-1", FixtureWindow)
+		again.BriefText = "replaced"
+		second, err := store.PutGroupWeeklyBrief(ctx, again)
+		require.NoError(t, err)
+		assert.NotEqual(t, first.Revision, second.Revision)
+
+		got, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", window)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, "replaced", got.BriefText)
+		assert.Equal(t, second.Revision, got.Revision)
 	})
 
 	t.Run("a brief is found by committee and the UTC date of the window, and a miss is nil", func(t *testing.T) {
@@ -93,11 +113,35 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 		require.NoError(t, err)
 		assert.Nil(t, got)
 
-		// Any time on the same UTC day finds the brief; the offset is not the day.
-		got, _, err = store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", model.GroupWeeklyBrief{WindowStart: FixtureWindow.Add(13 * time.Hour)})
+		// Any time on the same UTC day finds the brief; the zone it is written in is not the day. The second
+		// time is January 3 in UTC-5 and January 4 in UTC.
+		for _, at := range []time.Time{FixtureWindow.Add(13 * time.Hour), FixtureWindow.Add(2 * time.Hour).In(utcMinus5)} {
+			got, _, err = store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", model.GroupWeeklyBrief{WindowStart: at})
+			require.NoError(t, err)
+			require.NotNil(t, got, at.String())
+			assert.Equal(t, "b-1", got.UID)
+		}
+	})
+
+	t.Run("a window start written in another zone is keyed by its UTC date", func(t *testing.T) {
+		store := newStore(t)
+		behind := FixtureWindow.Add(2 * time.Hour).In(utcMinus5)
+		require.Equal(t, 3, behind.Day(), "the local date is the day before the UTC date")
+		_, err := store.PutGroupWeeklyBrief(ctx, NewBrief("b-1", "committee-1", behind))
+		require.NoError(t, err)
+		_, err = store.PutGroupWeeklyBriefThrottle(ctx, NewThrottle("committee-1", behind))
+		require.NoError(t, err)
+
+		keys, err := store.ListGroupWeeklyBriefIndexKeys(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"committee-1.20260104"}, keys)
+		got, throttle, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-1", window)
 		require.NoError(t, err)
 		require.NotNil(t, got)
-		assert.Equal(t, "b-1", got.UID)
+		assert.NotNil(t, throttle)
+		entry, err := store.GetGroupWeeklyBriefThrottle(ctx, "committee-1", FixtureWindow)
+		require.NoError(t, err)
+		assert.NotNil(t, entry)
 	})
 
 	t.Run("put rejects a nil brief, and a missing committee or window", func(t *testing.T) {
@@ -220,7 +264,7 @@ func runBriefContract(t *testing.T, newStore BriefFactory) {
 		require.NoError(t, err)
 		assert.NotZero(t, put.Revision)
 
-		for _, at := range []time.Time{FixtureWindow, FixtureWindow.Add(13 * time.Hour)} {
+		for _, at := range []time.Time{FixtureWindow, FixtureWindow.Add(13 * time.Hour), FixtureWindow.Add(2 * time.Hour).In(utcMinus5)} {
 			got, err = store.GetGroupWeeklyBriefThrottle(ctx, "committee-1", at)
 			require.NoError(t, err)
 			require.NotNil(t, got)
