@@ -434,6 +434,27 @@ func (s *storage) get(ctx context.Context, bucket, uid string, model any, onlyRe
 
 }
 
+// readError is the error of a failed read by uid. The validation error that get returns for an empty
+// uid is passed on as it is, because the HTTP layer maps the outer error type and an internal error
+// wrapping it would be a 500, not a 400; anything else is an internal error.
+func readError(message string, err error) error {
+	var validation errs.Validation
+	if errors.As(err, &validation) {
+		return validation
+	}
+	return errs.NewUnexpected(message, err)
+}
+
+// writeError is the error of a failed write guarded by a revision. A lost compare-and-swap (JetStream's
+// "wrong last sequence") is a conflict, a 409, as the PostgreSQL store reports it; anything else is an
+// internal error.
+func writeError(conflict, message string, err error) error {
+	if isJetStreamCASConflict(err) {
+		return errs.NewConflict(conflict, err)
+	}
+	return errs.NewUnexpected(message, err)
+}
+
 // GetBase retrieves a committee's base data and its current revision from the KV store by UID.
 func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
 
@@ -444,7 +465,7 @@ func (s *storage) GetBase(ctx context.Context, uid string) (*model.CommitteeBase
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, 0, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, 0, errs.NewUnexpected("failed to get committee", errGet)
+		return nil, 0, readError("failed to get committee", errGet)
 	}
 
 	return committee, rev, nil
@@ -478,7 +499,7 @@ func (s *storage) GetSettings(ctx context.Context, uid string) (*model.Committee
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, 0, errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, 0, errs.NewUnexpected("failed to get committee settings", errGet)
+		return nil, 0, readError("failed to get committee settings", errGet)
 	}
 
 	return settings, rev, nil
@@ -510,7 +531,7 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return errs.NewUnexpected("failed to get committee", errGet)
+		return readError("failed to get committee", errGet)
 	}
 	oldNameKey, oldSSOKey := committeeLookupKeys(ctx, &model.Committee{CommitteeBase: *existing})
 	newNameKey, newSSOKey := committeeLookupKeys(ctx, committee)
@@ -572,7 +593,7 @@ func (s *storage) UpdateBase(ctx context.Context, committee *model.Committee, re
 			if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 				return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 			}
-			return errs.NewUnexpected("failed to update committee base", errUpdate)
+			return writeError("committee has been modified by another process", "failed to update committee base", errUpdate)
 		}
 	}
 
@@ -596,7 +617,7 @@ func (s *storage) UpdateHasMailingList(ctx context.Context, uid string, hasMaili
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, errs.NewUnexpected("failed to get committee", err)
+		return nil, false, readError("failed to get committee", err)
 	}
 
 	if committee.HasMailingList == hasMailingList {
@@ -616,7 +637,7 @@ func (s *storage) UpdateHasMailingList(ctx context.Context, uid string, hasMaili
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, errs.NewUnexpected("failed to update committee has_mailing_list flag", err)
+		return nil, false, writeError("committee has been modified by another process", "failed to update committee has_mailing_list flag", err)
 	}
 
 	slog.DebugContext(ctx, "updated has_mailing_list in NATS storage",
@@ -637,7 +658,7 @@ func (s *storage) UpdateTotalMembers(ctx context.Context, uid string, totalMembe
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, errs.NewUnexpected("failed to get committee", err)
+		return nil, false, readError("failed to get committee", err)
 	}
 
 	if committee.TotalMembers == totalMembers {
@@ -657,7 +678,7 @@ func (s *storage) UpdateTotalMembers(ctx context.Context, uid string, totalMembe
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return nil, false, errs.NewUnexpected("failed to update committee total_members counter", err)
+		return nil, false, writeError("committee has been modified by another process", "failed to update committee total_members counter", err)
 	}
 
 	slog.DebugContext(ctx, "updated total_members in NATS storage",
@@ -685,7 +706,7 @@ func (s *storage) UpdateSetting(ctx context.Context, settings *model.CommitteeSe
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", settings.UID))
 		}
-		return errs.NewUnexpected("failed to update committee settings", errUpdate)
+		return writeError("committee settings have been modified by another process", "failed to update committee settings", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee settings in NATS storage",
@@ -746,7 +767,7 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 		}
-		return errs.NewUnexpected("failed to get committee", errGet)
+		return readError("failed to get committee", errGet)
 	}
 	nameKey, ssoKey := committeeLookupKeys(ctx, &model.Committee{CommitteeBase: *existing})
 
@@ -760,7 +781,7 @@ func (s *storage) Delete(ctx context.Context, uid string, revision uint64) error
 		rctx, cancel := detachedCtx(ctx)
 		defer cancel()
 		if _, errGet := committeesKV.Get(rctx, uid); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
-			return errs.NewUnexpected("failed to delete committee base", errDeleteBase)
+			return writeError("committee has been modified by another process", "failed to delete committee base", errDeleteBase)
 		}
 		slog.WarnContext(ctx, "committee delete reported an error but the committee is gone; continuing",
 			"error", errDeleteBase,
@@ -797,7 +818,7 @@ func (s *storage) GetMember(ctx context.Context, memberUID string) (*model.Commi
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", memberUID))
 		}
-		return nil, 0, errs.NewUnexpected("failed to get committee member", errGet)
+		return nil, 0, readError("failed to get committee member", errGet)
 	}
 
 	return member, rev, nil
@@ -1307,7 +1328,7 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", member.UID))
 		}
-		return nil, errs.NewUnexpected("failed to get committee member", errGet)
+		return nil, readError("failed to get committee member", errGet)
 	}
 	oldKeys := buildMemberLookupKeys(ctx, existing)
 	newKeys := buildMemberLookupKeys(ctx, member)
@@ -1514,7 +1535,7 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 				"member_uid", uid,
 			)
 		default:
-			return errs.NewUnexpected("failed to get committee member", errGet)
+			return readError("failed to get committee member", errGet)
 		}
 	}
 	keys := buildMemberLookupKeys(ctx, existing)
@@ -1538,7 +1559,7 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 				"member_uid", uid,
 				"revision", revision,
 			)
-			return errs.NewUnexpected("failed to delete committee member", err)
+			return writeError("committee member revision conflict", "failed to delete committee member", err)
 		}
 		slog.WarnContext(ctx, "member delete reported an error but the member is gone; continuing",
 			"error", err,
@@ -1908,7 +1929,7 @@ func (s *storage) GetInvite(ctx context.Context, uid string) (*model.CommitteeIn
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, 0, errs.NewNotFound("committee invite not found", fmt.Errorf("invite UID: %s", uid))
 		}
-		return nil, 0, errs.NewUnexpected("failed to get committee invite", errGet)
+		return nil, 0, readError("failed to get committee invite", errGet)
 	}
 
 	return invite, rev, nil
@@ -2012,7 +2033,7 @@ func (s *storage) UpdateInvite(ctx context.Context, invite *model.CommitteeInvit
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee invite not found", fmt.Errorf("invite UID: %s", invite.UID))
 		}
-		return errs.NewUnexpected("failed to update committee invite", errUpdate)
+		return writeError("committee invite has been modified by another process", "failed to update committee invite", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee invite in NATS storage",
@@ -2036,7 +2057,7 @@ func (s *storage) GetApplication(ctx context.Context, uid string) (*model.Commit
 		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
 			return nil, 0, errs.NewNotFound("committee application not found", fmt.Errorf("application UID: %s", uid))
 		}
-		return nil, 0, errs.NewUnexpected("failed to get committee application", errGet)
+		return nil, 0, readError("failed to get committee application", errGet)
 	}
 
 	return application, rev, nil
@@ -2189,7 +2210,7 @@ func (s *storage) UpdateApplication(ctx context.Context, application *model.Comm
 		if errors.Is(errUpdate, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("committee application not found", fmt.Errorf("application UID: %s", application.UID))
 		}
-		return errs.NewUnexpected("failed to update committee application", errUpdate)
+		return writeError("committee application has been modified by another process", "failed to update committee application", errUpdate)
 	}
 
 	slog.DebugContext(ctx, "updated committee application in NATS storage",
