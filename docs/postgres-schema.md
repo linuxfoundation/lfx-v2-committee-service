@@ -242,3 +242,21 @@ TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/committee_test?sslmode=dis
 
 Without `TEST_DATABASE_URL` the PostgreSQL tests are skipped locally. On CI (`CI` is set) a missing
 `TEST_DATABASE_URL` fails the tests, and the build workflow provides a PostgreSQL service.
+
+### Contract tests
+
+`internal/infrastructure/storetest` holds the behavioral suites that every committee storage backend must pass, so
+the PostgreSQL store is held to the same behavior as the NATS KV store and a difference between them is a failing
+test, not a surprise at the cutover. A suite takes a `storetest.Backend`, which builds a fresh store, and each backend
+runs it from its own package: `internal/infrastructure/nats/contract_test.go` starts an in-process JetStream server
+with the buckets the deployment creates (no external NATS is needed), and
+`internal/infrastructure/postgres/contract_test.go` uses the per-test schema above.
+
+A backend may declare where it differs. The only declared difference so far is the error of a stale revision: KV
+reports its "wrong last sequence" as `errs.Unexpected` (a 500), PostgreSQL as `errs.Conflict`, the error the service
+returns when it finds the revision has moved. Anything else a suite shows that differs is a bug in one of the stores,
+or a deviation to document here.
+
+Suites so far: committee and settings (create, get, update, delete, the name and SSO group name uniqueness, the
+lookups, the counters, concurrent writers). Members, invites, applications, links, folders, document metadata and
+weekly briefs follow.
