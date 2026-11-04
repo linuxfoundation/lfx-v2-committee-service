@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -394,4 +396,12 @@ func TestWithRevision_staleStillRejected(t *testing.T) {
 	_, revision, err := store.GetLink(ctx, "c-1", "l-1")
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1000), revision)
+}
+
+// The PostgreSQL store runs the same behavioral suites as the NATS KV store (see
+// internal/infrastructure/nats/storage_test.go).
+func TestContract_Committee(t *testing.T) {
+	storetest.RunCommitteeContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return newTestStore(t)
+	})
 }

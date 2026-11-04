@@ -248,9 +248,10 @@ Without `TEST_DATABASE_URL` the PostgreSQL tests are skipped locally. On CI (`CI
 `internal/infrastructure/storetest` holds the behavioral suites that every committee storage backend must pass, so
 the PostgreSQL store is held to the same behavior as the NATS KV store and a difference between them is a failing
 test, not a surprise at the cutover. A suite takes a `storetest.Backend`, which builds a fresh store, and each backend
-runs it from its own package: `internal/infrastructure/nats/contract_test.go` starts an in-process JetStream server
-with the buckets the deployment creates (no external NATS is needed), and
-`internal/infrastructure/postgres/contract_test.go` uses the per-test schema above.
+runs it from its own package, in the test file next to the store: `TestContract_Committee` in
+`internal/infrastructure/nats/storage_test.go` starts an in-process JetStream server with the buckets the deployment
+creates (no external NATS is needed), and `TestContract_Committee` in `internal/infrastructure/postgres/store_test.go`
+uses the per-test schema above.
 
 A backend may declare where it differs, and the suites show any other difference as a failing case. The checks look at
 the outer error, the one the HTTP layer maps, not anywhere in its chain, so an internal error that wraps a validation
