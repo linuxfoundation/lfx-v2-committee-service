@@ -116,10 +116,7 @@ func (s *storage) UpdateLink(ctx context.Context, link *model.CommitteeLink, rev
 		return errs.NewUnexpected("failed to marshal link", errMarshal)
 	}
 	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeLinks].Update(ctx, link.UID, linkBytes, revision); errUpdate != nil {
-		if isJetStreamCASConflict(errUpdate) {
-			return errs.NewConflict("link has been modified since it was last read")
-		}
-		return errs.NewUnexpected("failed to update link", errUpdate)
+		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeLinks], link.UID, "link not found", "link has been modified since it was last read", "failed to update link", errUpdate)
 	}
 	return nil
 }
@@ -134,10 +131,7 @@ func (s *storage) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeL
 		return errs.NewUnexpected("failed to marshal folder", errMarshal)
 	}
 	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Update(ctx, folder.UID, folderBytes, revision); errUpdate != nil {
-		if isJetStreamCASConflict(errUpdate) {
-			return errs.NewConflict("folder has been modified since it was last read")
-		}
-		return errs.NewUnexpected("failed to update folder", errUpdate)
+		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeFolders], folder.UID, "folder not found", "folder has been modified since it was last read", "failed to update folder", errUpdate)
 	}
 	return nil
 }

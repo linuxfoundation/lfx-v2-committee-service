@@ -4049,6 +4049,19 @@ func EncodeDeleteCommitteeLinkError(encoder func(context.Context, http.ResponseW
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusBadRequest)
 			return enc.Encode(body)
+		case "Conflict":
+			var res *committeeservice.ConflictError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewDeleteCommitteeLinkConflictResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
 		case "InternalServerError":
 			var res *committeeservice.InternalServerError
 			errors.As(v, &res)
@@ -4579,6 +4592,19 @@ func EncodeDeleteCommitteeLinkFolderError(encoder func(context.Context, http.Res
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "Conflict":
+			var res *committeeservice.ConflictError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewDeleteCommitteeLinkFolderConflictResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusConflict)
 			return enc.Encode(body)
 		case "InternalServerError":
 			var res *committeeservice.InternalServerError

@@ -1760,6 +1760,14 @@ paths:
                                 $ref: '#/components/schemas/NotFoundError'
                             example:
                                 message: The resource was not found.
+                "409":
+                    description: 'Conflict: Conflict'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -2981,6 +2989,14 @@ paths:
                                 $ref: '#/components/schemas/NotFoundError'
                             example:
                                 message: The resource was not found.
+                "409":
+                    description: 'Conflict: Conflict'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:

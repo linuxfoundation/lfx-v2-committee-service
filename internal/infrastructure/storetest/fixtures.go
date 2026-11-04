@@ -188,3 +188,40 @@ func normalizeApplication(a *model.CommitteeApplication) *model.CommitteeApplica
 	c.CreatedAt = micro(c.CreatedAt)
 	return &c
 }
+
+// NewAuditUser is the audit user the link, folder and document fixtures use.
+func NewAuditUser() *model.CommitteeUser {
+	return &model.CommitteeUser{Name: "First Last", Username: "first-last", Email: "first.last@example.com", Avatar: "https://example.com/avatar.png"}
+}
+
+// NewLink returns a link with every field set, in folder f-1.
+func NewLink(uid, committeeUID string) *model.CommitteeLink {
+	folder := "f-1"
+	return &model.CommitteeLink{
+		UID: uid, CommitteeUID: committeeUID, FolderUID: &folder, Name: "Charter", URL: "https://example.com/charter",
+		Description: "The charter", CreatedBy: NewAuditUser(), UpdatedBy: NewAuditUser(),
+		CreatedAt: FixtureTime, UpdatedAt: FixtureTime.Add(time.Hour),
+	}
+}
+
+// normalizeLink makes a link comparable across backends: times at the shared precision.
+func normalizeLink(l *model.CommitteeLink) *model.CommitteeLink {
+	c := *l
+	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
+	return &c
+}
+
+// NewFolder returns a folder with every field set, for the committee and name.
+func NewFolder(uid, committeeUID, name string) *model.CommitteeLinkFolder {
+	return &model.CommitteeLinkFolder{
+		UID: uid, CommitteeUID: committeeUID, Name: name, CreatedBy: NewAuditUser(), UpdatedBy: NewAuditUser(),
+		CreatedAt: FixtureTime, UpdatedAt: FixtureTime.Add(time.Hour),
+	}
+}
+
+// normalizeFolder makes a folder comparable across backends: times at the shared precision.
+func normalizeFolder(f *model.CommitteeLinkFolder) *model.CommitteeLinkFolder {
+	c := *f
+	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
+	return &c
+}

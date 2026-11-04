@@ -4555,6 +4555,7 @@ func EncodeDeleteCommitteeLinkRequest(encoder func(*http.Request) goahttp.Encode
 // controls whether the response body should be restored after having been read.
 // DecodeDeleteCommitteeLinkResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -4590,6 +4591,20 @@ func DecodeDeleteCommitteeLinkResponse(decoder func(*http.Response) goahttp.Deco
 				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link", err)
 			}
 			return nil, NewDeleteCommitteeLinkBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body DeleteCommitteeLinkConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link", err)
+			}
+			err = ValidateDeleteCommitteeLinkConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link", err)
+			}
+			return nil, NewDeleteCommitteeLinkConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body DeleteCommitteeLinkInternalServerErrorResponseBody
@@ -5190,6 +5205,7 @@ func EncodeDeleteCommitteeLinkFolderRequest(encoder func(*http.Request) goahttp.
 // having been read.
 // DecodeDeleteCommitteeLinkFolderResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -5225,6 +5241,20 @@ func DecodeDeleteCommitteeLinkFolderResponse(decoder func(*http.Response) goahtt
 				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link-folder", err)
 			}
 			return nil, NewDeleteCommitteeLinkFolderBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body DeleteCommitteeLinkFolderConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "delete-committee-link-folder", err)
+			}
+			err = ValidateDeleteCommitteeLinkFolderConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "delete-committee-link-folder", err)
+			}
+			return nil, NewDeleteCommitteeLinkFolderConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body DeleteCommitteeLinkFolderInternalServerErrorResponseBody
