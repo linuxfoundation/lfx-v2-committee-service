@@ -21,10 +21,19 @@ import (
 // newTestStore returns a Store on a pool bound to a freshly migrated schema.
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
+	return newTestStoreWith(t, nil)
+}
+
+// newTestStoreWith is newTestStore with extra session settings for every connection of the pool.
+func newTestStoreWith(t *testing.T, params map[string]string) *Store {
+	t.Helper()
 	db := migratedDB(t)
 	cfg, err := pgxpool.ParseConfig(testDSN(t))
 	require.NoError(t, err)
 	cfg.ConnConfig.RuntimeParams["search_path"] = currentSchema(t, db)
+	for name, value := range params {
+		cfg.ConnConfig.RuntimeParams[name] = value
+	}
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
