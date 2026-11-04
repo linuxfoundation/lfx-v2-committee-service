@@ -307,11 +307,12 @@ func (s *storage) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mod
 	return throttle, nil
 }
 
-// isJetStreamCASConflict reports whether err indicates a JetStream KV
-// compare-and-swap revision mismatch on Update. Newer client versions return
-// jetstream.ErrKeyExists for this case; older / wrapped errors carry the
-// underlying "wrong last sequence" message — we match both so the surface
-// stays stable across client upgrades.
+// isJetStreamCASConflict reports whether err indicates a refused JetStream KV
+// compare-and-swap: a revision mismatch on Update, or a Create of a key that
+// exists. nats.go returns jetstream.ErrKeyExists for error 10071 only; on a
+// clustered stream the server can refuse the same check with error 10164, which
+// carries just the "wrong last sequence" message — we match both so every
+// place that treats a refused write as "the key is taken" sees either.
 func isJetStreamCASConflict(err error) bool {
 	if err == nil {
 		return false

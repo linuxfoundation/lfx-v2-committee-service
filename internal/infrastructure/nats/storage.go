@@ -1638,7 +1638,7 @@ func (s *storage) IndexMemberByCommittee(ctx context.Context, member *model.Comm
 // filtered scan instead of a full bucket scan. The org SFID is normalized to its 18-char form.
 //
 // Members without an organization.id are NOT org-affiliated seats, so no index entry is written and an
-// empty key is returned (the caller treats that as a no-op). jetstream.ErrKeyExists is idempotent.
+// empty key is returned (the caller treats that as a no-op). A compare-and-swap conflict (see isJetStreamCASConflict) is idempotent.
 func (s *storage) IndexMemberByOrganization(ctx context.Context, member *model.CommitteeMember) (string, error) {
 	if member == nil {
 		return "", errs.NewValidation("committee member cannot be nil")
