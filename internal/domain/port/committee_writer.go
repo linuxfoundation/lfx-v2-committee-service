@@ -56,7 +56,6 @@ type CommitteeCascadeDeleter interface {
 	// returns an error nothing was removed. The revision guards the committee as in Delete. It returns
 	// what it removed besides the committee so the caller can clean up the search index and the access
 	// tuples of each child. It removes document metadata only: it does not touch the stored files of the
-	// returned DocumentUIDs, and the service does not delete them either, so whatever composes the stores
-	// around this one has to.
+	// returned DocumentUIDs. The service deletes them through its document file deleter, when it has one.
 	DeleteCommitteeCascade(ctx context.Context, uid string, revision uint64) (*model.CommitteeRemovedChildren, error)
 }

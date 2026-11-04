@@ -3391,7 +3391,7 @@ func (w *cascadingTestWriter) DeleteCommitteeCascade(ctx context.Context, uid st
 // A store that cascades removes the children itself, so the service cleans up their index entries, and the
 // access tuples of the children that have their own, from what the store reports.
 func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
-	setup := func(removed *model.CommitteeRemovedChildren) (*cascadingTestWriter, *mock.MockCommitteePublisher, CommitteeWriter) {
+	setup := func(removed *model.CommitteeRemovedChildren, opts ...committeeWriterOrchestratorOption) (*cascadingTestWriter, *mock.MockCommitteePublisher, CommitteeWriter) {
 		mockRepo := mock.NewMockRepository()
 		mockRepo.ClearAll()
 		mockRepo.AddProject("project-1", "test-project", "Test Project")
@@ -3401,12 +3401,12 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 		})
 		writer := &cascadingTestWriter{TestMockCommitteeWriter: NewTestMockCommitteeWriter(mockRepo), removed: removed}
 		publisher := &mock.MockCommitteePublisher{}
-		return writer, publisher, NewCommitteeWriterOrchestrator(
+		return writer, publisher, NewCommitteeWriterOrchestrator(append([]committeeWriterOrchestratorOption{
 			WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
 			WithCommitteeWriter(writer),
 			WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
 			WithCommitteePublisher(publisher),
-		)
+		}, opts...)...)
 	}
 
 	t.Run("every removed child gets an index delete, and applications an access delete too", func(t *testing.T) {
@@ -3477,6 +3477,55 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 		require.ErrorAs(t, err, &unexpected)
 		assert.Empty(t, publisher.IndexerSubjects)
 		assert.Zero(t, publisher.DeleteAccessCallCount)
+	})
+
+	t.Run("the files of the removed documents are deleted, and no others", func(t *testing.T) {
+		ctx := context.Background()
+		files := mock.NewMockDocumentRepository()
+		for _, uid := range []string{"d-1", "d-2", "d-other"} {
+			require.NoError(t, files.PutDocumentFile(ctx, uid, []byte("contents of "+uid)))
+		}
+		_, _, orchestrator := setup(&model.CommitteeRemovedChildren{DocumentUIDs: []string{"d-1", "d-2"}}, WithDocumentFileDeleter(files))
+
+		require.NoError(t, orchestrator.Delete(ctx, "committee-1", 1, false))
+
+		for _, uid := range []string{"d-1", "d-2"} {
+			_, err := files.GetDocumentFile(ctx, uid)
+			var notFound errs.NotFound
+			require.ErrorAs(t, err, &notFound, uid)
+		}
+		data, err := files.GetDocumentFile(ctx, "d-other")
+		require.NoError(t, err)
+		assert.Equal(t, "contents of d-other", string(data), "a document of another committee is left alone")
+	})
+
+	t.Run("a file that cannot be deleted does not skip the others, and is reported", func(t *testing.T) {
+		ctx := context.Background()
+		files := &failingFileDeleter{MockDocumentRepository: mock.NewMockDocumentRepository(), failing: "d-1"}
+		for _, uid := range []string{"d-1", "d-2", "d-3"} {
+			require.NoError(t, files.PutDocumentFile(ctx, uid, []byte("x")))
+		}
+		_, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{
+			DocumentUIDs: []string{"d-1", "d-2", "d-3"}, MemberUIDs: []string{"m-1"},
+		}, WithDocumentFileDeleter(files))
+
+		err := orchestrator.Delete(ctx, "committee-1", 1, false)
+
+		require.Error(t, err)
+		for _, uid := range []string{"d-2", "d-3"} {
+			_, errGet := files.GetDocumentFile(ctx, uid)
+			var notFound errs.NotFound
+			require.ErrorAs(t, errGet, &notFound, uid)
+		}
+		assert.Contains(t, publisher.IndexerSubjects, constants.IndexCommitteeMemberSubject, "the other children are still cleaned up")
+	})
+
+	t.Run("without a file deleter the removed documents are still cleaned up elsewhere", func(t *testing.T) {
+		_, publisher, orchestrator := setup(&model.CommitteeRemovedChildren{DocumentUIDs: []string{"d-1"}})
+
+		require.NoError(t, orchestrator.Delete(context.Background(), "committee-1", 1, false))
+
+		assert.Contains(t, publisher.IndexerSubjects, constants.IndexCommitteeDocumentSubject)
 	})
 
 	t.Run("a store that reports no removed children is not a panic", func(t *testing.T) {
@@ -3579,4 +3628,17 @@ func TestCommitteeWriterOrchestrator_Delete_StoreCascade(t *testing.T) {
 		}
 		assert.Equal(t, len(removed.MemberUIDs), members)
 	})
+}
+
+// failingFileDeleter is the in-memory document storage whose file delete fails for one document.
+type failingFileDeleter struct {
+	*mock.MockDocumentRepository
+	failing string
+}
+
+func (f *failingFileDeleter) DeleteDocumentFile(ctx context.Context, documentUID string) error {
+	if documentUID == f.failing {
+		return errs.NewUnexpected("simulated file delete failure")
+	}
+	return f.MockDocumentRepository.DeleteDocumentFile(ctx, documentUID)
 }

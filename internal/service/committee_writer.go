@@ -190,6 +190,15 @@ func WithB2BOrgFallbackResolver(resolver port.B2BOrgFallbackResolver) committeeW
 	}
 }
 
+// WithDocumentFileDeleter sets the storage that holds the files of committee documents. A committee delete
+// whose store cascades removes the document metadata only, so the files of the documents it removed are
+// deleted through this; without it they are left in place and the delete says so in the log.
+func WithDocumentFileDeleter(deleter port.CommitteeDocumentFileDeleter) committeeWriterOrchestratorOption {
+	return func(u *committeeWriterOrchestrator) {
+		u.documentFileDeleter = deleter
+	}
+}
+
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
 	projectRetriever       port.ProjectReader
@@ -199,6 +208,7 @@ type committeeWriterOrchestrator struct {
 	userReader             port.UserReader
 	b2bOrgResolver         port.B2BOrgResolver
 	b2bOrgFallbackResolver port.B2BOrgFallbackResolver
+	documentFileDeleter    port.CommitteeDocumentFileDeleter
 }
 
 // maxSSOGroupNameAttempts bounds how many generated SSO group names are tried before giving up.
@@ -1121,7 +1131,8 @@ const maxCascadePublishers = 32
 // cleanUpRemovedChildren publishes the index delete of every child that a cascading committee delete
 // removed (an application's carries its tags), and the access delete of each application and invite, which
 // have an FGA object of their own. The committee's own delete_access removes the tuples on the committee,
-// which covers members. It publishes on a context detached from the
+// which covers members. It also deletes the stored file of each removed document, which the store, holding
+// metadata only, leaves in place. It publishes on a context detached from the
 // request, because the delete has committed, runs every message even when one fails, and returns an error
 // when any did. A message that cannot be built is logged and counted as a failure.
 func (uc *committeeWriterOrchestrator) cleanUpRemovedChildren(ctx context.Context, removed *model.CommitteeRemovedChildren) error {
@@ -1193,6 +1204,24 @@ func (uc *committeeWriterOrchestrator) cleanUpRemovedChildren(ctx context.Contex
 			messages = append(messages, func() error {
 				if err := uc.committeePublisher.DeleteAccess(ctx, deleteMsg); err != nil {
 					fail(err, "object_type", objectType, "child_uid", childUID)
+				}
+				return nil
+			})
+		}
+	}
+
+	// The store removed the document metadata only; the file of each document is deleted here.
+	if len(removed.DocumentUIDs) > 0 && uc.documentFileDeleter == nil {
+		slog.WarnContext(ctx, "the files of the documents removed with the committee are left in place: no document file deleter is configured",
+			"documents", len(removed.DocumentUIDs),
+			log.PriorityCritical(),
+		)
+	}
+	if uc.documentFileDeleter != nil {
+		for _, documentUID := range removed.DocumentUIDs {
+			messages = append(messages, func() error {
+				if err := uc.documentFileDeleter.DeleteDocumentFile(ctx, documentUID); err != nil {
+					fail(err, "document_uid", documentUID)
 				}
 				return nil
 			})
