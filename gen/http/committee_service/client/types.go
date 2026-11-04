@@ -1846,6 +1846,13 @@ type RevokeInviteBadRequestResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// RevokeInviteConflictResponseBody is the type of the "committee-service"
+// service "revoke-invite" endpoint HTTP response body for the "Conflict" error.
+type RevokeInviteConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // RevokeInviteInternalServerErrorResponseBody is the type of the
 // "committee-service" service "revoke-invite" endpoint HTTP response body for
 // the "InternalServerError" error.
@@ -2167,6 +2174,14 @@ type JoinCommitteeServiceUnavailableResponseBody struct {
 // service "leave-committee" endpoint HTTP response body for the "BadRequest"
 // error.
 type LeaveCommitteeBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// LeaveCommitteeConflictResponseBody is the type of the "committee-service"
+// service "leave-committee" endpoint HTTP response body for the "Conflict"
+// error.
+type LeaveCommitteeConflictResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -5469,6 +5484,16 @@ func NewRevokeInviteBadRequest(body *RevokeInviteBadRequestResponseBody) *commit
 	return v
 }
 
+// NewRevokeInviteConflict builds a committee-service service revoke-invite
+// endpoint Conflict error.
+func NewRevokeInviteConflict(body *RevokeInviteConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewRevokeInviteInternalServerError builds a committee-service service
 // revoke-invite endpoint InternalServerError error.
 func NewRevokeInviteInternalServerError(body *RevokeInviteInternalServerErrorResponseBody) *committeeservice.InternalServerError {
@@ -6280,6 +6305,16 @@ func NewJoinCommitteeServiceUnavailable(body *JoinCommitteeServiceUnavailableRes
 // leave-committee endpoint BadRequest error.
 func NewLeaveCommitteeBadRequest(body *LeaveCommitteeBadRequestResponseBody) *committeeservice.BadRequestError {
 	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewLeaveCommitteeConflict builds a committee-service service leave-committee
+// endpoint Conflict error.
+func NewLeaveCommitteeConflict(body *LeaveCommitteeConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
 		Message: *body.Message,
 	}
 
@@ -9746,6 +9781,15 @@ func ValidateRevokeInviteBadRequestResponseBody(body *RevokeInviteBadRequestResp
 	return
 }
 
+// ValidateRevokeInviteConflictResponseBody runs the validations defined on
+// revoke-invite_Conflict_response_body
+func ValidateRevokeInviteConflictResponseBody(body *RevokeInviteConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateRevokeInviteInternalServerErrorResponseBody runs the validations
 // defined on revoke-invite_InternalServerError_response_body
 func ValidateRevokeInviteInternalServerErrorResponseBody(body *RevokeInviteInternalServerErrorResponseBody) (err error) {
@@ -10109,6 +10153,15 @@ func ValidateJoinCommitteeServiceUnavailableResponseBody(body *JoinCommitteeServ
 // ValidateLeaveCommitteeBadRequestResponseBody runs the validations defined on
 // leave-committee_BadRequest_response_body
 func ValidateLeaveCommitteeBadRequestResponseBody(body *LeaveCommitteeBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateLeaveCommitteeConflictResponseBody runs the validations defined on
+// leave-committee_Conflict_response_body
+func ValidateLeaveCommitteeConflictResponseBody(body *LeaveCommitteeConflictResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

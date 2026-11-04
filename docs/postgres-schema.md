@@ -139,6 +139,96 @@ depends on the database (the dual-write and PostgreSQL modes), that choice has t
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
   give the runtime role DML only.
 
+## Store
+
+`postgres.Store` (`internal/infrastructure/postgres`) is the PostgreSQL implementation of the committee storage ports,
+added one port at a time. It is not selected by the service yet; the composite store (#1197) does that. It covers the
+committee base and settings (create, get, list, find by project and name, update, update settings, delete, and the
+`has_mailing_list` and `total_members` counters) and members (create, get, update, delete, and the by-committee,
+by-organization, by-email and by-username listings).
+Invites (create, get, update, list) and applications (create, get, update, delete, list) follow the same rules.
+Links and link folders (create, get, update, delete, list) follow them too.
+Document metadata (create, get, update, delete, name check, list) does too.
+Weekly briefs and their throttle entries (get by window, put, index keys) follow the KV semantics described below.
+
+- **Duplicates come from the schema.** The store does not check names itself. A violation of
+  `committees_project_name_key`, `committees_sso_group_name_key` or a primary key becomes `errs.Conflict` (the SSO one
+  wraps `errs.ErrSSOGroupNameTaken`), so the HTTP mapping is the same as with KV.
+- **Revision is the concurrency token.** It is assigned from `committee_revision_seq` on insert and replaced on every
+  update. An update or delete whose revision is stale matches no row and returns `errs.Conflict`, the error the service
+  returns today when it finds the revision has moved; a missing record is `errs.NotFound`. The check is a single
+  `UPDATE ... WHERE revision = $n`, so two writers with the same token cannot both win.
+- **Multi-row operations are one transaction.** Creating a committee with settings, and deleting a committee with its
+  settings, commit or roll back together. A failed create leaves nothing behind, with no lookup keys to clean up.
+- **JSONB lists read back like KV.** `scope`, `deliverables`, `key_dates` and `external_sources` are `omitempty` in the
+  KV record, so an empty list is stored as `[]` and read as `nil`. `writers` and `auditors` are not `omitempty`, and the
+  service tells "not set" from "set to empty", so they keep the difference: `nil` is stored as JSON `null` and an empty
+  list as `[]`.
+- **Timestamps** come back in UTC and truncated to microseconds, the precision of `TIMESTAMPTZ`; KV keeps nanoseconds
+  and the writer's zone. Comparisons between the stores (the composite store, `verify`) must normalise the same way.
+- **Member lookups use the schema's indexes.** A member's email is unique per committee after the trim and lowercase
+  that `committee_normalize_key` applies, so `First.Last@Example.com` and ` first.last@example.com ` are the same
+  member. The by-email and by-username listings compare through the same function. The KV by-organization index is keyed
+  by the 18-character form of the Salesforce account ID, so a member stored with the 15-character form is listed under
+  either spelling: the query matches the 18-character form and its 15-character prefix.
+- **Invites and applications** have the same per-committee unique email as members, so an email that was invited or
+  applied from once is a conflict whatever the case, spacing or status of the first record. The model has no update
+  time, so `updated_at` is the creation time on insert and the current time on every update, and is not read back.
+  An invite with no expiry is stored as `NULL`. `UpdateInvite` checks a changed email against the unique index, where
+  KV keeps the lookup key of the email the invite was created with. `DeleteApplication` is not an error when the
+  application is already gone, as in KV, where the committee cascade may have removed it.
+- **Links and folders** are found by uid within their committee: a record of another committee is `errs.NotFound` for
+  get and delete, as in KV. Links have no unique name; a folder name is unique per committee and case-sensitive, so
+  `Legal` and `legal` can both exist. Deleting a folder leaves its links alone (no foreign key, as in KV). `UpdateLinkFolder`
+  checks a changed name against the unique index, where KV keeps the lookup key of the name the folder was created with.
+  `UpdateLink` and `UpdateLinkFolder` find the record by uid and revision alone, as KV does, so they are for the
+  audit-sync tooling, not for a request path that must keep a record in its committee. `ListAllLinks` and
+  `ListAllLinkFolders` return every record when the committee is empty.
+- **Document metadata** is found by uid within its committee for get and delete, like links; `UpdateDocumentMetadata`
+  matches on the uid and revision alone, as KV does, for the audit-sync tooling. A document name is unique per committee and
+  case-sensitive, and `UpdateDocumentMetadata` checks a changed name against the unique index, where KV keeps the lookup
+  key of the original name. `DocumentNameExists` is the same query the unique index answers. The file bytes stay in the
+  NATS Object Store, keyed by the document uid: the store implements no file method (`GetDocumentFile`, `PutDocumentFile`,
+  `DeleteDocumentFile`), so the composite store keeps calling the object store and deletes the file after the metadata.
+- **Weekly briefs and throttle entries** are found by committee and the UTC day of `window_start`, the KV key
+  `<committee_uid>.<yyyymmdd>`, whatever time zone the connection uses (the queries use the same
+  `(window_start AT TIME ZONE 'UTC')::date` as the unique indexes). A put with a revision is a compare-and-swap and
+  without one replaces the brief with the same uid, as in KV, and a lost swap is `errs.ServiceUnavailable`, the error KV
+  returns; the throttle works the same way (revision 0 creates). Edits re-read and answer a lost swap with a revision
+  mismatch, and generation is redelivered, but `Claim`, which inserts a new brief, returns it to the HTTP client.
+  Differences from KV: a window holds one brief, so a second brief with another uid for the same window is that same
+  retryable error, where KV lets it take over the index entry and orphans the first (`Claim` may then answer 503 after
+  it has charged the throttle); `window_end` keeps microseconds, so the last
+  nanosecond of the week (`23:59:59.999999999`) reads back as `23:59:59.999999`, still the same week. The throttle
+  entry is returned as JSON for the brief's window, and a failed throttle lookup is logged and leaves it out, as in KV.
+  `ListGroupWeeklyBriefIndexKeys` rebuilds the KV keys, with `/`, `:` and spaces replaced by dots as KV does (the
+  replacer is repeated from the NATS adapter, so change both together). A put finds the brief by uid and writes the
+  committee and window it is given, as KV does: the composite store must take the uid from a lookup by committee and
+  window, never from a request. Revisions come from the shared sequence, not a bucket's, so a revision a client holds
+  across the switch from KV gets one revision mismatch.
+- **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
+  `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
+  port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
+- **Explicit revisions** let the composite store (#1197) carry the KV revision into a row in `dual` mode.
+  `postgres.WithRevision(ctx, rev)` makes every create or update made with the returned context leave `rev` as the
+  record's revision instead of a value from `committee_revision_seq`; it works for every record and for the counter
+  updates. Derive a fresh context from the plain parent for each store call: a context reused for a second write
+  stamps the same revision on another record. A committee create writes two rows, so `WithSettingsRevision` sets the
+  settings row's revision (`WithRevision` sets the committee's). The guard is unchanged: an update or delete is still
+  matched against the revision the caller read, so a stale token is rejected whether or not a new revision is given.
+  An update rejects (`errs.Validation`) an explicit revision that is not above the one it replaces, because the same
+  or a lower value would keep a token that was already handed out valid for the new content; the counter updates
+  check against the committee's current revision, in Go and in the statement, and a statement that refuses the
+  change is reported as an error, never as an unchanged value; replacing a brief by uid follows the same rule. A revision of 0 or above the range of
+  the column is an error. In `dual` mode every write must carry its revision: a write without one takes a sequence
+  value that can equal a KV revision a stale client still holds, unless the sequence was also advanced before `dual`
+  started. At the flip from KV to PostgreSQL, call `Store.AdvanceRevisionSequence(ctx, highest)` with the highest
+  revision over **every** KV bucket the tables mirror (KV revisions are stream sequences counted per bucket, while
+  all tables share this one sequence): the sequence then issues only values above it, so a token from before the flip
+  can never match a revision issued after it, and a lower value never lowers the sequence. Call it while no writes
+  are in flight, because the read and the set are not one atomic step. Rolling back from PostgreSQL to KV, and
+  invalidating the tokens issued in between, is the composite store's to define: it needs no primitive here.
+
 ## Running the tests
 
 The schema tests need a real PostgreSQL. Point `TEST_DATABASE_URL` at a database the tests may modify
@@ -152,3 +242,30 @@ TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/committee_test?sslmode=dis
 
 Without `TEST_DATABASE_URL` the PostgreSQL tests are skipped locally. On CI (`CI` is set) a missing
 `TEST_DATABASE_URL` fails the tests, and the build workflow provides a PostgreSQL service.
+
+### Contract tests
+
+`internal/infrastructure/storetest` holds the behavioral suites that every committee storage backend must pass, so
+the PostgreSQL store is held to the same behavior as the NATS KV store and a difference between them is a failing
+test, not a surprise at the cutover. A suite takes a `storetest.Backend`, which builds a fresh store, and each backend
+runs it from its own package, in the test file next to the store: `TestContract_Committee` in
+`internal/infrastructure/nats/storage_test.go` starts an in-process JetStream server with the buckets the deployment
+creates (no external NATS is needed), and `TestContract_Committee` in `internal/infrastructure/postgres/store_test.go`
+uses the per-test schema above.
+
+A backend may declare where it differs, and the suites show any other difference as a failing case. The checks look at
+the outer error, the one the HTTP layer maps, not anywhere in its chain, so an internal error that wraps a validation
+error cannot pass as a validation error. The committee suite currently declares nothing. Two earlier differences are
+fixed: the KV store used to report a lost compare-and-swap ("wrong last sequence") as `errs.Unexpected`, a 500, and a
+read with an empty uid as an internal error wrapping the validation error, also a 500; both now match PostgreSQL
+(`errs.Conflict`, a 409, and `errs.Validation`, a 400). JetStream also reports an update of a key that does not exist as a
+lost swap, so the KV store re-reads on a lost swap and answers not found, a 404, for an absent record, as PostgreSQL
+does; the conflict carries no NATS error text. One benign difference remains and is not an error:
+
+- **Identical writers with the same revision.** KV treats a failed swap whose stored record equals what the writer
+  wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed;
+  PostgreSQL gives one of them a conflict. The race case has each writer write different content for that reason.
+
+Suites so far: committee and settings (create, get, update, delete, the name and SSO group name uniqueness, the
+lookups, the counters, concurrent writers). Members, invites, applications, links, folders, document metadata and
+weekly briefs follow.

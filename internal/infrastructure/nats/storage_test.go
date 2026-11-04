@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
@@ -1846,4 +1848,269 @@ func TestStorage_Member_RealJetStream(t *testing.T) {
 			assert.False(t, exists(t, kv, key), "key %q must be gone", key)
 		}
 	})
+}
+
+// The HTTP layer maps the outer error type (cmd/committee-api/service/error.go), so these check it
+// directly: errors.As would also accept an internal error that wraps the right one.
+func requireOuterConflict(t *testing.T, err error) {
+	t.Helper()
+	_, ok := err.(errs.Conflict)
+	require.True(t, ok, "want a conflict as the outer error, got %T: %v", err, err)
+}
+
+func requireOuterNotFound(t *testing.T, err error) {
+	t.Helper()
+	_, ok := err.(errs.NotFound)
+	require.True(t, ok, "want not found as the outer error, got %T: %v", err, err)
+}
+
+// requireNoBackendText checks that an error a client can see carries no NATS error text.
+func requireNoBackendText(t *testing.T, err error) {
+	t.Helper()
+	assert.NotContains(t, err.Error(), "nats")
+	assert.NotContains(t, err.Error(), "sequence")
+}
+
+func requireOuterValidation(t *testing.T, err error) {
+	t.Helper()
+	_, ok := err.(errs.Validation)
+	require.True(t, ok, "want a validation error as the outer error, got %T: %v", err, err)
+}
+
+func newConflictTestMember(uid, email string) *model.CommitteeMember {
+	return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: uid, CommitteeUID: "c-1", Username: "first-last-" + uid, Email: email, FirstName: "First", LastName: "Last",
+		CreatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), UpdatedAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
+	}}
+}
+
+// A write guarded by a revision that is no longer current is a conflict (a 409), as the PostgreSQL store
+// reports it, whichever record it targets; a read or delete with an empty uid is a validation error (a 400).
+func TestStorage_LostSwapIsConflict(t *testing.T) {
+	ctx := context.Background()
+	s := NewStorage(newKVClient(t))
+
+	require.NoError(t, s.CreateMember(ctx, newConflictTestMember("m-1", "first.last@example.com")))
+	_, memberRevision, err := s.GetMember(ctx, "m-1")
+	require.NoError(t, err)
+
+	invite := &model.CommitteeInvite{UID: "i-1", CommitteeUID: "c-1", InviteeEmail: "first.last@example.com", Status: "pending", CreatedAt: time.Now()}
+	require.NoError(t, s.CreateInvite(ctx, invite))
+	_, inviteRevision, err := s.GetInvite(ctx, "i-1")
+	require.NoError(t, err)
+
+	application := &model.CommitteeApplication{UID: "a-1", CommitteeUID: "c-1", ApplicantEmail: "first.last@example.com", Status: "pending", CreatedAt: time.Now()}
+	require.NoError(t, s.CreateApplication(ctx, application))
+	_, applicationRevision, err := s.GetApplication(ctx, "a-1")
+	require.NoError(t, err)
+
+	t.Run("delete member", func(t *testing.T) {
+		err := s.DeleteMember(ctx, "m-1", memberRevision+1000)
+		requireOuterConflict(t, err)
+		requireNoBackendText(t, err)
+		_, _, err = s.GetMember(ctx, "m-1")
+		require.NoError(t, err, "a rejected delete changes nothing")
+	})
+
+	t.Run("update invite", func(t *testing.T) {
+		invite.Status = "accepted"
+		require.NoError(t, s.UpdateInvite(ctx, invite, inviteRevision))
+		invite.Status = "stale writer"
+		err := s.UpdateInvite(ctx, invite, inviteRevision)
+		requireOuterConflict(t, err)
+		requireNoBackendText(t, err)
+		got, _, err := s.GetInvite(ctx, "i-1")
+		require.NoError(t, err)
+		assert.Equal(t, "accepted", got.Status)
+	})
+
+	t.Run("update application", func(t *testing.T) {
+		application.Status = "approved"
+		require.NoError(t, s.UpdateApplication(ctx, application, applicationRevision))
+		application.Status = "stale writer"
+		requireOuterConflict(t, s.UpdateApplication(ctx, application, applicationRevision))
+		got, _, err := s.GetApplication(ctx, "a-1")
+		require.NoError(t, err)
+		assert.Equal(t, "approved", got.Status)
+	})
+
+	t.Run("update member", func(t *testing.T) {
+		member, revision, err := s.GetMember(ctx, "m-1")
+		require.NoError(t, err)
+		member.JobTitle = "first writer"
+		_, err = s.UpdateMember(ctx, member, revision)
+		require.NoError(t, err)
+		member.JobTitle = "stale writer"
+		_, err = s.UpdateMember(ctx, member, revision)
+		requireOuterConflict(t, err)
+		requireNoBackendText(t, err)
+	})
+
+	// JetStream reports an update of a key that does not exist as a lost swap too, so the store re-reads
+	// to tell the two apart, as the PostgreSQL store does.
+	t.Run("an update of a missing record is not found", func(t *testing.T) {
+		requireOuterNotFound(t, s.UpdateInvite(ctx, &model.CommitteeInvite{UID: "missing", CommitteeUID: "c-1", InviteeEmail: "first.last@example.com"}, 1))
+		requireOuterNotFound(t, s.UpdateApplication(ctx, &model.CommitteeApplication{UID: "missing", CommitteeUID: "c-1", ApplicantEmail: "first.last@example.com"}, 1))
+	})
+
+	t.Run("an empty uid is a validation error", func(t *testing.T) {
+		_, _, err := s.GetMember(ctx, "")
+		requireOuterValidation(t, err)
+		_, err = s.GetMemberRevision(ctx, "")
+		requireOuterValidation(t, err)
+		_, _, err = s.GetInvite(ctx, "")
+		requireOuterValidation(t, err)
+		_, _, err = s.GetApplication(ctx, "")
+		requireOuterValidation(t, err)
+		_, _, err = s.GetSettings(ctx, "")
+		requireOuterValidation(t, err)
+		requireOuterValidation(t, s.DeleteMember(ctx, "", 1))
+	})
+}
+
+// failingUpdateKV wraps a real bucket so every Update fails with err, which is how a lost compare-and-swap
+// looks to the store: jetstream.ErrKeyExists is JetStream's "wrong last sequence". After okGets reads,
+// every Get fails with getErr, when it is set, so a test can make the re-read that follows a lost swap fail.
+type failingUpdateKV struct {
+	jetstream.KeyValue
+	err    error
+	getErr error
+	okGets int
+	gets   int
+}
+
+func (k *failingUpdateKV) Update(context.Context, string, []byte, uint64) (uint64, error) {
+	return 0, k.err
+}
+
+func (k *failingUpdateKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	k.gets++
+	if k.getErr != nil && k.gets > k.okGets {
+		return nil, k.getErr
+	}
+	return k.KeyValue.Get(ctx, key)
+}
+
+// vanishingKV wraps a real bucket so Update fails with a lost swap and the key is gone afterwards, which
+// is a record deleted between the read and the guarded write.
+type vanishingKV struct {
+	jetstream.KeyValue
+	updated bool
+}
+
+func (k *vanishingKV) Update(context.Context, string, []byte, uint64) (uint64, error) {
+	k.updated = true
+	return 0, jetstream.ErrKeyExists
+}
+
+func (k *vanishingKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if k.updated {
+		return nil, jetstream.ErrKeyNotFound
+	}
+	return k.KeyValue.Get(ctx, key)
+}
+
+// The counter updates read the committee and write it back guarded by the revision they read, so another
+// writer in between makes the write lose the swap: a conflict, not an internal error. A different failure
+// stays an internal error.
+func TestStorage_CounterLostSwapIsConflict(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	s := NewStorage(client)
+	require.NoError(t, s.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	real := client.kvStore[constants.KVBucketNameCommittees]
+
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists}
+	_, _, err := s.UpdateTotalMembers(ctx, "uid-1", 9)
+	requireOuterConflict(t, err)
+	requireNoBackendText(t, err)
+	_, _, err = s.UpdateHasMailingList(ctx, "uid-1", false)
+	requireOuterConflict(t, err)
+
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: errors.New("simulated failure")}
+	_, _, err = s.UpdateTotalMembers(ctx, "uid-1", 9)
+	_, ok := err.(errs.Unexpected)
+	require.True(t, ok, "want an internal error as the outer error, got %T: %v", err, err)
+}
+
+// newKVClient starts an in-process JetStream server with every bucket the service binds to, which
+// the deployment creates ahead of time, and returns a client connected to it.
+func newKVClient(t *testing.T) *NATSClient {
+	t.Helper()
+	js := startJetStreamTestServer(t)
+	url := js.Conn().ConnectedUrl()
+
+	ctx := context.Background()
+	for _, bucket := range []string{
+		constants.KVBucketNameCommittees,
+		constants.KVBucketNameCommitteeSettings,
+		constants.KVBucketNameCommitteeMembers,
+		constants.KVBucketNameCommitteeInvites,
+		constants.KVBucketNameCommitteeApplications,
+		constants.KVBucketNameCommitteeLinks,
+		constants.KVBucketNameCommitteeFolders,
+		constants.KVBucketNameCommitteeDocuments,
+		constants.KVBucketNameGroupWeeklyBriefs,
+		constants.KVBucketNameGroupWeeklyBriefUIDIndex,
+		constants.KVBucketNameGroupWeeklyBriefThrottle,
+	} {
+		_, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{Bucket: bucket, History: 5})
+		require.NoError(t, err, bucket)
+	}
+	_, err := js.CreateObjectStore(ctx, jetstream.ObjectStoreConfig{Bucket: constants.ObjectStoreNameCommitteeDocuments})
+	require.NoError(t, err)
+
+	client, err := NewClient(ctx, Config{URL: url, Timeout: 5 * time.Second, MaxReconnect: 3, ReconnectWait: time.Second})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	return client
+}
+
+// The NATS KV store runs the same behavioral suites as the PostgreSQL store (see
+// internal/infrastructure/postgres/store_test.go), with no differences declared for the committee
+// suite.
+func TestContract_Committee(t *testing.T) {
+	storetest.RunCommitteeContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return NewStorage(newKVClient(t))
+	})
+}
+
+// JetStream reports an update of a missing key as a lost swap, so a lost swap re-reads the key. A re-read that
+// itself fails says nothing about whether the record exists: that is an internal error, not a conflict. A key
+// that is gone is not found.
+func TestStorage_LostSwapRereadOutcome(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	s := NewStorage(client)
+	require.NoError(t, s.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	real := client.kvStore[constants.KVBucketNameCommittees]
+
+	// The counter reads the committee once before it writes, so the second read is the re-read.
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists, getErr: errors.New("simulated read failure"), okGets: 1}
+	_, _, err := s.UpdateTotalMembers(ctx, "uid-1", 9)
+	_, ok := err.(errs.Unexpected)
+	require.True(t, ok, "want an internal error when the re-read fails, got %T: %v", err, err)
+
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists, getErr: jetstream.ErrKeyNotFound, okGets: 1}
+	_, _, err = s.UpdateTotalMembers(ctx, "uid-1", 9)
+	requireOuterNotFound(t, err)
+
+	client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: jetstream.ErrKeyExists}
+	_, _, err = s.UpdateTotalMembers(ctx, "uid-1", 9)
+	requireOuterConflict(t, err)
+}
+
+// A member deleted after it was read, before the guarded update, is not found (a 404), not a conflict.
+func TestStorage_UpdateMemberDeletedBeforeSwapIsNotFound(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	s := NewStorage(client)
+	require.NoError(t, s.CreateMember(ctx, newConflictTestMember("m-1", "first.last@example.com")))
+	member, revision, err := s.GetMember(ctx, "m-1")
+	require.NoError(t, err)
+
+	client.kvStore[constants.KVBucketNameCommitteeMembers] = &vanishingKV{KeyValue: client.kvStore[constants.KVBucketNameCommitteeMembers]}
+	member.JobTitle = "updated"
+	_, err = s.UpdateMember(ctx, member, revision)
+	requireOuterNotFound(t, err)
 }

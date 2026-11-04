@@ -1846,6 +1846,13 @@ type RevokeInviteBadRequestResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// RevokeInviteConflictResponseBody is the type of the "committee-service"
+// service "revoke-invite" endpoint HTTP response body for the "Conflict" error.
+type RevokeInviteConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // RevokeInviteInternalServerErrorResponseBody is the type of the
 // "committee-service" service "revoke-invite" endpoint HTTP response body for
 // the "InternalServerError" error.
@@ -2167,6 +2174,14 @@ type JoinCommitteeServiceUnavailableResponseBody struct {
 // service "leave-committee" endpoint HTTP response body for the "BadRequest"
 // error.
 type LeaveCommitteeBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// LeaveCommitteeConflictResponseBody is the type of the "committee-service"
+// service "leave-committee" endpoint HTTP response body for the "Conflict"
+// error.
+type LeaveCommitteeConflictResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -5483,6 +5498,15 @@ func NewRevokeInviteBadRequestResponseBody(res *committeeservice.BadRequestError
 	return body
 }
 
+// NewRevokeInviteConflictResponseBody builds the HTTP response body from the
+// result of the "revoke-invite" endpoint of the "committee-service" service.
+func NewRevokeInviteConflictResponseBody(res *committeeservice.ConflictError) *RevokeInviteConflictResponseBody {
+	body := &RevokeInviteConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewRevokeInviteInternalServerErrorResponseBody builds the HTTP response body
 // from the result of the "revoke-invite" endpoint of the "committee-service"
 // service.
@@ -5876,6 +5900,15 @@ func NewJoinCommitteeServiceUnavailableResponseBody(res *committeeservice.Servic
 // service.
 func NewLeaveCommitteeBadRequestResponseBody(res *committeeservice.BadRequestError) *LeaveCommitteeBadRequestResponseBody {
 	body := &LeaveCommitteeBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewLeaveCommitteeConflictResponseBody builds the HTTP response body from the
+// result of the "leave-committee" endpoint of the "committee-service" service.
+func NewLeaveCommitteeConflictResponseBody(res *committeeservice.ConflictError) *LeaveCommitteeConflictResponseBody {
+	body := &LeaveCommitteeConflictResponseBody{
 		Message: res.Message,
 	}
 	return body

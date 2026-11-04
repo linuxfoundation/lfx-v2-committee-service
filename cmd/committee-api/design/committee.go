@@ -669,6 +669,7 @@ var _ = dsl.Service("committee-service", func() {
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("NotFound", NotFoundError, "Invite not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
@@ -681,6 +682,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
 		})
@@ -1003,6 +1005,7 @@ var _ = dsl.Service("committee-service", func() {
 
 		dsl.Error("BadRequest", BadRequestError, "Bad request")
 		dsl.Error("NotFound", NotFoundError, "Not a member of this committee")
+		dsl.Error("Conflict", ConflictError, "Conflict")
 		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
 		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
 
@@ -1015,6 +1018,7 @@ var _ = dsl.Service("committee-service", func() {
 			dsl.Response(dsl.StatusNoContent)
 			dsl.Response("BadRequest", dsl.StatusBadRequest)
 			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
 			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
 			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
 		})
