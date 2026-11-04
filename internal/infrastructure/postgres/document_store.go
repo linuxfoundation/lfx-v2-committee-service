@@ -29,9 +29,9 @@ var documentColumns = []string{
 
 var (
 	selectDocument = "SELECT " + columnList(documentColumns) + ", revision FROM committee_documents"
-	insertDocument = "INSERT INTO committee_documents (" + columnList(documentColumns) + ") VALUES (" + placeholders(len(documentColumns)) + ")"
-	updateDocument = "UPDATE committee_documents SET " + assignments(documentColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertDocument = insertStatement("committee_documents", documentColumns)
+	updateDocument = "UPDATE committee_documents SET " + updateAssignments(documentColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 )
 
 const (
@@ -108,7 +108,7 @@ func (s *Store) CreateDocumentMetadata(ctx context.Context, doc *model.Committee
 	if err != nil {
 		return unexpected("failed to encode document", err)
 	}
-	if _, err := s.pool.Exec(ctx, insertDocument, values...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertDocument, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 		if conflict := documentConflict(err); conflict != nil {
 			return conflict
 		}
@@ -128,8 +128,11 @@ func (s *Store) UpdateDocumentMetadata(ctx context.Context, doc *model.Committee
 	if err != nil {
 		return unexpected("failed to encode document", err)
 	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
-	tag, err := s.pool.Exec(ctx, updateDocument, args...)
+	tag, err := s.pool.Exec(ctx, updateDocument, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := documentConflict(err); conflict != nil {
 			return conflict

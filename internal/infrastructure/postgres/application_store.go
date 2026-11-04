@@ -22,7 +22,7 @@ var (
 )
 
 // applicationColumns are the committee_applications columns the store writes, in the order
-// applicationValues returns them. uid comes first and the revision comes from the sequence.
+// applicationValues returns them. uid comes first; insertStatement and updateAssignments append the revision.
 var applicationColumns = []string{
 	"uid", "committee_uid", "applicant_email", "applicant_username", "message", "status",
 	"reviewer_notes", "organization", "created_at", "updated_at",
@@ -30,9 +30,9 @@ var applicationColumns = []string{
 
 var (
 	selectApplication = "SELECT " + columnList(applicationColumns) + ", revision FROM committee_applications"
-	insertApplication = "INSERT INTO committee_applications (" + columnList(applicationColumns) + ") VALUES (" + placeholders(len(applicationColumns)) + ")"
-	updateApplication = "UPDATE committee_applications SET " + assignments(applicationColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertApplication = insertStatement("committee_applications", applicationColumns)
+	updateApplication = "UPDATE committee_applications SET " + updateAssignments(applicationColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 )
 
 const applicationExists = "SELECT EXISTS (SELECT 1 FROM committee_applications WHERE uid = $1)"
@@ -102,7 +102,7 @@ func (s *Store) CreateApplication(ctx context.Context, application *model.Commit
 	if err != nil {
 		return unexpected("failed to encode committee application", err)
 	}
-	if _, err := s.pool.Exec(ctx, insertApplication, values...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertApplication, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 		if conflict := applicationConflict(err); conflict != nil {
 			return conflict
 		}
@@ -121,9 +121,12 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	if err != nil {
 		return unexpected("failed to encode committee application", err)
 	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateApplication, args...)
+	tag, err := s.pool.Exec(ctx, updateApplication, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := applicationConflict(err); conflict != nil {
 			return conflict

@@ -51,6 +51,100 @@ func uniqueViolation(err error) (string, bool) {
 	return "", false
 }
 
+// revisionKey names a revision carried in the context, see WithRevision.
+type revisionKey int
+
+const (
+	primaryRevision  revisionKey = iota // the record a write targets
+	settingsRevision                    // the settings row written along with a committee
+)
+
+// WithRevision makes every write made with the returned context store revision as the record's
+// revision, instead of taking one from the sequence. The composite store uses it in dual mode to carry
+// the KV revision into the row, so it must derive a fresh context from the plain parent for each store
+// call: a context reused for a second write would stamp the same revision on another record. The update
+// and delete guards still compare against the revision the caller read, so it only decides the revision
+// the write leaves behind, and an update rejects one that is not above the revision it replaces
+// (errs.Validation), because the guard would otherwise accept a stale token. It applies to creates and
+// updates of any record, and to the committee row of a committee create. A revision of 0, or one above
+// the range of the column, is an error.
+func WithRevision(ctx context.Context, revision uint64) (context.Context, error) {
+	return withRevision(ctx, primaryRevision, revision)
+}
+
+// WithSettingsRevision is WithRevision for the settings row a committee create writes along with the
+// committee, which has a revision of its own.
+func WithSettingsRevision(ctx context.Context, revision uint64) (context.Context, error) {
+	return withRevision(ctx, settingsRevision, revision)
+}
+
+func withRevision(ctx context.Context, key revisionKey, revision uint64) (context.Context, error) {
+	if revision == 0 || revision > math.MaxInt64 {
+		return ctx, errs.NewValidation("revision must be between 1 and the largest BIGINT")
+	}
+	return context.WithValue(ctx, key, int64(revision)), nil
+}
+
+// explicitRevision is the revision the context carries for key, or nil, which the statements
+// replace with the next value of the sequence.
+func explicitRevision(ctx context.Context, key revisionKey) any {
+	if revision, ok := ctx.Value(key).(int64); ok {
+		return revision
+	}
+	return nil
+}
+
+// withRevisionArg appends the explicit revision, the last parameter of every insert and update.
+func withRevisionArg(ctx context.Context, key revisionKey, args []any) []any {
+	return append(args, explicitRevision(ctx, key))
+}
+
+// errExplicitRevisionNotAbove is the message for an explicit revision that does not move a record past the one it replaces.
+const errExplicitRevisionNotAbove = "an explicit revision must be greater than the revision it replaces"
+
+// explicitAbove rejects an explicit revision that would not move the record past the one it replaces:
+// the same or a lower value leaves a token that was already handed out valid for the new content.
+func explicitAbove(ctx context.Context, key revisionKey, replaced uint64) error {
+	if explicit, ok := ctx.Value(key).(int64); ok && uint64(explicit) <= replaced {
+		return errs.NewValidation(errExplicitRevisionNotAbove)
+	}
+	return nil
+}
+
+// revisionParam is the SQL for the revision a write leaves behind: the value of parameter n when the
+// caller gave one, the next value of the sequence otherwise.
+func revisionParam(n int) string {
+	return fmt.Sprintf("COALESCE($%d::bigint, nextval('committee_revision_seq'))", n)
+}
+
+// insertStatement is the INSERT for a table: its columns, then the revision as the last parameter.
+func insertStatement(table string, columns []string) string {
+	return "INSERT INTO " + table + " (" + columnList(columns) + ", revision) VALUES (" +
+		placeholders(len(columns)) + ", " + revisionParam(len(columns)+1) + ")"
+}
+
+// updateAssignments is assignments followed by the revision assignment, whose parameter comes after the columns.
+func updateAssignments(columns []string, first int) string {
+	return assignments(columns, first) + ", revision = " + revisionParam(first+len(columns))
+}
+
+// AdvanceRevisionSequence raises the revision sequence so that the next revision it issues is above
+// atLeast, and never lowers it. KV revisions are stream sequences that each bucket counts on its own,
+// while every table here shares this one sequence, so at the flip from KV to PostgreSQL pass the
+// highest revision over every bucket the tables mirror: only then can a token issued before the flip
+// never equal a revision issued after it. Call it while no writes are in flight: the read and the set
+// are not one atomic step.
+func (s *Store) AdvanceRevisionSequence(ctx context.Context, atLeast uint64) error {
+	if atLeast > math.MaxInt64 {
+		return errs.NewValidation("revision must not exceed the largest BIGINT")
+	}
+	if _, err := s.pool.Exec(ctx,
+		"SELECT setval('committee_revision_seq', GREATEST($1::bigint, (SELECT last_value FROM committee_revision_seq)))", int64(atLeast)); err != nil {
+		return unexpected("failed to advance the revision sequence", err)
+	}
+	return nil
+}
+
 // revisionArg converts a revision from the API (unsigned) to the BIGINT the column holds. A value
 // above the BIGINT range cannot be any row's revision, so it becomes -1, which the sequence never
 // issues: the guarded write then matches no row and is reported as not found or stale like any

@@ -24,7 +24,7 @@ var (
 )
 
 // committeeColumns are the committees columns the store writes, in the order committeeValues
-// returns them. uid comes first and the revision is not listed: it comes from the sequence.
+// returns them. uid comes first; insertStatement and updateAssignments append the revision.
 var committeeColumns = []string{
 	"uid", "project_uid", "project_name", "project_slug", "name", "category", "description",
 	"website", "mailing_list", "chat_channel", "enable_voting", "sso_group_enabled", "sso_group_name",
@@ -42,15 +42,15 @@ var settingsColumns = []string{
 
 var (
 	selectCommittee = "SELECT " + columnList(committeeColumns) + ", revision FROM committees"
-	insertCommittee = "INSERT INTO committees (" + columnList(committeeColumns) + ") VALUES (" + placeholders(len(committeeColumns)) + ")"
+	insertCommittee = insertStatement("committees", committeeColumns)
 	// The first column (uid) identifies the row and is not assigned.
-	updateCommittee = "UPDATE committees SET " + assignments(committeeColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	updateCommittee = "UPDATE committees SET " + updateAssignments(committeeColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 
 	selectSettings = "SELECT " + columnList(settingsColumns) + ", revision FROM committee_settings"
-	insertSettings = "INSERT INTO committee_settings (" + columnList(settingsColumns) + ") VALUES (" + placeholders(len(settingsColumns)) + ")"
-	updateSettings = "UPDATE committee_settings SET " + assignments(settingsColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE committee_uid = $1 AND revision = $2"
+	insertSettings = insertStatement("committee_settings", settingsColumns)
+	updateSettings = "UPDATE committee_settings SET " + updateAssignments(settingsColumns[1:], 3) +
+		" WHERE committee_uid = $1 AND revision = $2"
 )
 
 // committeeValues returns the values for committeeColumns.
@@ -196,7 +196,7 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 	}
 
 	err = s.withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, insertCommittee, values...); err != nil {
+		if _, err := tx.Exec(ctx, insertCommittee, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 			if conflict := committeeConflict(err); conflict != nil {
 				return conflict
 			}
@@ -205,7 +205,7 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 		if settings == nil {
 			return nil
 		}
-		if _, err := tx.Exec(ctx, insertSettings, settings...); err != nil {
+		if _, err := tx.Exec(ctx, insertSettings, withRevisionArg(ctx, settingsRevision, settings)...); err != nil {
 			if _, ok := uniqueViolation(err); ok {
 				return errs.NewConflict("committee settings already exist")
 			}
@@ -284,9 +284,12 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 		return unexpected("failed to encode committee", err)
 	}
 	// $1 is the uid and $2 the revision; the rest follow committeeColumns without the uid.
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateCommittee, args...)
+	tag, err := s.pool.Exec(ctx, updateCommittee, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := committeeConflict(err); conflict != nil {
 			return conflict
@@ -308,9 +311,12 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	if err != nil {
 		return unexpected("failed to encode committee settings", err)
 	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateSettings, args...)
+	tag, err := s.pool.Exec(ctx, updateSettings, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		return unexpected("failed to update committee settings", err)
 	}
@@ -354,9 +360,19 @@ var (
 	updateTotalMembers   = counterUpdate("total_members")
 )
 
-func counterUpdate(column string) string {
-	return fmt.Sprintf("UPDATE committees SET %[1]s = $2, updated_at = $3, revision = nextval('committee_revision_seq') "+
-		"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 RETURNING %[2]s, revision", column, columnList(committeeColumns))
+// counter is a counter update and the query that tells why it changed nothing.
+type counter struct {
+	update string // the UPDATE, $1 uid, $2 value, $3 update time, $4 explicit revision
+	state  string // the committee's revision and whether the column already has $2, for $1 uid
+}
+
+func counterUpdate(column string) counter {
+	return counter{
+		update: fmt.Sprintf("UPDATE committees SET %[1]s = $2, updated_at = $3, revision = %[3]s "+
+			"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 AND COALESCE($4::bigint, revision + 1) > revision "+
+			"RETURNING %[2]s, revision", column, columnList(committeeColumns), revisionParam(4)),
+		state: fmt.Sprintf("SELECT revision, %[1]s IS NOT DISTINCT FROM $2 FROM committees WHERE uid = $1", column),
+	}
 }
 
 // UpdateHasMailingList sets has_mailing_list. It returns (nil, false, nil) when the flag already has
@@ -371,23 +387,52 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 }
 
 // updateCommitteeField runs one of the counter updates above.
-func (s *Store) updateCommitteeField(ctx context.Context, uid, query string, value any, failure string) (*model.CommitteeBase, bool, error) {
-	base, _, err := scanCommittee(s.pool.QueryRow(ctx, query, uid, value, time.Now()))
+func (s *Store) updateCommitteeField(ctx context.Context, uid string, c counter, value any, failure string) (*model.CommitteeBase, bool, error) {
+	// A counter update has no revision to compare with, so an explicit one is checked against the
+	// committee's current revision for the same reason as in the guarded updates.
+	if explicit, ok := ctx.Value(primaryRevision).(int64); ok {
+		var current int64
+		var same bool
+		err := s.pool.QueryRow(ctx, c.state, uid, value).Scan(&current, &same)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, false, unexpected(failure, err)
+		}
+		if err == nil && explicit <= current {
+			return nil, false, errs.NewValidation(errExplicitRevisionNotAbove)
+		}
+	}
+	base, _, err := scanCommittee(s.pool.QueryRow(ctx, c.update, uid, value, time.Now(), explicitRevision(ctx, primaryRevision)))
 	if err == nil {
 		return base, true, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, unexpected(failure, err)
 	}
-	// No row changed: the committee is missing or already has the value.
-	var exists bool
-	if errExists := s.pool.QueryRow(ctx, committeeExists, uid).Scan(&exists); errExists != nil {
-		return nil, false, unexpected(failure, errExists)
-	}
-	if !exists {
+	return s.counterNotChanged(ctx, uid, c, value, failure)
+}
+
+// counterNotChanged explains why a counter update matched no row. The committee is missing, or
+// already has the value (nothing to write), or the statement refused the change: the explicit
+// revision is not above the committee's current one, which can happen when another write moved the
+// revision after the check in Go. That last case is an error, not an unchanged value, so a caller
+// that carries revisions does not lose the update silently.
+func (s *Store) counterNotChanged(ctx context.Context, uid string, c counter, value any, failure string) (*model.CommitteeBase, bool, error) {
+	var current int64
+	var same bool
+	err := s.pool.QueryRow(ctx, c.state, uid, value).Scan(&current, &same)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 	}
-	return nil, false, nil
+	if err != nil {
+		return nil, false, unexpected(failure, err)
+	}
+	if same {
+		return nil, false, nil
+	}
+	if _, ok := ctx.Value(primaryRevision).(int64); ok {
+		return nil, false, errs.NewValidation(errExplicitRevisionNotAbove)
+	}
+	return nil, false, errs.NewConflict("committee has been modified by another process")
 }
 
 // Delete removes the committee and its settings in one transaction when the revision is still

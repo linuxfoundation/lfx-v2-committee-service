@@ -23,7 +23,7 @@ var (
 )
 
 // memberColumns are the committee_members columns the store writes, in the order memberValues
-// returns them. uid comes first and the revision is not listed: it comes from the sequence.
+// returns them. uid comes first; insertStatement and updateAssignments append the revision.
 var memberColumns = []string{
 	"uid", "committee_uid", "username", "avatar", "email", "first_name", "last_name", "job_title",
 	"linkedin_profile", "role_name", "role_start_date", "role_end_date", "appointed_by", "status",
@@ -34,9 +34,9 @@ var memberColumns = []string{
 
 var (
 	selectMember = "SELECT " + columnList(memberColumns) + ", revision FROM committee_members"
-	insertMember = "INSERT INTO committee_members (" + columnList(memberColumns) + ") VALUES (" + placeholders(len(memberColumns)) + ")"
-	updateMember = "UPDATE committee_members SET " + assignments(memberColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertMember = insertStatement("committee_members", memberColumns)
+	updateMember = "UPDATE committee_members SET " + updateAssignments(memberColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 )
 
 const memberExists = "SELECT EXISTS (SELECT 1 FROM committee_members WHERE uid = $1)"
@@ -95,7 +95,7 @@ func (s *Store) CreateMember(ctx context.Context, member *model.CommitteeMember)
 	if member.CommitteeUID == "" || member.UID == "" {
 		return errs.NewValidation("committee member CommitteeUID and UID must be non-empty")
 	}
-	if _, err := s.pool.Exec(ctx, insertMember, memberValues(member)...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertMember, withRevisionArg(ctx, primaryRevision, memberValues(member))...); err != nil {
 		if conflict := memberConflict(err); conflict != nil {
 			return conflict
 		}
@@ -114,9 +114,12 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 		return nil, errs.NewValidation("committee member UID cannot be empty")
 	}
 	values := memberValues(member)
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return nil, err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateMember, args...)
+	tag, err := s.pool.Exec(ctx, updateMember, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := memberConflict(err); conflict != nil {
 			return nil, conflict
