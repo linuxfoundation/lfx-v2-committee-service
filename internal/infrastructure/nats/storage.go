@@ -1268,6 +1268,10 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 				break
 			}
 			s.releaseStaleMemberKeys(rctx, member.UID, reserved)
+			if errors.Is(errCreate, jetstream.ErrKeyExists) {
+				// A different member already holds the uid.
+				return errs.NewConflict("committee member already exists")
+			}
 			return errs.NewUnexpected("failed to create committee member", errCreate)
 		case recordAbsent:
 			releaseOwnedKeys(rctx, kv, member.UID, reserved, "member")
