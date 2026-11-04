@@ -302,9 +302,9 @@ func TestWithRevision_counterStatementRefusesLowerRevision(t *testing.T) {
 	store := newTestStore(t)
 	require.NoError(t, store.Create(mustWithRevision(t, ctx, 1000), testCommittee("c-1", "project-1", "Committee One")))
 
-	err := store.pool.QueryRow(ctx, updateTotalMembers, "c-1", 7, time.Now(), int64(1000)).Scan(new(any), new(any))
+	err := store.pool.QueryRow(ctx, updateTotalMembers.update, "c-1", 7, time.Now(), int64(1000)).Scan(new(any), new(any))
 	require.ErrorIs(t, err, pgx.ErrNoRows, "an equal revision matches no row")
-	err = store.pool.QueryRow(ctx, updateTotalMembers, "c-1", 7, time.Now(), int64(999)).Scan(new(any), new(any))
+	err = store.pool.QueryRow(ctx, updateTotalMembers.update, "c-1", 7, time.Now(), int64(999)).Scan(new(any), new(any))
 	require.ErrorIs(t, err, pgx.ErrNoRows, "a lower revision matches no row")
 
 	base, _, err := store.GetBase(ctx, "c-1")
@@ -324,6 +324,62 @@ func TestWithRevision_replaceByUID(t *testing.T) {
 	brief, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "c-1", model.GroupWeeklyBrief{WindowStart: testWindow})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(3000), brief.Revision)
+
+	// A replacement must move the brief past the revision it replaces, or a token already handed out
+	// would match the new content: the same or a lower revision is refused and nothing is written.
+	var validation errs.Validation
+	for _, revision := range []uint64{3000, 500} {
+		replacement := testBrief("b-1", "c-1", testWindow)
+		replacement.BriefText = "Must not be stored."
+		_, err = store.PutGroupWeeklyBrief(mustWithRevision(t, ctx, revision), replacement)
+		require.ErrorAs(t, err, &validation, "revision %d", revision)
+	}
+	brief, _, err = store.GetGroupWeeklyBriefForWindow(ctx, "c-1", model.GroupWeeklyBrief{WindowStart: testWindow})
+	require.NoError(t, err)
+	assert.Equal(t, uint64(3000), brief.Revision)
+	assert.NotEqual(t, "Must not be stored.", brief.BriefText)
+
+	// A higher one is accepted, and so is a replacement with no explicit revision at all.
+	_, err = store.PutGroupWeeklyBrief(mustWithRevision(t, ctx, 3001), testBrief("b-1", "c-1", testWindow))
+	require.NoError(t, err)
+	_, err = store.PutGroupWeeklyBrief(ctx, testBrief("b-1", "c-1", testWindow))
+	require.NoError(t, err)
+}
+
+// When a counter statement matches no row, the caller must be told why. The committee being missing,
+// already having the value, and the statement refusing the revision (another write moved it after the
+// check in Go) are three different answers; the last cannot be forced through the public methods, so the
+// classification is tested here.
+func TestStore_counterNotChanged(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	require.NoError(t, store.Create(mustWithRevision(t, ctx, 1000), testCommittee("c-1", "project-1", "Committee One")))
+	base, _, err := store.GetBase(ctx, "c-1")
+	require.NoError(t, err)
+	var validation errs.Validation
+
+	t.Run("a missing committee is not found", func(t *testing.T) {
+		_, _, err := store.counterNotChanged(ctx, "missing", updateTotalMembers, 5, "failed")
+		requireNotFound(t, err)
+	})
+
+	t.Run("a column that already has the value is an unchanged no-op", func(t *testing.T) {
+		got, changed, err := store.counterNotChanged(mustWithRevision(t, ctx, 900), "c-1", updateTotalMembers, base.TotalMembers, "failed")
+		require.NoError(t, err)
+		assert.False(t, changed)
+		assert.Nil(t, got)
+	})
+
+	t.Run("a refused change with an explicit revision is an error, not a no-op", func(t *testing.T) {
+		_, changed, err := store.counterNotChanged(mustWithRevision(t, ctx, 900), "c-1", updateTotalMembers, base.TotalMembers+1, "failed")
+		require.ErrorAs(t, err, &validation)
+		assert.False(t, changed)
+	})
+
+	t.Run("a refused change without one is a conflict", func(t *testing.T) {
+		_, _, err := store.counterNotChanged(ctx, "c-1", updateTotalMembers, base.TotalMembers+1, "failed")
+		requireConflict(t, err)
+	})
 }
 
 // An explicit revision does not weaken the guard: a stale token is still rejected and nothing is written.

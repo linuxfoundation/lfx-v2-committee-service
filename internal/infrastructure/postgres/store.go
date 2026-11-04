@@ -99,11 +99,14 @@ func withRevisionArg(ctx context.Context, key revisionKey, args []any) []any {
 	return append(args, explicitRevision(ctx, key))
 }
 
+// errExplicitRevisionNotAbove is the message for an explicit revision that does not move a record past the one it replaces.
+const errExplicitRevisionNotAbove = "an explicit revision must be greater than the revision it replaces"
+
 // explicitAbove rejects an explicit revision that would not move the record past the one it replaces:
 // the same or a lower value leaves a token that was already handed out valid for the new content.
 func explicitAbove(ctx context.Context, key revisionKey, replaced uint64) error {
 	if explicit, ok := ctx.Value(key).(int64); ok && uint64(explicit) <= replaced {
-		return errs.NewValidation("an explicit revision must be greater than the revision it replaces")
+		return errs.NewValidation(errExplicitRevisionNotAbove)
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -44,9 +45,13 @@ const windowDate = "(window_start AT TIME ZONE 'UTC')::date = $2::date"
 
 var (
 	selectBrief = "SELECT " + columnList(briefColumns) + ", revision FROM group_weekly_briefs"
-	// A put without a revision replaces the brief with the same uid, as a KV Put does.
+	// A put without a revision replaces the brief with the same uid, as a KV Put does. An explicit
+	// revision (parameter len(briefColumns)+1) must be above the stored one, so a token already handed
+	// out cannot match the new content; a replacement it rejects returns no row.
 	upsertBrief = insertStatement("group_weekly_briefs", briefColumns) +
-		" ON CONFLICT (uid) DO UPDATE SET " + fromExcluded(append(briefColumns[1:len(briefColumns):len(briefColumns)], "revision")) + " RETURNING revision"
+		" ON CONFLICT (uid) DO UPDATE SET " + fromExcluded(append(briefColumns[1:len(briefColumns):len(briefColumns)], "revision")) +
+		fmt.Sprintf(" WHERE $%d::bigint IS NULL OR EXCLUDED.revision > group_weekly_briefs.revision", len(briefColumns)+1) +
+		" RETURNING revision"
 	updateBrief = "UPDATE group_weekly_briefs SET " + updateAssignments(briefColumns[1:], 3) +
 		" WHERE uid = $1 AND revision = $2 RETURNING revision"
 
@@ -235,6 +240,10 @@ func (s *Store) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeekl
 	var revision int64
 	err = s.pool.QueryRow(ctx, query, args...).Scan(&revision)
 	if errors.Is(err, pgx.ErrNoRows) {
+		if brief.Revision == 0 {
+			// The replacement by uid refused the explicit revision: retrying cannot help.
+			return nil, errs.NewValidation(errExplicitRevisionNotAbove)
+		}
 		return nil, briefWindowConflict("weekly brief CAS conflict — retry", nil)
 	}
 	if _, ok := uniqueViolation(err); ok {

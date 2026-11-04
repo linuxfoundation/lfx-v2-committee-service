@@ -218,7 +218,8 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   matched against the revision the caller read, so a stale token is rejected whether or not a new revision is given.
   An update rejects (`errs.Validation`) an explicit revision that is not above the one it replaces, because the same
   or a lower value would keep a token that was already handed out valid for the new content; the counter updates
-  check against the committee's current revision, in Go and in the statement. A revision of 0 or above the range of
+  check against the committee's current revision, in Go and in the statement, and a statement that refuses the
+  change is reported as an error, never as an unchanged value; replacing a brief by uid follows the same rule. A revision of 0 or above the range of
   the column is an error. In `dual` mode every write must carry its revision: a write without one takes a sequence
   value that can equal a KV revision a stale client still holds, unless the sequence was also advanced before `dual`
   started. At the flip from KV to PostgreSQL, call `Store.AdvanceRevisionSequence(ctx, highest)` with the highest
