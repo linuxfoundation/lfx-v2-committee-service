@@ -116,7 +116,7 @@ func (s *storage) UpdateLink(ctx context.Context, link *model.CommitteeLink, rev
 		return errs.NewUnexpected("failed to marshal link", errMarshal)
 	}
 	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeLinks].Update(ctx, link.UID, linkBytes, revision); errUpdate != nil {
-		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeLinks], link.UID, "link not found", "link has been modified since it was last read", "failed to update link", errUpdate)
+		return writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeLinks], link.UID, "link not found", "link has been modified since it was last read", "failed to update link", errUpdate)
 	}
 	return nil
 }
@@ -131,7 +131,7 @@ func (s *storage) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeL
 		return errs.NewUnexpected("failed to marshal folder", errMarshal)
 	}
 	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Update(ctx, folder.UID, folderBytes, revision); errUpdate != nil {
-		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeFolders], folder.UID, "folder not found", "folder has been modified since it was last read", "failed to update folder", errUpdate)
+		return writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeFolders], folder.UID, "folder not found", "folder has been modified since it was last read", "failed to update folder", errUpdate)
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 	}
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeDocuments]
 	if _, errUpdate := kv.Update(ctx, doc.UID, docBytes, revision); errUpdate != nil {
-		return s.writeError(ctx, kv, doc.UID, "document not found", "document has been modified since it was last read", "failed to update document metadata", errUpdate)
+		return writeError(ctx, kv, doc.UID, "document not found", "document has been modified since it was last read", "failed to update document metadata", errUpdate)
 	}
 	return nil
 }

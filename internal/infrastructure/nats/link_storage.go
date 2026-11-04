@@ -90,7 +90,7 @@ func (s *storage) DeleteLink(ctx context.Context, committeeUID, linkUID string, 
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("link not found", fmt.Errorf("link UID: %s", linkUID))
 		}
-		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeLinks], linkUID, "link not found", "link has been modified since it was last read", "failed to delete link", errDelete)
+		return writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeLinks], linkUID, "link not found", "link has been modified since it was last read", "failed to delete link", errDelete)
 	}
 	slog.DebugContext(ctx, "deleted link from NATS storage", "link_uid", linkUID, "committee_uid", committeeUID, "revision", revision)
 	return nil
@@ -188,7 +188,7 @@ func (s *storage) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID 
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("folder not found", fmt.Errorf("folder UID: %s", folderUID))
 		}
-		return s.writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeFolders], folderUID, "folder not found", "folder has been modified since it was last read", "failed to delete folder", errDelete)
+		return writeError(ctx, s.client.kvStore[constants.KVBucketNameCommitteeFolders], folderUID, "folder not found", "folder has been modified since it was last read", "failed to delete folder", errDelete)
 	}
 	// Best-effort cleanup of the name uniqueness lookup key; log if it fails
 	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))

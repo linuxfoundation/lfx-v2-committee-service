@@ -34,9 +34,18 @@ func NewMockDocumentRepository() *MockDocumentRepository {
 }
 
 func (m *MockDocumentRepository) CreateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument) error {
+	if doc == nil {
+		return errs.NewValidation("document cannot be nil")
+	}
+	if doc.UID == "" || doc.CommitteeUID == "" {
+		return errs.NewValidation("document UID and CommitteeUID must be non-empty")
+	}
 	slog.DebugContext(ctx, "mock document repository: creating document metadata", "uid", doc.UID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, taken := m.documents[doc.UID]; taken {
+		return errs.NewConflict("document already exists")
+	}
 	nameKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
 	if _, exists := m.nameKeys[nameKey]; exists {
 		return errs.NewConflict("document with the same name already exists for this committee")

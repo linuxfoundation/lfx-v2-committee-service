@@ -17,10 +17,11 @@ type DocumentAuditSyncStorage interface {
 	GetLink(ctx context.Context, committeeUID, linkUID string) (*model.CommitteeLink, uint64, error)
 	GetLinkFolder(ctx context.Context, committeeUID, folderUID string) (*model.CommitteeLinkFolder, uint64, error)
 	GetDocumentMetadata(ctx context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error)
-	// UpdateLink, UpdateLinkFolder and UpdateDocumentMetadata replace the record found by its uid, with the revision as an
-	// optimistic-concurrency token: a stale revision returns errs.Conflict, a record that does not exist
-	// errs.NotFound and a nil record errs.Validation. They are not scoped to a committee: they are for
-	// the audit-sync tooling, not for a request path that must keep a record in its committee.
+	// UpdateLink, UpdateLinkFolder and UpdateDocumentMetadata replace the record found by its uid, with
+	// the revision as an optimistic-concurrency token: a stale revision returns errs.Conflict, a record
+	// that does not exist errs.NotFound and a nil record errs.Validation. They are not scoped to a
+	// committee: they are for the audit-sync tooling, not for a request path that must keep a record in
+	// its committee.
 	UpdateLink(ctx context.Context, link *model.CommitteeLink, revision uint64) error
 	UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, revision uint64) error
 	UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error

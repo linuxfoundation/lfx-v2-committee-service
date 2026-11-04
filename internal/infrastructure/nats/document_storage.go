@@ -173,7 +173,7 @@ func (ds *documentStorage) DeleteDocumentMetadata(ctx context.Context, committee
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
 		}
-		return (&storage{client: ds.client}).writeError(ctx, ds.client.kvStore[constants.KVBucketNameCommitteeDocuments], documentUID,
+		return writeError(ctx, ds.client.kvStore[constants.KVBucketNameCommitteeDocuments], documentUID,
 			"document not found", "document has been modified since it was last read", "failed to delete document metadata", errDelete)
 	}
 	// Best-effort cleanup of the name uniqueness lookup key; log if it fails
