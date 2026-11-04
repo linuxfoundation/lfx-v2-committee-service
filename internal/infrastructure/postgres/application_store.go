@@ -30,9 +30,9 @@ var applicationColumns = []string{
 
 var (
 	selectApplication = "SELECT " + columnList(applicationColumns) + ", revision FROM committee_applications"
-	insertApplication = "INSERT INTO committee_applications (" + columnList(applicationColumns) + ") VALUES (" + placeholders(len(applicationColumns)) + ")"
-	updateApplication = "UPDATE committee_applications SET " + assignments(applicationColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertApplication = insertStatement("committee_applications", applicationColumns)
+	updateApplication = "UPDATE committee_applications SET " + updateAssignments(applicationColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 )
 
 const applicationExists = "SELECT EXISTS (SELECT 1 FROM committee_applications WHERE uid = $1)"
@@ -102,7 +102,7 @@ func (s *Store) CreateApplication(ctx context.Context, application *model.Commit
 	if err != nil {
 		return unexpected("failed to encode committee application", err)
 	}
-	if _, err := s.pool.Exec(ctx, insertApplication, values...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertApplication, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 		if conflict := applicationConflict(err); conflict != nil {
 			return conflict
 		}
@@ -123,7 +123,7 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateApplication, args...)
+	tag, err := s.pool.Exec(ctx, updateApplication, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := applicationConflict(err); conflict != nil {
 			return conflict

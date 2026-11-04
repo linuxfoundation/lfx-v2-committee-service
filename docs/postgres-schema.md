@@ -209,8 +209,16 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
 - **Whole-table reads stream.** `EachMember` and `EachMemberStrict` read rows one at a time and stop at the first error
   `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
   port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
-- **Explicit revisions** are not supported yet: the store always takes the revision from the sequence. The composite
-  store (#1197) needs a way to write the KV revision into the row during dual-write, and that comes with it.
+- **Explicit revisions** let the composite store (#1197) carry the KV revision into a row in `dual` mode.
+  `postgres.WithRevision(ctx, rev)` makes the create or update that uses the returned context leave `rev` as the
+  record's revision instead of a value from `committee_revision_seq`; it works for every record and for the
+  counter updates. A committee create writes two rows, so `WithSettingsRevision` sets the settings row's revision
+  (`WithRevision` sets the committee's). The guard is unchanged: an update or delete is still matched against the
+  revision the caller read, so a stale token is rejected whether or not a new revision is given. A revision of 0 or
+  above the range of the column is an error. At the flip from KV to PostgreSQL, call
+  `Store.AdvanceRevisionSequence(ctx, highestKVRevision)`: the sequence then issues only values above it, so a token
+  from before the flip can never match a revision issued after it, and a lower value never lowers the sequence.
+  Call it while no writes are in flight, because the read and the set are not one atomic step.
 
 ## Running the tests
 

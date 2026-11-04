@@ -30,9 +30,9 @@ var inviteColumns = []string{
 
 var (
 	selectInvite = "SELECT " + columnList(inviteColumns) + ", revision FROM committee_invites"
-	insertInvite = "INSERT INTO committee_invites (" + columnList(inviteColumns) + ") VALUES (" + placeholders(len(inviteColumns)) + ")"
-	updateInvite = "UPDATE committee_invites SET " + assignments(inviteColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertInvite = insertStatement("committee_invites", inviteColumns)
+	updateInvite = "UPDATE committee_invites SET " + updateAssignments(inviteColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 )
 
 const inviteExists = "SELECT EXISTS (SELECT 1 FROM committee_invites WHERE uid = $1)"
@@ -116,7 +116,7 @@ func (s *Store) CreateInvite(ctx context.Context, invite *model.CommitteeInvite)
 	if err != nil {
 		return unexpected("failed to encode committee invite", err)
 	}
-	if _, err := s.pool.Exec(ctx, insertInvite, values...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertInvite, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 		if conflict := inviteConflict(err); conflict != nil {
 			return conflict
 		}
@@ -138,7 +138,7 @@ func (s *Store) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite,
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateInvite, args...)
+	tag, err := s.pool.Exec(ctx, updateInvite, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := inviteConflict(err); conflict != nil {
 			return conflict

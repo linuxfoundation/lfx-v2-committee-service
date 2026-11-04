@@ -42,15 +42,15 @@ var settingsColumns = []string{
 
 var (
 	selectCommittee = "SELECT " + columnList(committeeColumns) + ", revision FROM committees"
-	insertCommittee = "INSERT INTO committees (" + columnList(committeeColumns) + ") VALUES (" + placeholders(len(committeeColumns)) + ")"
+	insertCommittee = insertStatement("committees", committeeColumns)
 	// The first column (uid) identifies the row and is not assigned.
-	updateCommittee = "UPDATE committees SET " + assignments(committeeColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	updateCommittee = "UPDATE committees SET " + updateAssignments(committeeColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 
 	selectSettings = "SELECT " + columnList(settingsColumns) + ", revision FROM committee_settings"
-	insertSettings = "INSERT INTO committee_settings (" + columnList(settingsColumns) + ") VALUES (" + placeholders(len(settingsColumns)) + ")"
-	updateSettings = "UPDATE committee_settings SET " + assignments(settingsColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE committee_uid = $1 AND revision = $2"
+	insertSettings = insertStatement("committee_settings", settingsColumns)
+	updateSettings = "UPDATE committee_settings SET " + updateAssignments(settingsColumns[1:], 3) +
+		" WHERE committee_uid = $1 AND revision = $2"
 )
 
 // committeeValues returns the values for committeeColumns.
@@ -196,7 +196,7 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 	}
 
 	err = s.withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, insertCommittee, values...); err != nil {
+		if _, err := tx.Exec(ctx, insertCommittee, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 			if conflict := committeeConflict(err); conflict != nil {
 				return conflict
 			}
@@ -205,7 +205,7 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 		if settings == nil {
 			return nil
 		}
-		if _, err := tx.Exec(ctx, insertSettings, settings...); err != nil {
+		if _, err := tx.Exec(ctx, insertSettings, withRevisionArg(ctx, settingsRevision, settings)...); err != nil {
 			if _, ok := uniqueViolation(err); ok {
 				return errs.NewConflict("committee settings already exist")
 			}
@@ -286,7 +286,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 	// $1 is the uid and $2 the revision; the rest follow committeeColumns without the uid.
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateCommittee, args...)
+	tag, err := s.pool.Exec(ctx, updateCommittee, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := committeeConflict(err); conflict != nil {
 			return conflict
@@ -310,7 +310,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateSettings, args...)
+	tag, err := s.pool.Exec(ctx, updateSettings, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		return unexpected("failed to update committee settings", err)
 	}
@@ -355,8 +355,8 @@ var (
 )
 
 func counterUpdate(column string) string {
-	return fmt.Sprintf("UPDATE committees SET %[1]s = $2, updated_at = $3, revision = nextval('committee_revision_seq') "+
-		"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 RETURNING %[2]s, revision", column, columnList(committeeColumns))
+	return fmt.Sprintf("UPDATE committees SET %[1]s = $2, updated_at = $3, revision = %[3]s "+
+		"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 RETURNING %[2]s, revision", column, columnList(committeeColumns), revisionParam(4))
 }
 
 // UpdateHasMailingList sets has_mailing_list. It returns (nil, false, nil) when the flag already has
@@ -372,7 +372,7 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 
 // updateCommitteeField runs one of the counter updates above.
 func (s *Store) updateCommitteeField(ctx context.Context, uid, query string, value any, failure string) (*model.CommitteeBase, bool, error) {
-	base, _, err := scanCommittee(s.pool.QueryRow(ctx, query, uid, value, time.Now()))
+	base, _, err := scanCommittee(s.pool.QueryRow(ctx, query, uid, value, time.Now(), explicitRevision(ctx, primaryRevision)))
 	if err == nil {
 		return base, true, nil
 	}

@@ -34,9 +34,9 @@ var memberColumns = []string{
 
 var (
 	selectMember = "SELECT " + columnList(memberColumns) + ", revision FROM committee_members"
-	insertMember = "INSERT INTO committee_members (" + columnList(memberColumns) + ") VALUES (" + placeholders(len(memberColumns)) + ")"
-	updateMember = "UPDATE committee_members SET " + assignments(memberColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertMember = insertStatement("committee_members", memberColumns)
+	updateMember = "UPDATE committee_members SET " + updateAssignments(memberColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 )
 
 const memberExists = "SELECT EXISTS (SELECT 1 FROM committee_members WHERE uid = $1)"
@@ -95,7 +95,7 @@ func (s *Store) CreateMember(ctx context.Context, member *model.CommitteeMember)
 	if member.CommitteeUID == "" || member.UID == "" {
 		return errs.NewValidation("committee member CommitteeUID and UID must be non-empty")
 	}
-	if _, err := s.pool.Exec(ctx, insertMember, memberValues(member)...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertMember, withRevisionArg(ctx, primaryRevision, memberValues(member))...); err != nil {
 		if conflict := memberConflict(err); conflict != nil {
 			return conflict
 		}
@@ -116,7 +116,7 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	values := memberValues(member)
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateMember, args...)
+	tag, err := s.pool.Exec(ctx, updateMember, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := memberConflict(err); conflict != nil {
 			return nil, conflict

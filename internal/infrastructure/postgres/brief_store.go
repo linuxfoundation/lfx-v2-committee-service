@@ -45,20 +45,17 @@ const windowDate = "(window_start AT TIME ZONE 'UTC')::date = $2::date"
 var (
 	selectBrief = "SELECT " + columnList(briefColumns) + ", revision FROM group_weekly_briefs"
 	// A put without a revision replaces the brief with the same uid, as a KV Put does.
-	upsertBrief = "INSERT INTO group_weekly_briefs (" + columnList(briefColumns) + ") VALUES (" + placeholders(len(briefColumns)) + ")" +
-		" ON CONFLICT (uid) DO UPDATE SET " + fromExcluded(briefColumns[1:]) +
-		", revision = nextval('committee_revision_seq') RETURNING revision"
-	updateBrief = "UPDATE group_weekly_briefs SET " + assignments(briefColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2 RETURNING revision"
+	upsertBrief = insertStatement("group_weekly_briefs", briefColumns) +
+		" ON CONFLICT (uid) DO UPDATE SET " + fromExcluded(append(briefColumns[1:len(briefColumns):len(briefColumns)], "revision")) + " RETURNING revision"
+	updateBrief = "UPDATE group_weekly_briefs SET " + updateAssignments(briefColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2 RETURNING revision"
 
 	selectThrottle = "SELECT " + columnList(throttleColumns) + ", revision FROM group_weekly_brief_throttle" +
 		" WHERE committee_uid = $1 AND " + windowDate
-	insertThrottle = "INSERT INTO group_weekly_brief_throttle (" + columnList(throttleColumns) + ") VALUES (" +
-		placeholders(len(throttleColumns)) + ") RETURNING revision"
+	insertThrottle = insertStatement("group_weekly_brief_throttle", throttleColumns) + " RETURNING revision"
 	// $1 is the committee, $2 the window date and $3 the revision; the new values start at $4.
-	updateThrottle = "UPDATE group_weekly_brief_throttle SET " + assignments(throttleColumns[1:], 4) +
-		", revision = nextval('committee_revision_seq') WHERE committee_uid = $1 AND " + windowDate +
-		" AND revision = $3 RETURNING revision"
+	updateThrottle = "UPDATE group_weekly_brief_throttle SET " + updateAssignments(throttleColumns[1:], 4) +
+		" WHERE committee_uid = $1 AND " + windowDate + " AND revision = $3 RETURNING revision"
 )
 
 // fromExcluded returns "col = EXCLUDED.col" for each column, for an INSERT ... ON CONFLICT DO UPDATE.
@@ -226,9 +223,9 @@ func (s *Store) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeekl
 	if err != nil {
 		return nil, unexpected("failed to encode weekly brief", err)
 	}
-	query, args := upsertBrief, values
+	query, args := upsertBrief, withRevisionArg(ctx, primaryRevision, values)
 	if brief.Revision > 0 {
-		query, args = updateBrief, append([]any{values[0], revisionArg(brief.Revision)}, values[1:]...)
+		query, args = updateBrief, withRevisionArg(ctx, primaryRevision, append([]any{values[0], revisionArg(brief.Revision)}, values[1:]...))
 	}
 	var revision int64
 	err = s.pool.QueryRow(ctx, query, args...).Scan(&revision)
@@ -271,10 +268,10 @@ func (s *Store) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *model
 		return nil, errs.NewValidation("window_start is required")
 	}
 	values := throttleValues(throttle)
-	query, args := insertThrottle, values
+	query, args := insertThrottle, withRevisionArg(ctx, primaryRevision, values)
 	if throttle.Revision > 0 {
 		query = updateThrottle
-		args = append([]any{throttle.CommitteeUID, windowDay(throttle.WindowStart), revisionArg(throttle.Revision)}, values[1:]...)
+		args = withRevisionArg(ctx, primaryRevision, append([]any{throttle.CommitteeUID, windowDay(throttle.WindowStart), revisionArg(throttle.Revision)}, values[1:]...))
 	}
 	var revision int64
 	err := s.pool.QueryRow(ctx, query, args...).Scan(&revision)

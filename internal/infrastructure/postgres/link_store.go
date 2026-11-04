@@ -31,14 +31,14 @@ var (
 
 var (
 	selectLink = "SELECT " + columnList(linkColumns) + ", revision FROM committee_links"
-	insertLink = "INSERT INTO committee_links (" + columnList(linkColumns) + ") VALUES (" + placeholders(len(linkColumns)) + ")"
-	updateLink = "UPDATE committee_links SET " + assignments(linkColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertLink = insertStatement("committee_links", linkColumns)
+	updateLink = "UPDATE committee_links SET " + updateAssignments(linkColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 
 	selectFolder = "SELECT " + columnList(folderColumns) + ", revision FROM committee_link_folders"
-	insertFolder = "INSERT INTO committee_link_folders (" + columnList(folderColumns) + ") VALUES (" + placeholders(len(folderColumns)) + ")"
-	updateFolder = "UPDATE committee_link_folders SET " + assignments(folderColumns[1:], 3) +
-		", revision = nextval('committee_revision_seq') WHERE uid = $1 AND revision = $2"
+	insertFolder = insertStatement("committee_link_folders", folderColumns)
+	updateFolder = "UPDATE committee_link_folders SET " + updateAssignments(folderColumns[1:], 3) +
+		" WHERE uid = $1 AND revision = $2"
 )
 
 // linkExistsIn, folderExistsIn and the deletes are scoped to the committee, as the KV store does by
@@ -139,7 +139,7 @@ func (s *Store) CreateLink(ctx context.Context, link *model.CommitteeLink) error
 	if err != nil {
 		return unexpected("failed to encode link", err)
 	}
-	if _, err := s.pool.Exec(ctx, insertLink, values...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertLink, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 		if _, ok := uniqueViolation(err); ok {
 			return errs.NewConflict("link already exists")
 		}
@@ -159,7 +159,7 @@ func (s *Store) UpdateLink(ctx context.Context, link *model.CommitteeLink, revis
 		return unexpected("failed to encode link", err)
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
-	tag, err := s.pool.Exec(ctx, updateLink, args...)
+	tag, err := s.pool.Exec(ctx, updateLink, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		return unexpected("failed to update link", err)
 	}
@@ -250,7 +250,7 @@ func (s *Store) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	if err != nil {
 		return unexpected("failed to encode folder", err)
 	}
-	if _, err := s.pool.Exec(ctx, insertFolder, values...); err != nil {
+	if _, err := s.pool.Exec(ctx, insertFolder, withRevisionArg(ctx, primaryRevision, values)...); err != nil {
 		if conflict := folderConflict(err); conflict != nil {
 			return conflict
 		}
@@ -270,7 +270,7 @@ func (s *Store) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 		return unexpected("failed to encode folder", err)
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
-	tag, err := s.pool.Exec(ctx, updateFolder, args...)
+	tag, err := s.pool.Exec(ctx, updateFolder, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := folderConflict(err); conflict != nil {
 			return conflict
