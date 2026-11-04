@@ -145,11 +145,9 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 	if errMarshal != nil {
 		return errs.NewUnexpected("failed to marshal document", errMarshal)
 	}
-	if _, errUpdate := s.client.kvStore[constants.KVBucketNameCommitteeDocuments].Update(ctx, doc.UID, docBytes, revision); errUpdate != nil {
-		if isJetStreamCASConflict(errUpdate) {
-			return errs.NewConflict("document has been modified since it was last read")
-		}
-		return errs.NewUnexpected("failed to update document metadata", errUpdate)
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeDocuments]
+	if _, errUpdate := kv.Update(ctx, doc.UID, docBytes, revision); errUpdate != nil {
+		return s.writeError(ctx, kv, doc.UID, "document not found", "document has been modified since it was last read", "failed to update document metadata", errUpdate)
 	}
 	return nil
 }

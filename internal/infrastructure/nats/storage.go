@@ -2365,6 +2365,23 @@ func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string
 	}
 }
 
+// purgeOwnedLookupKey purges a uniqueness lookup key after its record was deleted, only while the key
+// still holds the record's uid and by the revision it was read at: a key that another record now holds
+// is left alone. A key already gone is fine; a failed purge is logged.
+func purgeOwnedLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey, ownerUID string) {
+	entry, errGet := kv.Get(ctx, lookupKey)
+	if errGet != nil {
+		if !errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			slog.WarnContext(ctx, "failed to read lookup key before releasing it", "key", lookupKey, "error", errGet)
+		}
+		return
+	}
+	if string(entry.Value()) != ownerUID {
+		return
+	}
+	purgeLookupKey(ctx, kv, lookupKey, nil, []any{"key", lookupKey, "owner_uid", ownerUID}, jetstream.LastRevision(entry.Revision()))
+}
+
 // rollbackTimeout bounds how long a lookup-key rollback may take once detached from the request.
 const rollbackTimeout = 5 * time.Second
 

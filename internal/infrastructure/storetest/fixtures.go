@@ -225,3 +225,20 @@ func normalizeFolder(f *model.CommitteeLinkFolder) *model.CommitteeLinkFolder {
 	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
 	return &c
 }
+
+// NewDocument returns document metadata with every field set, in folder f-1, for the committee and name.
+func NewDocument(uid, committeeUID, name string) *model.CommitteeDocument {
+	folder := "f-1"
+	return &model.CommitteeDocument{
+		UID: uid, CommitteeUID: committeeUID, FolderUID: &folder, Name: name, Description: "Meeting minutes",
+		FileName: "minutes.pdf", FileSize: 2048, ContentType: "application/pdf",
+		CreatedBy: NewAuditUser(), UpdatedBy: NewAuditUser(), CreatedAt: FixtureTime, UpdatedAt: FixtureTime.Add(time.Hour),
+	}
+}
+
+// normalizeDocument makes document metadata comparable across backends: times at the shared precision.
+func normalizeDocument(d *model.CommitteeDocument) *model.CommitteeDocument {
+	c := *d
+	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
+	return &c
+}

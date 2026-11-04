@@ -278,7 +278,12 @@ in the KV store are fixed, and it now answers as PostgreSQL does:
   audit-sync update of a link or folder that does not exist is `errs.NotFound`, where it was a conflict;
 - creating an invite or an application with an empty uid or committee uid is `errs.Validation`, a 400, where an empty uid
   reached the bucket as an invalid key (an internal error) and an empty committee uid was accepted and stored with no
-  committee.
+  committee;
+- creating a document with a uid that another one already holds is `errs.Conflict`, where it was an internal error that
+  also left the reserved (committee, name) lock behind, and an empty uid or committee uid is `errs.Validation`; deleting
+  one with a stale revision is `errs.Conflict` and updating one that does not exist is `errs.NotFound`, as for links;
+- deleting a link folder or a document releases its name lock only while the lock still holds that record's uid, so a
+  lock another record has taken over is left alone.
 
 One benign difference remains and is not an error:
 
@@ -293,4 +298,6 @@ committee, the by-committee, organization, email and username lookups with their
 concurrent writers), invites and applications (create, get, update, the email uniqueness per committee, the listings,
 the delete of an application, concurrent writers), and links and link folders (create, get within the committee, list,
 the audit-sync list and update, delete with the revision within the committee, the folder name unique per committee
-and case-sensitive, concurrent writers). Document metadata and weekly briefs follow.
+and case-sensitive, concurrent writers), and document metadata (create, get within the committee, the name check, the
+audit-sync list and update, delete with the revision within the committee, the name unique per committee and
+case-sensitive, concurrent writers). Weekly briefs follow.

@@ -192,9 +192,7 @@ func (s *storage) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID 
 	}
 	// Best-effort cleanup of the name uniqueness lookup key; log if it fails
 	uniqueKey := fmt.Sprintf(constants.KVLookupFolderPrefix, folder.BuildIndexKey(ctx))
-	if errPurge := s.client.kvStore[constants.KVBucketNameCommitteeFolders].Purge(ctx, uniqueKey); errPurge != nil {
-		slog.WarnContext(ctx, "failed to purge folder lookup key", "key", uniqueKey, "error", errPurge)
-	}
+	purgeOwnedLookupKey(ctx, s.client.kvStore[constants.KVBucketNameCommitteeFolders], uniqueKey, folderUID)
 	slog.DebugContext(ctx, "deleted folder from NATS storage", "folder_uid", folderUID, "committee_uid", committeeUID, "revision", revision)
 	return nil
 }
