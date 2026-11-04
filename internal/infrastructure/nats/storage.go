@@ -2023,7 +2023,8 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeInvites]
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx))
-	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(invite.UID)); errUnique != nil {
+	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(invite.UID))
+	if errUnique != nil {
 		if errors.Is(errUnique, jetstream.ErrKeyExists) {
 			return errs.NewConflict("invite for the same email already exists in the committee")
 		}
@@ -2034,7 +2035,7 @@ func (s *storage) CreateInvite(ctx context.Context, invite *model.CommitteeInvit
 	if errCreate != nil {
 		if errors.Is(errCreate, jetstream.ErrKeyExists) {
 			// A different invite already holds the uid, so the key reserved for this one is nobody's.
-			releaseLookupKey(ctx, kv, uniqueKey, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
+			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
 			return errs.NewConflict("committee invite already exists")
 		}
 		rollbackLookupKey(ctx, kv, invite.UID, uniqueKey, errCreate, "invite_uid", invite.UID, "committee_uid", invite.CommitteeUID)
@@ -2208,7 +2209,8 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeApplications]
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx))
-	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(application.UID)); errUnique != nil {
+	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(application.UID))
+	if errUnique != nil {
 		if errors.Is(errUnique, jetstream.ErrKeyExists) {
 			return errs.NewConflict("application from the same user already exists in the committee")
 		}
@@ -2219,7 +2221,7 @@ func (s *storage) CreateApplication(ctx context.Context, application *model.Comm
 	if errCreate != nil {
 		if errors.Is(errCreate, jetstream.ErrKeyExists) {
 			// A different application already holds the uid, so the key reserved for this one is nobody's.
-			releaseLookupKey(ctx, kv, uniqueKey, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
+			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
 			return errs.NewConflict("committee application already exists")
 		}
 		rollbackLookupKey(ctx, kv, application.UID, uniqueKey, errCreate, "application_uid", application.UID, "committee_uid", application.CommitteeUID)
@@ -2330,22 +2332,33 @@ func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lo
 		return
 	}
 
-	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs...)
+	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs)
 }
 
-// releaseLookupKey releases the lookup key a create reserved when the record write was refused because
-// the uid is already held by another record. Unlike an ambiguous write error, that refusal is
-// definitive: no record of this create exists, and the key cannot belong to the record that holds the
-// uid, because reserving it would have failed if that record used it. It runs on a context detached
-// from the request, like rollbackLookupKey.
-func releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, createErr error, attrs ...any) {
+// releaseLookupKey releases the lookup key a create reserved, when the record write was refused because
+// the uid is already held by another record. The key is this call's own: its reservation succeeded a
+// moment ago, so the record that holds the uid cannot own it (the reservation would have failed), and no
+// record of this create exists. reserved is the revision the reservation returned: the purge is guarded by
+// it, so a key another create took over in the meantime is left alone. It runs on a context detached from
+// the request, like rollbackLookupKey. Unlike the rollback after an ambiguous write error, it does not
+// need to confirm the record is absent: the server refused the write on the existing key.
+func releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, reserved uint64, createErr error, attrs ...any) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
 	defer cancel()
-	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs...)
+	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs, jetstream.LastRevision(reserved))
 }
 
-func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, createErr error, attrs ...any) {
-	if errPurge := kv.Purge(ctx, lookupKey); errPurge != nil && !errors.Is(errPurge, jetstream.ErrKeyNotFound) {
+// purgeLookupKey purges a lookup key and logs a failure. A purge guarded by a revision that no longer
+// matches means the key is not the caller's any more, which is left as it is.
+func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, createErr error, attrs []any, opts ...jetstream.KVDeleteOpt) {
+	errPurge := kv.Purge(ctx, lookupKey, opts...)
+	switch {
+	case errPurge == nil, errors.Is(errPurge, jetstream.ErrKeyNotFound):
+	case isJetStreamCASConflict(errPurge):
+		slog.WarnContext(ctx, "lookup key was taken over before this create could release it; leaving it",
+			append([]any{"create_error", createErr}, attrs...)...,
+		)
+	default:
 		slog.ErrorContext(ctx, "failed to release lookup key; the name or email stays locked until it is removed",
 			append([]any{"error", errPurge, "create_error", createErr, log.PriorityCritical()}, attrs...)...,
 		)

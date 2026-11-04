@@ -2132,3 +2132,25 @@ func TestContract_Applications(t *testing.T) {
 		return NewStorage(newKVClient(t))
 	})
 }
+
+// A create that is refused because its uid is taken releases the lookup key it reserved, guarded by the
+// revision of its own reservation: a key another create took over since is left alone, and a purge that
+// fails does not hide the conflict the caller returns.
+func TestReleaseLookupKey(t *testing.T) {
+	ctx := context.Background()
+	kv := newKVClient(t).kvStore[constants.KVBucketNameCommitteeInvites]
+	present := func(key string) bool {
+		_, err := kv.Get(ctx, key)
+		return err == nil
+	}
+
+	reserved, err := kv.Create(ctx, "lookup/one", []byte("i-1"))
+	require.NoError(t, err)
+	releaseLookupKey(ctx, kv, "lookup/one", reserved+1000, errors.New("refused"), "invite_uid", "i-1")
+	assert.True(t, present("lookup/one"), "a key that is no longer the caller's reservation is left alone")
+
+	releaseLookupKey(ctx, kv, "lookup/one", reserved, errors.New("refused"), "invite_uid", "i-1")
+	assert.False(t, present("lookup/one"), "the caller's own reservation is released")
+
+	releaseLookupKey(ctx, kv, "lookup/one", reserved, errors.New("refused"), "invite_uid", "i-1") // already gone: no error, no panic
+}

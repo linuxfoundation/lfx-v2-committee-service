@@ -255,7 +255,9 @@ uses the per-test schema above.
 
 A backend may declare where it differs, and the suites show any other difference as a failing case. The checks look at
 the outer error, the one the HTTP layer maps, not anywhere in its chain, so an internal error that wraps a validation
-error cannot pass as a validation error. The suites currently declare nothing. The differences they found in the KV
+error cannot pass as a validation error. The suites currently declare nothing, and one known difference is deliberately not exercised: `UpdateInvite` checks a
+changed email against the unique index, where KV keeps the lookup key of the email the invite was created with (see
+above). The differences they found in the KV
 store are fixed, and it now answers as PostgreSQL does:
 
 - a lost compare-and-swap ("wrong last sequence") is `errs.Conflict`, a 409, where it was `errs.Unexpected`, a 500;
@@ -269,7 +271,8 @@ store are fixed, and it now answers as PostgreSQL does:
   internal error that also left the reserved (committee, email) lock behind, so the same person could not be invited or
   apply to that committee afterwards;
 - creating an invite or an application with an empty uid or committee uid is `errs.Validation`, a 400, where an empty uid
-  reached the bucket as an invalid key, an internal error.
+  reached the bucket as an invalid key (an internal error) and an empty committee uid was accepted and stored with no
+  committee.
 
 One benign difference remains and is not an error:
 
