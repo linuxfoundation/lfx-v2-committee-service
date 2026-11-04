@@ -373,6 +373,7 @@ func (c *Client) CreateInvite(ctx context.Context, p *CreateInvitePayload) (res 
 // RevokeInvite may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Invite not found
+//   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error
@@ -514,6 +515,7 @@ func (c *Client) JoinCommittee(ctx context.Context, p *JoinCommitteePayload) (re
 // LeaveCommittee may return the following errors:
 //   - "BadRequest" (type *BadRequestError): Bad request
 //   - "NotFound" (type *NotFoundError): Not a member of this committee
+//   - "Conflict" (type *ConflictError): Conflict
 //   - "InternalServerError" (type *InternalServerError): Internal server error
 //   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
 //   - error: internal error

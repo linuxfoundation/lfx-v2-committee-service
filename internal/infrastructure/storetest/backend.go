@@ -16,44 +16,11 @@ import (
 type Backend struct {
 	// Name labels the backend in test names.
 	Name string
-	// StaleRevision checks the error of a committee, settings or delete write whose revision is no
-	// longer current. The default is errs.Conflict; a backend that reports something else says so
-	// here, and the difference is documented where the backend is.
-	StaleRevision func(t *testing.T, err error)
-	// EmptyUID checks the error of a read with an empty uid. The default is errs.Validation.
-	EmptyUID func(t *testing.T, err error)
 }
 
 // The checks below look at the outer error, the one the HTTP layer switches on (cmd/committee-api/service
 // error.go), not anywhere in its chain: an internal error that wraps a validation error is a 500, not a
 // 400, and errors.As would accept it as either.
-
-// RequireUnexpected checks for an internal error. It is the StaleRevision check of a backend that
-// reports a lost compare-and-swap that way (the NATS KV store does, where PostgreSQL reports a conflict),
-// and the EmptyUID check of one that does for an empty uid.
-func RequireUnexpected(t *testing.T, err error) {
-	t.Helper()
-	_, ok := err.(errs.Unexpected)
-	require.True(t, ok, "want an internal error as the outer error, got %T: %v", err, err)
-}
-
-func (b Backend) requireStale(t *testing.T, err error) {
-	t.Helper()
-	if b.StaleRevision != nil {
-		b.StaleRevision(t, err)
-		return
-	}
-	requireConflict(t, err)
-}
-
-func (b Backend) requireEmptyUID(t *testing.T, err error) {
-	t.Helper()
-	if b.EmptyUID != nil {
-		b.EmptyUID(t, err)
-		return
-	}
-	requireValidation(t, err)
-}
 
 func requireConflict(t *testing.T, err error) {
 	t.Helper()

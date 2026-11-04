@@ -2534,6 +2534,7 @@ func EncodeRevokeInviteRequest(encoder func(*http.Request) goahttp.Encoder) func
 // response body should be restored after having been read.
 // DecodeRevokeInviteResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -2569,6 +2570,20 @@ func DecodeRevokeInviteResponse(decoder func(*http.Response) goahttp.Decoder, re
 				return nil, goahttp.ErrValidationError("committee-service", "revoke-invite", err)
 			}
 			return nil, NewRevokeInviteBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body RevokeInviteConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "revoke-invite", err)
+			}
+			err = ValidateRevokeInviteConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "revoke-invite", err)
+			}
+			return nil, NewRevokeInviteConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body RevokeInviteInternalServerErrorResponseBody
@@ -3906,6 +3921,7 @@ func EncodeLeaveCommitteeRequest(encoder func(*http.Request) goahttp.Encoder) fu
 // response body should be restored after having been read.
 // DecodeLeaveCommitteeResponse may return the following errors:
 //   - "BadRequest" (type *committeeservice.BadRequestError): http.StatusBadRequest
+//   - "Conflict" (type *committeeservice.ConflictError): http.StatusConflict
 //   - "InternalServerError" (type *committeeservice.InternalServerError): http.StatusInternalServerError
 //   - "NotFound" (type *committeeservice.NotFoundError): http.StatusNotFound
 //   - "ServiceUnavailable" (type *committeeservice.ServiceUnavailableError): http.StatusServiceUnavailable
@@ -3941,6 +3957,20 @@ func DecodeLeaveCommitteeResponse(decoder func(*http.Response) goahttp.Decoder, 
 				return nil, goahttp.ErrValidationError("committee-service", "leave-committee", err)
 			}
 			return nil, NewLeaveCommitteeBadRequest(&body)
+		case http.StatusConflict:
+			var (
+				body LeaveCommitteeConflictResponseBody
+				err  error
+			)
+			err = decoder(resp).Decode(&body)
+			if err != nil {
+				return nil, goahttp.ErrDecodingError("committee-service", "leave-committee", err)
+			}
+			err = ValidateLeaveCommitteeConflictResponseBody(&body)
+			if err != nil {
+				return nil, goahttp.ErrValidationError("committee-service", "leave-committee", err)
+			}
+			return nil, NewLeaveCommitteeConflict(&body)
 		case http.StatusInternalServerError:
 			var (
 				body LeaveCommitteeInternalServerErrorResponseBody

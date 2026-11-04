@@ -73,7 +73,7 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		_, _, err = store.GetSettings(ctx, "missing")
 		requireNotFound(t, err)
 		_, _, err = store.GetBase(ctx, "")
-		backend.requireEmptyUID(t, err)
+		requireValidation(t, err)
 	})
 
 	t.Run("a committee name is unique per project", func(t *testing.T) {
@@ -170,7 +170,7 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		require.NoError(t, store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
 
 		base.Description = "second writer"
-		backend.requireStale(t, store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+		requireConflict(t, store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
 		got, _, err := store.GetBase(ctx, "uid-1")
 		require.NoError(t, err)
 		assert.Equal(t, "first writer", got.Description)
@@ -231,10 +231,17 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		assert.NotEqual(t, revision, newRevision)
 
 		settings.MemberVisibility = "stale writer"
-		backend.requireStale(t, store.UpdateSetting(ctx, settings, revision))
+		requireConflict(t, store.UpdateSetting(ctx, settings, revision))
 		got, _, err = store.GetSettings(ctx, "uid-1")
 		require.NoError(t, err)
 		assert.Equal(t, "hidden", got.MemberVisibility)
+	})
+
+	t.Run("UpdateSetting of missing settings is not found", func(t *testing.T) {
+		store := newStore(t)
+		ghost := NewCommittee("ghost", "project-1", "Ghost")
+		ghost.CommitteeSettings.UID = "ghost"
+		requireNotFound(t, store.UpdateSetting(ctx, ghost.CommitteeSettings, 1))
 	})
 
 	t.Run("settings keep a list that was never set apart from one set to empty", func(t *testing.T) {
@@ -258,7 +265,7 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 		_, revision, err := store.GetBase(ctx, "uid-1")
 		require.NoError(t, err)
 
-		backend.requireStale(t, store.Delete(ctx, "uid-1", revision+1000))
+		requireConflict(t, store.Delete(ctx, "uid-1", revision+1000))
 		_, _, err = store.GetBase(ctx, "uid-1")
 		require.NoError(t, err, "a rejected delete changes nothing")
 
@@ -325,7 +332,7 @@ func runCommitteeContract(t *testing.T, backend Backend, newStore CommitteeFacto
 			update := *base
 			update.Description = fmt.Sprintf("writer %d", writer)
 			return store.UpdateBase(ctx, &model.Committee{CommitteeBase: update}, revision)
-		}, backend.requireStale)
+		}, requireConflict)
 		assert.Equal(t, 1, wins)
 	})
 }
