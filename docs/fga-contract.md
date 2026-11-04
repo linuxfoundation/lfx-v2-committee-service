@@ -180,6 +180,16 @@ When a committee is deleted, `committeeWriterOrchestrator.Delete` lists all `com
 
 Both messages are published fire-and-forget (`X-Sync: false`) as part of the same concurrent worker pool as the committee's own deletion messages. The application's KV record is also removed from storage in the same pool call. If `ListApplications` fails the cascade is skipped with a critical-priority warning; the committee delete itself still succeeds. There is no explicit withdraw or delete endpoint — cascade on committee delete is the only current callsite for `delete_access` on `committee_application`.
 
+When the store removes a committee's children itself (the PostgreSQL store's `DeleteCommitteeCascade`), the applications
+are the ones it reports as removed, `ListApplications` is not called and no per-application record delete is made; the
+`delete_access` message per application is unchanged. Members are tuples on the committee, so the committee's
+`delete_access` covers them and no `member_remove` is sent for the members a cascade removes. Invites do have an object
+of their own (`committee_invite`), so each removed invite also gets a `delete_access` with `object_type: committee_invite`:
+the defensive branch described under [delete_access (Delete)](#delete_access-delete), of which a cascade is the first
+caller. A plain invite delete keeps the object so history queries work; after a cascade the invite and its index entry
+are gone, so nothing could read those tuples. The application and invite messages are published after the committee's own, on a
+context detached from the request, at most 32 at a time, and a failure of one does not skip the rest.
+
 ### Event Summary
 
 | Event | Object Type | Subject | Notes |
@@ -188,7 +198,7 @@ Both messages are published fire-and-forget (`X-Sync: false`) as part of the sam
 | Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their rejected application |
-| Delete parent committee (cascade) | `committee_application` | `lfx.fga-sync.delete_access` + `lfx.index.committee_application` | One pair per application, plus KV record deletion; fire-and-forget |
+| Delete parent committee (cascade) | `committee_application` | `lfx.fga-sync.delete_access` + `lfx.index.committee_application` | One pair per application, plus KV record deletion (none when the store cascades); fire-and-forget |
 
 ---
 
@@ -231,7 +241,8 @@ Published to `lfx.fga-sync.update_access` whenever a `committee_invite` object i
 
 ### delete_access (Delete)
 
-The invite access helper retains a defensive `delete_access` branch that publishes to `lfx.fga-sync.delete_access` and removes all FGA tuples for the `committee_invite:{uid}` object. No current production callsite invokes this branch.
+The invite access helper retains a defensive `delete_access` branch that publishes to `lfx.fga-sync.delete_access` and removes all FGA tuples for the `committee_invite:{uid}` object. Only the committee cascade of a store that removes the committee's children itself (the PostgreSQL store) invokes
+this branch; on a plain invite delete, and with the KV store, it has no callsite.
 
 ---
 
@@ -249,10 +260,11 @@ The invite access helper retains a defensive `delete_access` branch that publish
 | Create committee invite | `committee_invite` | `lfx.fga-sync.update_access` | `invitee` relation omitted when invitee has no LFID yet |
 | Update committee invite | `committee_invite` | `lfx.fga-sync.update_access` | Same invitee-resolution logic as create |
 | Accept committee invite (HTTP) | `committee_invite` | `lfx.fga-sync.update_access` | Re-publishes to ensure `invitee` tuple is present after acceptance |
-| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Defensive branch only; no current production callsite invokes it (see [delete_access](#delete_access-delete)) |
+| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Defensive branch only; no callsite on a plain invite delete (see [delete_access](#delete_access-delete)) |
+| Delete parent committee (cascade to invites) | `committee_invite` | `lfx.fga-sync.delete_access` | One message per invite, only when the store removes the committee's children itself (PostgreSQL); fire-and-forget |
 | LFID registered (`lfx.invite-service.invite_accepted`) | `committee_invite` | `lfx.fga-sync.update_access` | Publishes `invitee` relation for every `committee_invite` (any status) whose `InviteeEmail` matches the accepted email — grants visibility to all invites, including already-accepted ones |
 | Submit committee application | `committee_application` | `lfx.fga-sync.update_access` | `applicant` relation omitted when applicant has no LFID yet |
 | Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic as submit |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their rejected application |
-| Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application plus KV record deletion; fire-and-forget; skipped if `ListApplications` fails |
+| Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application plus KV record deletion; fire-and-forget; skipped if `ListApplications` fails. With a store that cascades, the applications come from the store and there is no `ListApplications` or KV record deletion |

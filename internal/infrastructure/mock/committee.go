@@ -1294,6 +1294,8 @@ type MockCommitteePublisher struct {
 	// IndexerSubjects and IndexerMessages collect every call to Indexer in order.
 	IndexerSubjects []string
 	IndexerMessages []any
+	// IndexerErrors makes Indexer fail for the subjects it holds, after recording the call.
+	IndexerErrors map[string]error
 	// LastUpdateAccessMessage captures the most recent asynchronous update_access message.
 	LastUpdateAccessMessage any
 	UpdateAccessCallCount   int
@@ -1320,13 +1322,14 @@ func (p *MockCommitteePublisher) Indexer(ctx context.Context, subject string, me
 	p.IndexerSyncValues = append(p.IndexerSyncValues, synced)
 	p.IndexerSubjects = append(p.IndexerSubjects, subject)
 	p.IndexerMessages = append(p.IndexerMessages, message)
+	errIndexer := p.IndexerErrors[subject]
 	p.mu.Unlock()
 	slog.InfoContext(ctx, "mock publisher: indexer message published",
 		"subject", subject,
 		"message_type", "indexer",
 		"sync", synced,
 	)
-	return nil
+	return errIndexer
 }
 
 // UpdateAccess simulates publishing an asynchronous update_access message.

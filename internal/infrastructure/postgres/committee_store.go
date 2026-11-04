@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -21,6 +22,7 @@ var (
 	_ port.CommitteeSettingsReader = (*Store)(nil)
 	_ port.CommitteeBaseWriter     = (*Store)(nil)
 	_ port.CommitteeSettingsWriter = (*Store)(nil)
+	_ port.CommitteeCascadeDeleter = (*Store)(nil)
 )
 
 // committeeColumns are the committees columns the store writes, in the order committeeValues
@@ -458,6 +460,75 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return s.missingOrStale(ctx, committeeExists, "committee UID", uid, "committee not found", "committee has been modified by another process")
 	}
 	return err
+}
+
+// childTables are the tables whose rows belong to a committee through committee_uid, and where the
+// removed uids of each go. Applications are handled apart because they come back whole.
+var childTables = []struct {
+	table string
+	uids  func(*model.CommitteeRemovedChildren) *[]string
+}{
+	{"committee_members", func(r *model.CommitteeRemovedChildren) *[]string { return &r.MemberUIDs }},
+	{"committee_invites", func(r *model.CommitteeRemovedChildren) *[]string { return &r.InviteUIDs }},
+	{"committee_links", func(r *model.CommitteeRemovedChildren) *[]string { return &r.LinkUIDs }},
+	{"committee_link_folders", func(r *model.CommitteeRemovedChildren) *[]string { return &r.FolderUIDs }},
+	{"committee_documents", func(r *model.CommitteeRemovedChildren) *[]string { return &r.DocumentUIDs }},
+	{"group_weekly_briefs", func(r *model.CommitteeRemovedChildren) *[]string { return &r.BriefUIDs }},
+}
+
+// DeleteCommitteeCascade removes the committee, its settings and every row that belongs to it in one
+// transaction, so a failure part way leaves everything in place. The revision guards the committee as in
+// Delete. A row another writer adds for the committee while this runs and commits after the statement
+// that removes that table's rows is not removed: there are no foreign keys, so nothing stops it.
+func (s *Store) DeleteCommitteeCascade(ctx context.Context, uid string, revision uint64) (*model.CommitteeRemovedChildren, error) {
+	if uid == "" {
+		return nil, errs.NewValidation("committee UID cannot be empty")
+	}
+	removed := &model.CommitteeRemovedChildren{}
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, "DELETE FROM committees WHERE uid = $1 AND revision = $2", uid, revisionArg(revision))
+		if err != nil {
+			return unexpected("failed to delete committee base", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return errNoMatch
+		}
+		for _, statement := range []struct{ query, what string }{
+			{"DELETE FROM committee_settings WHERE committee_uid = $1", "committee settings"},
+			{"DELETE FROM group_weekly_brief_throttle WHERE committee_uid = $1", "weekly brief throttle entries"},
+		} {
+			if _, err := tx.Exec(ctx, statement.query, uid); err != nil {
+				return unexpected("failed to delete "+statement.what, err)
+			}
+		}
+		for _, child := range childTables {
+			rows, err := tx.Query(ctx, "DELETE FROM "+child.table+" WHERE committee_uid = $1 RETURNING uid", uid)
+			if err != nil {
+				return unexpected("failed to delete from "+child.table, err)
+			}
+			uids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+			if err != nil {
+				return unexpected("failed to delete from "+child.table, err)
+			}
+			sort.Strings(uids)
+			*child.uids(removed) = uids
+		}
+		rows, err := tx.Query(ctx, "DELETE FROM committee_applications WHERE committee_uid = $1 RETURNING "+columnList(applicationColumns)+", revision", uid)
+		if err != nil {
+			return unexpected("failed to delete committee applications", err)
+		}
+		if removed.Applications, err = pgx.CollectRows(rows, collectApplication); err != nil {
+			return unexpected("failed to delete committee applications", err)
+		}
+		return nil
+	})
+	if errors.Is(err, errNoMatch) {
+		return nil, s.missingOrStale(ctx, committeeExists, "committee UID", uid, "committee not found", "committee has been modified by another process")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return removed, nil
 }
 
 // errNoMatch is returned inside a transaction when a revision-guarded statement matched no row.

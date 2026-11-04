@@ -113,6 +113,7 @@ func main() {
 		usecaseSvc.WithCommitteePublisher(committeePublisher),
 		usecaseSvc.WithB2BOrgResolver(service.B2BOrgResolverImpl(ctx)),
 		usecaseSvc.WithB2BOrgFallbackResolver(service.B2BOrgFallbackResolverImpl(ctx)),
+		usecaseSvc.WithDocumentFileDeleter(docStorage),
 	)
 
 	readCommitteeUseCase := usecaseSvc.NewCommitteeReaderOrchestrator(
