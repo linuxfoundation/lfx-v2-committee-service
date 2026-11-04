@@ -2159,6 +2159,29 @@ func TestReleaseLookupKey(t *testing.T) {
 	assert.False(t, present("lookup/never-existed"))
 }
 
+// A delete frees the name lock of the record it deleted, and only while the lock still holds that record's
+// uid: a lock another record holds is left alone, and a lock that is already gone is not an error.
+func TestPurgeOwnedLookupKey(t *testing.T) {
+	ctx := context.Background()
+	kv := newKVClient(t).kvStore[constants.KVBucketNameCommitteeDocuments]
+	present := func(key string) bool {
+		_, err := kv.Get(ctx, key)
+		return err == nil
+	}
+
+	_, err := kv.Create(ctx, "lookup/name", []byte("d-other"))
+	require.NoError(t, err)
+	purgeOwnedLookupKey(ctx, kv, "lookup/name", "d-1")
+	assert.True(t, present("lookup/name"), "a lock another record holds is left alone")
+
+	purgeOwnedLookupKey(ctx, kv, "lookup/name", "d-other")
+	assert.False(t, present("lookup/name"), "the record's own lock is released")
+
+	purgeOwnedLookupKey(ctx, kv, "lookup/name", "d-other")
+	purgeOwnedLookupKey(ctx, kv, "lookup/never-existed", "d-1")
+	assert.False(t, present("lookup/never-existed"), "a lock that is already gone is not an error")
+}
+
 // failingCreateKV wraps a real bucket so Create of one key fails with err, which is how a refused write
 // looks to the store.
 type failingCreateKV struct {
@@ -2225,5 +2248,27 @@ func TestContract_Links(t *testing.T) {
 func TestContract_LinkFolders(t *testing.T) {
 	storetest.RunFolderContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) storetest.LinkStore {
 		return NewStorageBackend(newKVClient(t))
+	})
+}
+
+// kvDocumentStore is the KV document metadata store as the contract suite sees it: the create, get,
+// name check and delete of the document storage, and the audit-sync update and list of the storage.
+type kvDocumentStore struct {
+	port.CommitteeDocumentReaderWriter
+	sync port.DocumentAuditSyncStorage
+}
+
+func (d kvDocumentStore) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
+	return d.sync.UpdateDocumentMetadata(ctx, doc, revision)
+}
+
+func (d kvDocumentStore) ListAllDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
+	return d.sync.ListAllDocuments(ctx, committeeUID)
+}
+
+func TestContract_Documents(t *testing.T) {
+	storetest.RunDocumentContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) storetest.DocumentStore {
+		client := newKVClient(t)
+		return kvDocumentStore{CommitteeDocumentReaderWriter: NewDocumentStorage(client), sync: NewStorageBackend(client)}
 	})
 }

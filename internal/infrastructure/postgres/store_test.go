@@ -435,3 +435,9 @@ func TestContract_LinkFolders(t *testing.T) {
 		return newTestStore(t)
 	})
 }
+
+func TestContract_Documents(t *testing.T) {
+	storetest.RunDocumentContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) storetest.DocumentStore {
+		return newTestStore(t)
+	})
+}

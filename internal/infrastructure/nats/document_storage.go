@@ -47,12 +47,16 @@ func (ds *documentStorage) getMetadata(ctx context.Context, uid string, target a
 }
 
 // CreateDocumentMetadata creates the document metadata. It first reserves the (committee, document
-// name) uniqueness lookup key and returns errs.Conflict if the name is already taken. If writing
-// the metadata record fails and the record is confirmed absent, the key is released so the name is
-// not left locked.
+// name) uniqueness lookup key and returns errs.Conflict if the name is already taken. A uid that
+// another document holds is a conflict too, and releases the name it reserved. If writing the
+// metadata record fails otherwise and the record is confirmed absent, the key is released so the
+// name is not left locked.
 func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument) error {
 	if doc == nil {
 		return errs.NewValidation("document cannot be nil")
+	}
+	if doc.UID == "" || doc.CommitteeUID == "" {
+		return errs.NewValidation("document UID and CommitteeUID must be non-empty")
 	}
 	docBytes, errMarshal := json.Marshal(doc)
 	if errMarshal != nil {
@@ -62,8 +66,9 @@ func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *mode
 	kv := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments]
 
 	uniqueKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
-	if _, errUnique := kv.Create(ctx, uniqueKey, []byte(doc.UID)); errUnique != nil {
-		if errors.Is(errUnique, jetstream.ErrKeyExists) {
+	uniqueRev, errUnique := kv.Create(ctx, uniqueKey, []byte(doc.UID))
+	if errUnique != nil {
+		if isJetStreamCASConflict(errUnique) {
 			return errs.NewConflict("document with the same name already exists for this committee")
 		}
 		return errs.NewUnexpected("failed to create unique key for document name", errUnique)
@@ -71,6 +76,11 @@ func (ds *documentStorage) CreateDocumentMetadata(ctx context.Context, doc *mode
 
 	rev, errCreate := kv.Create(ctx, doc.UID, docBytes)
 	if errCreate != nil {
+		if isJetStreamCASConflict(errCreate) {
+			// A different document already holds the uid, so the name reserved for this one is nobody's.
+			releaseLookupKey(ctx, kv, uniqueKey, uniqueRev, errCreate, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
+			return errs.NewConflict("document already exists")
+		}
 		rollbackLookupKey(ctx, kv, doc.UID, uniqueKey, errCreate, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
 		return errs.NewUnexpected("failed to create document metadata", errCreate)
 	}
@@ -163,19 +173,12 @@ func (ds *documentStorage) DeleteDocumentMetadata(ctx context.Context, committee
 		if errors.Is(errDelete, jetstream.ErrKeyNotFound) {
 			return errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
 		}
-		var jsErr jetstream.JetStreamError
-		if errors.As(errDelete, &jsErr) {
-			if apiErr := jsErr.APIError(); apiErr != nil && apiErr.ErrorCode == jetstream.JSErrCodeStreamWrongLastSequence {
-				return errs.NewConflict("document has been modified since it was last read")
-			}
-		}
-		return errs.NewUnexpected("failed to delete document metadata", errDelete)
+		return writeError(ctx, ds.client.kvStore[constants.KVBucketNameCommitteeDocuments], documentUID,
+			"document not found", "document has been modified since it was last read", "failed to delete document metadata", errDelete)
 	}
 	// Best-effort cleanup of the name uniqueness lookup key; log if it fails
 	uniqueKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
-	if errPurge := ds.client.kvStore[constants.KVBucketNameCommitteeDocuments].Purge(ctx, uniqueKey); errPurge != nil {
-		slog.WarnContext(ctx, "failed to purge document lookup key", "key", uniqueKey, "error", errPurge)
-	}
+	purgeOwnedLookupKey(ctx, ds.client.kvStore[constants.KVBucketNameCommitteeDocuments], uniqueKey, documentUID)
 	// Best-effort deletion of the binary file from object store.
 	// Metadata is already gone so the file is API-inaccessible even if this fails.
 	// Logged for ops visibility; does not fail the delete response.
