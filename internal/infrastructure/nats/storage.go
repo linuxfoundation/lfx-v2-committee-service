@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -1258,7 +1259,11 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 				"member_uid", member.UID,
 			)
 		case recordDiffers:
-			if inUse, decoded := memberKeysInUse(rctx, stored); decoded && holdsKey(inUse, keys.unique) {
+			// The stored record is this create's own write, changed by another writer since, only if this
+			// call took the uniqueness lock. A lock the uid already held means the stored record predates
+			// this create: a second member with the same uid, committee and email is a conflict, not a
+			// create that landed.
+			if inUse, decoded := memberKeysInUse(rctx, stored); decoded && holdsKey(inUse, keys.unique) && slices.Contains(reserved, keys.unique) {
 				baseRev = stored.Revision()
 				baseChanged = true
 				slog.WarnContext(ctx, "member create reported an error but the member was stored and changed; continuing",
@@ -1268,6 +1273,10 @@ func (s *storage) CreateMember(ctx context.Context, member *model.CommitteeMembe
 				break
 			}
 			s.releaseStaleMemberKeys(rctx, member.UID, reserved)
+			if errors.Is(errCreate, jetstream.ErrKeyExists) {
+				// A different member already holds the uid.
+				return errs.NewConflict("committee member already exists")
+			}
 			return errs.NewUnexpected("failed to create committee member", errCreate)
 		case recordAbsent:
 			releaseOwnedKeys(rctx, kv, member.UID, reserved, "member")

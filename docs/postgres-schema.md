@@ -255,17 +255,25 @@ uses the per-test schema above.
 
 A backend may declare where it differs, and the suites show any other difference as a failing case. The checks look at
 the outer error, the one the HTTP layer maps, not anywhere in its chain, so an internal error that wraps a validation
-error cannot pass as a validation error. The committee suite currently declares nothing. Two earlier differences are
-fixed: the KV store used to report a lost compare-and-swap ("wrong last sequence") as `errs.Unexpected`, a 500, and a
-read with an empty uid as an internal error wrapping the validation error, also a 500; both now match PostgreSQL
-(`errs.Conflict`, a 409, and `errs.Validation`, a 400). JetStream also reports an update of a key that does not exist as a
-lost swap, so the KV store re-reads on a lost swap and answers not found, a 404, for an absent record, as PostgreSQL
-does; the conflict carries no NATS error text. One benign difference remains and is not an error:
+error cannot pass as a validation error. The suites currently declare nothing. The differences they found in the KV
+store are fixed, and it now answers as PostgreSQL does:
+
+- a lost compare-and-swap ("wrong last sequence") is `errs.Conflict`, a 409, where it was `errs.Unexpected`, a 500;
+- JetStream also reports an update of a key that does not exist as a lost swap, so the KV store re-reads on a lost swap
+  and answers not found, a 404, for an absent record; the conflict carries no NATS error text;
+- a read with an empty uid is `errs.Validation`, a 400, where it was an internal error wrapping the validation error;
+- creating a member with a uid that another member already holds is `errs.Conflict`, where it was an internal error,
+  or, when the second member had the same committee and email, a success that wrote lookups for content that was never
+  stored.
+
+One benign difference remains and is not an error:
 
 - **Identical writers with the same revision.** KV treats a failed swap whose stored record equals what the writer
-  wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed;
-  PostgreSQL gives one of them a conflict. The race case has each writer write different content for that reason.
+  wrote as a write that landed (a lost acknowledgement), so two identical updates with the same revision both succeed,
+  and so does a create repeated with identical content; PostgreSQL gives the second a conflict. The race cases have
+  each writer write different content, and the duplicate cases use different content, for that reason.
 
 Suites so far: committee and settings (create, get, update, delete, the name and SSO group name uniqueness, the
-lookups, the counters, concurrent writers). Members, invites, applications, links, folders, document metadata and
-weekly briefs follow.
+lookups, the counters, concurrent writers) and members (create, get, update, delete, the email uniqueness per
+committee, the by-committee, organization, email and username lookups with their normalization, the streaming reads,
+concurrent writers). Invites, applications, links, folders, document metadata and weekly briefs follow.

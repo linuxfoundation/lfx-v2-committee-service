@@ -405,3 +405,9 @@ func TestContract_Committee(t *testing.T) {
 		return newTestStore(t)
 	})
 }
+
+func TestContract_Members(t *testing.T) {
+	storetest.RunMemberContract(t, storetest.Backend{Name: "postgres"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return newTestStore(t)
+	})
+}

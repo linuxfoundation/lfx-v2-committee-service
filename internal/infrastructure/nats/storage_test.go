@@ -2114,3 +2114,9 @@ func TestStorage_UpdateMemberDeletedBeforeSwapIsNotFound(t *testing.T) {
 	_, err = s.UpdateMember(ctx, member, revision)
 	requireOuterNotFound(t, err)
 }
+
+func TestContract_Members(t *testing.T) {
+	storetest.RunMemberContract(t, storetest.Backend{Name: "kv"}, func(t *testing.T) port.CommitteeReaderWriter {
+		return NewStorage(newKVClient(t))
+	})
+}

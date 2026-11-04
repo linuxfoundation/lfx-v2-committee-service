@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/utils"
 )
 
 func strPtr(s string) *string { return &s }
@@ -97,6 +98,46 @@ func normalizeBase(b *model.CommitteeBase) *model.CommitteeBase {
 // normalizeSettings is normalizeBase for settings.
 func normalizeSettings(s *model.CommitteeSettings) *model.CommitteeSettings {
 	c := *s
+	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
+	return &c
+}
+
+// SFID15 and SFID18 are the same Salesforce account in its two spellings.
+const SFID15 = "001A000001abcDE"
+
+// SFID18 is SFID15 in its 18-character form, the one organization lookups are keyed by.
+var SFID18 = utils.NormalizeAccountSFID(SFID15)
+
+// NewMember returns a member with every field set, for the committee and email.
+func NewMember(uid, committeeUID, email string) *model.CommitteeMember {
+	created := FixtureTime
+	return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID:               uid,
+		CommitteeUID:      committeeUID,
+		Username:          "first-last-" + uid,
+		Avatar:            "https://example.com/avatar.png",
+		Email:             email,
+		FirstName:         "First",
+		LastName:          "Last",
+		JobTitle:          "Engineer",
+		LinkedInProfile:   "https://example.com/in/first-last",
+		Role:              model.CommitteeMemberRole{Name: "Chair", StartDate: "2026-01-01", EndDate: "2027-01-01"},
+		AppointedBy:       "Community",
+		Status:            "Active",
+		Voting:            model.CommitteeMemberVotingInfo{Status: "Voting Rep", StartDate: "2026-02-01", EndDate: "2027-02-01"},
+		Organization:      model.CommitteeMemberOrganization{ID: SFID18, Name: "Example Org", Website: "https://example.com"},
+		CommitteeName:     "Committee One",
+		CommitteeCategory: "Technical Steering Committee",
+		ProjectUID:        "project-1",
+		ProjectSlug:       "project-slug",
+		CreatedAt:         created,
+		UpdatedAt:         created.Add(time.Hour),
+	}}
+}
+
+// normalizeMember makes a member comparable across backends: times at the shared precision.
+func normalizeMember(m *model.CommitteeMember) *model.CommitteeMember {
+	c := *m
 	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
 	return &c
 }
