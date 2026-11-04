@@ -242,3 +242,48 @@ func normalizeDocument(d *model.CommitteeDocument) *model.CommitteeDocument {
 	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
 	return &c
 }
+
+// FixtureWindow is the start of the weekly window the brief fixtures use: a Sunday, 00:00 UTC.
+var FixtureWindow = time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC)
+
+// NewBrief returns a brief with every field set, for the committee and the week starting at window.
+func NewBrief(uid, committeeUID string, window time.Time) *model.GroupWeeklyBrief {
+	edited := FixtureTime.Add(2 * time.Hour)
+	return &model.GroupWeeklyBrief{
+		UID: uid, CommitteeUID: committeeUID, WindowStart: window, WindowEnd: window.AddDate(0, 0, 7),
+		State: model.GroupWeeklyBriefStateEdited, ErrorReason: "none", BriefText: "The group met twice.",
+		SourceRefs:    []model.SourceRef{{Kind: "meeting", ID: "m-1"}, {Kind: "doc", ID: "https://example.com/doc", Title: "Doc", Excerpt: "An excerpt"}},
+		PromptVersion: "v1", Model: "model-1", RegenerationCount: 2, PrivateSourcePresent: true,
+		CreatedAt: FixtureTime, UpdatedAt: FixtureTime.Add(time.Hour), LastEditedAt: &edited, LastEditedBy: "first-last",
+	}
+}
+
+// NewThrottle returns a throttle entry for the committee and the week starting at window.
+func NewThrottle(committeeUID string, window time.Time) *model.GroupWeeklyBriefThrottle {
+	return &model.GroupWeeklyBriefThrottle{
+		CommitteeUID: committeeUID, WindowStart: window, WindowEnd: window.AddDate(0, 0, 7),
+		GeneratesUsed: 1, RegenerationsUsed: 2, WindowResetsAt: window.AddDate(0, 0, 7),
+	}
+}
+
+// normalizeBrief makes a brief comparable across backends: times at the shared precision, and the
+// revision, which the store assigns, left out.
+func normalizeBrief(b *model.GroupWeeklyBrief) *model.GroupWeeklyBrief {
+	c := *b
+	c.WindowStart, c.WindowEnd = micro(c.WindowStart), micro(c.WindowEnd)
+	c.CreatedAt, c.UpdatedAt = micro(c.CreatedAt), micro(c.UpdatedAt)
+	if c.LastEditedAt != nil {
+		edited := micro(*c.LastEditedAt)
+		c.LastEditedAt = &edited
+	}
+	c.Revision = 0
+	return &c
+}
+
+// normalizeThrottle is normalizeBrief for a throttle entry.
+func normalizeThrottle(t *model.GroupWeeklyBriefThrottle) *model.GroupWeeklyBriefThrottle {
+	c := *t
+	c.WindowStart, c.WindowEnd, c.WindowResetsAt = micro(c.WindowStart), micro(c.WindowEnd), micro(c.WindowResetsAt)
+	c.Revision = 0
+	return &c
+}
