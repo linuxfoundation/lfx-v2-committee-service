@@ -23,7 +23,7 @@ var (
 )
 
 // memberColumns are the committee_members columns the store writes, in the order memberValues
-// returns them. uid comes first and the revision is not listed: it comes from the sequence.
+// returns them. uid comes first; insertStatement and updateAssignments append the revision.
 var memberColumns = []string{
 	"uid", "committee_uid", "username", "avatar", "email", "first_name", "last_name", "job_title",
 	"linkedin_profile", "role_name", "role_start_date", "role_end_date", "appointed_by", "status",
@@ -114,6 +114,9 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 		return nil, errs.NewValidation("committee member UID cannot be empty")
 	}
 	values := memberValues(member)
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return nil, err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateMember, withRevisionArg(ctx, primaryRevision, args)...)

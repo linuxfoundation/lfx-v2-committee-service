@@ -22,7 +22,7 @@ var (
 )
 
 // applicationColumns are the committee_applications columns the store writes, in the order
-// applicationValues returns them. uid comes first and the revision comes from the sequence.
+// applicationValues returns them. uid comes first; insertStatement and updateAssignments append the revision.
 var applicationColumns = []string{
 	"uid", "committee_uid", "applicant_email", "applicant_username", "message", "status",
 	"reviewer_notes", "organization", "created_at", "updated_at",
@@ -120,6 +120,9 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	values, err := applicationValues(application, time.Now())
 	if err != nil {
 		return unexpected("failed to encode committee application", err)
+	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 

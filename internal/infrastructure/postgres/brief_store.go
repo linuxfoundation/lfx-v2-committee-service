@@ -25,7 +25,7 @@ var (
 )
 
 // briefColumns and throttleColumns are the columns the store writes, in the order briefValues and
-// throttleValues return them. The revision is not listed: it comes from the sequence.
+// throttleValues return them. The revision is not listed: insertStatement and updateAssignments append it.
 var (
 	briefColumns = []string{
 		"uid", "committee_uid", "window_start", "window_end", "state", "error_reason", "brief_text", "source_refs",
@@ -223,6 +223,11 @@ func (s *Store) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeekl
 	if err != nil {
 		return nil, unexpected("failed to encode weekly brief", err)
 	}
+	if brief.Revision > 0 {
+		if err := explicitAbove(ctx, primaryRevision, brief.Revision); err != nil {
+			return nil, err
+		}
+	}
 	query, args := upsertBrief, withRevisionArg(ctx, primaryRevision, values)
 	if brief.Revision > 0 {
 		query, args = updateBrief, withRevisionArg(ctx, primaryRevision, append([]any{values[0], revisionArg(brief.Revision)}, values[1:]...))
@@ -268,6 +273,11 @@ func (s *Store) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *model
 		return nil, errs.NewValidation("window_start is required")
 	}
 	values := throttleValues(throttle)
+	if throttle.Revision > 0 {
+		if err := explicitAbove(ctx, primaryRevision, throttle.Revision); err != nil {
+			return nil, err
+		}
+	}
 	query, args := insertThrottle, withRevisionArg(ctx, primaryRevision, values)
 	if throttle.Revision > 0 {
 		query = updateThrottle

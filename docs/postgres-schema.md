@@ -210,15 +210,23 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   `fn` returns, so a full scan does not hold every member in memory. `ListAllMembers` still returns a slice because the
   port does; prefer `EachMember` for the whole table. A call back into the store from `fn` uses a second connection.
 - **Explicit revisions** let the composite store (#1197) carry the KV revision into a row in `dual` mode.
-  `postgres.WithRevision(ctx, rev)` makes the create or update that uses the returned context leave `rev` as the
-  record's revision instead of a value from `committee_revision_seq`; it works for every record and for the
-  counter updates. A committee create writes two rows, so `WithSettingsRevision` sets the settings row's revision
-  (`WithRevision` sets the committee's). The guard is unchanged: an update or delete is still matched against the
-  revision the caller read, so a stale token is rejected whether or not a new revision is given. A revision of 0 or
-  above the range of the column is an error. At the flip from KV to PostgreSQL, call
-  `Store.AdvanceRevisionSequence(ctx, highestKVRevision)`: the sequence then issues only values above it, so a token
-  from before the flip can never match a revision issued after it, and a lower value never lowers the sequence.
-  Call it while no writes are in flight, because the read and the set are not one atomic step.
+  `postgres.WithRevision(ctx, rev)` makes every create or update made with the returned context leave `rev` as the
+  record's revision instead of a value from `committee_revision_seq`; it works for every record and for the counter
+  updates. Derive a fresh context from the plain parent for each store call: a context reused for a second write
+  stamps the same revision on another record. A committee create writes two rows, so `WithSettingsRevision` sets the
+  settings row's revision (`WithRevision` sets the committee's). The guard is unchanged: an update or delete is still
+  matched against the revision the caller read, so a stale token is rejected whether or not a new revision is given.
+  An update rejects (`errs.Validation`) an explicit revision that is not above the one it replaces, because the same
+  or a lower value would keep a token that was already handed out valid for the new content; the counter updates
+  check against the committee's current revision, in Go and in the statement. A revision of 0 or above the range of
+  the column is an error. In `dual` mode every write must carry its revision: a write without one takes a sequence
+  value that can equal a KV revision a stale client still holds, unless the sequence was also advanced before `dual`
+  started. At the flip from KV to PostgreSQL, call `Store.AdvanceRevisionSequence(ctx, highest)` with the highest
+  revision over **every** KV bucket the tables mirror (KV revisions are stream sequences counted per bucket, while
+  all tables share this one sequence): the sequence then issues only values above it, so a token from before the flip
+  can never match a revision issued after it, and a lower value never lowers the sequence. Call it while no writes
+  are in flight, because the read and the set are not one atomic step. Rolling back from PostgreSQL to KV, and
+  invalidating the tokens issued in between, is the composite store's to define: it needs no primitive here.
 
 ## Running the tests
 

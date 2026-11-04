@@ -21,7 +21,7 @@ var (
 )
 
 // linkColumns and folderColumns are the columns the store writes, in the order linkValues and
-// folderValues return them. uid comes first and the revision is not listed: it comes from the sequence.
+// folderValues return them. uid comes first; insertStatement and updateAssignments append the revision.
 var (
 	linkColumns = []string{
 		"uid", "committee_uid", "folder_uid", "name", "url", "description", "created_by", "updated_by", "created_at", "updated_at",
@@ -158,6 +158,9 @@ func (s *Store) UpdateLink(ctx context.Context, link *model.CommitteeLink, revis
 	if err != nil {
 		return unexpected("failed to encode link", err)
 	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 	tag, err := s.pool.Exec(ctx, updateLink, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
@@ -268,6 +271,9 @@ func (s *Store) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	values, err := folderValues(folder)
 	if err != nil {
 		return unexpected("failed to encode folder", err)
+	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 	tag, err := s.pool.Exec(ctx, updateFolder, withRevisionArg(ctx, primaryRevision, args)...)

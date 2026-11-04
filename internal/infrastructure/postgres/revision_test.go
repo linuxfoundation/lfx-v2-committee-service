@@ -7,7 +7,9 @@ import (
 	"context"
 	"math"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +23,7 @@ type revisionCase struct {
 	name     string
 	create   func(t *testing.T, ctx context.Context, s *Store)
 	revision func(t *testing.T, ctx context.Context, s *Store) uint64
-	update   func(t *testing.T, ctx context.Context, s *Store, revision uint64)
+	update   func(t *testing.T, ctx context.Context, s *Store, revision uint64) error
 }
 
 func mustWithRevision(t *testing.T, ctx context.Context, revision uint64) context.Context {
@@ -44,10 +46,10 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				base, _, err := s.GetBase(ctx, "c-1")
 				require.NoError(t, err)
-				require.NoError(t, s.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+				return s.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision)
 			},
 		},
 		{
@@ -60,12 +62,11 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, _ uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, _ uint64) error {
 				base, _, err := s.GetBase(ctx, "c-1")
 				require.NoError(t, err)
-				_, changed, err := s.UpdateTotalMembers(ctx, "c-1", base.TotalMembers+1)
-				require.NoError(t, err)
-				require.True(t, changed)
+				_, _, err = s.UpdateTotalMembers(ctx, "c-1", base.TotalMembers+1)
+				return err
 			},
 		},
 		{
@@ -78,11 +79,11 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				member, _, err := s.GetMember(ctx, "m-1")
 				require.NoError(t, err)
 				_, err = s.UpdateMember(ctx, member, revision)
-				require.NoError(t, err)
+				return err
 			},
 		},
 		{
@@ -95,10 +96,10 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				invite, _, err := s.GetInvite(ctx, "i-1")
 				require.NoError(t, err)
-				require.NoError(t, s.UpdateInvite(ctx, invite, revision))
+				return s.UpdateInvite(ctx, invite, revision)
 			},
 		},
 		{
@@ -111,10 +112,10 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				application, _, err := s.GetApplication(ctx, "a-1")
 				require.NoError(t, err)
-				require.NoError(t, s.UpdateApplication(ctx, application, revision))
+				return s.UpdateApplication(ctx, application, revision)
 			},
 		},
 		{
@@ -127,10 +128,10 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				link, _, err := s.GetLink(ctx, "c-1", "l-1")
 				require.NoError(t, err)
-				require.NoError(t, s.UpdateLink(ctx, link, revision))
+				return s.UpdateLink(ctx, link, revision)
 			},
 		},
 		{
@@ -143,10 +144,10 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				folder, _, err := s.GetLinkFolder(ctx, "c-1", "f-1")
 				require.NoError(t, err)
-				require.NoError(t, s.UpdateLinkFolder(ctx, folder, revision))
+				return s.UpdateLinkFolder(ctx, folder, revision)
 			},
 		},
 		{
@@ -159,10 +160,10 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				doc, _, err := s.GetDocumentMetadata(ctx, "c-1", "d-1")
 				require.NoError(t, err)
-				require.NoError(t, s.UpdateDocumentMetadata(ctx, doc, revision))
+				return s.UpdateDocumentMetadata(ctx, doc, revision)
 			},
 		},
 		{
@@ -176,12 +177,12 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return brief.Revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				brief, _, err := s.GetGroupWeeklyBriefForWindow(ctx, "c-1", model.GroupWeeklyBrief{WindowStart: window})
 				require.NoError(t, err)
 				brief.Revision = revision
 				_, err = s.PutGroupWeeklyBrief(ctx, brief)
-				require.NoError(t, err)
+				return err
 			},
 		},
 		{
@@ -195,12 +196,12 @@ func revisionCases() []revisionCase {
 				require.NoError(t, err)
 				return throttle.Revision
 			},
-			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) {
+			update: func(t *testing.T, ctx context.Context, s *Store, revision uint64) error {
 				throttle, err := s.GetGroupWeeklyBriefThrottle(ctx, "c-1", window)
 				require.NoError(t, err)
 				throttle.Revision = revision
 				_, err = s.PutGroupWeeklyBriefThrottle(ctx, throttle)
-				require.NoError(t, err)
+				return err
 			},
 		},
 	}
@@ -216,11 +217,19 @@ func TestWithRevision(t *testing.T) {
 			assert.Equal(t, uint64(1000), c.revision(t, ctx, store), "a create stores the revision it is given")
 
 			// The write is guarded by the revision that was read, and leaves the one it is given.
-			c.update(t, mustWithRevision(t, ctx, 2000), store, 1000)
+			require.NoError(t, c.update(t, mustWithRevision(t, ctx, 2000), store, 1000))
 			assert.Equal(t, uint64(2000), c.revision(t, ctx, store), "an update stores the revision it is given")
 
+			// A revision that is not above the one it replaces would keep a handed-out token valid for the
+			// new content: it is rejected, whether it repeats the current revision (a context reused for a
+			// second write) or goes below it, and nothing is written.
+			var validation errs.Validation
+			require.ErrorAs(t, c.update(t, mustWithRevision(t, ctx, 2000), store, 2000), &validation, "the same revision")
+			require.ErrorAs(t, c.update(t, mustWithRevision(t, ctx, 1500), store, 2000), &validation, "a lower revision")
+			assert.Equal(t, uint64(2000), c.revision(t, ctx, store))
+
 			// Without the option the sequence decides again, and is not affected by the explicit values.
-			c.update(t, ctx, store, 2000)
+			require.NoError(t, c.update(t, ctx, store, 2000))
 			fromSequence := c.revision(t, ctx, store)
 			assert.NotEqual(t, uint64(2000), fromSequence)
 			assert.Less(t, fromSequence, uint64(1000), "the sequence has not been advanced by explicit revisions")
@@ -284,6 +293,23 @@ func TestStore_AdvanceRevisionSequence(t *testing.T) {
 
 	var validation errs.Validation
 	require.ErrorAs(t, store.AdvanceRevisionSequence(ctx, math.MaxInt64+1), &validation)
+}
+
+// The Go check in front of a counter update is not atomic: the statement itself must refuse a revision
+// that is not above the current one, so a write that raced past the check changes nothing.
+func TestWithRevision_counterStatementRefusesLowerRevision(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore(t)
+	require.NoError(t, store.Create(mustWithRevision(t, ctx, 1000), testCommittee("c-1", "project-1", "Committee One")))
+
+	err := store.pool.QueryRow(ctx, updateTotalMembers, "c-1", 7, time.Now(), int64(1000)).Scan(new(any), new(any))
+	require.ErrorIs(t, err, pgx.ErrNoRows, "an equal revision matches no row")
+	err = store.pool.QueryRow(ctx, updateTotalMembers, "c-1", 7, time.Now(), int64(999)).Scan(new(any), new(any))
+	require.ErrorIs(t, err, pgx.ErrNoRows, "a lower revision matches no row")
+
+	base, _, err := store.GetBase(ctx, "c-1")
+	require.NoError(t, err)
+	assert.NotEqual(t, 7, base.TotalMembers)
 }
 
 // A put without a revision replaces the brief with the same uid; the revision it is given is the one left behind.

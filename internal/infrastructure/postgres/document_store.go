@@ -128,6 +128,9 @@ func (s *Store) UpdateDocumentMetadata(ctx context.Context, doc *model.Committee
 	if err != nil {
 		return unexpected("failed to encode document", err)
 	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 	tag, err := s.pool.Exec(ctx, updateDocument, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {

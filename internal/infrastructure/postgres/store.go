@@ -59,10 +59,13 @@ const (
 	settingsRevision                    // the settings row written along with a committee
 )
 
-// WithRevision makes the next write through the returned context store revision as the record's
+// WithRevision makes every write made with the returned context store revision as the record's
 // revision, instead of taking one from the sequence. The composite store uses it in dual mode to carry
-// the KV revision into the row. The update and delete guards still compare against the revision the
-// caller read, so it only decides the revision the write leaves behind. It applies to creates and
+// the KV revision into the row, so it must derive a fresh context from the plain parent for each store
+// call: a context reused for a second write would stamp the same revision on another record. The update
+// and delete guards still compare against the revision the caller read, so it only decides the revision
+// the write leaves behind, and an update rejects one that is not above the revision it replaces
+// (errs.Validation), because the guard would otherwise accept a stale token. It applies to creates and
 // updates of any record, and to the committee row of a committee create. A revision of 0, or one above
 // the range of the column, is an error.
 func WithRevision(ctx context.Context, revision uint64) (context.Context, error) {
@@ -96,6 +99,15 @@ func withRevisionArg(ctx context.Context, key revisionKey, args []any) []any {
 	return append(args, explicitRevision(ctx, key))
 }
 
+// explicitAbove rejects an explicit revision that would not move the record past the one it replaces:
+// the same or a lower value leaves a token that was already handed out valid for the new content.
+func explicitAbove(ctx context.Context, key revisionKey, replaced uint64) error {
+	if explicit, ok := ctx.Value(key).(int64); ok && uint64(explicit) <= replaced {
+		return errs.NewValidation("an explicit revision must be greater than the revision it replaces")
+	}
+	return nil
+}
+
 // revisionParam is the SQL for the revision a write leaves behind: the value of parameter n when the
 // caller gave one, the next value of the sequence otherwise.
 func revisionParam(n int) string {
@@ -114,9 +126,11 @@ func updateAssignments(columns []string, first int) string {
 }
 
 // AdvanceRevisionSequence raises the revision sequence so that the next revision it issues is above
-// atLeast, and never lowers it. At the flip from KV to PostgreSQL, call it with the highest KV
-// revision so a token issued before the flip can never equal a revision issued after it. Call it
-// while no writes are in flight: the read and the set are not one atomic step.
+// atLeast, and never lowers it. KV revisions are stream sequences that each bucket counts on its own,
+// while every table here shares this one sequence, so at the flip from KV to PostgreSQL pass the
+// highest revision over every bucket the tables mirror: only then can a token issued before the flip
+// never equal a revision issued after it. Call it while no writes are in flight: the read and the set
+// are not one atomic step.
 func (s *Store) AdvanceRevisionSequence(ctx context.Context, atLeast uint64) error {
 	if atLeast > math.MaxInt64 {
 		return errs.NewValidation("revision must not exceed the largest BIGINT")

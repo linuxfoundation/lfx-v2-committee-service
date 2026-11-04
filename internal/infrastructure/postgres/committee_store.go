@@ -24,7 +24,7 @@ var (
 )
 
 // committeeColumns are the committees columns the store writes, in the order committeeValues
-// returns them. uid comes first and the revision is not listed: it comes from the sequence.
+// returns them. uid comes first; insertStatement and updateAssignments append the revision.
 var committeeColumns = []string{
 	"uid", "project_uid", "project_name", "project_slug", "name", "category", "description",
 	"website", "mailing_list", "chat_channel", "enable_voting", "sso_group_enabled", "sso_group_name",
@@ -284,6 +284,9 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 		return unexpected("failed to encode committee", err)
 	}
 	// $1 is the uid and $2 the revision; the rest follow committeeColumns without the uid.
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
+	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
 	tag, err := s.pool.Exec(ctx, updateCommittee, withRevisionArg(ctx, primaryRevision, args)...)
@@ -307,6 +310,9 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	values, err := settingsValues(settings)
 	if err != nil {
 		return unexpected("failed to encode committee settings", err)
+	}
+	if err := explicitAbove(ctx, primaryRevision, revision); err != nil {
+		return err
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
@@ -356,7 +362,8 @@ var (
 
 func counterUpdate(column string) string {
 	return fmt.Sprintf("UPDATE committees SET %[1]s = $2, updated_at = $3, revision = %[3]s "+
-		"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 RETURNING %[2]s, revision", column, columnList(committeeColumns), revisionParam(4))
+		"WHERE uid = $1 AND %[1]s IS DISTINCT FROM $2 AND COALESCE($4::bigint, revision + 1) > revision "+
+		"RETURNING %[2]s, revision", column, columnList(committeeColumns), revisionParam(4))
 }
 
 // UpdateHasMailingList sets has_mailing_list. It returns (nil, false, nil) when the flag already has
@@ -372,6 +379,18 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 
 // updateCommitteeField runs one of the counter updates above.
 func (s *Store) updateCommitteeField(ctx context.Context, uid, query string, value any, failure string) (*model.CommitteeBase, bool, error) {
+	// A counter update has no revision to compare with, so an explicit one is checked against the
+	// committee's current revision for the same reason as in the guarded updates.
+	if explicit, ok := ctx.Value(primaryRevision).(int64); ok {
+		var current int64
+		err := s.pool.QueryRow(ctx, "SELECT revision FROM committees WHERE uid = $1", uid).Scan(&current)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, false, unexpected(failure, err)
+		}
+		if err == nil && explicit <= current {
+			return nil, false, errs.NewValidation("an explicit revision must be greater than the revision it replaces")
+		}
+	}
 	base, _, err := scanCommittee(s.pool.QueryRow(ctx, query, uid, value, time.Now(), explicitRevision(ctx, primaryRevision)))
 	if err == nil {
 		return base, true, nil
