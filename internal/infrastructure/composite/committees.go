@@ -64,7 +64,13 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 				}
 			}
 			if settings != nil {
-				if _, currentSettings, err := s.kv.GetSettings(ctx, uid); err == nil && currentSettings != settingsRevision {
+				_, currentSettings, err := s.kv.GetSettings(ctx, uid)
+				switch {
+				case isNotFound(err):
+					// Deleted with the committee meanwhile; the check of the base above covers it.
+				case err != nil:
+					return fmt.Errorf("reading KV settings again after the copy: %w", err)
+				case currentSettings != settingsRevision:
 					return s.replicateSettings(ctx, uid)
 				}
 			}

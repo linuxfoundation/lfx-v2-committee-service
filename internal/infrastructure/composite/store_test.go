@@ -901,6 +901,55 @@ func TestStore_DualAReadOfKVAfterTheCopyOfACommitteeThatFailsIsCounted(t *testin
 	assert.Equal(t, map[string]int64{"create_committee": 1}, r.counts(t, failures))
 }
 
+// failingRecheckSettingsKV is a KV store whose second read of the settings fails, which is the read that follows the copy of a
+// create.
+type failingRecheckSettingsKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (f *failingRecheckSettingsKV) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
+	if f.calls.Add(1) == 2 {
+		return nil, 0, errPG
+	}
+	return f.CommitteeReaderWriter.GetSettings(ctx, uid)
+}
+
+// A settings record that KV no longer has when the copy reads it again is nothing to catch up with, and not a failure: the
+// committee's own re-read decides whether the committee is still there.
+func TestStore_DualASettingsKVHasLostAfterTheCopyOfACommitteeAreNotAFailure(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	r.store.kv = &lostRecheckSettingsKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	assert.Empty(t, r.counts(t, failures))
+}
+
+// lostRecheckSettingsKV is a KV store whose second read of the settings finds nothing.
+type lostRecheckSettingsKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (l *lostRecheckSettingsKV) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
+	if l.calls.Add(1) == 2 {
+		return nil, 0, errs.NewNotFound("committee settings not found")
+	}
+	return l.CommitteeReaderWriter.GetSettings(ctx, uid)
+}
+
+func TestStore_DualAReadOfTheSettingsAfterTheCopyOfACommitteeThatFailsIsCounted(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	r.store.kv = &failingRecheckSettingsKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	assert.Equal(t, map[string]int64{"create_committee": 1}, r.counts(t, failures))
+}
+
 // updatingSettingsKV is a KV store that updates the settings as the copy of the committee's creation reads them back for the
 // second time.
 type updatingSettingsKV struct {
