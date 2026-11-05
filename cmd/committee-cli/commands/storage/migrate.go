@@ -27,7 +27,7 @@ type migrateSubcommand struct {
 func (s *migrateSubcommand) Name() string { return "migrate" }
 
 func (s *migrateSubcommand) Help() string {
-	return "copy committees, settings and members from the NATS KV store to PostgreSQL, keeping their revisions"
+	return "copy the committee data from the NATS KV store to PostgreSQL, keeping the revisions"
 }
 
 func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) error {

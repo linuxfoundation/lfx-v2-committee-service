@@ -127,3 +127,17 @@ func copySettings(ctx context.Context, sink backfillSink, opts backfillOptions, 
 		}
 	}
 }
+
+// reportOrphanSettings counts the settings KV still holds for a committee it no longer has: the store deletes a
+// committee's base before its settings, so a failed delete leaves them behind. They are not copied, even with
+// --include-orphans, since PostgreSQL creates settings only along with their committee, and they are listed with
+// their uids like the other orphans. Their revisions count for the highest revision seen.
+func reportOrphanSettings(ctx context.Context, src port.KVExportReader, committees map[string]struct{}, settings *tracker) error {
+	return src.EachSettingsExport(ctx, func(s *model.CommitteeSettings, revision uint64) error {
+		if _, ok := committees[s.UID]; !ok {
+			settings.scanned(ctx, revision)
+			settings.orphan(ctx, s.UID)
+		}
+		return nil
+	})
+}

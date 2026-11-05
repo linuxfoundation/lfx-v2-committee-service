@@ -36,8 +36,8 @@ match.
 Design choices made so a backfill from KV cannot fail on existing data: ids are `TEXT`, there are no
 `CHECK` constraints on enum-like columns, dates the Go models keep as strings stay `TEXT`, and there
 are no foreign keys (KV has no referential integrity). Foreign keys are added later as `NOT VALID`
-and validated once the planned `verify` command ([#1198](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1198))
-reports no orphans. Deletes are hard deletes.
+and validated once `committee-cli storage verify` ([#1198](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1198))
+reports no PostgreSQL orphans. Deletes are hard deletes.
 
 ## Unique indexes: the KV lookup keys
 

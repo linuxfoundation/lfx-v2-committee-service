@@ -241,30 +241,39 @@ func runBackfill(ctx context.Context, src port.KVExportReader, sink backfillSink
 		return &tracker{res: backfillResult{Entity: entity}, progressEvery: opts.ProgressEvery}
 	}
 
+	// The settings and the children are checked against the committees KV holds, which are listed once for all of them.
+	var existing map[string]struct{}
+	var listErr error
+	committeesInKV := func() (map[string]struct{}, error) {
+		if existing == nil && listErr == nil {
+			existing, listErr = committeeSet(ctx, src)
+		}
+		return existing, listErr
+	}
+
 	var trackers []*tracker
 	if slices.Contains(opts.Entities, entityCommittees) {
 		committees, settings := newTracker(entityCommittees), newTracker(resultSettings)
 		trackers = append(trackers, committees, settings)
 		scanError(ctx, committees, copyCommittees(ctx, src, sink, opts, committees, settings))
+		if set, err := committeesInKV(); err != nil {
+			scanError(ctx, settings, err)
+		} else {
+			scanError(ctx, settings, reportOrphanSettings(ctx, src, set, settings))
+		}
 	}
-	// The children are checked against the committees KV holds, which are listed once for all of them.
-	children := childCopies(src, sink, opts)
-	var committees map[string]struct{}
-	var listErr error
-	for _, child := range children {
+	for _, child := range childCopies(src, sink, opts) {
 		if !slices.Contains(opts.Entities, child.entity) {
 			continue
 		}
 		t := newTracker(child.entity)
 		trackers = append(trackers, t)
-		if committees == nil && listErr == nil {
-			committees, listErr = committeeSet(ctx, src)
-		}
-		if listErr != nil {
-			scanError(ctx, t, listErr)
+		set, err := committeesInKV()
+		if err != nil {
+			scanError(ctx, t, err)
 			continue
 		}
-		scanError(ctx, t, child.copy(ctx, t, committees))
+		scanError(ctx, t, child.copy(ctx, t, set))
 	}
 
 	results := make([]backfillResult, 0, len(trackers))

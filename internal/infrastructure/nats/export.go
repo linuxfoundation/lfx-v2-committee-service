@@ -70,6 +70,16 @@ func (s *storage) EachCommitteeExport(ctx context.Context, fn func(port.Committe
 	return nil
 }
 
+// EachSettingsExport streams every settings record with the revision it was read at, including those of a committee
+// that no longer exists. The settings are keyed by the committee uid, so the key is the uid whatever the record holds.
+func (s *storage) EachSettingsExport(ctx context.Context, fn func(*model.CommitteeSettings, uint64) error) error {
+	return eachKeyedRecord(ctx, s.client.kvStore[constants.KVBucketNameCommitteeSettings], "committee settings", nil,
+		func(key string, settings *model.CommitteeSettings, revision uint64) error {
+			settings.UID = key
+			return fn(settings, revision)
+		})
+}
+
 // EachMemberExport streams every committee member with the revision it was read at.
 func (s *storage) EachMemberExport(ctx context.Context, fn func(*model.CommitteeMember, uint64) error) error {
 	return s.eachMemberWithRevision(ctx, fn, true)
@@ -175,6 +185,11 @@ func (s *storage) optionalBucket(ctx context.Context, name string) (jetstream.Ke
 // decoded is logged and skipped and the scan ends with an aggregated error that says how many; a record
 // deleted between listing and reading is gone, not a failed read. The first error fn returns stops the scan.
 func eachRecord[T any](ctx context.Context, kv jetstream.KeyValue, what string, keep func(key string) bool, fn func(*T, uint64) error) error {
+	return eachKeyedRecord(ctx, kv, what, keep, func(_ string, record *T, revision uint64) error { return fn(record, revision) })
+}
+
+// eachKeyedRecord is eachRecord for a caller that needs the key the record is stored under.
+func eachKeyedRecord[T any](ctx context.Context, kv jetstream.KeyValue, what string, keep func(key string) bool, fn func(key string, record *T, revision uint64) error) error {
 	keys, err := kv.ListKeys(ctx)
 	if err != nil {
 		return errs.NewUnexpected(fmt.Sprintf("failed to list keys of the %s bucket", what), err)
@@ -199,7 +214,7 @@ func eachRecord[T any](ctx context.Context, kv jetstream.KeyValue, what string, 
 			failedReads++
 			continue
 		}
-		if err := fn(record, entry.Revision()); err != nil {
+		if err := fn(key, record, entry.Revision()); err != nil {
 			return err
 		}
 	}
