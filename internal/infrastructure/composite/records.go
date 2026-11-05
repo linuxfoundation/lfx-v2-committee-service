@@ -109,11 +109,16 @@ func deleteConverged(ctx context.Context, deletePG func(ctx context.Context, rev
 	return err
 }
 
+// comparer is what compareRecords needs of a composite: the comparison under the compare timeout.
+type comparer interface {
+	compareValue(ctx context.Context, operation string, compare func(ctx context.Context) (same bool, err error))
+}
+
 // compareRecords compares the records a list read of the primary store returned with the ones PostgreSQL returns, whatever
 // their order, by content alone: a list does not carry the revisions. Only the lists that are bounded by a committee, an
 // organization, an email or a username are compared; the reads of the whole set are for repair work, and storage verify
 // is the comparison of them.
-func compareRecords[T any](ctx context.Context, s *Store, operation string, records []T, err error, readOther func(context.Context) ([]T, error)) {
+func compareRecords[T any](ctx context.Context, s comparer, operation string, records []T, err error, readOther func(context.Context) ([]T, error)) {
 	if err != nil {
 		return // the read failed, so there is nothing to compare
 	}

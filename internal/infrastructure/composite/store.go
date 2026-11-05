@@ -45,15 +45,22 @@ const (
 // There is no transaction across the two stores. A write the primary store only partly made, and so refused, is not
 // copied. The committees, their settings, the members, the invites and the applications are composed, which is the whole
 // of port.CommitteeReaderWriter apart from the streams EachMember and EachMemberStrict, which go to the primary store
-// alone. The links, folders, documents and weekly briefs are other aggregates with stores of their own and are not
-// composed yet. The Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of
-// a deleted committee behind. It is not complete enough to be wired in until those are composed and the cascade is exposed
-// for the stores that have it, which is why no mode but kv is available at startup.
+// alone. The links and folders (Links) and the weekly briefs and throttle entries (Briefs) are other aggregates with
+// stores of their own, composed the same way; the documents, whose files are in the Object Store, are not composed yet.
+// The Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of a deleted
+// committee behind. None of them is complete enough to be wired in until the documents are composed and the cascade is
+// exposed for the stores that have it, which is why no mode but kv is available at startup.
 type Store struct {
 	port.CommitteeReaderWriter
 
+	core
+	kv, pg port.CommitteeReaderWriter
+}
+
+// core is what the composites of every aggregate share: the mode, the metrics, the sampling and the timeouts, and what
+// follows from them.
+type core struct {
 	mode           Mode
-	kv, pg         port.CommitteeReaderWriter
 	metrics        *Metrics
 	rate           float64
 	random         func() float64
@@ -61,31 +68,42 @@ type Store struct {
 	writeTimeout   time.Duration
 }
 
+func newCore(mode Mode, opts []Option) core {
+	c := core{
+		mode: mode, rate: defaultSampleRate, random: rand.Float64,
+		compareTimeout: defaultCompareTimeout, writeTimeout: defaultWriteTimeout,
+	}
+	for _, opt := range opts {
+		opt(&c)
+	}
+	return c
+}
+
 var _ port.CommitteeReaderWriter = (*Store)(nil)
 
-// Option tunes a Store.
-type Option func(*Store)
+// Option tunes a composite store.
+type Option func(*core)
 
 // WithMetrics sets the metrics that count what the secondary store does. Without it nothing is counted, and
 // everything is still logged.
-func WithMetrics(m *Metrics) Option { return func(s *Store) { s.metrics = m } }
+func WithMetrics(m *Metrics) Option { return func(c *core) { c.metrics = m } }
 
 // WithSampleRate sets the fraction of reads in dual mode that are also compared with the secondary store, from 0 (none)
 // to 1 (all). The default is 0.01.
-func WithSampleRate(rate float64) Option { return func(s *Store) { s.rate = min(max(rate, 0), 1) } }
+func WithSampleRate(rate float64) Option { return func(c *core) { c.rate = min(max(rate, 0), 1) } }
 
 // WithRandom sets where the sampling draws from, a number in [0, 1), so a test can decide which reads are sampled.
-func WithRandom(random func() float64) Option { return func(s *Store) { s.random = random } }
+func WithRandom(random func() float64) Option { return func(c *core) { c.random = random } }
 
 // WithTimeouts bounds the extra read of a sampled request and the write to the secondary store. A value that is not
 // positive keeps the default.
 func WithTimeouts(compare, write time.Duration) Option {
-	return func(s *Store) {
+	return func(c *core) {
 		if compare > 0 {
-			s.compareTimeout = compare
+			c.compareTimeout = compare
 		}
 		if write > 0 {
-			s.writeTimeout = write
+			c.writeTimeout = write
 		}
 	}
 }
@@ -93,11 +111,7 @@ func WithTimeouts(compare, write time.Duration) Option {
 // New returns the composite for the mode. kv is needed by every mode that uses KV (kv and dual) and pg by every mode
 // that uses PostgreSQL (dual and postgres); the one a mode does not use may be nil. dual-pg is not available yet.
 func New(mode Mode, kv, pg port.CommitteeReaderWriter, opts ...Option) (*Store, error) {
-	s := &Store{
-		mode: mode, kv: kv, pg: pg,
-		rate: defaultSampleRate, random: rand.Float64,
-		compareTimeout: defaultCompareTimeout, writeTimeout: defaultWriteTimeout,
-	}
+	s := &Store{core: newCore(mode, opts), kv: kv, pg: pg}
 	switch mode {
 	case ModeKV:
 		if kv == nil {
@@ -117,14 +131,35 @@ func New(mode Mode, kv, pg port.CommitteeReaderWriter, opts ...Option) (*Store, 
 	default:
 		return nil, fmt.Errorf("storage mode %q is not available in the composite store yet", mode)
 	}
-	for _, opt := range opts {
-		opt(s)
-	}
 	return s, nil
 }
 
+// selectPrimary checks that the stores the mode needs are there and returns the primary one: KV for kv and dual,
+// PostgreSQL for postgres. dual-pg is not available yet.
+func selectPrimary[T comparable](mode Mode, kv, pg T) (T, error) {
+	var none T
+	switch mode {
+	case ModeKV:
+		if kv == none {
+			return none, errors.New("storage mode kv needs the KV store")
+		}
+		return kv, nil
+	case ModeDual:
+		if kv == none || pg == none {
+			return none, errors.New("storage mode dual needs the KV store and the PostgreSQL store")
+		}
+		return kv, nil
+	case ModePostgres:
+		if pg == none {
+			return none, errors.New("storage mode postgres needs the PostgreSQL store")
+		}
+		return pg, nil
+	}
+	return none, fmt.Errorf("storage mode %q is not available in the composite store yet", mode)
+}
+
 // sampled decides whether this read is also made against the secondary store. Only dual mode has one.
-func (s *Store) sampled() bool {
+func (s *core) sampled() bool {
 	if s.mode != ModeDual || s.rate <= 0 {
 		return false
 	}
@@ -134,7 +169,7 @@ func (s *Store) sampled() bool {
 // replicate runs a write to the secondary store after the primary store's write succeeded. It never fails the request:
 // an error is logged, with the uid of the record, and counted. It does not use the request's cancellation, because the primary store's write has
 // already happened and a client that went away must not leave the secondary store behind for that reason.
-func (s *Store) replicate(ctx context.Context, operation, uid string, write func(ctx context.Context) error) {
+func (s *core) replicate(ctx context.Context, operation, uid string, write func(ctx context.Context) error) {
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.writeTimeout)
 	defer cancel()
 	// A panic in the secondary store is a failure of the secondary store like any other: it must not take down a request

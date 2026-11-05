@@ -52,8 +52,14 @@ func newRig(t *testing.T, mode Mode, wrapPG func(port.CommitteeReaderWriter) por
 // counts returns what a counter holds, by the operation it was counted for.
 func (r *rig) counts(t *testing.T, name string) map[string]int64 {
 	t.Helper()
+	return countsOf(t, r.reader, name)
+}
+
+// countsOf returns what a counter holds in the reader, by the operation it was counted for.
+func countsOf(t *testing.T, reader *sdkmetric.ManualReader, name string) map[string]int64 {
+	t.Helper()
 	var rm metricdata.ResourceMetrics
-	require.NoError(t, r.reader.Collect(context.Background(), &rm))
+	require.NoError(t, reader.Collect(context.Background(), &rm))
 	out := map[string]int64{}
 	for _, scope := range rm.ScopeMetrics {
 		for _, m := range scope.Metrics {

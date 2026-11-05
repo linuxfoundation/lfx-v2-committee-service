@@ -270,7 +270,7 @@ func (s *Store) FindUIDByProjectAndName(ctx context.Context, projectUID, name st
 }
 
 // compareRecord compares a record the primary store returned with the one PostgreSQL returns for the same read.
-func (s *Store) compareRecord(ctx context.Context, operation string, record any, revision uint64, err error,
+func (s *core) compareRecord(ctx context.Context, operation string, record any, revision uint64, err error,
 	readOther func(ctx context.Context) (any, uint64, error)) {
 	if err != nil && !isNotFound(err) {
 		return // the read failed, so there is nothing to compare
@@ -297,7 +297,7 @@ func (s *Store) compareRecord(ctx context.Context, operation string, record any,
 
 // compareValue runs a comparison with the secondary store under the compare timeout and records what came of it: a
 // mismatch, or a comparison that could not be made.
-func (s *Store) compareValue(ctx context.Context, operation string, compare func(ctx context.Context) (same bool, err error)) {
+func (s *core) compareValue(ctx context.Context, operation string, compare func(ctx context.Context) (same bool, err error)) {
 	cctx, cancel := context.WithTimeout(ctx, s.compareTimeout)
 	defer cancel()
 	// As in replicate, a panic in the secondary store, or in the comparison, must not fail a read that KV has decided.
