@@ -40,12 +40,17 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 	dryRun := fs.Bool("dry-run", false, "read and classify everything but write nothing to PostgreSQL")
 	includeOrphans := fs.Bool("include-orphans", false, "also copy children whose committee does not exist in KV; they are only reported by default")
 	workers := fs.Int("workers", 4, "records written to PostgreSQL concurrently")
-	batchSize := fs.Int("batch-size", 100, "records read ahead of the workers, which bounds the memory used")
+	batchSize := fs.Int("batch-size", 100, "records read ahead of the workers, which bounds the memory the records use (the committee uids are also held, for the orphan check)")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
 		}
 		return err
+	}
+	// The flag parser stops at the first argument that is not a flag, so a flag after a stray word is never
+	// read: "migrate members --dry-run" would run live, over everything. Reject it before anything connects.
+	if fs.NArg() > 0 {
+		return errs.NewValidation(fmt.Sprintf("unexpected argument %q: options are flags, for example --entity=members --dry-run", fs.Arg(0)))
 	}
 	if *workers <= 0 || *batchSize <= 0 {
 		return errs.NewValidation("--workers and --batch-size must be greater than zero")

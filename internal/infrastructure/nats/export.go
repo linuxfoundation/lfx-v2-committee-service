@@ -58,6 +58,10 @@ func (s *storage) EachCommitteeExport(ctx context.Context, fn func(port.Committe
 			return err
 		}
 	}
+	// A cancelled context can end the key listing with no error, which must not look like a complete scan.
+	if err := ctx.Err(); err != nil {
+		return errs.NewUnexpected("context cancelled while streaming all committees", err)
+	}
 	if failedReads > 0 {
 		return errs.NewUnexpected("failed to read one or more committees while streaming all", fmt.Errorf("failed_reads=%d", failedReads))
 	}

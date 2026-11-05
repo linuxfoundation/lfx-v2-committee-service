@@ -255,6 +255,7 @@ func TestRunBackfill_ReportsWhatPostgreSQLRefusesWithItsUID(t *testing.T) {
 	require.Len(t, members.Problems, 1)
 	assert.Equal(t, "m-b", members.Problems[0].UID)
 	assert.Equal(t, "constraint", members.Problems[0].Kind)
+	assert.NotContains(t, members.Problems[0].Message, "example.com", "the problem names the record by uid, not by the personal data in it")
 }
 
 func TestRunBackfill_ReportsACommitteePostgreSQLRefusesWithItsUID(t *testing.T) {
@@ -271,6 +272,42 @@ func TestRunBackfill_ReportsACommitteePostgreSQLRefusesWithItsUID(t *testing.T) 
 	require.Len(t, committees.Problems, 1)
 	assert.Equal(t, "c-b", committees.Problems[0].UID)
 	assert.Equal(t, "constraint", committees.Problems[0].Kind)
+
+	// The settings of the committee that was refused are accounted for: scanned = written + unchanged + errors.
+	settings := result(t, results, resultSettings)
+	assert.EqualValues(t, 2, settings.Scanned)
+	assert.EqualValues(t, 1, settings.Written)
+	assert.EqualValues(t, 1, settings.Errors)
+	assert.Equal(t, []backfillProblem{{UID: "c-b", Kind: "skipped", Message: "its committee could not be copied"}}, settings.Problems)
+}
+
+// failingGetSink is the PostgreSQL store with a committee read that fails for one uid.
+type failingGetSink struct {
+	*postgres.Store
+	uid string
+}
+
+func (f failingGetSink) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	if uid == f.uid {
+		return nil, 0, errors.New("simulated read failure")
+	}
+	return f.Store.GetBase(ctx, uid)
+}
+
+func TestRunBackfill_ACommitteeThatCannotBeReadSkipsItsSettingsToo(t *testing.T) {
+	ctx := context.Background()
+	store := postgrestest.NewStore(t)
+	sink := failingGetSink{Store: store, uid: "c-1"}
+
+	results, err := runBackfill(ctx, newSource(), sink, backfillOptions{})
+
+	require.Error(t, err)
+	committees := result(t, results, entityCommittees)
+	assert.Equal(t, []backfillProblem{{UID: "c-1", Kind: "read", Message: "simulated read failure"}}, committees.Problems)
+	settings := result(t, results, resultSettings)
+	assert.EqualValues(t, 1, settings.Scanned)
+	assert.EqualValues(t, 1, settings.Errors, "c-1 is the committee with settings")
+	assert.Equal(t, []backfillProblem{{UID: "c-1", Kind: "skipped", Message: "its committee could not be copied"}}, settings.Problems)
 }
 
 func TestRunBackfill_SettingsMissingInPostgreSQLIsReported(t *testing.T) {

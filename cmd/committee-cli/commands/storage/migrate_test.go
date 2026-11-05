@@ -100,6 +100,19 @@ func TestMigrate_Run(t *testing.T) {
 		assert.False(t, connected, "a typo is found before anything connects")
 	})
 
+	t.Run("a stray argument is an error and does not start a live run", func(t *testing.T) {
+		connected := false
+		stray := commands.RunContext{KVExport: kvExport{}, Args: []string{"members", "--dry-run"}, PostgresStore: func(context.Context) (*postgres.Store, func(), error) {
+			connected = true
+			return store, func() {}, nil
+		}}
+
+		err := (&migrateSubcommand{out: &bytes.Buffer{}}).Run(ctx, stray)
+
+		require.ErrorContains(t, err, `unexpected argument "members"`)
+		assert.False(t, connected)
+	})
+
 	t.Run("entities may be separated by a comma and spaces", func(t *testing.T) {
 		var out bytes.Buffer
 		require.NoError(t, (&migrateSubcommand{out: &out}).Run(ctx, rc("--dry-run", "--entity=committees, members")))

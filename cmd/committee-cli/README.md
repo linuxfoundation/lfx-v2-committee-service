@@ -633,7 +633,7 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 | `--dry-run` | `false` | Read and classify everything, write nothing; `written` is what a run would write |
 | `--include-orphans` | `false` | Also copy children whose committee does not exist in KV |
 | `--workers` | `4` | Records written to PostgreSQL concurrently |
-| `--batch-size` | `100` | Records read ahead of the workers; bounds the memory used, because the buckets are streamed and never loaded whole |
+| `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each) is also held, for the orphan check |
 
 **Orphans.** KV never removed a deleted committee's members, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them.
 

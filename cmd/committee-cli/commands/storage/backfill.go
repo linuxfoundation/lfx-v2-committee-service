@@ -53,7 +53,8 @@ type backfillOptions struct {
 	IncludeOrphans bool
 	// Workers write concurrently; zero means 4.
 	Workers int
-	// BatchSize is how many records are read ahead of the workers, which bounds the memory a run uses; zero means 100.
+	// BatchSize is how many records are read ahead of the workers, which bounds the memory the records use; the uid of
+	// every committee is also held, for the orphan check. Zero means 100.
 	BatchSize int
 	// ProgressEvery logs progress after this many records of an entity; zero means 1000.
 	ProgressEvery int64

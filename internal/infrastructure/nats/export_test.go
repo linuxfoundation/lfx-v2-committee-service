@@ -72,6 +72,27 @@ func TestEachCommitteeExport(t *testing.T) {
 		assert.Equal(t, 1, calls)
 	})
 
+	t.Run("a context cancelled as the scan ends is an error, not a complete scan", func(t *testing.T) {
+		cancelled, cancel := context.WithCancel(ctx)
+		defer cancel()
+		seen := 0
+		err := s.EachCommitteeExport(cancelled, func(port.CommitteeExport) error {
+			seen++
+			if seen == 3 { // the last of the three committees
+				cancel()
+			}
+			return nil
+		})
+		require.Error(t, err)
+		assert.Equal(t, 3, seen)
+	})
+
+	t.Run("a cancelled context is an error", func(t *testing.T) {
+		cancelled, cancel := context.WithCancel(ctx)
+		cancel()
+		require.Error(t, s.EachCommitteeExport(cancelled, func(port.CommitteeExport) error { return nil }))
+	})
+
 	t.Run("a committee that cannot be read is skipped and reported at the end", func(t *testing.T) {
 		_, err := client.kvStore[constants.KVBucketNameCommittees].Put(ctx, "uid-bad", []byte("{not json"))
 		require.NoError(t, err)

@@ -34,6 +34,7 @@ func copyCommittee(ctx context.Context, sink backfillSink, opts backfillOptions,
 		return
 	case err != nil:
 		committees.problem(ctx, uid, "read", err.Error())
+		skipSettings(ctx, settings, e)
 		return
 	}
 
@@ -81,11 +82,20 @@ func createCommittee(ctx context.Context, sink backfillSink, opts backfillOption
 	}
 	if err != nil {
 		committees.problem(ctx, uid, writeKind(err), err.Error())
+		skipSettings(ctx, settings, e)
 		return
 	}
 	committees.written()
 	if e.Settings != nil {
 		settings.written()
+	}
+}
+
+// skipSettings counts the settings of a committee that could not be copied, so the settings line accounts for
+// every record it scanned: they were not copied either.
+func skipSettings(ctx context.Context, settings *tracker, e port.CommitteeExport) {
+	if e.Settings != nil {
+		settings.problem(ctx, e.Base.UID, "skipped", "its committee could not be copied")
 	}
 }
 
