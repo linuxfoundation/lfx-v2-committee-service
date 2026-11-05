@@ -251,7 +251,7 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 
 | Environment Variable | Default | Required | Description |
 |---|---|---|---|
-| `STORAGE_MODE` | `kv` | no | Which store reads and writes: `kv`, `dual`, `dual-pg` or `postgres` (see the issue for what each does). Unset or blank is `kv`: the service reads and writes NATS KV exactly as it does without the setting. A value that is not one of the four, or a mode that uses PostgreSQL without `POSTGRES_URL`, stops the service at startup with an error naming the variable, and so does a mode that is not available yet: today only `kv` is. A mode is never replaced by `kv` silently. The effective mode is logged at startup (`storage mode`) and exported as the `committee.storage.mode` metric. |
+| `STORAGE_MODE` | `kv` | no | Which store reads and writes: `kv` (NATS KV only), `dual` (reads KV; writes KV, then PostgreSQL), `dual-pg` (reads PostgreSQL; writes PostgreSQL, then KV) or `postgres` (PostgreSQL only); see [lfx-self-serve-ops#1197](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1197). Unset or blank is `kv`: the service reads and writes NATS KV exactly as it does without the setting. A value that is not one of the four, or a mode that uses PostgreSQL without `POSTGRES_URL`, stops the service at startup with an error naming the variable, and so does a mode that is not available yet: today only `kv` is. A mode is never replaced by `kv` silently. The effective mode is logged at startup (`storage mode`) and exported as the `committee.storage.mode` metric. |
 
 **PostgreSQL** (off by default; nothing reads or writes the database yet)
 
