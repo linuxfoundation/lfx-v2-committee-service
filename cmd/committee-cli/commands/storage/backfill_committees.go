@@ -1,7 +1,7 @@
 // Copyright The Linux Foundation and each contributor to LFX.
 // SPDX-License-Identifier: MIT
 
-package backfill
+package storage
 
 import (
 	"context"
@@ -14,13 +14,13 @@ import (
 // copyCommittees copies every committee with its settings. A committee that does not exist yet is created
 // with both revisions; one that exists is updated when KV is ahead, left alone when the revisions match,
 // and reported when PostgreSQL is ahead, which a migration cannot reconcile.
-func copyCommittees(ctx context.Context, src port.KVExportReader, sink Sink, opts Options, committees, settings *tracker) error {
+func copyCommittees(ctx context.Context, src port.KVExportReader, sink backfillSink, opts backfillOptions, committees, settings *tracker) error {
 	return stream(ctx, opts.Workers, opts.BatchSize,
 		func(emit func(port.CommitteeExport) error) error { return src.EachCommitteeExport(ctx, emit) },
 		func(e port.CommitteeExport) { copyCommittee(ctx, sink, opts, committees, settings, e) })
 }
 
-func copyCommittee(ctx context.Context, sink Sink, opts Options, committees, settings *tracker, e port.CommitteeExport) {
+func copyCommittee(ctx context.Context, sink backfillSink, opts backfillOptions, committees, settings *tracker, e port.CommitteeExport) {
 	uid := e.Base.UID
 	committees.scanned(ctx, e.BaseRevision)
 	if e.Settings != nil {
@@ -63,7 +63,7 @@ func copyCommittee(ctx context.Context, sink Sink, opts Options, committees, set
 }
 
 // createCommittee creates the committee and its settings, if it has any, in one transaction.
-func createCommittee(ctx context.Context, sink Sink, opts Options, committees, settings *tracker, e port.CommitteeExport) {
+func createCommittee(ctx context.Context, sink backfillSink, opts backfillOptions, committees, settings *tracker, e port.CommitteeExport) {
 	uid := e.Base.UID
 	if opts.DryRun {
 		committees.written()
@@ -90,7 +90,7 @@ func createCommittee(ctx context.Context, sink Sink, opts Options, committees, s
 }
 
 // copySettings handles the settings of a committee that already exists in PostgreSQL.
-func copySettings(ctx context.Context, sink Sink, opts Options, settings *tracker, e port.CommitteeExport) {
+func copySettings(ctx context.Context, sink backfillSink, opts backfillOptions, settings *tracker, e port.CommitteeExport) {
 	uid := e.Base.UID
 	_, pgRevision, err := sink.GetSettings(ctx, uid)
 	switch {

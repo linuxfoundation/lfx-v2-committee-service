@@ -1,7 +1,7 @@
 // Copyright The Linux Foundation and each contributor to LFX.
 // SPDX-License-Identifier: MIT
 
-package backfill
+package storage
 
 import (
 	"context"
@@ -20,7 +20,7 @@ type memberRecord struct {
 // copyMembers copies every member whose committee exists in KV, or every member with IncludeOrphans.
 // KV never removed a deleted committee's members, so a run usually finds some orphans; they are reported
 // with their uids and not copied.
-func copyMembers(ctx context.Context, src port.KVExportReader, sink Sink, opts Options, members *tracker) error {
+func copyMembers(ctx context.Context, src port.KVExportReader, sink backfillSink, opts backfillOptions, members *tracker) error {
 	committeeUIDs, err := src.ListAllUIDs(ctx)
 	if err != nil {
 		return err
@@ -38,7 +38,7 @@ func copyMembers(ctx context.Context, src port.KVExportReader, sink Sink, opts O
 		func(r memberRecord) { copyMember(ctx, sink, opts, members, exists, r) })
 }
 
-func copyMember(ctx context.Context, sink Sink, opts Options, members *tracker, committees map[string]struct{}, r memberRecord) {
+func copyMember(ctx context.Context, sink backfillSink, opts backfillOptions, members *tracker, committees map[string]struct{}, r memberRecord) {
 	uid := r.member.UID
 	members.scanned(ctx, r.revision)
 	if _, ok := committees[r.member.CommitteeUID]; !ok && !opts.IncludeOrphans {

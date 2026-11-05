@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/backfill"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -37,7 +36,7 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 		_, _ = fmt.Fprintf(fs.Output(), "usage: committee-cli storage migrate [flags]\n\nflags:\n")
 		fs.PrintDefaults()
 	}
-	entities := fs.String("entity", "", "comma-separated entities to copy ("+strings.Join(backfill.AllEntities, ", ")+"); default all")
+	entities := fs.String("entity", "", "comma-separated entities to copy ("+strings.Join(allEntities, ", ")+"); default all")
 	dryRun := fs.Bool("dry-run", false, "read and classify everything but write nothing to PostgreSQL")
 	includeOrphans := fs.Bool("include-orphans", false, "also copy children whose committee does not exist in KV; they are only reported by default")
 	workers := fs.Int("workers", 4, "records written to PostgreSQL concurrently")
@@ -51,27 +50,27 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 	if *workers <= 0 || *batchSize <= 0 {
 		return errs.NewValidation("--workers and --batch-size must be greater than zero")
 	}
-	if rc.KVExport == nil || rc.PostgresSink == nil {
-		return errs.NewUnexpected("the KV export and the PostgreSQL sink are not wired in RunContext")
+	if rc.KVExport == nil || rc.PostgresStore == nil {
+		return errs.NewUnexpected("the KV export and the PostgreSQL store are not wired in RunContext")
 	}
 
-	opts := backfill.Options{DryRun: *dryRun, IncludeOrphans: *includeOrphans, Workers: *workers, BatchSize: *batchSize}
+	opts := backfillOptions{DryRun: *dryRun, IncludeOrphans: *includeOrphans, Workers: *workers, BatchSize: *batchSize}
 	if *entities != "" {
 		for _, entity := range strings.Split(*entities, ",") {
 			opts.Entities = append(opts.Entities, strings.TrimSpace(entity))
 		}
-		if err := backfill.ValidateEntities(opts.Entities); err != nil {
+		if err := validateEntities(opts.Entities); err != nil {
 			return err
 		}
 	}
 
-	sink, closeSink, err := rc.PostgresSink(ctx)
+	store, closeStore, err := rc.PostgresStore(ctx)
 	if err != nil {
 		return err
 	}
-	defer closeSink()
+	defer closeStore()
 
-	results, runErr := backfill.Run(ctx, rc.KVExport, sink, opts)
+	results, runErr := runBackfill(ctx, rc.KVExport, store, opts)
 	if results != nil {
 		s.print(results, *dryRun)
 	}
@@ -79,7 +78,7 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 }
 
 // print writes the summary: one line per entity, the problems with their uids, and the highest revision.
-func (s *migrateSubcommand) print(results []backfill.Result, dryRun bool) {
+func (s *migrateSubcommand) print(results []backfillResult, dryRun bool) {
 	out := s.out
 	if out == nil {
 		out = os.Stdout

@@ -1,7 +1,7 @@
 // Copyright The Linux Foundation and each contributor to LFX.
 // SPDX-License-Identifier: MIT
 
-package backfill
+package storage
 
 import (
 	"context"
@@ -68,7 +68,7 @@ func kvMember(uid, committeeUID, email string, revision uint64) memberRecord {
 	return memberRecord{member: storetest.NewMember(uid, committeeUID, email), revision: revision}
 }
 
-func result(t *testing.T, results []Result, entity string) Result {
+func result(t *testing.T, results []backfillResult, entity string) backfillResult {
 	t.Helper()
 	for _, r := range results {
 		if r.Entity == entity {
@@ -76,7 +76,7 @@ func result(t *testing.T, results []Result, entity string) Result {
 		}
 	}
 	require.Failf(t, "no result", "entity %s", entity)
-	return Result{}
+	return backfillResult{}
 }
 
 func newSource() *fakeSource {
@@ -90,21 +90,21 @@ func newSource() *fakeSource {
 	}
 }
 
-func TestRun_CopiesWithTheKVRevisions(t *testing.T) {
+func TestRunBackfill_CopiesWithTheKVRevisions(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 
-	results, err := Run(ctx, newSource(), store, Options{})
+	results, err := runBackfill(ctx, newSource(), store, backfillOptions{})
 	require.NoError(t, err, "an orphan is reported but is not an error: KV is expected to hold some")
 
-	committees, settings, members := result(t, results, EntityCommittees), result(t, results, resultSettings), result(t, results, EntityMembers)
-	assert.Equal(t, Result{Entity: EntityCommittees, Scanned: 2, Written: 2, HighestRevision: 20}, withoutProblems(committees))
-	assert.Equal(t, Result{Entity: resultSettings, Scanned: 1, Written: 1, HighestRevision: 11}, withoutProblems(settings))
+	committees, settings, members := result(t, results, entityCommittees), result(t, results, resultSettings), result(t, results, entityMembers)
+	assert.Equal(t, backfillResult{Entity: entityCommittees, Scanned: 2, Written: 2, HighestRevision: 20}, withoutProblems(committees))
+	assert.Equal(t, backfillResult{Entity: resultSettings, Scanned: 1, Written: 1, HighestRevision: 11}, withoutProblems(settings))
 	assert.EqualValues(t, 3, members.Scanned)
 	assert.EqualValues(t, 2, members.Written)
 	assert.EqualValues(t, 1, members.Orphans)
 	assert.EqualValues(t, 32, members.HighestRevision, "the orphan's revision counts: it is in KV")
-	assert.Equal(t, []Problem{{UID: "m-orphan", Kind: "orphan", Message: "its committee does not exist in KV"}}, members.Problems)
+	assert.Equal(t, []backfillProblem{{UID: "m-orphan", Kind: "orphan", Message: "its committee does not exist in KV"}}, members.Problems)
 
 	for uid, want := range map[string]struct {
 		revision uint64
@@ -127,20 +127,20 @@ func TestRun_CopiesWithTheKVRevisions(t *testing.T) {
 	assert.Error(t, err, "an orphan is not copied")
 }
 
-func withoutProblems(r Result) Result {
+func withoutProblems(r backfillResult) backfillResult {
 	r.Problems = nil
 	return r
 }
 
-func TestRun_AgainChangesNothing(t *testing.T) {
+func TestRunBackfill_AgainChangesNothing(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 	src := newSource()
 	src.members = src.members[:2]
 
-	_, err := Run(ctx, src, store, Options{})
+	_, err := runBackfill(ctx, src, store, backfillOptions{})
 	require.NoError(t, err)
-	results, err := Run(ctx, src, store, Options{})
+	results, err := runBackfill(ctx, src, store, backfillOptions{})
 	require.NoError(t, err)
 
 	for _, r := range results {
@@ -152,12 +152,12 @@ func TestRun_AgainChangesNothing(t *testing.T) {
 	assert.EqualValues(t, 10, revision, "a second run leaves the revision alone")
 }
 
-func TestRun_KVAheadUpdatesAndPostgreSQLAheadIsReported(t *testing.T) {
+func TestRunBackfill_KVAheadUpdatesAndPostgreSQLAheadIsReported(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 	src := newSource()
 	src.members = src.members[:1]
-	_, err := Run(ctx, src, store, Options{})
+	_, err := runBackfill(ctx, src, store, backfillOptions{})
 	require.NoError(t, err)
 
 	// KV moves on: a new revision and new content for every record.
@@ -167,12 +167,12 @@ func TestRun_KVAheadUpdatesAndPostgreSQLAheadIsReported(t *testing.T) {
 	src.committees[0].SettingsRevision = 101
 	src.members[0].member.JobTitle = "Changed in KV"
 	src.members[0].revision = 102
-	results, err := Run(ctx, src, store, Options{})
+	results, err := runBackfill(ctx, src, store, backfillOptions{})
 	require.NoError(t, err)
 
-	assert.EqualValues(t, 1, result(t, results, EntityCommittees).Written)
+	assert.EqualValues(t, 1, result(t, results, entityCommittees).Written)
 	assert.EqualValues(t, 1, result(t, results, resultSettings).Written)
-	assert.EqualValues(t, 1, result(t, results, EntityMembers).Written)
+	assert.EqualValues(t, 1, result(t, results, entityMembers).Written)
 	base, revision, err := store.GetBase(ctx, "c-1")
 	require.NoError(t, err)
 	assert.Equal(t, "changed in KV", base.Description)
@@ -190,11 +190,11 @@ func TestRun_KVAheadUpdatesAndPostgreSQLAheadIsReported(t *testing.T) {
 	pgCtx, err := postgres.WithRevision(ctx, 500)
 	require.NoError(t, err)
 	require.NoError(t, store.UpdateBase(pgCtx, &model.Committee{CommitteeBase: *src.committees[0].Base}, 100))
-	results, err = Run(ctx, src, store, Options{Entities: []string{EntityCommittees}})
+	results, err = runBackfill(ctx, src, store, backfillOptions{Entities: []string{entityCommittees}})
 	require.Error(t, err)
-	committees := result(t, results, EntityCommittees)
+	committees := result(t, results, entityCommittees)
 	assert.EqualValues(t, 1, committees.Errors)
-	assert.Equal(t, []Problem{{UID: "c-1", Kind: "ahead", Message: "PostgreSQL has a newer revision than KV"}}, committees.Problems)
+	assert.Equal(t, []backfillProblem{{UID: "c-1", Kind: "ahead", Message: "PostgreSQL has a newer revision than KV"}}, committees.Problems)
 
 	// The same for a member.
 	member, memberRevision, err = store.GetMember(ctx, "m-1")
@@ -203,20 +203,20 @@ func TestRun_KVAheadUpdatesAndPostgreSQLAheadIsReported(t *testing.T) {
 	require.NoError(t, err)
 	_, err = store.UpdateMember(memberCtx, member, memberRevision)
 	require.NoError(t, err)
-	results, err = Run(ctx, src, store, Options{Entities: []string{EntityMembers}})
+	results, err = runBackfill(ctx, src, store, backfillOptions{Entities: []string{entityMembers}})
 	require.Error(t, err)
-	assert.Equal(t, []Problem{{UID: "m-1", Kind: "ahead", Message: "PostgreSQL has a newer revision than KV"}}, result(t, results, EntityMembers).Problems)
+	assert.Equal(t, []backfillProblem{{UID: "m-1", Kind: "ahead", Message: "PostgreSQL has a newer revision than KV"}}, result(t, results, entityMembers).Problems)
 }
 
-func TestRun_DryRunWritesNothing(t *testing.T) {
+func TestRunBackfill_DryRunWritesNothing(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 
-	results, err := Run(ctx, newSource(), store, Options{DryRun: true, IncludeOrphans: true})
+	results, err := runBackfill(ctx, newSource(), store, backfillOptions{DryRun: true, IncludeOrphans: true})
 
 	require.NoError(t, err)
-	assert.EqualValues(t, 2, result(t, results, EntityCommittees).Written, "what it would write")
-	assert.EqualValues(t, 3, result(t, results, EntityMembers).Written)
+	assert.EqualValues(t, 2, result(t, results, entityCommittees).Written, "what it would write")
+	assert.EqualValues(t, 3, result(t, results, entityMembers).Written)
 	uids, err := store.ListAllUIDs(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, uids)
@@ -224,19 +224,19 @@ func TestRun_DryRunWritesNothing(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestRun_IncludeOrphansCopiesThem(t *testing.T) {
+func TestRunBackfill_IncludeOrphansCopiesThem(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 
-	results, err := Run(ctx, newSource(), store, Options{IncludeOrphans: true})
+	results, err := runBackfill(ctx, newSource(), store, backfillOptions{IncludeOrphans: true})
 
 	require.NoError(t, err)
-	assert.Zero(t, result(t, results, EntityMembers).Orphans)
+	assert.Zero(t, result(t, results, entityMembers).Orphans)
 	_, _, err = store.GetMember(ctx, "m-orphan")
 	require.NoError(t, err)
 }
 
-func TestRun_ReportsWhatPostgreSQLRefusesWithItsUID(t *testing.T) {
+func TestRunBackfill_ReportsWhatPostgreSQLRefusesWithItsUID(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 	src := newSource()
@@ -246,10 +246,10 @@ func TestRun_ReportsWhatPostgreSQLRefusesWithItsUID(t *testing.T) {
 		kvMember("m-b", "c-1", "First.Last@Example.com", 31),
 	}
 
-	results, err := Run(ctx, src, store, Options{Workers: 1})
+	results, err := runBackfill(ctx, src, store, backfillOptions{Workers: 1})
 
 	require.Error(t, err)
-	members := result(t, results, EntityMembers)
+	members := result(t, results, entityMembers)
 	assert.EqualValues(t, 1, members.Written)
 	assert.EqualValues(t, 1, members.Errors)
 	require.Len(t, members.Problems, 1)
@@ -257,23 +257,23 @@ func TestRun_ReportsWhatPostgreSQLRefusesWithItsUID(t *testing.T) {
 	assert.Equal(t, "constraint", members.Problems[0].Kind)
 }
 
-func TestRun_ReportsACommitteePostgreSQLRefusesWithItsUID(t *testing.T) {
+func TestRunBackfill_ReportsACommitteePostgreSQLRefusesWithItsUID(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 	// Two committees of one project with the same name: the schema enforces the name, KV only held a lock.
 	src := &fakeSource{committees: []port.CommitteeExport{kvCommittee("c-a", "Same Name", 10, 11), kvCommittee("c-b", "Same Name", 20, 21)}}
 
-	results, err := Run(ctx, src, store, Options{Workers: 1})
+	results, err := runBackfill(ctx, src, store, backfillOptions{Workers: 1})
 
 	require.Error(t, err)
-	committees := result(t, results, EntityCommittees)
+	committees := result(t, results, entityCommittees)
 	assert.EqualValues(t, 1, committees.Written)
 	require.Len(t, committees.Problems, 1)
 	assert.Equal(t, "c-b", committees.Problems[0].UID)
 	assert.Equal(t, "constraint", committees.Problems[0].Kind)
 }
 
-func TestRun_SettingsMissingInPostgreSQLIsReported(t *testing.T) {
+func TestRunBackfill_SettingsMissingInPostgreSQLIsReported(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 	bare := storetest.NewCommittee("c-1", "project-1", "Committee One")
@@ -282,33 +282,33 @@ func TestRun_SettingsMissingInPostgreSQLIsReported(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.Create(withRevision, bare))
 
-	results, err := Run(ctx, &fakeSource{committees: []port.CommitteeExport{kvCommittee("c-1", "Committee One", 10, 11)}}, store, Options{Entities: []string{EntityCommittees}})
+	results, err := runBackfill(ctx, &fakeSource{committees: []port.CommitteeExport{kvCommittee("c-1", "Committee One", 10, 11)}}, store, backfillOptions{Entities: []string{entityCommittees}})
 
 	require.Error(t, err)
 	settings := result(t, results, resultSettings)
 	require.Len(t, settings.Problems, 1)
-	assert.Equal(t, Problem{UID: "c-1", Kind: "missing", Message: "the committee exists in PostgreSQL without settings, which can only be created with a committee"}, settings.Problems[0])
+	assert.Equal(t, backfillProblem{UID: "c-1", Kind: "missing", Message: "the committee exists in PostgreSQL without settings, which can only be created with a committee"}, settings.Problems[0])
 }
 
-func TestRun_AScanThatEndsWithAnErrorIsReported(t *testing.T) {
+func TestRunBackfill_AScanThatEndsWithAnErrorIsReported(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 	src := newSource()
 	src.committeeErr = errors.New("failed_reads=2")
 
-	results, err := Run(ctx, src, store, Options{Entities: []string{EntityCommittees}})
+	results, err := runBackfill(ctx, src, store, backfillOptions{Entities: []string{entityCommittees}})
 
 	require.Error(t, err)
-	committees := result(t, results, EntityCommittees)
+	committees := result(t, results, entityCommittees)
 	assert.EqualValues(t, 2, committees.Written, "the records that could be read were still copied")
-	assert.Equal(t, []Problem{{Kind: "source", Message: "failed_reads=2"}}, committees.Problems)
+	assert.Equal(t, []backfillProblem{{Kind: "source", Message: "failed_reads=2"}}, committees.Problems)
 }
 
-func TestRun_OnlyTheEntitiesAskedFor(t *testing.T) {
+func TestRunBackfill_OnlyTheEntitiesAskedFor(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 
-	results, err := Run(ctx, newSource(), store, Options{Entities: []string{EntityMembers}, IncludeOrphans: true})
+	results, err := runBackfill(ctx, newSource(), store, backfillOptions{Entities: []string{entityMembers}, IncludeOrphans: true})
 
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -316,13 +316,13 @@ func TestRun_OnlyTheEntitiesAskedFor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, uids, "no committee was copied")
 
-	_, err = Run(ctx, newSource(), store, Options{Entities: []string{"invites"}})
+	_, err = runBackfill(ctx, newSource(), store, backfillOptions{Entities: []string{"invites"}})
 	var validation errs.Validation
 	require.ErrorAs(t, err, &validation)
 	assert.Contains(t, err.Error(), `unknown entity "invites"`)
 }
 
-func TestRun_ManyRecordsThroughSmallBuffersAndManyWorkers(t *testing.T) {
+func TestRunBackfill_ManyRecordsThroughSmallBuffersAndManyWorkers(t *testing.T) {
 	ctx := context.Background()
 	store := postgrestest.NewStore(t)
 	src := &fakeSource{committees: []port.CommitteeExport{kvCommittee("c-1", "Committee One", 1, 2)}}
@@ -330,10 +330,10 @@ func TestRun_ManyRecordsThroughSmallBuffersAndManyWorkers(t *testing.T) {
 		src.members = append(src.members, kvMember(fmt.Sprintf("m-%03d", i), "c-1", fmt.Sprintf("first.last%03d@example.com", i), uint64(1000+i)))
 	}
 
-	results, err := Run(ctx, src, store, Options{Workers: 8, BatchSize: 3, ProgressEvery: 50})
+	results, err := runBackfill(ctx, src, store, backfillOptions{Workers: 8, BatchSize: 3, ProgressEvery: 50})
 
 	require.NoError(t, err)
-	members := result(t, results, EntityMembers)
+	members := result(t, results, entityMembers)
 	assert.EqualValues(t, 200, members.Written)
 	assert.EqualValues(t, 1199, members.HighestRevision)
 }

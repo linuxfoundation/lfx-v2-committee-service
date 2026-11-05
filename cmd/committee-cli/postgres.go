@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/backfill"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
@@ -17,7 +16,7 @@ import (
 // connectPostgres opens the pool the storage subcommands write through. It does not migrate the schema:
 // the API applies the migrations when it starts with POSTGRES_ENABLED=true, and a CLI run against a
 // database nobody has migrated fails here, with a message that says so, instead of part way through.
-func connectPostgres(ctx context.Context) (backfill.Sink, func(), error) {
+func connectPostgres(ctx context.Context) (*postgres.Store, func(), error) {
 	cfg, err := postgres.ConfigFromEnv(os.Getenv)
 	if err != nil {
 		return nil, nil, err

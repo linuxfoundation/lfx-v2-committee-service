@@ -143,7 +143,7 @@ func run() error {
 		CommitteeBaseWriter:         storage,
 		KVStore:                     client.GetOrBindKVStore,
 		KVExport:                    storage,
-		PostgresSink:                connectPostgres,
+		PostgresStore:               connectPostgres,
 		CommitteeApplicationReader:  storage,
 		CommitteeApplicationWriter:  storage,
 		B2BOrgFallbackResolver:      b2bOrgFallbackResolver,

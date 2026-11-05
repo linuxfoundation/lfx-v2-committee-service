@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/backfill"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres/postgrestest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 )
@@ -42,9 +42,9 @@ func TestMigrate_Run(t *testing.T) {
 	closed := false
 	rc := func(args ...string) commands.RunContext {
 		return commands.RunContext{
-			KVExport:     kvExport{},
-			PostgresSink: func(context.Context) (backfill.Sink, func(), error) { return store, func() { closed = true }, nil },
-			Args:         args,
+			KVExport:      kvExport{},
+			PostgresStore: func(context.Context) (*postgres.Store, func(), error) { return store, func() { closed = true }, nil },
+			Args:          args,
 		}
 	}
 
@@ -87,7 +87,7 @@ func TestMigrate_Run(t *testing.T) {
 
 	t.Run("a bad flag or entity is an error and nothing is connected", func(t *testing.T) {
 		connected := false
-		bad := commands.RunContext{KVExport: kvExport{}, PostgresSink: func(context.Context) (backfill.Sink, func(), error) {
+		bad := commands.RunContext{KVExport: kvExport{}, PostgresStore: func(context.Context) (*postgres.Store, func(), error) {
 			connected = true
 			return store, func() {}, nil
 		}}
@@ -107,7 +107,7 @@ func TestMigrate_Run(t *testing.T) {
 		assert.Contains(t, out.String(), "members    scanned=2")
 	})
 
-	t.Run("without the KV export or the sink it says so", func(t *testing.T) {
+	t.Run("without the KV export or the store it says so", func(t *testing.T) {
 		err := (&migrateSubcommand{out: &bytes.Buffer{}}).Run(ctx, commands.RunContext{})
 		require.ErrorContains(t, err, "not wired")
 	})

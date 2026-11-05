@@ -1,10 +1,7 @@
 // Copyright The Linux Foundation and each contributor to LFX.
 // SPDX-License-Identifier: MIT
 
-// Package backfill copies committee data from the KV store into PostgreSQL. It reads each record with
-// the revision it has in KV and writes the same revision into the row, never deletes anything, and can be
-// run again: a record whose revision already matches is left alone.
-package backfill
+package storage
 
 import (
 	"context"
@@ -22,18 +19,18 @@ import (
 
 // The entities a run can copy. Committees come with their settings, which are reported as a line of their own.
 const (
-	EntityCommittees = "committees"
-	EntityMembers    = "members"
+	entityCommittees = "committees"
+	entityMembers    = "members"
 )
 
 // resultSettings is the report line of the settings copied along with the committees.
 const resultSettings = "settings"
 
-// AllEntities lists the entities a run copies by default, in the order it copies them.
-var AllEntities = []string{EntityCommittees, EntityMembers}
+// allEntities lists the entities a run copies by default, in the order it copies them.
+var allEntities = []string{entityCommittees, entityMembers}
 
-// Sink is the PostgreSQL store as the backfill uses it. *postgres.Store implements it.
-type Sink interface {
+// backfillSink is the PostgreSQL store as the backfill uses it. *postgres.Store implements it.
+type backfillSink interface {
 	GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error)
 	GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error)
 	Create(ctx context.Context, committee *model.Committee) error
@@ -44,11 +41,11 @@ type Sink interface {
 	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error)
 }
 
-var _ Sink = (*postgres.Store)(nil)
+var _ backfillSink = (*postgres.Store)(nil)
 
-// Options tune a run.
-type Options struct {
-	// Entities to copy; empty means AllEntities.
+// backfillOptions tune a run.
+type backfillOptions struct {
+	// Entities to copy; empty means allEntities.
 	Entities []string
 	// DryRun reads and classifies everything and writes nothing: the written count is what would be written.
 	DryRun bool
@@ -65,15 +62,15 @@ type Options struct {
 // maxProblems caps the problems a result keeps; the counts stay exact and every problem is logged.
 const maxProblems = 1000
 
-// Problem is a record that was not copied, or a scan that was not complete.
-type Problem struct {
+// backfillProblem is a record that was not copied, or a scan that was not complete.
+type backfillProblem struct {
 	UID     string
 	Kind    string // read, source, constraint, invalid, write, ahead, missing, orphan
 	Message string
 }
 
-// Result is what a run did for one entity.
-type Result struct {
+// backfillResult is what a run did for one entity.
+type backfillResult struct {
 	Entity    string
 	Scanned   int64
 	Written   int64
@@ -83,13 +80,13 @@ type Result struct {
 	// HighestRevision is the highest KV revision seen. The revision sequence has to be advanced past the
 	// highest revision over every KV bucket at the flip to PostgreSQL.
 	HighestRevision uint64
-	Problems        []Problem
+	Problems        []backfillProblem
 }
 
 // tracker keeps the result of one entity while workers update it.
 type tracker struct {
 	mu            sync.Mutex
-	res           Result
+	res           backfillResult
 	progressEvery int64
 }
 
@@ -110,7 +107,7 @@ func (t *tracker) unchanged() { t.mu.Lock(); t.res.Unchanged++; t.mu.Unlock() }
 func (t *tracker) orphan(ctx context.Context, uid string) {
 	t.mu.Lock()
 	t.res.Orphans++
-	t.keep(Problem{UID: uid, Kind: "orphan", Message: "its committee does not exist in KV"})
+	t.keep(backfillProblem{UID: uid, Kind: "orphan", Message: "its committee does not exist in KV"})
 	t.mu.Unlock()
 	slog.WarnContext(ctx, "backfill skipped an orphan", "entity", t.res.Entity, "uid", uid)
 }
@@ -118,13 +115,13 @@ func (t *tracker) orphan(ctx context.Context, uid string) {
 func (t *tracker) problem(ctx context.Context, uid, kind, message string) {
 	t.mu.Lock()
 	t.res.Errors++
-	t.keep(Problem{UID: uid, Kind: kind, Message: message})
+	t.keep(backfillProblem{UID: uid, Kind: kind, Message: message})
 	t.mu.Unlock()
 	slog.WarnContext(ctx, "backfill problem", "entity", t.res.Entity, "uid", uid, "kind", kind, "message", message)
 }
 
 // keep records the problem unless the cap is reached. The caller holds the lock.
-func (t *tracker) keep(p Problem) {
+func (t *tracker) keep(p backfillProblem) {
 	if len(t.res.Problems) < maxProblems {
 		t.res.Problems = append(t.res.Problems, p)
 	}
@@ -178,24 +175,26 @@ func stream[T any](ctx context.Context, workers, batch int, produce func(emit fu
 	return err
 }
 
-// ValidateEntities checks the names against AllEntities, so a typo is found before anything connects.
-func ValidateEntities(entities []string) error {
+// validateEntities checks the names against allEntities, so a typo is found before anything connects.
+func validateEntities(entities []string) error {
 	for _, entity := range entities {
-		if !slices.Contains(AllEntities, entity) {
-			return errs.NewValidation(fmt.Sprintf("unknown entity %q: use one of %v", entity, AllEntities))
+		if !slices.Contains(allEntities, entity) {
+			return errs.NewValidation(fmt.Sprintf("unknown entity %q: use one of %v", entity, allEntities))
 		}
 	}
 	return nil
 }
 
-// Run copies the entities from src to sink and returns one result per entity, with the settings of the
-// committees as a line of their own. The error is non-nil when anything could not be copied, so the
+// runBackfill copies committee data from the KV store into PostgreSQL. It reads each record with the revision
+// it has in KV and writes the same revision into the row, never deletes anything, and can be run again: a
+// record whose revision already matches is left alone. It returns one result per entity, with the settings
+// of the committees as a line of their own. The error is non-nil when anything could not be copied, so the
 // command can exit non-zero; the results are returned either way.
-func Run(ctx context.Context, src port.KVExportReader, sink Sink, opts Options) ([]Result, error) {
+func runBackfill(ctx context.Context, src port.KVExportReader, sink backfillSink, opts backfillOptions) ([]backfillResult, error) {
 	if len(opts.Entities) == 0 {
-		opts.Entities = AllEntities
+		opts.Entities = allEntities
 	}
-	if err := ValidateEntities(opts.Entities); err != nil {
+	if err := validateEntities(opts.Entities); err != nil {
 		return nil, err
 	}
 	if opts.Workers <= 0 {
@@ -208,22 +207,22 @@ func Run(ctx context.Context, src port.KVExportReader, sink Sink, opts Options) 
 		opts.ProgressEvery = 1000
 	}
 	newTracker := func(entity string) *tracker {
-		return &tracker{res: Result{Entity: entity}, progressEvery: opts.ProgressEvery}
+		return &tracker{res: backfillResult{Entity: entity}, progressEvery: opts.ProgressEvery}
 	}
 
 	var trackers []*tracker
-	if slices.Contains(opts.Entities, EntityCommittees) {
-		committees, settings := newTracker(EntityCommittees), newTracker(resultSettings)
+	if slices.Contains(opts.Entities, entityCommittees) {
+		committees, settings := newTracker(entityCommittees), newTracker(resultSettings)
 		trackers = append(trackers, committees, settings)
 		scanError(ctx, committees, copyCommittees(ctx, src, sink, opts, committees, settings))
 	}
-	if slices.Contains(opts.Entities, EntityMembers) {
-		members := newTracker(EntityMembers)
+	if slices.Contains(opts.Entities, entityMembers) {
+		members := newTracker(entityMembers)
 		trackers = append(trackers, members)
 		scanError(ctx, members, copyMembers(ctx, src, sink, opts, members))
 	}
 
-	results := make([]Result, 0, len(trackers))
+	results := make([]backfillResult, 0, len(trackers))
 	total := int64(0)
 	for _, t := range trackers {
 		results = append(results, t.res)
