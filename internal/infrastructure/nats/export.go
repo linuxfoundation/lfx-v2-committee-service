@@ -134,8 +134,13 @@ func (s *storage) EachBriefExport(ctx context.Context, fn func(*model.GroupWeekl
 			return fn(brief, revision)
 		})
 	}
-	// Both passes run even when the first reports unreadable briefs, so one bad record does not hide the rest.
-	return errors.Join(each(true), each(false))
+	// An error in the first pass ends the export: a callback error is the caller's request to stop, and a served
+	// brief that could not be read must not leave its window to the unserved brief that shares it, which a copy
+	// would then keep. The run is repeated once the record is readable.
+	if err := each(true); err != nil {
+		return err
+	}
+	return each(false)
 }
 
 // EachThrottleExport streams every weekly-brief throttle entry with the revision it was read at.

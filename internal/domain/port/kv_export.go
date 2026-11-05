@@ -41,7 +41,8 @@ type KVExportReader interface {
 	// EachDocumentExport streams the metadata of every committee document; the files stay in the Object Store.
 	EachDocumentExport(ctx context.Context, fn func(document *model.CommitteeDocument, revision uint64) error) error
 	// EachBriefExport streams every weekly brief, with Revision set. The briefs the window index serves come
-	// first, so that when a race left two briefs for one window the one that was served is the one a copy keeps.
+	// first, so that when a race left two briefs for one window the one that was served is the one a copy keeps;
+	// for that reason the stream ends, without the rest, at the first error in the served ones.
 	EachBriefExport(ctx context.Context, fn func(brief *model.GroupWeeklyBrief, revision uint64) error) error
 	// EachThrottleExport streams every weekly-brief throttle entry, with Revision set.
 	EachThrottleExport(ctx context.Context, fn func(throttle *model.GroupWeeklyBriefThrottle, revision uint64) error) error

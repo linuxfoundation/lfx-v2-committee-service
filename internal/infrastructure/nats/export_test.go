@@ -346,6 +346,38 @@ func TestEachBriefExport(t *testing.T) {
 	})
 }
 
+func TestEachBriefExportEndsAtAnErrorInTheServedBriefs(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	s := NewStorageBackend(client)
+	briefs, err := client.GetOrBindKVStore(ctx, constants.KVBucketNameGroupWeeklyBriefs)
+	require.NoError(t, err)
+	index, err := client.GetOrBindKVStore(ctx, constants.KVBucketNameGroupWeeklyBriefUIDIndex)
+	require.NoError(t, err)
+	// The index names b-served, and b-unserved is its duplicate for the same window.
+	putJSON(t, briefs, "b-unserved", storetest.NewBrief("b-unserved", "c-1", storetest.FixtureWindow))
+	_, err = index.Put(ctx, buildBriefIndexKey("c-1", model.WindowDateKey(storetest.FixtureWindow)), []byte("b-served"))
+	require.NoError(t, err)
+
+	t.Run("a served brief that cannot be read leaves the unserved ones unexported", func(t *testing.T) {
+		_, err := briefs.Put(ctx, "b-served", []byte("{not json"))
+		require.NoError(t, err)
+		var seen []string
+		err = s.EachBriefExport(ctx, func(b *model.GroupWeeklyBrief, _ uint64) error { seen = append(seen, b.UID); return nil })
+		require.Error(t, err)
+		assert.Empty(t, seen)
+	})
+
+	t.Run("the error fn returns in the served briefs stops the export", func(t *testing.T) {
+		putJSON(t, briefs, "b-served", storetest.NewBrief("b-served", "c-1", storetest.FixtureWindow))
+		stop := errors.New("stop")
+		var seen []string
+		err := s.EachBriefExport(ctx, func(b *model.GroupWeeklyBrief, _ uint64) error { seen = append(seen, b.UID); return stop })
+		assert.ErrorIs(t, err, stop)
+		assert.Equal(t, []string{"b-served"}, seen, "the unserved brief is not sent after the caller asked to stop")
+	})
+}
+
 func TestEachBriefAndThrottleExportOfBucketsThatDoNotExist(t *testing.T) {
 	ctx := context.Background()
 	client := newKVClient(t)
