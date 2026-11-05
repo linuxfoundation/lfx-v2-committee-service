@@ -556,6 +556,11 @@ func TestCheckMigrated(t *testing.T) {
 		db := newSchemaDB(t)
 
 		require.Error(t, CheckMigrated(ctx, db))
-		assert.Empty(t, tablesIn(t, db), "the check only reads: it must not create goose's version table")
+		// tablesIn leaves goose's own table out, which is exactly the one the check must not create.
+		var created bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'goose_db_version')").Scan(&created))
+		assert.False(t, created, "the check only reads: it must not create goose's version table")
+		assert.Empty(t, tablesIn(t, db))
 	})
 }
