@@ -4,9 +4,15 @@
 package service
 
 import (
+	"bytes"
+	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 )
 
 func TestLFXSelfServeBaseURL(t *testing.T) {
@@ -75,4 +81,45 @@ func TestLFXSelfServeBaseURL(t *testing.T) {
 			assert.Equal(t, tt.want, LFXSelfServeBaseURL())
 		})
 	}
+}
+
+func TestInitStorageMode(t *testing.T) {
+	ctx := context.Background()
+	env := func(values map[string]string) func(string) string {
+		return func(key string) string { return values[key] }
+	}
+
+	t.Run("with STORAGE_MODE unset the mode is kv and the service is as it has always been", func(t *testing.T) {
+		mode, err := initStorageMode(ctx, env(nil))
+		require.NoError(t, err)
+		assert.Equal(t, composite.ModeKV, mode)
+
+		mode, err = initStorageMode(ctx, env(map[string]string{"POSTGRES_ENABLED": "true", "POSTGRES_URL": "postgres://user:password@localhost/db"}))
+		require.NoError(t, err, "PostgreSQL being on does not change the mode")
+		assert.Equal(t, composite.ModeKV, mode)
+	})
+
+	t.Run("the effective mode is logged, so it can be read from the pod logs", func(t *testing.T) {
+		var logs bytes.Buffer
+		previous := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+		t.Cleanup(func() { slog.SetDefault(previous) })
+
+		_, err := initStorageMode(ctx, env(nil))
+
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), `msg="storage mode" mode=kv`)
+	})
+
+	t.Run("a mode set on purpose that cannot be used is an error and never kv", func(t *testing.T) {
+		for name, values := range map[string]map[string]string{
+			"not recognized":    {"STORAGE_MODE": "dual-write"},
+			"no connection":     {"STORAGE_MODE": "dual"},
+			"not available yet": {"STORAGE_MODE": "postgres", "POSTGRES_URL": "postgres://user:password@localhost/db"},
+		} {
+			mode, err := initStorageMode(ctx, env(values))
+			require.Error(t, err, name)
+			assert.Empty(t, mode, name)
+		}
+	})
 }

@@ -25,6 +25,7 @@ committee-cli <command> <subcommand> [subcommand flags]
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
 | `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate` and `storage verify`. Holds a credential and is never logged |
 | `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`, `storage verify`) |
+| `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or one that cannot be used yet (today only `kv` can), stops a command that connects before it connects; commands that need no infrastructure ignore it |
 
 ### Commands
 

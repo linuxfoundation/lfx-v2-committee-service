@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/report"
 	storagecmd "github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/storage"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/sync"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/env"
@@ -91,6 +92,14 @@ func run() error {
 	if offline, ok := sub.(commands.OfflineSubcommand); ok && offline.RunsOffline(parsed.SubArgs) {
 		return sub.Run(ctx, commands.RunContext{Args: parsed.SubArgs})
 	}
+
+	// A store mode that was set on purpose and cannot be used stops the command before anything connects; with
+	// STORAGE_MODE unset the mode is kv and the command is as it has always been.
+	storageMode, err := composite.ModeFromEnv(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("invalid storage mode: %w", err)
+	}
+	composite.NewMetrics().RecordMode(ctx, storageMode)
 
 	natsURL := env.Get("NATS_URL", "nats://localhost:4222")
 	natsTimeout := 120 * time.Second

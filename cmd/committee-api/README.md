@@ -247,6 +247,12 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 | `REPOSITORY_SOURCE` | `nats` | no | Storage backend: `nats` or `mock` (mock is for local dev/testing only) |
 | `MESSAGING_SOURCE` | `nats` | no | Messaging backend for the committee publisher (indexer, FGA/access, member and domain events) and the email/invite senders: `nats` or `mock`. `mock` captures publishes in memory and skips notifications, so events never reach NATS; use it for local/test only. |
 
+**Storage mode** (the default, `kv`, is what the service has always done)
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `STORAGE_MODE` | `kv` | no | Which store reads and writes: `kv`, `dual`, `dual-pg` or `postgres` (see the issue for what each does). Unset or blank is `kv`: the service reads and writes NATS KV exactly as it does without the setting. A value that is not one of the four, or a mode that uses PostgreSQL without `POSTGRES_URL`, stops the service at startup with an error naming the variable, and so does a mode that is not available yet: today only `kv` is. A mode is never replaced by `kv` silently. The effective mode is logged at startup (`storage mode`) and exported as the `committee.storage.mode` metric. |
+
 **PostgreSQL** (off by default; nothing reads or writes the database yet)
 
 | Environment Variable | Default | Required | Description |
