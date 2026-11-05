@@ -24,11 +24,37 @@ import (
 type fakeSource struct {
 	committees   []port.CommitteeExport
 	members      []memberRecord
+	invites      []childRecord[*model.CommitteeInvite]
+	applications []childRecord[*model.CommitteeApplication]
+	links        []childRecord[*model.CommitteeLink]
+	folders      []childRecord[*model.CommitteeLinkFolder]
+	documents    []childRecord[*model.CommitteeDocument]
+	briefs       []childRecord[*model.GroupWeeklyBrief]
+	throttles    []childRecord[*model.GroupWeeklyBriefThrottle]
 	committeeErr error // returned by the committee scan after the committees, like an aggregated read failure
 	memberErr    error
+	listErr      error // returned when the committee uids are listed
+	listCalls    int   // how many times the committee uids were listed
+}
+
+// memberRecord is a member with the revision it has in KV.
+type memberRecord = childRecord[*model.CommitteeMember]
+
+// each streams records, then returns err, like a scan that ends with an aggregated read failure.
+func each[T any](records []childRecord[T], err error, fn func(T, uint64) error) error {
+	for _, r := range records {
+		if err := fn(r.record, r.revision); err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 func (f *fakeSource) ListAllUIDs(context.Context) ([]string, error) {
+	f.listCalls++
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
 	var uids []string
 	for _, c := range f.committees {
 		uids = append(uids, c.Base.UID)
@@ -46,12 +72,35 @@ func (f *fakeSource) EachCommitteeExport(_ context.Context, fn func(port.Committ
 }
 
 func (f *fakeSource) EachMemberExport(_ context.Context, fn func(*model.CommitteeMember, uint64) error) error {
-	for _, m := range f.members {
-		if err := fn(m.member, m.revision); err != nil {
-			return err
-		}
-	}
-	return f.memberErr
+	return each(f.members, f.memberErr, fn)
+}
+
+func (f *fakeSource) EachInviteExport(_ context.Context, fn func(*model.CommitteeInvite, uint64) error) error {
+	return each(f.invites, nil, fn)
+}
+
+func (f *fakeSource) EachApplicationExport(_ context.Context, fn func(*model.CommitteeApplication, uint64) error) error {
+	return each(f.applications, nil, fn)
+}
+
+func (f *fakeSource) EachLinkExport(_ context.Context, fn func(*model.CommitteeLink, uint64) error) error {
+	return each(f.links, nil, fn)
+}
+
+func (f *fakeSource) EachFolderExport(_ context.Context, fn func(*model.CommitteeLinkFolder, uint64) error) error {
+	return each(f.folders, nil, fn)
+}
+
+func (f *fakeSource) EachDocumentExport(_ context.Context, fn func(*model.CommitteeDocument, uint64) error) error {
+	return each(f.documents, nil, fn)
+}
+
+func (f *fakeSource) EachBriefExport(_ context.Context, fn func(*model.GroupWeeklyBrief, uint64) error) error {
+	return each(f.briefs, nil, fn)
+}
+
+func (f *fakeSource) EachThrottleExport(_ context.Context, fn func(*model.GroupWeeklyBriefThrottle, uint64) error) error {
+	return each(f.throttles, nil, fn)
 }
 
 // kvCommittee is a committee as KV holds it, with revisions of its own.
@@ -65,7 +114,7 @@ func kvCommittee(uid, name string, baseRevision, settingsRevision uint64) port.C
 }
 
 func kvMember(uid, committeeUID, email string, revision uint64) memberRecord {
-	return memberRecord{member: storetest.NewMember(uid, committeeUID, email), revision: revision}
+	return memberRecord{record: storetest.NewMember(uid, committeeUID, email), revision: revision}
 }
 
 func result(t *testing.T, results []backfillResult, entity string) backfillResult {
@@ -165,7 +214,7 @@ func TestRunBackfill_KVAheadUpdatesAndPostgreSQLAheadIsReported(t *testing.T) {
 	src.committees[0].BaseRevision = 100
 	src.committees[0].Settings.Writers = nil
 	src.committees[0].SettingsRevision = 101
-	src.members[0].member.JobTitle = "Changed in KV"
+	src.members[0].record.JobTitle = "Changed in KV"
 	src.members[0].revision = 102
 	results, err := runBackfill(ctx, src, store, backfillOptions{})
 	require.NoError(t, err)
@@ -353,10 +402,10 @@ func TestRunBackfill_OnlyTheEntitiesAskedFor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, uids, "no committee was copied")
 
-	_, err = runBackfill(ctx, newSource(), store, backfillOptions{Entities: []string{"invites"}})
+	_, err = runBackfill(ctx, newSource(), store, backfillOptions{Entities: []string{"widgets"}})
 	var validation errs.Validation
 	require.ErrorAs(t, err, &validation)
-	assert.Contains(t, err.Error(), `unknown entity "invites"`)
+	assert.Contains(t, err.Error(), `unknown entity "widgets"`)
 }
 
 func TestRunBackfill_ManyRecordsThroughSmallBuffersAndManyWorkers(t *testing.T) {

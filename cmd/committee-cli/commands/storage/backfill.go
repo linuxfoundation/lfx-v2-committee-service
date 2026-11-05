@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -19,15 +20,25 @@ import (
 
 // The entities a run can copy. Committees come with their settings, which are reported as a line of their own.
 const (
-	entityCommittees = "committees"
-	entityMembers    = "members"
+	entityCommittees   = "committees"
+	entityMembers      = "members"
+	entityInvites      = "invites"
+	entityApplications = "applications"
+	entityLinks        = "links"
+	entityFolders      = "folders"
+	entityDocuments    = "documents"
+	entityBriefs       = "briefs"
+	entityThrottles    = "throttles"
 )
 
 // resultSettings is the report line of the settings copied along with the committees.
 const resultSettings = "settings"
 
 // allEntities lists the entities a run copies by default, in the order it copies them.
-var allEntities = []string{entityCommittees, entityMembers}
+var allEntities = []string{
+	entityCommittees, entityMembers, entityInvites, entityApplications, entityLinks, entityFolders, entityDocuments,
+	entityBriefs, entityThrottles,
+}
 
 // backfillSink is the PostgreSQL store as the backfill uses it. *postgres.Store implements it.
 type backfillSink interface {
@@ -39,6 +50,25 @@ type backfillSink interface {
 	GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error)
 	CreateMember(ctx context.Context, member *model.CommitteeMember) error
 	UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error)
+	GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error)
+	CreateInvite(ctx context.Context, invite *model.CommitteeInvite) error
+	UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error
+	GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error)
+	CreateApplication(ctx context.Context, application *model.CommitteeApplication) error
+	UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error
+	GetLink(ctx context.Context, committeeUID, linkUID string) (*model.CommitteeLink, uint64, error)
+	CreateLink(ctx context.Context, link *model.CommitteeLink) error
+	UpdateLink(ctx context.Context, link *model.CommitteeLink, revision uint64) error
+	GetLinkFolder(ctx context.Context, committeeUID, folderUID string) (*model.CommitteeLinkFolder, uint64, error)
+	CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) error
+	UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, revision uint64) error
+	GetDocumentMetadata(ctx context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error)
+	CreateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument) error
+	UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error
+	GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error)
+	PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, error)
+	GetGroupWeeklyBriefThrottle(ctx context.Context, committeeUID string, windowStart time.Time) (*model.GroupWeeklyBriefThrottle, error)
+	PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *model.GroupWeeklyBriefThrottle) (*model.GroupWeeklyBriefThrottle, error)
 }
 
 var _ backfillSink = (*postgres.Store)(nil)
@@ -217,10 +247,24 @@ func runBackfill(ctx context.Context, src port.KVExportReader, sink backfillSink
 		trackers = append(trackers, committees, settings)
 		scanError(ctx, committees, copyCommittees(ctx, src, sink, opts, committees, settings))
 	}
-	if slices.Contains(opts.Entities, entityMembers) {
-		members := newTracker(entityMembers)
-		trackers = append(trackers, members)
-		scanError(ctx, members, copyMembers(ctx, src, sink, opts, members))
+	// The children are checked against the committees KV holds, which are listed once for all of them.
+	children := childCopies(src, sink, opts)
+	var committees map[string]struct{}
+	var listErr error
+	for _, child := range children {
+		if !slices.Contains(opts.Entities, child.entity) {
+			continue
+		}
+		t := newTracker(child.entity)
+		trackers = append(trackers, t)
+		if committees == nil && listErr == nil {
+			committees, listErr = committeeSet(ctx, src)
+		}
+		if listErr != nil {
+			scanError(ctx, t, listErr)
+			continue
+		}
+		scanError(ctx, t, child.copy(ctx, t, committees))
 	}
 
 	results := make([]backfillResult, 0, len(trackers))
@@ -242,5 +286,54 @@ func runBackfill(ctx context.Context, src port.KVExportReader, sink backfillSink
 func scanError(ctx context.Context, t *tracker, err error) {
 	if err != nil {
 		t.problem(ctx, "", "source", err.Error())
+	}
+}
+
+// committeeSet lists the uid of every committee in KV.
+func committeeSet(ctx context.Context, src port.KVExportReader) (map[string]struct{}, error) {
+	uids, err := src.ListAllUIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	exists := make(map[string]struct{}, len(uids))
+	for _, uid := range uids {
+		exists[uid] = struct{}{}
+	}
+	return exists, nil
+}
+
+// childCopy copies one entity that belongs to a committee.
+type childCopy struct {
+	entity string
+	copy   func(ctx context.Context, t *tracker, committees map[string]struct{}) error
+}
+
+// childCopies lists the entities that belong to a committee, in the order a run copies them.
+func childCopies(src port.KVExportReader, sink backfillSink, opts backfillOptions) []childCopy {
+	return []childCopy{
+		{entityMembers, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, memberSpec(src, sink), opts, t, c)
+		}},
+		{entityInvites, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, inviteSpec(src, sink), opts, t, c)
+		}},
+		{entityApplications, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, applicationSpec(src, sink), opts, t, c)
+		}},
+		{entityLinks, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, linkSpec(src, sink), opts, t, c)
+		}},
+		{entityFolders, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, folderSpec(src, sink), opts, t, c)
+		}},
+		{entityDocuments, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, documentSpec(src, sink), opts, t, c)
+		}},
+		{entityBriefs, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, briefSpec(src, sink), opts, t, c)
+		}},
+		{entityThrottles, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
+			return copyChildren(ctx, throttleSpec(src, sink), opts, t, c)
+		}},
 	}
 }

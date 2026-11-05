@@ -621,7 +621,7 @@ NATS_URL=nats://localhost:4222 LOG_LEVEL=warn \
 
 #### `storage migrate`
 
-Copies committee data from the NATS KV store into PostgreSQL: committees with their settings, and members. Invites, applications, links, folders, documents and weekly briefs follow in later releases. It reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
+Copies committee data from the NATS KV store into PostgreSQL: committees with their settings, members, invites, applications, links, link folders, document metadata, weekly briefs and weekly-brief throttle entries. It reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
 
 The schema must already be applied: start the API once with `POSTGRES_ENABLED=true`, which runs the migrations. The command checks and says so if it is not.
 
@@ -629,13 +629,19 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 
 | Flag | Default | Description |
 |---|---|---|
-| `--entity` | all | Comma-separated entities to copy: `committees` (with settings), `members` |
+| `--entity` | all | Comma-separated entities to copy: `committees` (with settings), `members`, `invites`, `applications`, `links`, `folders`, `documents`, `briefs`, `throttles` |
 | `--dry-run` | `false` | Read and classify everything, write nothing; `written` is what a run would write |
 | `--include-orphans` | `false` | Also copy children whose committee does not exist in KV |
 | `--workers` | `4` | Records written to PostgreSQL concurrently |
 | `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each) is also held, for the orphan check |
 
-**Orphans.** KV never removed a deleted committee's members, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them.
+**Orphans.** KV never removed a deleted committee's members, invites, links, folders, documents or briefs, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them.
+
+**Documents.** Only the metadata moves; the files stay in the Object Store, which the move does not touch.
+
+**Weekly briefs.** PostgreSQL holds one brief per committee and window, and a brief is found by that window. KV can hold two briefs for one window, when two first generations raced; only the one the window index names was ever served. The served briefs are copied first, so the one a reader saw is the one that is kept, and the other is reported as `constraint`. A brief keeps the update time KV stamped.
+
+**Timestamps.** Invites and applications have no update time of their own in KV: PostgreSQL's is set to the creation time when the row is created, and to the time of the copy when a later run updates it.
 
 **Problems** are listed with the uid and a kind: `constraint` (a unique index PostgreSQL enforces and KV did not, such as two emails that differ only in case), `invalid`, `write`, `read`, `ahead` (PostgreSQL has a newer revision than KV: a migration cannot reconcile it, so do not run it against a database that is already primary), `missing` (a committee that exists in PostgreSQL without its settings) and `source` (a KV scan that could not read every record). A problem is never dropped silently, and every one is in the log; the summary lists up to 100.
 
@@ -650,9 +656,9 @@ Dry run first (safe):
 NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage migrate --dry-run
 ```
 
-Only the members, with more workers:
+Only the members and invites, with more workers:
 ```sh
-NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage migrate --entity=members --workers=16
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage migrate --entity=members,invites --workers=16
 ```
 
 ## Building
