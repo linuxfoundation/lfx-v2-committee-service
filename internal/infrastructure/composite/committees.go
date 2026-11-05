@@ -5,10 +5,13 @@ package composite
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // The writes below return what the primary store returns. In dual mode each is followed by the same change in
@@ -53,21 +56,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 	}
 	if s.mode == ModeDual {
 		uid := committee.CommitteeBase.UID
-		s.replicate(ctx, "update_committee", func(ctx context.Context) error {
-			base, newRevision, err := s.kv.GetBase(ctx, uid)
-			if err != nil {
-				return err
-			}
-			if newRevision == revision {
-				return nil // KV found nothing to change and wrote nothing, so there is nothing to carry over
-			}
-			wctx, err := postgres.WithRevision(ctx, newRevision)
-			if err != nil {
-				return err
-			}
-			// The row in PostgreSQL has the revision KV had before the write, which is the one the caller sent.
-			return s.pg.UpdateBase(wctx, &model.Committee{CommitteeBase: *base}, revision)
-		})
+		s.replicate(ctx, "update_committee", func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
 	}
 	return nil
 }
@@ -79,20 +68,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	}
 	if s.mode == ModeDual {
 		uid := settings.UID
-		s.replicate(ctx, "update_settings", func(ctx context.Context) error {
-			current, newRevision, err := s.kv.GetSettings(ctx, uid)
-			if err != nil {
-				return err
-			}
-			if newRevision == revision {
-				return nil // KV found nothing to change and wrote nothing, so there is nothing to carry over
-			}
-			wctx, err := postgres.WithRevision(ctx, newRevision)
-			if err != nil {
-				return err
-			}
-			return s.pg.UpdateSetting(wctx, current, revision)
-		})
+		s.replicate(ctx, "update_settings", func(ctx context.Context) error { return s.replicateSettings(ctx, uid) })
 	}
 	return nil
 }
@@ -104,7 +80,23 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 	}
 	if s.mode == ModeDual {
 		s.replicate(ctx, "delete_committee", func(ctx context.Context) error {
-			return s.pg.Delete(ctx, uid, revision)
+			err := s.pg.Delete(ctx, uid, revision)
+			var stale errs.Conflict
+			if errors.As(err, &stale) {
+				// PostgreSQL is not at the revision KV had, because an earlier copy of this committee failed. KV has
+				// already decided that the committee is gone, and storage migrate never deletes, so what PostgreSQL holds
+				// is removed under the revision it has now: left behind it would keep the name and the SSO group name taken
+				// there, and the settings with their webhook URL.
+				_, current, getErr := s.pg.GetBase(ctx, uid)
+				if getErr != nil {
+					return getErr
+				}
+				err = s.pg.Delete(ctx, uid, current)
+			}
+			if isNotFound(err) {
+				return nil // it is not there, which is where a delete leaves it
+			}
+			return err
 		})
 	}
 	return nil
@@ -134,10 +126,12 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 	return base, changed, nil
 }
 
-// replicateBase writes the committee base KV holds now to PostgreSQL, with the revision KV gave it. A counter update is
-// replicated this way, as the state KV holds, and not by running the counter again in PostgreSQL, which would stamp its
-// own update time and leave the two records different. The write is guarded by the revision PostgreSQL has now, which
-// is the one KV had before the counter changed when the stores were in step.
+// replicateBase writes the committee base KV holds now to PostgreSQL, with the revision KV gave it. Every update of the
+// base is replicated this way, as the state KV holds, and not by running it again in PostgreSQL, which would stamp its own
+// update time and leave the two records different. The write is guarded by the revision PostgreSQL has now, not by the
+// one the caller sent: when an earlier copy failed the two differ, and guarding by the caller's would fail every later
+// update of that committee too, where this one brings PostgreSQL up to what KV holds. It cannot lose an update or go
+// back: PostgreSQL refuses a revision that is not above the one it replaces.
 func (s *Store) replicateBase(ctx context.Context, uid string) error {
 	base, newRevision, err := s.kv.GetBase(ctx, uid)
 	if err != nil {
@@ -147,11 +141,34 @@ func (s *Store) replicateBase(ctx context.Context, uid string) error {
 	if err != nil {
 		return err
 	}
+	if newRevision == current {
+		return nil // PostgreSQL already holds this revision: KV wrote nothing, or the copy is already there
+	}
 	wctx, err := postgres.WithRevision(ctx, newRevision)
 	if err != nil {
 		return err
 	}
 	return s.pg.UpdateBase(wctx, &model.Committee{CommitteeBase: *base}, current)
+}
+
+// replicateSettings is replicateBase for the settings.
+func (s *Store) replicateSettings(ctx context.Context, uid string) error {
+	settings, newRevision, err := s.kv.GetSettings(ctx, uid)
+	if err != nil {
+		return err
+	}
+	_, current, err := s.pg.GetSettings(ctx, uid)
+	if err != nil {
+		return err
+	}
+	if newRevision == current {
+		return nil
+	}
+	wctx, err := postgres.WithRevision(ctx, newRevision)
+	if err != nil {
+		return err
+	}
+	return s.pg.UpdateSetting(wctx, settings, current)
 }
 
 // The reads below return what the primary store returns. In dual mode a sampled fraction is also made against
@@ -240,7 +257,15 @@ func (s *Store) compareRecord(ctx context.Context, operation string, record any,
 func (s *Store) compareValue(ctx context.Context, operation string, compare func(ctx context.Context) (same bool, err error)) {
 	cctx, cancel := context.WithTimeout(ctx, s.compareTimeout)
 	defer cancel()
-	same, err := compare(cctx)
+	// As in replicate, a panic in the secondary store, or in the comparison, must not fail a read that KV has decided.
+	same, err := func() (same bool, err error) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				err = fmt.Errorf("the comparison panicked: %v", recovered)
+			}
+		}()
+		return compare(cctx)
+	}()
 	switch {
 	case err != nil:
 		s.metrics.ReadCompareFailed(ctx, s.mode, operation, err)

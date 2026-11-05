@@ -20,8 +20,9 @@ const (
 	// defaultCompareTimeout bounds the extra read of a sampled request, so a slow secondary store costs a sampled
 	// read at most this long.
 	defaultCompareTimeout = 2 * time.Second
-	// defaultWriteTimeout bounds the write to the secondary store after the primary store's write succeeded.
-	defaultWriteTimeout = 10 * time.Second
+	// defaultWriteTimeout bounds the write to the secondary store after the primary store's write succeeded. The write is
+	// made on the request's path, so this is the most a degraded secondary store adds to a write.
+	defaultWriteTimeout = 3 * time.Second
 )
 
 // Store runs the NATS KV store and the PostgreSQL store side by side and is chosen by Mode. The primary store, the
@@ -31,13 +32,21 @@ const (
 //   - kv: the KV store only.
 //   - dual: KV decides. After a write succeeds, the record is read back from KV, with the revision KV gave it, and
 //     written to PostgreSQL with that revision, so a token a client holds means the same in both stores. A failed
-//     write to PostgreSQL is logged and counted and never fails the request: it is left to storage migrate, which
-//     repairs it, and storage verify, which finds it. A sampled fraction of reads is also made against PostgreSQL and
-//     compared, the KV result being the one returned.
+//     write to PostgreSQL is logged and counted and never fails the request, and it is found by storage verify and
+//     brought over again by storage migrate, which copies what is missing or behind; the next update of the same
+//     committee also brings PostgreSQL up to what KV holds. The copy is made on the request's path, so a degraded
+//     PostgreSQL adds up to the write timeout to a write, which is why that is short. A delete is converged the same
+//     way: if PostgreSQL is behind, the row is removed under the revision it has. What storage migrate cannot do is
+//     delete, so a row that a delete still could not remove is reported as extra by storage verify and has to be
+//     removed by hand. A sampled fraction of reads is also made against PostgreSQL and compared, the KV result being
+//     the one returned; a write that is being copied while the read is made can show as a mismatch.
 //   - postgres: the PostgreSQL store only.
 //
-// There is no transaction across the two stores. Only the committees and their settings are composed so far; the other
-// records go to the primary store alone, so the Store is not complete enough to be wired in yet.
+// There is no transaction across the two stores. A write the primary store only partly made, and so refused, is not
+// copied. Only the committees and their settings are composed so far; the other records go to the primary store alone,
+// and the Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of a
+// deleted committee behind. It is not complete enough to be wired in until the remaining records are composed and the
+// cascade is exposed for the stores that have it, which is why no mode but kv is available at startup.
 type Store struct {
 	port.CommitteeReaderWriter
 

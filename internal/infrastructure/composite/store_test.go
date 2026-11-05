@@ -6,6 +6,9 @@ package composite
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -82,8 +85,10 @@ func sameRecord(t *testing.T, r *rig, uid string) {
 	pgBase, pgRev, err := r.pg.GetBase(ctx, uid)
 	require.NoError(t, err)
 	assert.Equal(t, kvRev, pgRev, "the revision of the base is the one KV gave it")
-	kvDigest, _ := Digest(kvBase)
-	pgDigest, _ := Digest(pgBase)
+	kvDigest, err := Digest(kvBase)
+	require.NoError(t, err)
+	pgDigest, err := Digest(pgBase)
+	require.NoError(t, err)
 	assert.Equal(t, kvDigest, pgDigest, "the base is the same")
 
 	kvSettings, kvSetRev, kvErr := r.kv.GetSettings(ctx, uid)
@@ -94,8 +99,10 @@ func sameRecord(t *testing.T, r *rig, uid string) {
 	}
 	require.NoError(t, pgErr)
 	assert.Equal(t, kvSetRev, pgSetRev, "the revision of the settings is the one KV gave it")
-	kvDigest, _ = Digest(kvSettings)
-	pgDigest, _ = Digest(pgSettings)
+	kvDigest, err = Digest(kvSettings)
+	require.NoError(t, err)
+	pgDigest, err = Digest(pgSettings)
+	require.NoError(t, err)
 	assert.Equal(t, kvDigest, pgDigest, "the settings are the same")
 }
 
@@ -122,12 +129,40 @@ func TestNew(t *testing.T) {
 	}
 }
 
+// The defaults bound what the secondary store can cost a request: a sampled read at most the compare timeout, a write at
+// most the write timeout, and only a small fraction of reads is sampled.
+func TestNew_Defaults(t *testing.T) {
+	kv, pg := natstest.NewStore(t), postgrestest.NewStore(t)
+
+	s, err := New(ModeDual, kv, pg)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0.01, s.rate)
+	assert.Equal(t, 2*time.Second, s.compareTimeout)
+	assert.Equal(t, 3*time.Second, s.writeTimeout)
+
+	s, err = New(ModeDual, kv, pg, WithSampleRate(5), WithTimeouts(-time.Second, 0))
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, s.rate, "a rate above 1 is 1")
+	assert.Equal(t, 2*time.Second, s.compareTimeout, "a timeout that is not positive keeps the default")
+	s, err = New(ModeDual, kv, pg, WithSampleRate(-1))
+	require.NoError(t, err)
+	assert.Equal(t, 0.0, s.rate, "a rate below 0 is 0")
+}
+
 // Whatever the mode, the composite behaves as one store does: the same suite the KV store and the PostgreSQL store pass.
 func TestContract_Committee(t *testing.T) {
 	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
 			storetest.RunCommitteeContract(t, storetest.Backend{Name: "composite-" + string(mode)}, func(t *testing.T) port.CommitteeReaderWriter {
-				return newRig(t, mode, nil, WithSampleRate(1)).store
+				r := newRig(t, mode, nil, WithSampleRate(1))
+				t.Cleanup(func() {
+					// Every read of the suite was compared, and every write copied: the stores never disagreed and nothing failed.
+					assert.Empty(t, r.counts(t, mismatches), "no false mismatch")
+					assert.Empty(t, r.counts(t, compareErr))
+					assert.Empty(t, r.counts(t, failures))
+				})
+				return r.store
 			})
 		})
 	}
@@ -234,6 +269,177 @@ func TestStore_DualACommitteeWithoutSettingsIsCopiedWithoutThem(t *testing.T) {
 	sameRecord(t, r, "uid-1")
 	_, _, err := r.pg.GetSettings(ctx, "uid-1")
 	assert.True(t, isNotFound(err), "there are no settings to copy")
+}
+
+// A delete leaves nothing behind in PostgreSQL even when PostgreSQL was behind, because KV has decided the committee is gone
+// and storage migrate never deletes.
+func TestStore_DualADeleteRemovesWhatPostgreSQLHoldsWhateverItsRevision(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("a row PostgreSQL holds at another revision", func(t *testing.T) {
+		r := newRig(t, ModeDual, nil)
+		require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+		base, revision, err := r.store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		behind, pgRevision, err := r.pg.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		behind.Description = "an update PostgreSQL has and KV has not"
+		wctx, err := postgres.WithRevision(ctx, pgRevision+1000)
+		require.NoError(t, err)
+		require.NoError(t, r.pg.UpdateBase(wctx, &model.Committee{CommitteeBase: *behind}, pgRevision))
+		_ = base
+
+		require.NoError(t, r.store.Delete(ctx, "uid-1", revision))
+
+		_, _, kvErr := r.kv.GetBase(ctx, "uid-1")
+		_, _, pgErr := r.pg.GetBase(ctx, "uid-1")
+		_, _, settingsErr := r.pg.GetSettings(ctx, "uid-1")
+		assert.True(t, isNotFound(kvErr) && isNotFound(pgErr) && isNotFound(settingsErr), "the committee and its settings are gone from both")
+		assert.Empty(t, r.counts(t, failures))
+		require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-2", "project-1", "Committee One")), "the name is free again")
+		assert.Empty(t, r.counts(t, failures), "and is free in PostgreSQL too")
+	})
+
+	t.Run("a row PostgreSQL does not have is not a failure", func(t *testing.T) {
+		r := newRig(t, ModeDual, nil)
+		require.NoError(t, r.kv.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")), "in KV only")
+		_, revision, err := r.kv.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+
+		require.NoError(t, r.store.Delete(ctx, "uid-1", revision))
+
+		assert.Empty(t, r.counts(t, failures), "it is not there, which is where a delete leaves it")
+	})
+}
+
+// flakyPG is a PostgreSQL store whose updates fail while fail is set.
+type flakyPG struct {
+	port.CommitteeReaderWriter
+	fail *atomic.Bool
+}
+
+func (f flakyPG) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+	if f.fail.Load() {
+		return errPG
+	}
+	return f.CommitteeReaderWriter.UpdateBase(ctx, committee, revision)
+}
+
+func (f flakyPG) UpdateSetting(ctx context.Context, settings *model.CommitteeSettings, revision uint64) error {
+	if f.fail.Load() {
+		return errPG
+	}
+	return f.CommitteeReaderWriter.UpdateSetting(ctx, settings, revision)
+}
+
+// A copy that was missed is made up for by the next update of the same record, which writes what KV holds then.
+func TestStore_DualTheNextUpdateBringsPostgreSQLUpToWhatKVHolds(t *testing.T) {
+	ctx := context.Background()
+	var fail atomic.Bool
+	r := newRig(t, ModeDual, func(pg port.CommitteeReaderWriter) port.CommitteeReaderWriter { return flakyPG{pg, &fail} })
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	base, revision, err := r.store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	settings, settingsRevision, err := r.store.GetSettings(ctx, "uid-1")
+	require.NoError(t, err)
+
+	fail.Store(true)
+	base.Description = "first"
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+	settings.ShowMeetingAttendees = !settings.ShowMeetingAttendees
+	require.NoError(t, r.store.UpdateSetting(ctx, settings, settingsRevision))
+	assert.Equal(t, map[string]int64{"update_committee": 1, "update_settings": 1}, r.counts(t, failures), "both copies were missed")
+
+	fail.Store(false)
+	base, revision, err = r.store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	base.Description = "second"
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+	settings, settingsRevision, err = r.store.GetSettings(ctx, "uid-1")
+	require.NoError(t, err)
+	settings.ShowMeetingAttendees = !settings.ShowMeetingAttendees
+	require.NoError(t, r.store.UpdateSetting(ctx, settings, settingsRevision))
+
+	assert.Equal(t, map[string]int64{"update_committee": 1, "update_settings": 1}, r.counts(t, failures), "nothing more failed")
+	sameRecord(t, r, "uid-1")
+}
+
+// Writers that race on one committee leave PostgreSQL behind KV at worst, never ahead of it, and the next write makes it
+// the same.
+func TestStore_DualConcurrentWritersNeverLeavePostgreSQLAheadAndTheNextWriteHeals(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	var wg sync.WaitGroup
+	for writer := range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 5 {
+				_, _, _ = r.store.UpdateTotalMembers(ctx, "uid-1", writer*100+i+1)
+				if base, revision, err := r.store.GetBase(ctx, "uid-1"); err == nil {
+					base.Description = fmt.Sprintf("writer %d, %d", writer, i)
+					_ = r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision) // a stale token is refused by KV
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	_, kvRevision, err := r.kv.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	_, pgRevision, err := r.pg.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	assert.LessOrEqual(t, pgRevision, kvRevision, "PostgreSQL is never ahead of KV")
+
+	_, written, err := r.store.UpdateTotalMembers(ctx, "uid-1", 9999)
+	require.NoError(t, err)
+	require.True(t, written)
+	sameRecord(t, r, "uid-1")
+}
+
+// panickingReadPG is a PostgreSQL store that panics when it is read.
+type panickingReadPG struct{ port.CommitteeReaderWriter }
+
+func (panickingReadPG) GetBase(context.Context, string) (*model.CommitteeBase, uint64, error) {
+	panic("boom")
+}
+
+func TestStore_DualAPanicInASampledReadIsCountedAndNeverFailsTheRead(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, func(pg port.CommitteeReaderWriter) port.CommitteeReaderWriter { return panickingReadPG{pg} }, WithSampleRate(1))
+	require.NoError(t, r.kv.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	base, _, err := r.store.GetBase(ctx, "uid-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Committee One", base.Name, "the KV result is returned")
+	assert.Equal(t, map[string]int64{"get_committee": 1}, r.counts(t, compareErr))
+}
+
+// slowWritePG is a PostgreSQL store whose updates answer only when the request is cancelled.
+type slowWritePG struct{ port.CommitteeReaderWriter }
+
+func (slowWritePG) UpdateBase(ctx context.Context, _ *model.Committee, _ uint64) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestStore_DualASlowSecondaryWriteAddsAtMostTheWriteTimeoutAndIsCounted(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, func(pg port.CommitteeReaderWriter) port.CommitteeReaderWriter { return slowWritePG{pg} },
+		WithTimeouts(0, 200*time.Millisecond))
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	base, revision, err := r.store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	base.Description = "changed"
+
+	started := time.Now()
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+
+	assert.Less(t, time.Since(started), 3*time.Second, "the request is not held by the secondary store")
+	assert.Equal(t, map[string]int64{"update_committee": 1}, r.counts(t, failures))
 }
 
 func TestStore_DualAFailedWriteIsRefusedLikeKVRefusesIt(t *testing.T) {

@@ -41,6 +41,7 @@ func TestMetrics(t *testing.T) {
 	m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("connection reset"))
 	m.SecondaryWriteFailed(ctx, ModeDualPG, "kv", "update_base", errors.New("timeout"))
 	m.ReadMismatch(ctx, ModeDual, "get_committee")
+	m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 
 	got := collect(t, reader)
 
@@ -60,6 +61,11 @@ func TestMetrics(t *testing.T) {
 	require.Len(t, mismatches.DataPoints, 1)
 	assert.EqualValues(t, 1, mismatches.DataPoints[0].Value)
 
+	compareErrors, ok := got["committee.storage.read_compare_errors"].Data.(metricdata.Sum[int64])
+	require.True(t, ok)
+	require.Len(t, compareErrors.DataPoints, 1)
+	assert.EqualValues(t, 1, compareErrors.DataPoints[0].Value)
+
 	mode, ok := got["committee.storage.mode"].Data.(metricdata.Gauge[int64])
 	require.True(t, ok)
 	require.Len(t, mode.DataPoints, 1)
@@ -77,6 +83,7 @@ func TestMetrics_NeverFailAndNeverBlock(t *testing.T) {
 			m.RecordMode(ctx, ModeKV)
 			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("x"))
 			m.ReadMismatch(ctx, ModeDual, "get_committee")
+			m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 		})
 	})
 
@@ -86,6 +93,7 @@ func TestMetrics_NeverFailAndNeverBlock(t *testing.T) {
 			m.RecordMode(ctx, ModeKV)
 			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("x"))
 			m.ReadMismatch(ctx, ModeDual, "get_committee")
+			m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 		})
 	})
 
@@ -95,6 +103,7 @@ func TestMetrics_NeverFailAndNeverBlock(t *testing.T) {
 			m.RecordMode(ctx, ModeDual)
 			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("x"))
 			m.ReadMismatch(ctx, ModeDual, "get_committee")
+			m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 		})
 	})
 }
