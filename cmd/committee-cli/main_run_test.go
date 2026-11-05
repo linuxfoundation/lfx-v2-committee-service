@@ -6,6 +6,7 @@ package main
 import (
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,4 +80,13 @@ func TestRun_StorageMode(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, out, "Fields supported by committee-fields")
 	})
+}
+
+func TestPrintUsage_ListsTheStorageMode(t *testing.T) {
+	var out strings.Builder
+
+	printUsage(&out, buildRegistry())
+
+	assert.Contains(t, out.String(), "STORAGE_MODE")
+	assert.Contains(t, out.String(), "default: kv")
 }
