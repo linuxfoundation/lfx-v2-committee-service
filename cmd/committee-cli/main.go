@@ -14,6 +14,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/report"
+	storagecmd "github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/storage"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/sync"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
@@ -141,6 +142,8 @@ func run() error {
 		GroupWeeklyBriefReader:      storage,
 		CommitteeBaseWriter:         storage,
 		KVStore:                     client.GetOrBindKVStore,
+		KVExport:                    storage,
+		PostgresStore:               connectPostgres,
 		CommitteeApplicationReader:  storage,
 		CommitteeApplicationWriter:  storage,
 		B2BOrgFallbackResolver:      b2bOrgFallbackResolver,
@@ -153,9 +156,11 @@ func run() error {
 func buildRegistry() map[string]commands.Command {
 	syncCmd := sync.NewCommand()
 	reportCmd := report.NewCommand()
+	storageCmd := storagecmd.NewCommand()
 	return map[string]commands.Command{
-		syncCmd.Name():   syncCmd,
-		reportCmd.Name(): reportCmd,
+		syncCmd.Name():    syncCmd,
+		reportCmd.Name():  reportCmd,
+		storageCmd.Name(): storageCmd,
 	}
 }
 
@@ -165,6 +170,8 @@ func printUsage(w io.Writer, registry map[string]commands.Command) {
 	_, _ = fmt.Fprintln(w, "environment variables:")
 	_, _ = fmt.Fprintln(w, "  NATS_URL            NATS server address (default: nats://localhost:4222)")
 	_, _ = fmt.Fprintln(w, "  NATS_TIMEOUT        NATS connection dial/timeout (default: 120s); KV ops use caller context")
+	_, _ = fmt.Fprintln(w, "  POSTGRES_URL        PostgreSQL connection string (storage migrate)")
+	_, _ = fmt.Fprintln(w, "  POSTGRES_MAX_CONNS  PostgreSQL pool size (storage migrate; default 10)")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_URL      OpenSearch base URL (default: http://localhost:9200)")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_INDEX    OpenSearch resources index (default: resources)")
 	_, _ = fmt.Fprintln(w, "  LOG_LEVEL           Log verbosity, e.g. info (default: debug)")

@@ -524,3 +524,43 @@ func TestSchema(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckMigrated(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("a fully migrated database passes", func(t *testing.T) {
+		require.NoError(t, CheckMigrated(ctx, migratedDB(t)))
+	})
+
+	t.Run("a database that stopped after the tables is refused, naming the migration it lacks", func(t *testing.T) {
+		db := newSchemaDB(t)
+		provider, err := newProvider(db)
+		require.NoError(t, err)
+		_, err = provider.UpTo(ctx, 1)
+		require.NoError(t, err)
+
+		err = CheckMigrated(ctx, db)
+
+		require.ErrorContains(t, err, "[2] have not been applied")
+	})
+
+	t.Run("a version table with nothing applied names every migration", func(t *testing.T) {
+		db := migratedDB(t)
+		_, err := db.ExecContext(ctx, "UPDATE goose_db_version SET is_applied = false")
+		require.NoError(t, err)
+
+		require.ErrorContains(t, CheckMigrated(ctx, db), "[1 2] have not been applied")
+	})
+
+	t.Run("an empty database is refused and nothing is created in it", func(t *testing.T) {
+		db := newSchemaDB(t)
+
+		require.Error(t, CheckMigrated(ctx, db))
+		// tablesIn leaves goose's own table out, which is exactly the one the check must not create.
+		var created bool
+		require.NoError(t, db.QueryRowContext(ctx,
+			"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'goose_db_version')").Scan(&created))
+		assert.False(t, created, "the check only reads: it must not create goose's version table")
+		assert.Empty(t, tablesIn(t, db))
+	})
+}

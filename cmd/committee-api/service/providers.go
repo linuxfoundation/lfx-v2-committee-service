@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -165,18 +164,9 @@ func initPostgres(ctx context.Context, getenv func(string) string) (*pgxpool.Poo
 
 // connectPostgres opens the pool and applies the migrations. Errors carry no credentials.
 func connectPostgres(ctx context.Context, getenv func(string) string) (*pgxpool.Pool, error) {
-	url := getenv("POSTGRES_URL")
-	if strings.TrimSpace(url) == "" {
-		return nil, fmt.Errorf("POSTGRES_URL is empty")
-	}
-
-	cfg := postgres.Config{URL: url}
-	if raw := getenv("POSTGRES_MAX_CONNS"); raw != "" {
-		n, err := strconv.ParseInt(raw, 10, 32)
-		if err != nil || n <= 0 {
-			return nil, fmt.Errorf("invalid POSTGRES_MAX_CONNS %q: must be a positive integer", raw)
-		}
-		cfg.MaxConns = int32(n)
+	cfg, err := postgres.ConfigFromEnv(getenv)
+	if err != nil {
+		return nil, err
 	}
 
 	pool, err := postgres.NewPool(ctx, cfg)
@@ -194,7 +184,7 @@ func connectPostgres(ctx context.Context, getenv func(string) string) (*pgxpool.
 		return nil, err
 	}
 
-	slog.InfoContext(ctx, "connected to PostgreSQL", "url", postgres.RedactURL(url), "max_conns", pool.Config().MaxConns)
+	slog.InfoContext(ctx, "connected to PostgreSQL", "url", postgres.RedactURL(cfg.URL), "max_conns", pool.Config().MaxConns)
 	return pool, nil
 }
 
