@@ -19,10 +19,12 @@ func (s *Store) CreateInvite(ctx context.Context, invite *model.CommitteeInvite)
 	}
 	if s.mode == ModeDual {
 		uid := invite.UID
-		s.replicate(ctx, "create_invite", func(ctx context.Context) error {
-			// An invite is never deleted on its own, so there is no delete to race with and nothing to take out again.
+		s.replicate(ctx, "create_invite", uid, func(ctx context.Context) error {
+			// An invite is never deleted on its own (port.CommitteeInviteWriter has no delete), so there is no delete to race
+			// with and nothing to take out again.
 			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.kv.GetInvite(ctx, uid) },
-				s.pg.CreateInvite, func(context.Context, uint64) error { return nil })
+				s.pg.CreateInvite, func(context.Context, uint64) error { return nil },
+				func(ctx context.Context) error { return s.copyInviteUpdate(ctx, uid) })
 		})
 	}
 	return nil
@@ -35,15 +37,18 @@ func (s *Store) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite,
 	}
 	if s.mode == ModeDual {
 		uid := invite.UID
-		s.replicate(ctx, "update_invite", func(ctx context.Context) error {
-			return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.kv.GetInvite(ctx, uid) },
-				func(ctx context.Context) (uint64, error) {
-					_, current, err := s.pg.GetInvite(ctx, uid)
-					return current, err
-				}, s.pg.UpdateInvite)
-		})
+		s.replicate(ctx, "update_invite", uid, func(ctx context.Context) error { return s.copyInviteUpdate(ctx, uid) })
 	}
 	return nil
+}
+
+// copyInviteUpdate writes the invite KV holds now to PostgreSQL; see copyUpdated.
+func (s *Store) copyInviteUpdate(ctx context.Context, uid string) error {
+	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.kv.GetInvite(ctx, uid) },
+		func(ctx context.Context) (uint64, error) {
+			_, current, err := s.pg.GetInvite(ctx, uid)
+			return current, err
+		}, s.pg.UpdateInvite)
 }
 
 // GetInvite returns the invite and its revision.
@@ -66,11 +71,8 @@ func (s *Store) ListInvites(ctx context.Context, committeeUID string) ([]*model.
 	return invites, err
 }
 
-// ListAllInvites returns every invite.
+// ListAllInvites returns every invite. It reads the whole set, for repair work, and goes to the primary store alone: a
+// comparison of the whole set is what storage verify is for.
 func (s *Store) ListAllInvites(ctx context.Context) ([]*model.CommitteeInvite, error) {
-	invites, err := s.CommitteeReaderWriter.ListAllInvites(ctx)
-	if s.sampled() {
-		compareRecords(ctx, s, "list_all_invites", invites, err, s.pg.ListAllInvites)
-	}
-	return invites, err
+	return s.CommitteeReaderWriter.ListAllInvites(ctx)
 }

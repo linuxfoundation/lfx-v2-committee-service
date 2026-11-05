@@ -19,11 +19,12 @@ func (s *Store) CreateMember(ctx context.Context, member *model.CommitteeMember)
 	}
 	if s.mode == ModeDual {
 		uid := member.UID
-		s.replicate(ctx, "create_member", func(ctx context.Context) error {
+		s.replicate(ctx, "create_member", uid, func(ctx context.Context) error {
 			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.kv.GetMember(ctx, uid) },
 				s.pg.CreateMember, func(ctx context.Context, revision uint64) error {
 					return s.deleteMemberInPostgreSQL(ctx, uid, revision)
-				})
+				},
+				func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
 		})
 	}
 	return nil
@@ -37,16 +38,19 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	}
 	if s.mode == ModeDual {
 		uid := member.UID
-		s.replicate(ctx, "update_member", func(ctx context.Context) error {
-			return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.kv.GetMember(ctx, uid) },
-				func(ctx context.Context) (uint64, error) { return s.pg.GetMemberRevision(ctx, uid) },
-				func(ctx context.Context, current *model.CommitteeMember, guard uint64) error {
-					_, err := s.pg.UpdateMember(ctx, current, guard)
-					return err
-				})
-		})
+		s.replicate(ctx, "update_member", uid, func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
 	}
 	return updated, nil
+}
+
+// copyMemberUpdate writes the member KV holds now to PostgreSQL; see copyUpdated.
+func (s *Store) copyMemberUpdate(ctx context.Context, uid string) error {
+	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.kv.GetMember(ctx, uid) },
+		func(ctx context.Context) (uint64, error) { return s.pg.GetMemberRevision(ctx, uid) },
+		func(ctx context.Context, current *model.CommitteeMember, guard uint64) error {
+			_, err := s.pg.UpdateMember(ctx, current, guard)
+			return err
+		})
 }
 
 // DeleteMember removes a committee member, guarded by the revision.
@@ -55,7 +59,7 @@ func (s *Store) DeleteMember(ctx context.Context, uid string, revision uint64) e
 		return err
 	}
 	if s.mode == ModeDual {
-		s.replicate(ctx, "delete_member", func(ctx context.Context) error { return s.deleteMemberInPostgreSQL(ctx, uid, revision) })
+		s.replicate(ctx, "delete_member", uid, func(ctx context.Context) error { return s.deleteMemberInPostgreSQL(ctx, uid, revision) })
 	}
 	return nil
 }
@@ -68,8 +72,8 @@ func (s *Store) deleteMemberInPostgreSQL(ctx context.Context, uid string, revisi
 }
 
 // The reads of the members return what the primary store returns. In dual mode a sampled fraction is also made against
-// PostgreSQL and compared. EachMember and EachMemberStrict stream the whole set for repair work and go to the primary store
-// alone.
+// PostgreSQL and compared. EachMember, EachMemberStrict and ListAllMembers read the whole set for repair work and go to the
+// primary store alone.
 
 // GetMember returns the member and its revision.
 func (s *Store) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
@@ -139,11 +143,8 @@ func (s *Store) ListMembersByUsername(ctx context.Context, username string) ([]*
 	return members, err
 }
 
-// ListAllMembers returns every member.
+// ListAllMembers returns every member. It reads the whole set, for repair work, and goes to the primary store alone, as
+// EachMember does: a comparison of the whole set is what storage verify is for.
 func (s *Store) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
-	members, err := s.CommitteeReaderWriter.ListAllMembers(ctx)
-	if s.sampled() {
-		compareRecords(ctx, s, "list_all_members", members, err, s.pg.ListAllMembers)
-	}
-	return members, err
+	return s.CommitteeReaderWriter.ListAllMembers(ctx)
 }

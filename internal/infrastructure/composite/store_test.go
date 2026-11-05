@@ -824,3 +824,135 @@ func TestSameSet(t *testing.T) {
 	sameSet(a, []string{"a", "b"})
 	assert.Equal(t, []string{"b", "a"}, a, "the lists are not reordered")
 }
+
+// updatingCommitteeKV is a KV store that updates the committee as the copy of its creation reads it back for the second time.
+type updatingCommitteeKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (u *updatingCommitteeKV) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	if u.calls.Add(1) == 2 {
+		if base, revision, err := u.CommitteeReaderWriter.GetBase(ctx, uid); err == nil {
+			base.Description = "updated meanwhile"
+			_ = u.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision)
+		}
+	}
+	return u.CommitteeReaderWriter.GetBase(ctx, uid)
+}
+
+func TestStore_DualACreateCopiedWhileAnUpdateFinishesLeavesTheNewVersion(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	r.store.kv = &updatingCommitteeKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	base, _, err := r.pg.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	assert.Equal(t, "updated meanwhile", base.Description, "PostgreSQL holds the newer version")
+	sameRecord(t, r, "uid-1")
+	assert.Empty(t, r.counts(t, failures))
+}
+
+// A committee that KV no longer has when its copy is made was deleted meanwhile: there is nothing to copy.
+func TestStore_DualACommitteeKVHasLostIsNothingToCopy(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	base, revision, err := r.store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	settings, settingsRevision, err := r.store.GetSettings(ctx, "uid-1")
+	require.NoError(t, err)
+	r.store.kv = goneKV{r.kv}
+
+	base.Description = "changed"
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+	settings.ShowMeetingAttendees = !settings.ShowMeetingAttendees
+	require.NoError(t, r.store.UpdateSetting(ctx, settings, settingsRevision))
+	_, _, err = r.store.UpdateTotalMembers(ctx, "uid-1", 4)
+	require.NoError(t, err)
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-2", "project-1", "Committee Two")))
+
+	assert.Empty(t, r.counts(t, failures))
+}
+
+// failingRecheckCommitteeKV is a KV store whose second read of a committee fails, which is the read that follows the copy of
+// a create.
+type failingRecheckCommitteeKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (f *failingRecheckCommitteeKV) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	if f.calls.Add(1) == 2 {
+		return nil, 0, errPG
+	}
+	return f.CommitteeReaderWriter.GetBase(ctx, uid)
+}
+
+func TestStore_DualAReadOfKVAfterTheCopyOfACommitteeThatFailsIsCounted(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	r.store.kv = &failingRecheckCommitteeKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	assert.Equal(t, map[string]int64{"create_committee": 1}, r.counts(t, failures))
+}
+
+// updatingSettingsKV is a KV store that updates the settings as the copy of the committee's creation reads them back for the
+// second time.
+type updatingSettingsKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (u *updatingSettingsKV) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
+	if u.calls.Add(1) == 2 {
+		if settings, revision, err := u.CommitteeReaderWriter.GetSettings(ctx, uid); err == nil {
+			settings.ShowMeetingAttendees = !settings.ShowMeetingAttendees
+			_ = u.UpdateSetting(ctx, settings, revision)
+		}
+	}
+	return u.CommitteeReaderWriter.GetSettings(ctx, uid)
+}
+
+func TestStore_DualACreateCopiedWhileTheSettingsAreUpdatedLeavesTheNewSettings(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	r.store.kv = &updatingSettingsKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	sameRecord(t, r, "uid-1")
+	assert.Empty(t, r.counts(t, failures))
+}
+
+// vanishingCommitteeKV is a KV store that answers a read of a committee as found the first time and as not found after.
+type vanishingCommitteeKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (v *vanishingCommitteeKV) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	if v.calls.Add(1) > 1 {
+		return nil, 0, errs.NewNotFound("committee not found")
+	}
+	return v.CommitteeReaderWriter.GetBase(ctx, uid)
+}
+
+// A committee that PostgreSQL does not have is missing there, unless KV has lost it too while the copy was made.
+func TestStore_DualACommitteeDeletedInBothStoresWhileItWasBeingCopiedIsNotAFailure(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	committee := storetest.NewCommittee("uid-1", "project-1", "Committee One")
+	require.NoError(t, r.kv.Create(ctx, committee), "in KV only, so PostgreSQL has nothing to update")
+	base, revision, err := r.kv.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	r.store.kv = &vanishingCommitteeKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+
+	assert.Empty(t, r.counts(t, failures))
+}

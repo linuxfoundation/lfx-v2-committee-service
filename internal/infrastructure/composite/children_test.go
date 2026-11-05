@@ -4,7 +4,10 @@
 package composite
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,6 +19,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // Whatever the mode, the composite behaves as one store does for the members, the invites and the applications: the same
@@ -430,6 +434,26 @@ func TestChildren_DualCompareCountsWhatDiffers(t *testing.T) {
 		assert.Empty(t, r.counts(t, compareErr))
 	})
 
+	t.Run("the reads of the whole set are not compared", func(t *testing.T) {
+		r := newRig(t, ModeDual, nil, WithSampleRate(1))
+		require.NoError(t, r.kv.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")), "in KV only")
+		require.NoError(t, r.kv.CreateInvite(ctx, storetest.NewInvite("i-1", "uid-1", "first.last@example.com")))
+		require.NoError(t, r.kv.CreateApplication(ctx, storetest.NewApplication("a-1", "uid-1", "first.last@example.com")))
+
+		members, err := r.store.ListAllMembers(ctx)
+		require.NoError(t, err)
+		invites, err := r.store.ListAllInvites(ctx)
+		require.NoError(t, err)
+		applications, err := r.store.ListAllApplications(ctx)
+		require.NoError(t, err)
+
+		assert.Len(t, members, 1)
+		assert.Len(t, invites, 1)
+		assert.Len(t, applications, 1)
+		assert.Empty(t, r.counts(t, mismatches), "a whole-set read is not made twice on a request; storage verify compares them")
+		assert.Empty(t, r.counts(t, compareErr))
+	})
+
 	t.Run("a record only KV has is a mismatch in every read of it", func(t *testing.T) {
 		r := newRig(t, ModeDual, nil, WithSampleRate(1))
 		member := storetest.NewMember("m-1", "uid-1", "first.last@example.com")
@@ -453,9 +477,9 @@ func TestChildren_DualCompareCountsWhatDiffers(t *testing.T) {
 
 		assert.Equal(t, map[string]int64{
 			"get_member": 1, "get_member_revision": 1, "list_members_by_committee": 1, "list_members_by_organization": 1,
-			"list_members_by_email": 1, "list_members_by_username": 1, "list_all_members": 1,
-			"get_invite": 1, "list_invites": 1, "list_all_invites": 1,
-			"get_application": 1, "list_applications": 1, "list_all_applications": 1,
+			"list_members_by_email": 1, "list_members_by_username": 1,
+			"get_invite": 1, "list_invites": 1,
+			"get_application": 1, "list_applications": 1,
 		}, r.counts(t, mismatches))
 	})
 
@@ -511,4 +535,236 @@ func TestRecords_DigestsAreSortedAndByContent(t *testing.T) {
 	third, err := digests([]*model.CommitteeMember{&changed, b})
 	require.NoError(t, err)
 	assert.NotEqual(t, first, third)
+}
+
+// goneKV is a KV store that answers every read of a record as not found, as it does once a delete has finished.
+type goneKV struct{ port.CommitteeReaderWriter }
+
+func (goneKV) GetMember(context.Context, string) (*model.CommitteeMember, uint64, error) {
+	return nil, 0, errs.NewNotFound("member not found")
+}
+
+func (goneKV) GetInvite(context.Context, string) (*model.CommitteeInvite, uint64, error) {
+	return nil, 0, errs.NewNotFound("invite not found")
+}
+
+func (goneKV) GetApplication(context.Context, string) (*model.CommitteeApplication, uint64, error) {
+	return nil, 0, errs.NewNotFound("application not found")
+}
+
+func (goneKV) GetBase(context.Context, string) (*model.CommitteeBase, uint64, error) {
+	return nil, 0, errs.NewNotFound("committee not found")
+}
+
+func (goneKV) GetSettings(context.Context, string) (*model.CommitteeSettings, uint64, error) {
+	return nil, 0, errs.NewNotFound("committee settings not found")
+}
+
+// A record that KV no longer has when its copy is made was deleted meanwhile: there is nothing to copy, which is not a failure.
+func TestChildren_DualARecordKVHasLostIsNothingToCopy(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("an update", func(t *testing.T) {
+		for _, c := range children() {
+			r := newRig(t, ModeDual, nil)
+			uid := c.create(t, r)
+			r.store.kv = goneKV{r.kv}
+
+			c.update(t, r, uid)
+
+			assert.Empty(t, r.counts(t, failures), c.name)
+		}
+	})
+
+	t.Run("a create", func(t *testing.T) {
+		r := newRig(t, ModeDual, nil)
+		newCommittee(t, r)
+		r.store.kv = goneKV{r.kv}
+
+		require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
+		require.NoError(t, r.store.CreateInvite(ctx, storetest.NewInvite("i-1", "uid-1", "first.last@example.com")))
+		require.NoError(t, r.store.CreateApplication(ctx, storetest.NewApplication("a-1", "uid-1", "first.last@example.com")))
+
+		assert.Empty(t, r.counts(t, failures))
+		for _, c := range children() {
+			assert.True(t, goneFrom(c, r.pg, map[string]string{"member": "m-1", "invite": "i-1", "application": "a-1"}[c.name]), "nothing was copied: %s", c.name)
+		}
+	})
+}
+
+// vanishingKV is a KV store that answers a read of a member as found the first time and as not found after, as when a delete
+// finishes in the middle of a copy.
+type vanishingKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (v *vanishingKV) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
+	if v.calls.Add(1) > 1 {
+		return nil, 0, errs.NewNotFound("member not found")
+	}
+	return v.CommitteeReaderWriter.GetMember(ctx, uid)
+}
+
+// A member that PostgreSQL does not have is missing there, unless KV has lost it too while the copy was made.
+func TestChildren_DualAMemberDeletedInBothStoresWhileItWasBeingCopiedIsNotAFailure(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	member := storetest.NewMember("m-1", "uid-1", "first.last@example.com")
+	require.NoError(t, r.kv.CreateMember(ctx, member), "in KV only, so PostgreSQL has nothing to update")
+	_, revision, err := r.kv.GetMember(ctx, "m-1")
+	require.NoError(t, err)
+	r.store.kv = &vanishingKV{CommitteeReaderWriter: r.kv}
+
+	_, err = r.store.UpdateMember(ctx, member, revision)
+
+	require.NoError(t, err)
+	assert.Empty(t, r.counts(t, failures))
+}
+
+// failingRecheckKV is a KV store whose second read of a member fails, which is the read that follows the copy of a create.
+type failingRecheckKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (f *failingRecheckKV) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
+	if f.calls.Add(1) == 2 {
+		return nil, 0, errPG
+	}
+	return f.CommitteeReaderWriter.GetMember(ctx, uid)
+}
+
+// A read of KV after the copy that cannot be made is a failure to count: whether the record is still there is not known.
+func TestChildren_DualAReadOfKVAfterTheCopyThatFailsIsCounted(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	newCommittee(t, r)
+	r.store.kv = &failingRecheckKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
+
+	assert.Equal(t, map[string]int64{"create_member": 1}, r.counts(t, failures))
+}
+
+// updatingKV is a KV store that updates the member as the copy of its creation reads it back for the second time, which is
+// where an update that finishes while a create is being copied lands.
+type updatingKV struct {
+	port.CommitteeReaderWriter
+	calls atomic.Int32
+}
+
+func (u *updatingKV) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
+	if u.calls.Add(1) == 2 {
+		if member, revision, err := u.CommitteeReaderWriter.GetMember(ctx, uid); err == nil {
+			member.JobTitle = "updated meanwhile"
+			_, _ = u.UpdateMember(ctx, member, revision)
+		}
+	}
+	return u.CommitteeReaderWriter.GetMember(ctx, uid)
+}
+
+// An update that finishes in KV while a create is being copied failed to copy, for there was nothing in PostgreSQL to
+// update yet, and the insert would leave the older version. The copy catches up with what KV holds.
+func TestChildren_DualACreateCopiedWhileAnUpdateFinishesLeavesTheNewVersion(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	newCommittee(t, r)
+	r.store.kv = &updatingKV{CommitteeReaderWriter: r.kv}
+
+	require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
+
+	member, _, err := r.pg.GetMember(ctx, "m-1")
+	require.NoError(t, err)
+	assert.Equal(t, "updated meanwhile", member.JobTitle, "PostgreSQL holds the newer version")
+	sameChild(t, children()[0], r, "m-1")
+	assert.Empty(t, r.counts(t, failures))
+}
+
+// markerKV is a KV store whose update of a member returns a member of its own, to tell its result from the caller's.
+type markerKV struct{ port.CommitteeReaderWriter }
+
+func (m markerKV) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64) (*model.CommitteeMember, error) {
+	if _, err := m.CommitteeReaderWriter.UpdateMember(ctx, member, revision); err != nil {
+		return nil, err
+	}
+	return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: member.UID, JobTitle: "from the primary store"}}, nil
+}
+
+func TestChildren_UpdateMemberReturnsWhatThePrimaryStoreReturns(t *testing.T) {
+	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+		t.Run(string(mode), func(t *testing.T) {
+			ctx := context.Background()
+			r := newRig(t, mode, nil)
+			newCommittee(t, r)
+			require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
+			member, revision, err := r.store.GetMember(ctx, "m-1")
+			require.NoError(t, err)
+			r.store.CommitteeReaderWriter = markerKV{r.store.CommitteeReaderWriter}
+
+			updated, err := r.store.UpdateMember(ctx, member, revision)
+
+			require.NoError(t, err)
+			assert.Equal(t, "from the primary store", updated.JobTitle)
+		})
+	}
+}
+
+// An invite is never deleted on its own, which is why the copy of a created invite has nothing to take out again if a
+// delete finishes meanwhile. If the port ever gets a delete, the copy of a create has to take the record out as the
+// members' and the applications' do.
+func TestChildren_TheInviteWriterHasNoDelete(t *testing.T) {
+	writer := reflect.TypeFor[port.CommitteeInviteWriter]()
+
+	names := make([]string, 0, writer.NumMethod())
+	for i := range writer.NumMethod() {
+		names = append(names, writer.Method(i).Name)
+	}
+
+	assert.Equal(t, []string{"CreateInvite", "UpdateInvite"}, names, "see Store.CreateInvite before adding a method")
+}
+
+// A row that a failed delete copy left in PostgreSQL can block a member that is added again with the same email, which KV
+// accepts. The request succeeds, the copy is counted, and the new member is not in PostgreSQL until the stale row is gone.
+func TestChildren_DualAStaleRowInPostgreSQLBlocksTheCopyOfAMemberKVAccepted(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	newCommittee(t, r)
+	require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
+	_, revision, err := r.kv.GetMember(ctx, "m-1")
+	require.NoError(t, err)
+	require.NoError(t, r.kv.DeleteMember(ctx, "m-1", revision), "deleted in KV alone, as when the copy of the delete failed")
+
+	require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-2", "uid-1", "first.last@example.com")), "KV accepts it")
+
+	assert.Equal(t, map[string]int64{"create_member": 1}, r.counts(t, failures))
+	_, _, kvErr := r.kv.GetMember(ctx, "m-2")
+	_, _, pgErr := r.pg.GetMember(ctx, "m-2")
+	assert.NoError(t, kvErr)
+	assert.True(t, isNotFound(pgErr), "it is not in PostgreSQL, whose stale row holds the email")
+
+	member, revision, err := r.store.GetMember(ctx, "m-2")
+	require.NoError(t, err)
+	member.JobTitle = "changed"
+	_, err = r.store.UpdateMember(ctx, member, revision)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int64{"create_member": 1, "update_member": 1}, r.counts(t, failures), "and each later copy of it fails until the row is removed")
+}
+
+// A failed copy is logged with the uid of the record, so the row that was left behind can be found, and with nothing else of it.
+func TestChildren_DualAFailedCopyIsLoggedWithTheUIDAndNoPersonalData(t *testing.T) {
+	ctx := context.Background()
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	r := newRig(t, ModeDual, func(pg port.CommitteeReaderWriter) port.CommitteeReaderWriter { return failingChildPG{pg} })
+	newCommittee(t, r)
+
+	require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
+
+	assert.Contains(t, logs.String(), "operation=create_member")
+	assert.Contains(t, logs.String(), "uid=m-1")
+	assert.NotContains(t, logs.String(), "first.last@example.com")
+	assert.NotContains(t, logs.String(), "First")
 }

@@ -19,13 +19,13 @@ func (s *Store) CreateApplication(ctx context.Context, application *model.Commit
 	}
 	if s.mode == ModeDual {
 		uid := application.UID
-		s.replicate(ctx, "create_application", func(ctx context.Context) error {
+		s.replicate(ctx, "create_application", uid, func(ctx context.Context) error {
 			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
 				return s.kv.GetApplication(ctx, uid)
 			},
 				s.pg.CreateApplication, func(ctx context.Context, _ uint64) error {
 					return s.pg.DeleteApplication(ctx, application)
-				})
+				}, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, uid) })
 		})
 	}
 	return nil
@@ -38,17 +38,20 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	}
 	if s.mode == ModeDual {
 		uid := application.UID
-		s.replicate(ctx, "update_application", func(ctx context.Context) error {
-			return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
-				return s.kv.GetApplication(ctx, uid)
-			},
-				func(ctx context.Context) (uint64, error) {
-					_, current, err := s.pg.GetApplication(ctx, uid)
-					return current, err
-				}, s.pg.UpdateApplication)
-		})
+		s.replicate(ctx, "update_application", uid, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, uid) })
 	}
 	return nil
+}
+
+// copyApplicationUpdate writes the application KV holds now to PostgreSQL; see copyUpdated.
+func (s *Store) copyApplicationUpdate(ctx context.Context, uid string) error {
+	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
+		return s.kv.GetApplication(ctx, uid)
+	},
+		func(ctx context.Context) (uint64, error) {
+			_, current, err := s.pg.GetApplication(ctx, uid)
+			return current, err
+		}, s.pg.UpdateApplication)
 }
 
 // DeleteApplication removes a committee application. It has no revision to check, and deleting one that is already
@@ -58,7 +61,7 @@ func (s *Store) DeleteApplication(ctx context.Context, application *model.Commit
 		return err
 	}
 	if s.mode == ModeDual {
-		s.replicate(ctx, "delete_application", func(ctx context.Context) error { return s.pg.DeleteApplication(ctx, application) })
+		s.replicate(ctx, "delete_application", application.UID, func(ctx context.Context) error { return s.pg.DeleteApplication(ctx, application) })
 	}
 	return nil
 }
@@ -85,11 +88,8 @@ func (s *Store) ListApplications(ctx context.Context, committeeUID string) ([]*m
 	return applications, err
 }
 
-// ListAllApplications returns every application.
+// ListAllApplications returns every application. It reads the whole set, for repair work, and goes to the primary store
+// alone: a comparison of the whole set is what storage verify is for.
 func (s *Store) ListAllApplications(ctx context.Context) ([]*model.CommitteeApplication, error) {
-	applications, err := s.CommitteeReaderWriter.ListAllApplications(ctx)
-	if s.sampled() {
-		compareRecords(ctx, s, "list_all_applications", applications, err, s.pg.ListAllApplications)
-	}
-	return applications, err
+	return s.CommitteeReaderWriter.ListAllApplications(ctx)
 }
