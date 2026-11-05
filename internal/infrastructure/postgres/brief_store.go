@@ -223,7 +223,8 @@ func (s *Store) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeekl
 	if brief.CreatedAt.IsZero() {
 		brief.CreatedAt = now
 	}
-	// A write with an explicit revision copies a KV record, which already carries the update time KV stamped: keep it.
+	// A write with an explicit revision copies a KV record (the backfill), which already carries the update time KV
+	// stamped: keep it. Such a write must carry the update time its source of truth stamped.
 	if brief.UpdatedAt.IsZero() || explicitRevision(ctx, primaryRevision) == nil {
 		brief.UpdatedAt = now
 	}

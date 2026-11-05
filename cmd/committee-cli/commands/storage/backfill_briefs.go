@@ -16,7 +16,8 @@ import (
 // briefSpec copies the weekly briefs. A brief is found in PostgreSQL by its committee and window, as readers
 // find it, and PostgreSQL holds one brief per window: a KV window that holds two (a race between first
 // generations leaves the one the index does not serve in the bucket) has its second brief reported as a
-// constraint, and the exporter sends the served brief first, so the one a reader sees is the one that is kept.
+// constraint. The exporter sends the served brief first and the briefs are copied by one worker, so the one a
+// reader sees is the one that is kept.
 func briefSpec(src port.KVExportReader, sink backfillSink) childSpec[*model.GroupWeeklyBrief] {
 	return childSpec[*model.GroupWeeklyBrief]{
 		each:         src.EachBriefExport,
@@ -37,12 +38,12 @@ func briefSpec(src port.KVExportReader, sink backfillSink) childSpec[*model.Grou
 		create: func(ctx context.Context, b *model.GroupWeeklyBrief) error {
 			b.Revision = 0
 			_, err := sink.PutGroupWeeklyBrief(ctx, b)
-			return briefConflict(err)
+			return lostWrite(err, briefHeld)
 		},
 		update: func(ctx context.Context, b *model.GroupWeeklyBrief, pgRevision uint64) error {
 			b.Revision = pgRevision
 			_, err := sink.PutGroupWeeklyBrief(ctx, b)
-			return briefConflict(err)
+			return lostWrite(err, briefHeld)
 		},
 	}
 }
@@ -68,22 +69,25 @@ func throttleSpec(src port.KVExportReader, sink backfillSink) childSpec[*model.G
 		create: func(ctx context.Context, t *model.GroupWeeklyBriefThrottle) error {
 			t.Revision = 0
 			_, err := sink.PutGroupWeeklyBriefThrottle(ctx, t)
-			return briefConflict(err)
+			return lostWrite(err, "the weekly-brief throttle entry was written by another writer during the run")
 		},
 		update: func(ctx context.Context, t *model.GroupWeeklyBriefThrottle, pgRevision uint64) error {
 			t.Revision = pgRevision
 			_, err := sink.PutGroupWeeklyBriefThrottle(ctx, t)
-			return briefConflict(err)
+			return lostWrite(err, "the weekly-brief throttle entry was written by another writer during the run")
 		},
 	}
 }
 
-// briefConflict turns the retryable service-unavailable error the store gives for a window that is taken or a swap
-// that was lost into a conflict: a copy does not retry, it reports, and a lost swap here means someone else wrote the row.
-func briefConflict(err error) error {
+const briefHeld = "the weekly brief window is held by another record or was changed during the run"
+
+// lostWrite turns the retryable service-unavailable error the store gives for a window that is taken or a swap
+// that was lost into a conflict with the message given: a copy does not retry, it reports, and a lost swap here
+// means someone else wrote the row.
+func lostWrite(err error, message string) error {
 	var unavailable errs.ServiceUnavailable
 	if errors.As(err, &unavailable) {
-		return errs.NewConflict("the weekly brief window is held by another record or was changed during the run")
+		return errs.NewConflict(message)
 	}
 	return err
 }

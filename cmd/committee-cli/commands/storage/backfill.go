@@ -330,7 +330,11 @@ func childCopies(src port.KVExportReader, sink backfillSink, opts backfillOption
 			return copyChildren(ctx, documentSpec(src, sink), opts, t, c)
 		}},
 		{entityBriefs, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
-			return copyChildren(ctx, briefSpec(src, sink), opts, t, c)
+			// One at a time, in the order the exporter sends them: the brief a reader was served has to
+			// take its window before the other one of that window is tried.
+			serial := opts
+			serial.Workers = 1
+			return copyChildren(ctx, briefSpec(src, sink), serial, t, c)
 		}},
 		{entityThrottles, func(ctx context.Context, t *tracker, c map[string]struct{}) error {
 			return copyChildren(ctx, throttleSpec(src, sink), opts, t, c)

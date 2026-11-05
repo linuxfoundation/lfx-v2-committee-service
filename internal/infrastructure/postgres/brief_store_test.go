@@ -132,7 +132,7 @@ func TestStore_PutGroupWeeklyBrief(t *testing.T) {
 	})
 
 	t.Run("a write with an explicit revision keeps the update time it carries, a plain write stamps it", func(t *testing.T) {
-		// The backfill and the composite store copy a KV record, whose update time KV already stamped.
+		// The backfill copies a KV record, whose update time KV already stamped.
 		explicit, err := WithRevision(ctx, 9000)
 		require.NoError(t, err)
 		kept := testBrief("b-kept", "committee-kept", testWindow)

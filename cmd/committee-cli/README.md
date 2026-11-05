@@ -633,13 +633,13 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 | `--dry-run` | `false` | Read and classify everything, write nothing; `written` is what a run would write |
 | `--include-orphans` | `false` | Also copy children whose committee does not exist in KV |
 | `--workers` | `4` | Records written to PostgreSQL concurrently |
-| `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each) is also held, for the orphan check |
+| `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each), and of every served brief, is also held, for the orphan check and the brief order |
 
 **Orphans.** KV never removed a deleted committee's members, invites, links, folders, documents or briefs, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them.
 
 **Documents.** Only the metadata moves; the files stay in the Object Store, which the move does not touch.
 
-**Weekly briefs.** PostgreSQL holds one brief per committee and window, and a brief is found by that window. KV can hold two briefs for one window, when two first generations raced; only the one the window index names was ever served. The served briefs are copied first, so the one a reader saw is the one that is kept, and the other is reported as `constraint`. A brief keeps the update time KV stamped.
+**Weekly briefs.** PostgreSQL holds one brief per committee and window, and a brief is found by that window. KV can hold two briefs for one window, when two first generations raced; only the one the window index names was ever served. The served briefs are copied first, and the briefs by one worker whatever `--workers` says, so the one a reader saw is the one that is kept, and the other is reported as `constraint`. A brief keeps the update time KV stamped.
 
 **Timestamps.** Invites and applications have no update time of their own in KV: PostgreSQL's is set to the creation time when the row is created, and to the time of the copy when a later run updates it.
 

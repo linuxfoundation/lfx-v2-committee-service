@@ -6,7 +6,9 @@ package storage
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +20,17 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
+
+// problemsOfKind is the problems of one kind, whatever order the records were handled in.
+func problemsOfKind(r backfillResult, kind string) []backfillProblem {
+	var out []backfillProblem
+	for _, p := range r.Problems {
+		if p.Kind == kind {
+			out = append(out, p)
+		}
+	}
+	return out
+}
 
 func rec[T any](record T, revision uint64) childRecord[T] {
 	return childRecord[T]{record: record, revision: revision}
@@ -188,8 +201,10 @@ func TestRunBackfill_ChildrenKVAheadUpdatesAndPostgreSQLAheadIsReported(t *testi
 		r := result(t, results, entity)
 		assert.EqualValues(t, 1, r.Errors, entity)
 		assert.Zero(t, r.Written, entity)
-		require.NotEmpty(t, r.Problems, entity)
-		assert.Contains(t, r.Problems, backfillProblem{UID: r.Problems[len(r.Problems)-1].UID, Kind: "ahead", Message: "PostgreSQL has a newer revision than KV"}, entity)
+		ahead := problemsOfKind(r, "ahead")
+		require.Len(t, ahead, 1, entity)
+		assert.Equal(t, "PostgreSQL has a newer revision than KV", ahead[0].Message, entity)
+		assert.NotEmpty(t, ahead[0].UID, entity)
 	}
 	assert.Equal(t, 200, int(pgRevisions(ctx, t, store)[entityThrottles]), "PostgreSQL was left as it was")
 	invite, _, err = store.GetInvite(ctx, "i-1")
@@ -310,14 +325,43 @@ func TestRunBackfill_ALostBriefWriteIsReportedAsAConstraintWithItsKey(t *testing
 
 	require.Error(t, err)
 	briefs, throttles := result(t, results, entityBriefs), result(t, results, entityThrottles)
-	assert.Equal(t, "b-1", briefs.Problems[len(briefs.Problems)-1].UID)
 	for _, r := range []backfillResult{briefs, throttles} {
 		assert.EqualValues(t, 1, r.Errors, r.Entity)
 		assert.Zero(t, r.Written, r.Entity)
 	}
-	assert.Equal(t, backfillProblem{UID: "b-1", Kind: "constraint", Message: "the weekly brief window is held by another record or was changed during the run"}, briefs.Problems[len(briefs.Problems)-1])
-	assert.Equal(t, "c-1.20260104", throttles.Problems[len(throttles.Problems)-1].UID, "a throttle entry is named by its committee and window")
-	assert.Equal(t, "constraint", throttles.Problems[len(throttles.Problems)-1].Kind)
+	assert.Equal(t, []backfillProblem{{UID: "b-1", Kind: "constraint", Message: "the weekly brief window is held by another record or was changed during the run"}}, problemsOfKind(briefs, "constraint"))
+	assert.Equal(t, []backfillProblem{{UID: "c-1.20260104", Kind: "constraint", Message: "the weekly-brief throttle entry was written by another writer during the run"}},
+		problemsOfKind(throttles, "constraint"), "a throttle entry is named by its committee and window, and its report does not point at the brief window")
+}
+
+// slowServedSink makes the lookup of a served brief ("b-served-...") slow, so a brief handled at the same time as it
+// would take the window first.
+type slowServedSink struct{ *postgres.Store }
+
+func (s slowServedSink) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error) {
+	if strings.HasPrefix(window.UID, "b-served-") {
+		time.Sleep(200 * time.Millisecond)
+	}
+	return s.Store.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+}
+
+func TestRunBackfill_TheServedBriefTakesItsWindowWhateverTheWorkers(t *testing.T) {
+	ctx := context.Background()
+	store := postgrestest.NewStore(t)
+	src := &fakeSource{committees: []port.CommitteeExport{kvCommittee("c-1", "Committee One", 1, 2)}}
+	src.briefs = []childRecord[*model.GroupWeeklyBrief]{
+		kvBrief(storetest.NewBrief("b-served-1", "c-1", storetest.FixtureWindow), 40),
+		kvBrief(storetest.NewBrief("b-other-1", "c-1", storetest.FixtureWindow), 35)}
+
+	results, err := runBackfill(ctx, src, slowServedSink{store}, backfillOptions{Entities: []string{entityBriefs}, Workers: 8})
+
+	require.Error(t, err)
+	r := result(t, results, entityBriefs)
+	require.Len(t, r.Problems, 1)
+	assert.Equal(t, "b-other-1", r.Problems[0].UID, "the brief that was not served is the one that is refused")
+	kept, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "c-1", *storetest.NewBrief("x", "c-1", storetest.FixtureWindow))
+	require.NoError(t, err)
+	assert.Equal(t, "b-served-1", kept.UID)
 }
 
 func TestRunBackfill_TheCommitteesAreListedOnceForAllTheChildren(t *testing.T) {
