@@ -318,6 +318,18 @@ func TestRunVerify_AScanThatCannotBeCompletedIsAnError(t *testing.T) {
 		assert.Contains(t, r.Problems[len(r.Problems)-1].Message, "reading KV")
 	})
 
+	t.Run("a KV scan that stops early does not make the rows it did not reach extra", func(t *testing.T) {
+		src, store := migratedSource(t, backfillOptions{})
+
+		results, err := runVerify(ctx, earlyFailSource{src}, store, verifyOptions{Entities: []string{entityMembers}})
+
+		require.Error(t, err)
+		r := verifyResultOf(t, results, entityMembers)
+		assert.Zero(t, r.Extra, "the rows are in KV, which could not be read")
+		assert.EqualValues(t, 1, r.Errors)
+		assert.Contains(t, r.Problems[0].Message, "2 PostgreSQL rows could not be checked against KV")
+	})
+
 	t.Run("a PostgreSQL scan that fails leaves nothing to say about what is missing", func(t *testing.T) {
 		src, store := migratedSource(t, backfillOptions{})
 
@@ -331,6 +343,13 @@ func TestRunVerify_AScanThatCannotBeCompletedIsAnError(t *testing.T) {
 		members := verifyResultOf(t, results, entityMembers)
 		assert.Zero(t, members.differences(), "the other entities are still compared")
 	})
+}
+
+// earlyFailSource is a KV store whose member scan fails before it streams anything.
+type earlyFailSource struct{ *fakeSource }
+
+func (earlyFailSource) EachMemberExport(context.Context, func(*model.CommitteeMember, uint64) error) error {
+	return errors.New("nats down")
 }
 
 // noListSource is a store that cannot list its committees.

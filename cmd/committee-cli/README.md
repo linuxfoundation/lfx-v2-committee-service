@@ -670,7 +670,7 @@ For each entity it streams both stores and compares them by uid:
 - **`missing`**: the record is in KV and not in PostgreSQL.
 - **`extra`**: the record is in PostgreSQL and not in KV. `migrate` never deletes, so a record removed from KV after a copy is reported here.
 - **`mismatch`**: the record is in both and differs in its **content** (a SHA-256 over the record normalized as below) or its **revision**, or both; the finding says which. It does not print the values, which can be personal data.
-- **`source`**: a scan could not be completed (a record that cannot be read, or a store that cannot be listed or reached). The comparison of that entity is incomplete, so this is a difference too.
+- **`source`**: a scan could not be completed (a record that cannot be read, or a store that cannot be listed or reached). The comparison of that entity is incomplete, so this is a difference too. When the KV scan is the one that failed, the PostgreSQL rows it did not reach are not reported `extra`, since they may well be in KV; the finding says how many could not be checked.
 
 The content hash is over the model as JSON without its revision (which is compared on its own), with the keys sorted and the times in UTC and to the microsecond PostgreSQL keeps. Nothing else is folded away, so an empty list and a missing one differ, as the PostgreSQL store keeps them. Anything that differs is a mismatch.
 

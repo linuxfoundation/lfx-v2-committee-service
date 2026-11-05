@@ -17,7 +17,7 @@ import (
 // a second connection from the pool. A row that cannot be read ends the stream with an error.
 
 // selectAllThrottles is selectThrottle without its committee and window.
-const selectAllThrottles = "SELECT " + "committee_uid, window_start, window_end, generates_used, regenerations_used, window_resets_at" + ", revision FROM group_weekly_brief_throttle"
+var selectAllThrottles = "SELECT " + columnList(throttleColumns) + ", revision FROM group_weekly_brief_throttle"
 
 // eachRow streams the rows of query, which selects what scan reads, to fn.
 func eachRow[T any](ctx context.Context, s *Store, what, query string, scan func(pgx.Row) (T, uint64, error), fn func(T, uint64) error) error {

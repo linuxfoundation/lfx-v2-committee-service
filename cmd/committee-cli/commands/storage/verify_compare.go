@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -174,14 +175,17 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 			differs = append(differs, fmt.Sprintf("revision differs (KV %d, PostgreSQL %d)", revision, row.revision))
 		}
 		if len(differs) > 0 {
-			res.add(ctx, uid, verifyMismatch, joinReasons(differs))
+			res.add(ctx, uid, verifyMismatch, strings.Join(differs, "; "))
 			return nil
 		}
 		res.Matched++
 		return nil
 	})
 	if err != nil {
-		res.add(ctx, "", verifyScan, fmt.Sprintf("reading KV: %v", err))
+		// A KV scan that did not complete cannot say which PostgreSQL rows KV lacks: a record it could not read, or
+		// that it never reached, is still in KV. The rows are not reported extra; they are counted as unchecked.
+		res.add(ctx, "", verifyScan, fmt.Sprintf("reading KV: %v; %d PostgreSQL rows could not be checked against KV", err, len(rows)))
+		return
 	}
 
 	extra := make([]string, 0, len(rows))
@@ -192,14 +196,6 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 	for _, uid := range extra {
 		res.add(ctx, uid, verifyExtra, "in PostgreSQL and not in KV")
 	}
-}
-
-func joinReasons(reasons []string) string {
-	out := reasons[0]
-	for _, r := range reasons[1:] {
-		out += "; " + r
-	}
-	return out
 }
 
 // digestOf is the SHA-256 of the record in a form that does not depend on how a store holds it: the JSON of the
