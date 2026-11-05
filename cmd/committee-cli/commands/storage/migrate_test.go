@@ -12,28 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres/postgrestest"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 )
 
-// kvExport is a KV store holding one committee with settings, a member of it and an orphan.
-type kvExport struct{}
-
-func (kvExport) ListAllUIDs(context.Context) ([]string, error) { return []string{"c-1"}, nil }
-
-func (kvExport) EachCommitteeExport(_ context.Context, fn func(port.CommitteeExport) error) error {
-	c := storetest.NewCommittee("c-1", "project-1", "Committee One")
-	return fn(port.CommitteeExport{Base: &c.CommitteeBase, BaseRevision: 10, Settings: c.CommitteeSettings, SettingsRevision: 11})
-}
-
-func (kvExport) EachMemberExport(_ context.Context, fn func(*model.CommitteeMember, uint64) error) error {
-	if err := fn(storetest.NewMember("m-1", "c-1", "first.last@example.com"), 30); err != nil {
-		return err
+// migrateSource is a KV store holding one committee with settings, a member of it and an orphan.
+func migrateSource() *fakeSource {
+	return &fakeSource{
+		committees: []port.CommitteeExport{kvCommittee("c-1", "Committee One", 10, 11)},
+		members: []memberRecord{
+			kvMember("m-1", "c-1", "first.last@example.com", 30),
+			kvMember("m-orphan", "c-deleted", "first.last2@example.com", 31),
+		},
 	}
-	return fn(storetest.NewMember("m-orphan", "c-deleted", "first.last2@example.com"), 31)
 }
 
 func TestMigrate_Run(t *testing.T) {
@@ -42,7 +34,7 @@ func TestMigrate_Run(t *testing.T) {
 	closed := false
 	rc := func(args ...string) commands.RunContext {
 		return commands.RunContext{
-			KVExport:      kvExport{},
+			KVExport:      migrateSource(),
 			PostgresStore: func(context.Context) (*postgres.Store, func(), error) { return store, func() { closed = true }, nil },
 			Args:          args,
 		}
@@ -87,7 +79,7 @@ func TestMigrate_Run(t *testing.T) {
 
 	t.Run("a bad flag or entity is an error and nothing is connected", func(t *testing.T) {
 		connected := false
-		bad := commands.RunContext{KVExport: kvExport{}, PostgresStore: func(context.Context) (*postgres.Store, func(), error) {
+		bad := commands.RunContext{KVExport: migrateSource(), PostgresStore: func(context.Context) (*postgres.Store, func(), error) {
 			connected = true
 			return store, func() {}, nil
 		}}
@@ -95,14 +87,14 @@ func TestMigrate_Run(t *testing.T) {
 			bad.Args = args
 			require.Error(t, (&migrateSubcommand{out: &bytes.Buffer{}}).Run(ctx, bad), args)
 		}
-		bad.Args = []string{"--entity=invites"}
-		require.ErrorContains(t, (&migrateSubcommand{out: &bytes.Buffer{}}).Run(ctx, bad), `unknown entity "invites"`)
+		bad.Args = []string{"--entity=widgets"}
+		require.ErrorContains(t, (&migrateSubcommand{out: &bytes.Buffer{}}).Run(ctx, bad), `unknown entity "widgets"`)
 		assert.False(t, connected, "a typo is found before anything connects")
 	})
 
 	t.Run("a stray argument is an error and does not start a live run", func(t *testing.T) {
 		connected := false
-		stray := commands.RunContext{KVExport: kvExport{}, Args: []string{"members", "--dry-run"}, PostgresStore: func(context.Context) (*postgres.Store, func(), error) {
+		stray := commands.RunContext{KVExport: migrateSource(), Args: []string{"members", "--dry-run"}, PostgresStore: func(context.Context) (*postgres.Store, func(), error) {
 			connected = true
 			return store, func() {}, nil
 		}}
