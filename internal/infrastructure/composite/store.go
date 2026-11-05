@@ -43,10 +43,12 @@ const (
 //   - postgres: the PostgreSQL store only.
 //
 // There is no transaction across the two stores. A write the primary store only partly made, and so refused, is not
-// copied. Only the committees and their settings are composed so far; the other records go to the primary store alone,
-// and the Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of a
-// deleted committee behind. It is not complete enough to be wired in until the remaining records are composed and the
-// cascade is exposed for the stores that have it, which is why no mode but kv is available at startup.
+// copied. The committees, their settings, the members, the invites and the applications are composed, which is the whole
+// of port.CommitteeReaderWriter apart from the streams EachMember and EachMemberStrict, which go to the primary store
+// alone. The links, folders, documents and weekly briefs are other aggregates with stores of their own and are not
+// composed yet. The Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of
+// a deleted committee behind. It is not complete enough to be wired in until those are composed and the cascade is exposed
+// for the stores that have it, which is why no mode but kv is available at startup.
 type Store struct {
 	port.CommitteeReaderWriter
 

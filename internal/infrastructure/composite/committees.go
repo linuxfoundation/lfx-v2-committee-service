@@ -5,13 +5,11 @@ package composite
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
-	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // The writes below return what the primary store returns. In dual mode each is followed by the same change in
@@ -93,26 +91,16 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 	return nil
 }
 
-// deleteInPostgreSQL removes the committee and its settings from PostgreSQL after KV decided that it is gone. It is
-// guarded by the revision the committee had. If PostgreSQL is not at that revision, because an earlier copy of this
-// committee failed, it is removed under the revision it has now: storage migrate never deletes, and left behind the row
-// would keep the name and the SSO group name taken there, and the settings with their webhook URL. A committee that is
-// not there, or goes away meanwhile, is where a delete leaves it, and is not a failure.
+// deleteInPostgreSQL removes the committee and its settings from PostgreSQL after KV decided that it is gone; see
+// deleteConverged. Left behind, the row would keep the name and the SSO group name taken there, and the settings with their
+// webhook URL.
 func (s *Store) deleteInPostgreSQL(ctx context.Context, uid string, revision uint64) error {
-	err := s.pg.Delete(ctx, uid, revision)
-	var stale errs.Conflict
-	if errors.As(err, &stale) {
-		_, current, getErr := s.pg.GetBase(ctx, uid)
-		if getErr != nil {
-			err = getErr
-		} else {
-			err = s.pg.Delete(ctx, uid, current)
-		}
-	}
-	if isNotFound(err) {
-		return nil
-	}
-	return err
+	return deleteConverged(ctx,
+		func(ctx context.Context, revision uint64) error { return s.pg.Delete(ctx, uid, revision) },
+		func(ctx context.Context) (uint64, error) {
+			_, current, err := s.pg.GetBase(ctx, uid)
+			return current, err
+		}, revision)
 }
 
 // UpdateHasMailingList sets has_mailing_list; see port.CommitteeBaseWriter.
