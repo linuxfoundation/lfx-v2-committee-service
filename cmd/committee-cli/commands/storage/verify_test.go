@@ -6,6 +6,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,6 +111,43 @@ func TestVerify_ListsAtMostMaxPrintedProblems(t *testing.T) {
 
 	assert.Contains(t, out.String(), "... more are in the log")
 	assert.Equal(t, 1, bytes.Count(out.Bytes(), []byte("... more are in the log")))
+}
+
+func TestVerify_ListsTheDifferencesBeforeTheOrphans(t *testing.T) {
+	ctx := context.Background()
+	src, store := migratedSource(t, backfillOptions{})
+	for i := range maxPrintedProblems + 20 {
+		src.members = append(src.members, kvMember(fmt.Sprintf("m-orphan-%d", i), "c-deleted", "first.last@example.com", 600))
+	}
+	src.throttles[0].record.GeneratesUsed++ // an entity after the members, whose difference must not be pushed out
+	var out bytes.Buffer
+	rc := commands.RunContext{KVExport: src, PostgresStore: func(context.Context) (*postgres.Store, func(), error) { return store, func() {}, nil }}
+
+	require.Error(t, (&verifySubcommand{out: &out}).Run(ctx, rc))
+
+	assert.Contains(t, out.String(), "  throttles mismatch uid=c-1.20260104: content differs")
+	assert.Contains(t, out.String(), "... more are in the log", "the orphans fill what is left of the lines")
+	assert.Less(t, bytes.Index(out.Bytes(), []byte("throttles mismatch")), bytes.Index(out.Bytes(), []byte("kv-orphan")))
+}
+
+func TestVerify_BothSortsOfOrphanAreListedAfterTheDifferences(t *testing.T) {
+	ctx := context.Background()
+	src, store := migratedSource(t, backfillOptions{IncludeOrphans: true}) // the orphans are in both stores
+	src.members = nil                                                      // every member PostgreSQL has is now extra, and the orphan among them is still an orphan
+	var out bytes.Buffer
+	rc := commands.RunContext{KVExport: src, PostgresStore: func(context.Context) (*postgres.Store, func(), error) { return store, func() {}, nil }}
+
+	require.Error(t, (&verifySubcommand{out: &out}).Run(ctx, rc))
+
+	assert.Less(t, bytes.Index(out.Bytes(), []byte("members extra")), bytes.Index(out.Bytes(), []byte("pg-orphan")), "a PostgreSQL orphan is an orphan: it comes after the differences")
+}
+
+func TestIsOrphan(t *testing.T) {
+	assert.True(t, isOrphan(verifyKVOrphan))
+	assert.True(t, isOrphan(verifyPGOrphan))
+	for _, kind := range []string{verifyMissing, verifyExtra, verifyMismatch, verifyScan} {
+		assert.False(t, isOrphan(kind), kind)
+	}
 }
 
 func TestStorageCommand_HasMigrateAndVerify(t *testing.T) {

@@ -31,10 +31,12 @@ type fakeSource struct {
 	documents    []childRecord[*model.CommitteeDocument]
 	briefs       []childRecord[*model.GroupWeeklyBrief]
 	throttles    []childRecord[*model.GroupWeeklyBriefThrottle]
-	committeeErr error // returned by the committee scan after the committees, like an aggregated read failure
-	memberErr    error
-	listErr      error // returned when the committee uids are listed
-	listCalls    int   // how many times the committee uids were listed
+	// orphanSettings are settings KV still holds for a committee it no longer has.
+	orphanSettings []childRecord[*model.CommitteeSettings]
+	committeeErr   error // returned by the committee scan after the committees, like an aggregated read failure
+	memberErr      error
+	listErr        error // returned when the committee uids are listed
+	listCalls      int   // how many times the committee uids were listed
 }
 
 // memberRecord is a member with the revision it has in KV.
@@ -69,6 +71,19 @@ func (f *fakeSource) EachCommitteeExport(_ context.Context, fn func(port.Committ
 		}
 	}
 	return f.committeeErr
+}
+
+func (f *fakeSource) EachSettingsExport(_ context.Context, fn func(*model.CommitteeSettings, uint64) error) error {
+	for _, c := range f.committees {
+		if c.Settings == nil {
+			continue
+		}
+		c.Settings.UID = c.Base.UID // the exporter keys the settings by the committee uid
+		if err := fn(c.Settings, c.SettingsRevision); err != nil {
+			return err
+		}
+	}
+	return each(f.orphanSettings, nil, fn)
 }
 
 func (f *fakeSource) EachMemberExport(_ context.Context, fn func(*model.CommitteeMember, uint64) error) error {
@@ -422,4 +437,25 @@ func TestRunBackfill_ManyRecordsThroughSmallBuffersAndManyWorkers(t *testing.T) 
 	members := result(t, results, entityMembers)
 	assert.EqualValues(t, 200, members.Written)
 	assert.EqualValues(t, 1199, members.HighestRevision)
+}
+
+func TestRunBackfill_SettingsOfACommitteeKVNoLongerHasAreReportedAsOrphansAndNotCopied(t *testing.T) {
+	ctx := context.Background()
+	store := postgrestest.NewStore(t)
+	src := newSource()
+	orphan := storetest.NewCommittee("c-deleted", "project-1", "Committee Deleted").CommitteeSettings
+	orphan.UID = "c-deleted"
+	src.orphanSettings = []childRecord[*model.CommitteeSettings]{rec(orphan, 700)}
+
+	for _, include := range []bool{false, true} {
+		results, err := runBackfill(ctx, src, store, backfillOptions{IncludeOrphans: include})
+
+		require.NoError(t, err, "an orphan is reported, not an error")
+		r := result(t, results, resultSettings)
+		assert.EqualValues(t, 1, r.Orphans, "include=%v", include)
+		assert.EqualValues(t, 700, r.HighestRevision, "their revision counts for the highest revision to advance the sequence past")
+		assert.Contains(t, r.Problems, backfillProblem{UID: "c-deleted", Kind: "orphan", Message: "its committee does not exist in KV"})
+		_, _, err = store.GetSettings(ctx, "c-deleted")
+		assert.True(t, isNotFound(err), "PostgreSQL creates settings only along with their committee")
+	}
 }

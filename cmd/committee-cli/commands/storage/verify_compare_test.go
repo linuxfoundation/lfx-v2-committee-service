@@ -6,6 +6,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -227,6 +228,48 @@ func TestRunVerify_ADifferentRevisionIsAMismatchEvenWithTheSameContent(t *testin
 	assert.Equal(t, verifyProblem{UID: "i-1", Kind: verifyMismatch, Message: "revision differs (KV 41, PostgreSQL 40)"}, r.Problems[0])
 }
 
+func TestRunVerify_SettingsOfACommitteeKVNoLongerHasAreAnOrphanAndNeverMissing(t *testing.T) {
+	ctx := context.Background()
+	src, store := migratedSource(t, backfillOptions{IncludeOrphans: true})
+	orphan := storetest.NewCommittee("c-deleted", "project-1", "Committee Deleted").CommitteeSettings
+	orphan.UID = "c-deleted" // the settings a failed delete left behind when the committee base was gone
+	src.orphanSettings = []childRecord[*model.CommitteeSettings]{rec(orphan, 500)}
+
+	for _, include := range []bool{false, true} {
+		results, err := runVerify(ctx, src, store, verifyOptions{IncludeOrphans: include})
+
+		require.NoError(t, err, "migrate cannot copy them, so they are not a difference, with or without --include-orphans")
+		r := verifyResultOf(t, results, resultSettings)
+		assert.EqualValues(t, 1, r.KVOrphans)
+		assert.Zero(t, r.Missing)
+		assert.Zero(t, r.Extra, "they are not reported extra either")
+		assert.Contains(t, r.Problems, verifyProblem{UID: "c-deleted", Kind: verifyKVOrphan, Message: "its committee does not exist in KV"})
+	}
+}
+
+func TestRunVerify_ManyOrphansDoNotCrowdOutADifference(t *testing.T) {
+	ctx := context.Background()
+	src, store := migratedSource(t, backfillOptions{})
+	for i := range maxProblems + 50 {
+		src.members = append(src.members, kvMember(fmt.Sprintf("m-orphan-%d", i), "c-deleted", "first.last@example.com", 600))
+	}
+	src.members[0].record.JobTitle = "changed" // streamed before the orphans, and the orphans keep coming after it
+	src.members = append(src.members[1:], src.members[0])
+
+	results, err := runVerify(ctx, src, store, verifyOptions{})
+
+	require.Error(t, err)
+	r := verifyResultOf(t, results, entityMembers)
+	assert.EqualValues(t, maxProblems+50+1, r.KVOrphans, "every orphan is counted")
+	assert.EqualValues(t, 1, r.Mismatched)
+	var found bool
+	for _, p := range r.Problems {
+		found = found || (p.Kind == verifyMismatch && p.UID == "m-1")
+	}
+	assert.True(t, found, "the difference is kept although the orphans filled their own cap")
+	assert.LessOrEqual(t, len(r.Problems), maxProblems+1)
+}
+
 func TestRunVerify_ARecordThatDiffersInContentAndRevisionSaysBoth(t *testing.T) {
 	ctx := context.Background()
 	src, store := migratedSource(t, backfillOptions{})
@@ -416,6 +459,51 @@ func TestDigestOf(t *testing.T) {
 		other.CreatedAt = at.Truncate(time.Microsecond).In(time.FixedZone("UTC+2", 2*60*60))
 		other.UpdatedAt = other.CreatedAt
 		assert.Equal(t, digest(base()), digest(other), "the zone and anything under the microsecond")
+	})
+
+	t.Run("text that looks like a time is compared as text", func(t *testing.T) {
+		message := func(text string) *model.CommitteeApplication {
+			a := storetest.NewApplication("a-1", "c-1", "first.last@example.com")
+			a.Message = text
+			return a
+		}
+		reviewed := func(text string) *model.CommitteeSettings {
+			s := storetest.NewCommittee("c-1", "project-1", "Committee One").CommitteeSettings
+			s.LastReviewedAt = &text
+			return s
+		}
+		digestOfRecord := func(v any) [32]byte {
+			d, err := digestOf(v)
+			require.NoError(t, err)
+			return d
+		}
+		assert.NotEqual(t, digestOfRecord(message("2026-01-04T10:30:00Z")), digestOfRecord(message("2026-01-04T12:30:00+02:00")),
+			"the same instant in another zone, written as text")
+		assert.NotEqual(t, digestOfRecord(reviewed("2026-01-04T10:30:00Z")), digestOfRecord(reviewed("2026-01-04T10:30:00.1234567Z")),
+			"a date the model keeps as a string, to a precision PostgreSQL does not keep")
+		assert.Equal(t, digestOfRecord(message("same")), digestOfRecord(message("same")))
+	})
+
+	t.Run("times behind pointers are normalized", func(t *testing.T) {
+		invite := func(at time.Time) *model.GroupWeeklyBrief {
+			b := storetest.NewBrief("b-1", "c-1", storetest.FixtureWindow)
+			b.LastEditedAt = &at
+			return b
+		}
+		inZone := at.Truncate(time.Microsecond).In(time.FixedZone("UTC+2", 2*60*60))
+		a, err := digestOf(invite(at.Truncate(time.Microsecond)))
+		require.NoError(t, err)
+		b, err := digestOf(invite(inZone))
+		require.NoError(t, err)
+		assert.Equal(t, a, b)
+	})
+
+	t.Run("the record itself is not changed", func(t *testing.T) {
+		l := base()
+		before := l.CreatedAt
+		_, err := digestOf(l)
+		require.NoError(t, err)
+		assert.True(t, before.Equal(l.CreatedAt) && before.Nanosecond() == l.CreatedAt.Nanosecond(), "a digest does not truncate the time of the record it was made from")
 	})
 
 	t.Run("times inside lists and objects are normalized too", func(t *testing.T) {

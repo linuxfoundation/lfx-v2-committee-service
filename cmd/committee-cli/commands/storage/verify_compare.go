@@ -4,12 +4,12 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -79,7 +79,13 @@ type verifyResult struct {
 	// Errors are the scans that could not be completed.
 	Errors   int64
 	Problems []verifyProblem
+	// keptOrphans and keptOther count the problems kept of each sort: orphans have a cap of their own, so many of them
+	// cannot leave no room for the differences.
+	keptOrphans, keptOther int
 }
+
+// isOrphan tells an orphan finding from a difference.
+func isOrphan(kind string) bool { return kind == verifyKVOrphan || kind == verifyPGOrphan }
 
 // differences is what makes the stores differ; orphans are reported and are not a difference.
 func (r *verifyResult) differences() int64 { return r.Missing + r.Extra + r.Mismatched + r.Errors }
@@ -99,7 +105,12 @@ func (r *verifyResult) add(ctx context.Context, uid, kind, message string) {
 	case verifyPGOrphan:
 		r.PostgreSQLOrphans++
 	}
-	if len(r.Problems) < maxProblems {
+	kept := &r.keptOther
+	if isOrphan(kind) {
+		kept = &r.keptOrphans
+	}
+	if *kept < maxProblems {
+		*kept++
 		r.Problems = append(r.Problems, verifyProblem{UID: uid, Kind: kind, Message: message})
 	}
 	slog.WarnContext(ctx, "verify finding", "entity", r.Entity, "uid", uid, "kind", kind, "message", message)
@@ -112,6 +123,10 @@ type verifySpec[T any] struct {
 	// uid names the record; committeeUID is the committee it belongs to, nil for the committees themselves.
 	uid          func(T) string
 	committeeUID func(T) string
+	// orphansNotCopied is set for a record migrate cannot copy when its committee is gone, even with --include-orphans:
+	// the store creates the settings only along with their committee. Such a record is counted as an orphan and is
+	// never reported missing.
+	orphansNotCopied bool
 }
 
 // compared is what is kept of a PostgreSQL row: the digest of its content and its revision.
@@ -153,7 +168,7 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 		if spec.committeeUID != nil {
 			if _, ok := kvCommittees[spec.committeeUID(record)]; !ok {
 				res.add(ctx, uid, verifyKVOrphan, "its committee does not exist in KV")
-				if !inPostgreSQL && !opts.IncludeOrphans {
+				if !inPostgreSQL && (!opts.IncludeOrphans || spec.orphansNotCopied) {
 					return nil
 				}
 			}
@@ -199,47 +214,74 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 }
 
 // digestOf is the SHA-256 of the record in a form that does not depend on how a store holds it: the JSON of the
-// model without its revision (which is compared on its own, and is not in the JSON), with the keys sorted and the
-// times in UTC and to the microsecond PostgreSQL keeps. Nothing else is folded away: an empty list and a missing one
-// are different values, as the PostgreSQL store keeps them.
+// model without its revision (which is compared on its own, and is not in the JSON), with every time.Time in UTC and
+// to the microsecond PostgreSQL keeps. Only the times of the model are changed: a text field that looks like a time,
+// as the dates the models keep as strings do, is compared as it is, and so is an empty list against a missing one, as
+// the PostgreSQL store keeps them.
 func digestOf(record any) ([sha256.Size]byte, error) {
-	encoded, err := json.Marshal(record)
+	encoded, err := json.Marshal(withNormalizedTimes(reflect.ValueOf(record)).Interface())
 	if err != nil {
 		return [sha256.Size]byte{}, fmt.Errorf("encoding a record: %w", err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return [sha256.Size]byte{}, fmt.Errorf("decoding a record: %w", err)
-	}
-	normalized, err := json.Marshal(normalizeTimes(value))
-	if err != nil {
-		return [sha256.Size]byte{}, fmt.Errorf("encoding a normalized record: %w", err)
-	}
-	return sha256.Sum256(normalized), nil
+	return sha256.Sum256(encoded), nil
 }
 
-// normalizeTimes returns v with every time written the same way: in UTC, to the microsecond.
-func normalizeTimes(v any) any {
-	switch v := v.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(v))
-		for key, item := range v {
-			out[key] = normalizeTimes(item)
+var timeType = reflect.TypeOf(time.Time{})
+
+// withNormalizedTimes returns a copy of v in which every time.Time is in UTC and truncated to the microsecond. The
+// record itself is not changed. Unexported fields are copied as they are.
+func withNormalizedTimes(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.Pointer:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.New(v.Type().Elem())
+		out.Elem().Set(withNormalizedTimes(v.Elem()))
+		return out
+	case reflect.Interface:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.New(v.Type()).Elem()
+		out.Set(withNormalizedTimes(v.Elem()))
+		return out
+	case reflect.Struct:
+		if v.Type() == timeType {
+			return reflect.ValueOf(v.Interface().(time.Time).UTC().Truncate(time.Microsecond))
+		}
+		out := reflect.New(v.Type()).Elem()
+		out.Set(v)
+		for i := range v.NumField() {
+			if out.Field(i).CanSet() {
+				out.Field(i).Set(withNormalizedTimes(v.Field(i)))
+			}
 		}
 		return out
-	case []any:
-		out := make([]any, len(v))
-		for i, item := range v {
-			out[i] = normalizeTimes(item)
+	case reflect.Slice:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := range v.Len() {
+			out.Index(i).Set(withNormalizedTimes(v.Index(i)))
 		}
 		return out
-	case string:
-		if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
-			return t.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
+	case reflect.Array:
+		out := reflect.New(v.Type()).Elem()
+		for i := range v.Len() {
+			out.Index(i).Set(withNormalizedTimes(v.Index(i)))
 		}
-		return v
+		return out
+	case reflect.Map:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		for iter := v.MapRange(); iter.Next(); {
+			out.SetMapIndex(iter.Key(), withNormalizedTimes(iter.Value()))
+		}
+		return out
 	default:
 		return v
 	}
@@ -340,20 +382,15 @@ func committeeVerifySpec(src port.KVExportReader, dst verifySource) verifySpec[*
 	}
 }
 
-// settingsVerifySpec compares the settings of the committees, keyed by the committee uid.
+// settingsVerifySpec compares the settings of the committees, keyed by the committee uid, those of a committee that no
+// longer exists in KV included.
 func settingsVerifySpec(src port.KVExportReader, dst verifySource) verifySpec[*model.CommitteeSettings] {
 	return verifySpec[*model.CommitteeSettings]{
-		kv: func(ctx context.Context, fn func(*model.CommitteeSettings, uint64) error) error {
-			return src.EachCommitteeExport(ctx, func(c port.CommitteeExport) error {
-				if c.Settings == nil {
-					return nil
-				}
-				return fn(c.Settings, c.SettingsRevision)
-			})
-		},
-		pg:           dst.EachSettingsExport,
-		uid:          func(s *model.CommitteeSettings) string { return s.UID },
-		committeeUID: func(s *model.CommitteeSettings) string { return s.UID },
+		kv:               src.EachSettingsExport,
+		pg:               dst.EachSettingsExport,
+		uid:              func(s *model.CommitteeSettings) string { return s.UID },
+		committeeUID:     func(s *model.CommitteeSettings) string { return s.UID },
+		orphansNotCopied: true,
 	}
 }
 

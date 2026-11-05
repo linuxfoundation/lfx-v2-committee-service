@@ -635,7 +635,7 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 | `--workers` | `4` | Records written to PostgreSQL concurrently |
 | `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each), and of every served brief, is also held, for the orphan check and the brief order |
 
-**Orphans.** KV never removed a deleted committee's members, invites, links, folders, documents or briefs, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them.
+**Orphans.** KV never removed a deleted committee's members, invites, links, folders, documents or briefs, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them. The same goes for settings: KV deletes a committee's base before its settings, so a failed delete leaves the settings behind. They are counted in the `settings` line's `orphans` and listed, and their revisions count for the highest revision seen, but they are never copied, even with `--include-orphans`, because PostgreSQL creates settings only along with their committee.
 
 **Documents.** Only the metadata moves; the files stay in the Object Store, which the move does not touch.
 
@@ -672,7 +672,7 @@ For each entity it streams both stores and compares them by uid:
 - **`mismatch`**: the record is in both and differs in its **content** (a SHA-256 over the record normalized as below) or its **revision**, or both; the finding says which. It does not print the values, which can be personal data.
 - **`source`**: a scan could not be completed (a record that cannot be read, or a store that cannot be listed or reached). The comparison of that entity is incomplete, so this is a difference too. When the KV scan is the one that failed, the PostgreSQL rows it did not reach are not reported `extra`, since they may well be in KV; the finding says how many could not be checked.
 
-The content hash is over the model as JSON without its revision (which is compared on its own), with the keys sorted and the times in UTC and to the microsecond PostgreSQL keeps. Nothing else is folded away, so an empty list and a missing one differ, as the PostgreSQL store keeps them. Anything that differs is a mismatch.
+The content hash is over the model as JSON without its revision (which is compared on its own), with every `time.Time` of the model in UTC and to the microsecond PostgreSQL keeps. Nothing else is changed: a text field that looks like a time, such as the dates the models keep as strings, is compared as the text it is, and an empty list and a missing one differ, as the PostgreSQL store keeps them. Anything that differs is a mismatch.
 
 The schema must already be applied, as for `migrate`.
 
@@ -683,7 +683,7 @@ The schema must already be applied, as for `migrate`.
 | `--entity` | all | Comma-separated entities to compare: `committees` (with settings), `members`, `invites`, `applications`, `links`, `folders`, `documents`, `briefs`, `throttles` |
 | `--include-orphans` | `false` | Expect the children whose committee does not exist in KV to have been copied (`migrate --include-orphans`), so one that is missing from PostgreSQL is a difference. By default they are only counted |
 
-**Orphans** are reported and are not a difference by themselves. `orphans(kv)` are KV children of a committee KV no longer has, which `migrate` skips unless asked; `orphans(postgresql)` are rows whose committee has no row in PostgreSQL, the rows that would stop a foreign key being added, so a run with none is the evidence that the keys can be added. Both are listed with their uids (`kv-orphan`, `pg-orphan`).
+**Orphans** are reported and are not a difference by themselves. `orphans(kv)` are KV children of a committee KV no longer has, which `migrate` skips unless asked; `orphans(postgresql)` are rows whose committee has no row in PostgreSQL, the rows that would stop a foreign key being added, so a run with none is the evidence that the keys can be added. Both are listed with their uids (`kv-orphan`, `pg-orphan`), after the differences, so that they cannot push the differences out of the lines that are listed. The settings of a committee KV no longer has (see `storage migrate`) are `kv-orphan` too, and are never reported `missing`, since `migrate` cannot copy them.
 
 **Weekly briefs.** A brief that `migrate` reported as `constraint`, the second brief KV holds for a window, is not in PostgreSQL and is reported here as `missing`.
 

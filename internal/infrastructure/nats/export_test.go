@@ -397,3 +397,39 @@ func TestEachBriefAndThrottleExportOfBucketsThatDoNotExist(t *testing.T) {
 	assert.Error(t, s.EachBriefExport(ctx, func(*model.GroupWeeklyBrief, uint64) error { return nil }))
 	assert.Error(t, s.EachThrottleExport(ctx, func(*model.GroupWeeklyBriefThrottle, uint64) error { return nil }))
 }
+
+func TestEachSettingsExport(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	s := NewStorageBackend(client)
+	settings := client.kvStore[constants.KVBucketNameCommitteeSettings]
+
+	require.NoError(t, s.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	// Settings a failed delete left behind: the committee base is gone, and the record holds another uid than its key.
+	orphanRevision, err := settings.Put(ctx, "uid-gone", []byte(`{"uid":"","business_email_required":true}`))
+	require.NoError(t, err)
+
+	got := map[string]uint64{}
+	require.NoError(t, s.EachSettingsExport(ctx, func(settings *model.CommitteeSettings, revision uint64) error {
+		got[settings.UID] = revision
+		return nil
+	}))
+
+	_, revision, err := s.GetSettings(ctx, "uid-1")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]uint64{"uid-1": revision, "uid-gone": orphanRevision}, got, "the settings of a committee that is gone are streamed, under the key they are stored by")
+
+	t.Run("a record that cannot be read is reported and the others are still streamed", func(t *testing.T) {
+		_, err := settings.Put(ctx, "uid-bad", []byte("{not json"))
+		require.NoError(t, err)
+		seen := 0
+		err = s.EachSettingsExport(ctx, func(*model.CommitteeSettings, uint64) error { seen++; return nil })
+		require.Error(t, err)
+		assert.Equal(t, 2, seen)
+	})
+
+	t.Run("the error fn returns stops the scan", func(t *testing.T) {
+		stop := errors.New("stop")
+		assert.ErrorIs(t, s.EachSettingsExport(ctx, func(*model.CommitteeSettings, uint64) error { return stop }), stop)
+	})
+}

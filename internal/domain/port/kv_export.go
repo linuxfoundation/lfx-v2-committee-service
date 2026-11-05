@@ -28,6 +28,10 @@ type KVExportReader interface {
 	ListAllUIDs(ctx context.Context) ([]string, error)
 	// EachCommitteeExport streams every committee with its settings.
 	EachCommitteeExport(ctx context.Context, fn func(CommitteeExport) error) error
+	// EachSettingsExport streams every committee settings record of the settings bucket, keyed by the committee uid
+	// (UID is set to it), including the settings of a committee whose base is gone: the store deletes the base before
+	// the settings, so a failed delete leaves them behind.
+	EachSettingsExport(ctx context.Context, fn func(settings *model.CommitteeSettings, revision uint64) error) error
 	// EachMemberExport streams every committee member.
 	EachMemberExport(ctx context.Context, fn func(member *model.CommitteeMember, revision uint64) error) error
 	// EachInviteExport streams every committee invite.

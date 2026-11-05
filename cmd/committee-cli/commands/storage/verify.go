@@ -83,16 +83,23 @@ func (s *verifySubcommand) print(results []verifyResult) {
 			r.Entity, r.KV, r.PostgreSQL, r.Matched, r.Missing, r.Extra, r.Mismatched, r.Errors, r.KVOrphans, r.PostgreSQLOrphans)
 		differences += r.differences()
 	}
+	// The differences of every entity come first, then the orphans, so that the orphans a run usually finds cannot
+	// push the differences, which decide the exit code, out of the lines that are listed.
 	printed := 0
 problems:
-	for _, r := range results {
-		for _, p := range r.Problems {
-			if printed == maxPrintedProblems {
-				_, _ = fmt.Fprintln(out, "... more are in the log")
-				break problems
+	for _, orphans := range []bool{false, true} {
+		for _, r := range results {
+			for _, p := range r.Problems {
+				if isOrphan(p.Kind) != orphans {
+					continue
+				}
+				if printed == maxPrintedProblems {
+					_, _ = fmt.Fprintln(out, "... more are in the log")
+					break problems
+				}
+				_, _ = fmt.Fprintf(out, "  %s %s uid=%s: %s\n", r.Entity, p.Kind, p.UID, p.Message)
+				printed++
 			}
-			_, _ = fmt.Fprintf(out, "  %s %s uid=%s: %s\n", r.Entity, p.Kind, p.UID, p.Message)
-			printed++
 		}
 	}
 	if differences == 0 {
