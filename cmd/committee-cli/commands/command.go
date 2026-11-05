@@ -10,6 +10,7 @@ import (
 
 	"github.com/nats-io/nats.go/jetstream"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/backfill"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 )
@@ -76,8 +77,13 @@ type RunContext struct {
 	// service (e.g. committee-fields reading the v1 sync helper's mirror) use it, so that
 	// knowledge stays in the subcommand and out of the storage ports.
 	KVStore func(ctx context.Context, bucket string) (jetstream.KeyValue, error)
-	DryRun  bool
-	Args    []string // remaining args after command + subcommand, for subcommand flag parsing
+	// KVExport streams the KV records with their revisions, for the storage subcommands that copy or compare data.
+	KVExport port.KVExportReader
+	// PostgresSink connects to PostgreSQL for the subcommands that need it and returns the store and a
+	// function that releases the connection. The other subcommands never connect.
+	PostgresSink func(ctx context.Context) (sink backfill.Sink, closeSink func(), err error)
+	DryRun       bool
+	Args         []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

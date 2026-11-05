@@ -1005,6 +1005,11 @@ func (s *storage) EachMemberStrict(ctx context.Context, fn func(*model.Committee
 // of reads failed, while EachMemberStrict lets a caller like "report board-seats" tell a partial scan
 // apart from a complete one. The first error fn returns still stops iteration immediately either way.
 func (s *storage) eachMember(ctx context.Context, fn func(*model.CommitteeMember) error, strict bool) error {
+	return s.eachMemberWithRevision(ctx, func(member *model.CommitteeMember, _ uint64) error { return fn(member) }, strict)
+}
+
+// eachMemberWithRevision is eachMember with the revision each member was read at.
+func (s *storage) eachMemberWithRevision(ctx context.Context, fn func(*model.CommitteeMember, uint64) error, strict bool) error {
 	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeMembers].ListKeys(ctx)
 	if errKeys != nil {
 		return errs.NewUnexpected("failed to list keys from committee members bucket", errKeys)
@@ -1020,13 +1025,14 @@ func (s *storage) eachMember(ctx context.Context, fn func(*model.CommitteeMember
 		}
 
 		member := &model.CommitteeMember{}
-		if _, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false); errGet != nil {
+		revision, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false)
+		if errGet != nil {
 			slog.WarnContext(ctx, "failed to get member while streaming all", "key", key, "error", errGet)
 			failedReads++
 			continue
 		}
 
-		if err := fn(member); err != nil {
+		if err := fn(member, revision); err != nil {
 			return err
 		}
 	}

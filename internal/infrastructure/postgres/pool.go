@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +39,24 @@ type Config struct {
 
 	// MaxConns caps the pool size; zero means DefaultMaxConns.
 	MaxConns int32
+}
+
+// ConfigFromEnv reads the connection settings from POSTGRES_URL and, when set, POSTGRES_MAX_CONNS. The
+// URL is required; neither value appears in the errors.
+func ConfigFromEnv(getenv func(string) string) (Config, error) {
+	url := getenv("POSTGRES_URL")
+	if strings.TrimSpace(url) == "" {
+		return Config{}, errors.New("POSTGRES_URL is empty")
+	}
+	cfg := Config{URL: url}
+	if raw := getenv("POSTGRES_MAX_CONNS"); raw != "" {
+		n, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || n <= 0 {
+			return Config{}, errors.New("invalid POSTGRES_MAX_CONNS: must be a positive integer")
+		}
+		cfg.MaxConns = int32(n)
+	}
+	return cfg, nil
 }
 
 // NewPool opens a connection pool and verifies the database is reachable. Every error it returns

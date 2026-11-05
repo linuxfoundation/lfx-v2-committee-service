@@ -23,6 +23,8 @@ committee-cli <command> <subcommand> [subcommand flags]
 | `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
 | `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
+| `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate`, which writes to it. Holds a credential and is never logged |
+| `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`) |
 
 ### Commands
 
@@ -615,6 +617,42 @@ Report Board seats for a single project:
 ```sh
 NATS_URL=nats://localhost:4222 LOG_LEVEL=warn \
   committee-cli report board-seats --project-uid=abc-123
+```
+
+#### `storage migrate`
+
+Copies committee data from the NATS KV store into PostgreSQL: committees with their settings, and members. Invites, applications, links, folders, documents and weekly briefs follow in later releases. It reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
+
+The schema must already be applied: start the API once with `POSTGRES_ENABLED=true`, which runs the migrations. The command checks and says so if it is not.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--entity` | all | Comma-separated entities to copy: `committees` (with settings), `members` |
+| `--dry-run` | `false` | Read and classify everything, write nothing; `written` is what a run would write |
+| `--include-orphans` | `false` | Also copy children whose committee does not exist in KV |
+| `--workers` | `4` | Records written to PostgreSQL concurrently |
+| `--batch-size` | `100` | Records read ahead of the workers; bounds the memory used, because the buckets are streamed and never loaded whole |
+
+**Orphans.** KV never removed a deleted committee's members, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them.
+
+**Problems** are listed with the uid and a kind: `constraint` (a unique index PostgreSQL enforces and KV did not, such as two emails that differ only in case), `invalid`, `write`, `read`, `ahead` (PostgreSQL has a newer revision than KV: a migration cannot reconcile it, so do not run it against a database that is already primary), `missing` (a committee that exists in PostgreSQL without its settings) and `source` (a KV scan that could not read every record). A problem is never dropped silently, and every one is in the log; the summary lists up to 100.
+
+**Exit code:** `0` if every record was copied, left alone or reported as an orphan; `1` if any record could not be copied or read.
+
+**Output:** a line per entity with `scanned`, `written`, `unchanged`, `orphans` and `errors`, the problems, and the highest KV revision seen. At the flip to PostgreSQL the revision sequence has to be advanced past the highest revision over every KV bucket, so note it from each run; the same summary is logged as `backfill summary`.
+
+**Examples**
+
+Dry run first (safe):
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage migrate --dry-run
+```
+
+Only the members, with more workers:
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage migrate --entity=members --workers=16
 ```
 
 ## Building
