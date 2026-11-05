@@ -5,13 +5,11 @@ package composite
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
-	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // The writes below return what the primary store returns. In dual mode each is followed by the same change in
@@ -24,8 +22,11 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 	}
 	if s.mode == ModeDual {
 		uid := committee.CommitteeBase.UID
-		s.replicate(ctx, "create_committee", func(ctx context.Context) error {
+		s.replicate(ctx, "create_committee", uid, func(ctx context.Context) error {
 			base, baseRevision, err := s.kv.GetBase(ctx, uid)
+			if isNotFound(err) {
+				return nil // deleted meanwhile, so there is nothing to copy
+			}
 			if err != nil {
 				return err
 			}
@@ -47,10 +48,31 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 				return err
 			}
 			// A delete that finished in KV while this was being copied found nothing in PostgreSQL to remove, and so
-			// left the insert above to bring the committee back. If it is gone from KV, take it out again: from either
-			// order of the two the committee ends up in neither store.
-			if _, _, err := s.kv.GetBase(ctx, uid); isNotFound(err) {
+			// left the insert above to bring the committee back; an update that finished meanwhile failed to copy for the
+			// same reason, and left the older version. So read KV again: if the committee is gone take it out, and if it
+			// has moved on copy what KV holds now. From either order the two stores end up the same.
+			_, current, err := s.kv.GetBase(ctx, uid)
+			switch {
+			case isNotFound(err):
 				return s.deleteInPostgreSQL(ctx, uid, baseRevision)
+			case err != nil:
+				return fmt.Errorf("reading KV again after the copy: %w", err)
+			}
+			if current != baseRevision {
+				if err := s.replicateBase(ctx, uid); err != nil {
+					return err
+				}
+			}
+			if settings != nil {
+				_, currentSettings, err := s.kv.GetSettings(ctx, uid)
+				switch {
+				case isNotFound(err):
+					// Deleted with the committee meanwhile; the check of the base above covers it.
+				case err != nil:
+					return fmt.Errorf("reading KV settings again after the copy: %w", err)
+				case currentSettings != settingsRevision:
+					return s.replicateSettings(ctx, uid)
+				}
 			}
 			return nil
 		})
@@ -65,7 +87,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 	}
 	if s.mode == ModeDual {
 		uid := committee.CommitteeBase.UID
-		s.replicate(ctx, "update_committee", func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
+		s.replicate(ctx, "update_committee", uid, func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
 	}
 	return nil
 }
@@ -77,7 +99,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	}
 	if s.mode == ModeDual {
 		uid := settings.UID
-		s.replicate(ctx, "update_settings", func(ctx context.Context) error { return s.replicateSettings(ctx, uid) })
+		s.replicate(ctx, "update_settings", uid, func(ctx context.Context) error { return s.replicateSettings(ctx, uid) })
 	}
 	return nil
 }
@@ -88,31 +110,21 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return err
 	}
 	if s.mode == ModeDual {
-		s.replicate(ctx, "delete_committee", func(ctx context.Context) error { return s.deleteInPostgreSQL(ctx, uid, revision) })
+		s.replicate(ctx, "delete_committee", uid, func(ctx context.Context) error { return s.deleteInPostgreSQL(ctx, uid, revision) })
 	}
 	return nil
 }
 
-// deleteInPostgreSQL removes the committee and its settings from PostgreSQL after KV decided that it is gone. It is
-// guarded by the revision the committee had. If PostgreSQL is not at that revision, because an earlier copy of this
-// committee failed, it is removed under the revision it has now: storage migrate never deletes, and left behind the row
-// would keep the name and the SSO group name taken there, and the settings with their webhook URL. A committee that is
-// not there, or goes away meanwhile, is where a delete leaves it, and is not a failure.
+// deleteInPostgreSQL removes the committee and its settings from PostgreSQL after KV decided that it is gone; see
+// deleteConverged. Left behind, the row would keep the name and the SSO group name taken there, and the settings with their
+// webhook URL.
 func (s *Store) deleteInPostgreSQL(ctx context.Context, uid string, revision uint64) error {
-	err := s.pg.Delete(ctx, uid, revision)
-	var stale errs.Conflict
-	if errors.As(err, &stale) {
-		_, current, getErr := s.pg.GetBase(ctx, uid)
-		if getErr != nil {
-			err = getErr
-		} else {
-			err = s.pg.Delete(ctx, uid, current)
-		}
-	}
-	if isNotFound(err) {
-		return nil
-	}
-	return err
+	return deleteConverged(ctx,
+		func(ctx context.Context, revision uint64) error { return s.pg.Delete(ctx, uid, revision) },
+		func(ctx context.Context) (uint64, error) {
+			_, current, err := s.pg.GetBase(ctx, uid)
+			return current, err
+		}, revision)
 }
 
 // UpdateHasMailingList sets has_mailing_list; see port.CommitteeBaseWriter.
@@ -122,7 +134,7 @@ func (s *Store) UpdateHasMailingList(ctx context.Context, uid string, hasMailing
 		return base, changed, err
 	}
 	if s.mode == ModeDual {
-		s.replicate(ctx, "update_has_mailing_list", func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
+		s.replicate(ctx, "update_has_mailing_list", uid, func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
 	}
 	return base, changed, nil
 }
@@ -134,7 +146,7 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 		return base, changed, err
 	}
 	if s.mode == ModeDual {
-		s.replicate(ctx, "update_total_members", func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
+		s.replicate(ctx, "update_total_members", uid, func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
 	}
 	return base, changed, nil
 }
@@ -147,10 +159,19 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 // back: PostgreSQL refuses a revision that is not above the one it replaces.
 func (s *Store) replicateBase(ctx context.Context, uid string) error {
 	base, newRevision, err := s.kv.GetBase(ctx, uid)
+	if isNotFound(err) {
+		return nil // deleted meanwhile, so there is nothing to copy
+	}
 	if err != nil {
 		return err
 	}
 	_, current, err := s.pg.GetBase(ctx, uid)
+	if isNotFound(err) {
+		if _, _, kvErr := s.kv.GetBase(ctx, uid); isNotFound(kvErr) {
+			return nil // deleted in both stores while this was being copied
+		}
+		return err
+	}
 	if err != nil {
 		return err
 	}
@@ -167,10 +188,19 @@ func (s *Store) replicateBase(ctx context.Context, uid string) error {
 // replicateSettings is replicateBase for the settings.
 func (s *Store) replicateSettings(ctx context.Context, uid string) error {
 	settings, newRevision, err := s.kv.GetSettings(ctx, uid)
+	if isNotFound(err) {
+		return nil // deleted meanwhile, so there is nothing to copy
+	}
 	if err != nil {
 		return err
 	}
 	_, current, err := s.pg.GetSettings(ctx, uid)
+	if isNotFound(err) {
+		if _, _, kvErr := s.kv.GetSettings(ctx, uid); isNotFound(kvErr) {
+			return nil // deleted in both stores while this was being copied
+		}
+		return err
+	}
 	if err != nil {
 		return err
 	}

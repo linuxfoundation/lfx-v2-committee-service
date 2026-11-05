@@ -37,9 +37,9 @@ func TestMetrics(t *testing.T) {
 	m := newMetrics(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
 
 	m.RecordMode(ctx, ModeDual)
-	m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("connection reset"))
-	m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("connection reset"))
-	m.SecondaryWriteFailed(ctx, ModeDualPG, "kv", "update_base", errors.New("timeout"))
+	m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", "uid-1", errors.New("connection reset"))
+	m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", "uid-1", errors.New("connection reset"))
+	m.SecondaryWriteFailed(ctx, ModeDualPG, "kv", "update_base", "uid-1", errors.New("timeout"))
 	m.ReadMismatch(ctx, ModeDual, "get_committee")
 	m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 
@@ -81,7 +81,7 @@ func TestMetrics_NeverFailAndNeverBlock(t *testing.T) {
 		var m *Metrics
 		assert.NotPanics(t, func() {
 			m.RecordMode(ctx, ModeKV)
-			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("x"))
+			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", "uid-1", errors.New("x"))
 			m.ReadMismatch(ctx, ModeDual, "get_committee")
 			m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 		})
@@ -91,7 +91,7 @@ func TestMetrics_NeverFailAndNeverBlock(t *testing.T) {
 		m := NewMetrics()
 		assert.NotPanics(t, func() {
 			m.RecordMode(ctx, ModeKV)
-			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("x"))
+			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", "uid-1", errors.New("x"))
 			m.ReadMismatch(ctx, ModeDual, "get_committee")
 			m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 		})
@@ -101,7 +101,7 @@ func TestMetrics_NeverFailAndNeverBlock(t *testing.T) {
 		m := newMetrics(failingMeter{noop.NewMeterProvider().Meter("test")})
 		assert.NotPanics(t, func() {
 			m.RecordMode(ctx, ModeDual)
-			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", errors.New("x"))
+			m.SecondaryWriteFailed(ctx, ModeDual, "postgres", "create_member", "uid-1", errors.New("x"))
 			m.ReadMismatch(ctx, ModeDual, "get_committee")
 			m.ReadCompareFailed(ctx, ModeDual, "get_committee", errors.New("x"))
 		})

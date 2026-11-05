@@ -72,10 +72,11 @@ func (m *Metrics) RecordMode(ctx context.Context, mode Mode) {
 
 // SecondaryWriteFailed counts and logs a write the secondary store refused. The caller goes on: the primary store's
 // write decided the result, and what the secondary store is missing is left to be reconciled. store names the store
-// that failed and operation the write, for example "create_member".
-func (m *Metrics) SecondaryWriteFailed(ctx context.Context, mode Mode, store, operation string, err error) {
+// that failed, operation the write, for example "create_member", and uid the record, which is not personal data.
+func (m *Metrics) SecondaryWriteFailed(ctx context.Context, mode Mode, store, operation, uid string, err error) {
+	// The uid is in the log so that the record that was left behind can be found; it is not a metric attribute, which stay constant.
 	slog.WarnContext(ctx, "secondary store write failed; the primary store's result stands and the secondary is left to reconcile",
-		"mode", string(mode), "store", store, "operation", operation, "error", err)
+		"mode", string(mode), "store", store, "operation", operation, "uid", uid, "error", err)
 	if m == nil {
 		return
 	}

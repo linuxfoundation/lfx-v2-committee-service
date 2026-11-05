@@ -38,15 +38,17 @@ const (
 //     PostgreSQL adds up to the write timeout to a write, which is why that is short. A delete is converged the same
 //     way: if PostgreSQL is behind, the row is removed under the revision it has. What storage migrate cannot do is
 //     delete, so a row that a delete still could not remove is reported as extra by storage verify and has to be
-//     removed by hand. A sampled fraction of reads is also made against PostgreSQL and compared, the KV result being
+//     removed by hand; before dual mode is turned on, storage verify must report no extra record. A sampled fraction of reads is also made against PostgreSQL and compared, the KV result being
 //     the one returned; a write that is being copied while the read is made can show as a mismatch.
 //   - postgres: the PostgreSQL store only.
 //
 // There is no transaction across the two stores. A write the primary store only partly made, and so refused, is not
-// copied. Only the committees and their settings are composed so far; the other records go to the primary store alone,
-// and the Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of a
-// deleted committee behind. It is not complete enough to be wired in until the remaining records are composed and the
-// cascade is exposed for the stores that have it, which is why no mode but kv is available at startup.
+// copied. The committees, their settings, the members, the invites and the applications are composed, which is the whole
+// of port.CommitteeReaderWriter apart from the streams EachMember and EachMemberStrict, which go to the primary store
+// alone. The links, folders, documents and weekly briefs are other aggregates with stores of their own and are not
+// composed yet. The Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of
+// a deleted committee behind. It is not complete enough to be wired in until those are composed and the cascade is exposed
+// for the stores that have it, which is why no mode but kv is available at startup.
 type Store struct {
 	port.CommitteeReaderWriter
 
@@ -130,9 +132,9 @@ func (s *Store) sampled() bool {
 }
 
 // replicate runs a write to the secondary store after the primary store's write succeeded. It never fails the request:
-// an error is logged and counted. It does not use the request's cancellation, because the primary store's write has
+// an error is logged, with the uid of the record, and counted. It does not use the request's cancellation, because the primary store's write has
 // already happened and a client that went away must not leave the secondary store behind for that reason.
-func (s *Store) replicate(ctx context.Context, operation string, write func(ctx context.Context) error) {
+func (s *Store) replicate(ctx context.Context, operation, uid string, write func(ctx context.Context) error) {
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.writeTimeout)
 	defer cancel()
 	// A panic in the secondary store is a failure of the secondary store like any other: it must not take down a request
@@ -146,7 +148,7 @@ func (s *Store) replicate(ctx context.Context, operation string, write func(ctx 
 		return write(wctx)
 	}()
 	if err != nil {
-		s.metrics.SecondaryWriteFailed(ctx, s.mode, "postgres", operation, err)
+		s.metrics.SecondaryWriteFailed(ctx, s.mode, "postgres", operation, uid, err)
 	}
 }
 
