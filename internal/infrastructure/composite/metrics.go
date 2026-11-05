@@ -22,6 +22,7 @@ const meterName = "github.com/linuxfoundation/lfx-v2-committee-service/internal/
 type Metrics struct {
 	secondaryFailures metric.Int64Counter
 	mismatches        metric.Int64Counter
+	compareErrors     metric.Int64Counter
 	effectiveMode     metric.Int64Gauge
 }
 
@@ -45,6 +46,12 @@ func newMetrics(meter metric.Meter) *Metrics {
 		metric.WithUnit("{mismatch}")); err != nil {
 		slog.Warn("failed to create the read compare mismatch counter", "error", err)
 		m.mismatches, _ = fallback.Int64Counter("committee.storage.read_compare_mismatches")
+	}
+	if m.compareErrors, err = meter.Int64Counter("committee.storage.read_compare_errors",
+		metric.WithDescription("Sampled reads that could not be compared because the secondary store could not be read"),
+		metric.WithUnit("{error}")); err != nil {
+		slog.Warn("failed to create the read compare error counter", "error", err)
+		m.compareErrors, _ = fallback.Int64Counter("committee.storage.read_compare_errors")
 	}
 	if m.effectiveMode, err = meter.Int64Gauge("committee.storage.mode",
 		metric.WithDescription("The storage mode the process runs in: 1 for the mode named by the mode attribute")); err != nil {
@@ -84,4 +91,15 @@ func (m *Metrics) ReadMismatch(ctx context.Context, mode Mode, operation string)
 		return
 	}
 	m.mismatches.Add(ctx, 1, metric.WithAttributes(attribute.String("mode", string(mode)), attribute.String("operation", operation)))
+}
+
+// ReadCompareFailed counts and logs a sampled read that could not be compared, because the secondary store could not
+// be read. It is not a mismatch: nothing is known about whether the two agree.
+func (m *Metrics) ReadCompareFailed(ctx context.Context, mode Mode, operation string, err error) {
+	slog.WarnContext(ctx, "a sampled read could not be compared with the secondary store",
+		"mode", string(mode), "operation", operation, "error", err)
+	if m == nil {
+		return
+	}
+	m.compareErrors.Add(ctx, 1, metric.WithAttributes(attribute.String("mode", string(mode)), attribute.String("operation", operation)))
 }
