@@ -97,7 +97,14 @@ func TestMigrate_Run(t *testing.T) {
 		}
 		bad.Args = []string{"--entity=invites"}
 		require.ErrorContains(t, (&migrateSubcommand{out: &bytes.Buffer{}}).Run(ctx, bad), `unknown entity "invites"`)
-		assert.True(t, connected, "an unknown entity is found by the run, after it connects")
+		assert.False(t, connected, "a typo is found before anything connects")
+	})
+
+	t.Run("entities may be separated by a comma and spaces", func(t *testing.T) {
+		var out bytes.Buffer
+		require.NoError(t, (&migrateSubcommand{out: &out}).Run(ctx, rc("--dry-run", "--entity=committees, members")))
+		assert.Contains(t, out.String(), "committees scanned=1")
+		assert.Contains(t, out.String(), "members    scanned=2")
 	})
 
 	t.Run("without the KV export or the sink it says so", func(t *testing.T) {

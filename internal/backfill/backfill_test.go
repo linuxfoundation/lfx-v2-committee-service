@@ -17,6 +17,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres/postgrestest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // fakeSource is a KV store with the records it is given and the revisions they have.
@@ -105,11 +106,14 @@ func TestRun_CopiesWithTheKVRevisions(t *testing.T) {
 	assert.EqualValues(t, 32, members.HighestRevision, "the orphan's revision counts: it is in KV")
 	assert.Equal(t, []Problem{{UID: "m-orphan", Kind: "orphan", Message: "its committee does not exist in KV"}}, members.Problems)
 
-	for uid, want := range map[string]uint64{"c-1": 10, "c-2": 20} {
+	for uid, want := range map[string]struct {
+		revision uint64
+		name     string
+	}{"c-1": {10, "Committee One"}, "c-2": {20, "Committee Two"}} {
 		base, revision, err := store.GetBase(ctx, uid)
 		require.NoError(t, err)
-		assert.Equal(t, want, revision, uid)
-		assert.Equal(t, storetest.NewCommittee(uid, "project-1", base.Name).Name, base.Name)
+		assert.Equal(t, want.revision, revision, uid)
+		assert.Equal(t, want.name, base.Name, uid)
 	}
 	_, settingsRevision, err := store.GetSettings(ctx, "c-1")
 	require.NoError(t, err)
@@ -313,7 +317,7 @@ func TestRun_OnlyTheEntitiesAskedFor(t *testing.T) {
 	assert.Empty(t, uids, "no committee was copied")
 
 	_, err = Run(ctx, newSource(), store, Options{Entities: []string{"invites"}})
-	var validation interface{ Error() string }
+	var validation errs.Validation
 	require.ErrorAs(t, err, &validation)
 	assert.Contains(t, err.Error(), `unknown entity "invites"`)
 }

@@ -178,6 +178,16 @@ func stream[T any](ctx context.Context, workers, batch int, produce func(emit fu
 	return err
 }
 
+// ValidateEntities checks the names against AllEntities, so a typo is found before anything connects.
+func ValidateEntities(entities []string) error {
+	for _, entity := range entities {
+		if !slices.Contains(AllEntities, entity) {
+			return errs.NewValidation(fmt.Sprintf("unknown entity %q: use one of %v", entity, AllEntities))
+		}
+	}
+	return nil
+}
+
 // Run copies the entities from src to sink and returns one result per entity, with the settings of the
 // committees as a line of their own. The error is non-nil when anything could not be copied, so the
 // command can exit non-zero; the results are returned either way.
@@ -185,10 +195,8 @@ func Run(ctx context.Context, src port.KVExportReader, sink Sink, opts Options) 
 	if len(opts.Entities) == 0 {
 		opts.Entities = AllEntities
 	}
-	for _, entity := range opts.Entities {
-		if !slices.Contains(AllEntities, entity) {
-			return nil, errs.NewValidation(fmt.Sprintf("unknown entity %q: use one of %v", entity, AllEntities))
-		}
+	if err := ValidateEntities(opts.Entities); err != nil {
+		return nil, err
 	}
 	if opts.Workers <= 0 {
 		opts.Workers = 4

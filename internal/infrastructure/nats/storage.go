@@ -1026,6 +1026,10 @@ func (s *storage) eachMemberWithRevision(ctx context.Context, fn func(*model.Com
 
 		member := &model.CommitteeMember{}
 		revision, errGet := s.get(ctx, constants.KVBucketNameCommitteeMembers, key, member, false)
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			// Deleted between listing and reading: the member is gone, which is not a failed read.
+			continue
+		}
 		if errGet != nil {
 			slog.WarnContext(ctx, "failed to get member while streaming all", "key", key, "error", errGet)
 			failedReads++

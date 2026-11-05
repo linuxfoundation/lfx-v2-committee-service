@@ -8,6 +8,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,6 +48,22 @@ func TestEachCommitteeExport(t *testing.T) {
 	assert.Nil(t, exports["uid-2"].Settings, "a committee with no settings record has none")
 	assert.Zero(t, exports["uid-2"].SettingsRevision)
 
+	t.Run("the settings are keyed by the committee uid whatever uid the record holds", func(t *testing.T) {
+		_, err := client.kvStore[constants.KVBucketNameCommittees].Put(ctx, "uid-3", []byte(`{"uid":"uid-3","name":"Committee Three","project_uid":"project-1"}`))
+		require.NoError(t, err)
+		_, err = client.kvStore[constants.KVBucketNameCommitteeSettings].Put(ctx, "uid-3", []byte(`{"uid":"","business_email_required":true}`))
+		require.NoError(t, err)
+		var got port.CommitteeExport
+		require.NoError(t, s.EachCommitteeExport(ctx, func(e port.CommitteeExport) error {
+			if e.Base.UID == "uid-3" {
+				got = e
+			}
+			return nil
+		}))
+		require.NotNil(t, got.Settings)
+		assert.Equal(t, "uid-3", got.Settings.UID)
+	})
+
 	t.Run("the first error fn returns stops the scan", func(t *testing.T) {
 		stop := errors.New("stop")
 		calls := 0
@@ -61,7 +78,7 @@ func TestEachCommitteeExport(t *testing.T) {
 		seen := 0
 		err = s.EachCommitteeExport(ctx, func(port.CommitteeExport) error { seen++; return nil })
 		require.Error(t, err)
-		assert.Equal(t, 2, seen, "the readable committees were still streamed")
+		assert.Equal(t, 3, seen, "the readable committees were still streamed")
 	})
 }
 
@@ -85,6 +102,15 @@ func TestEachMemberExport(t *testing.T) {
 		assert.Equal(t, want, revision, uid)
 	}
 
+	t.Run("a member deleted between listing and reading is not a failed read", func(t *testing.T) {
+		members := client.kvStore[constants.KVBucketNameCommitteeMembers]
+		client.kvStore[constants.KVBucketNameCommitteeMembers] = &goneOnGetKV{KeyValue: members, key: "m-2"}
+		t.Cleanup(func() { client.kvStore[constants.KVBucketNameCommitteeMembers] = members })
+		seen := map[string]bool{}
+		require.NoError(t, s.EachMemberExport(ctx, func(m *model.CommitteeMember, _ uint64) error { seen[m.UID] = true; return nil }))
+		assert.Equal(t, map[string]bool{"m-1": true}, seen)
+	})
+
 	t.Run("a member that cannot be read is skipped and reported at the end", func(t *testing.T) {
 		_, err := client.kvStore[constants.KVBucketNameCommitteeMembers].Put(ctx, "m-bad", []byte("{not json"))
 		require.NoError(t, err)
@@ -93,4 +119,17 @@ func TestEachMemberExport(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, 2, seen)
 	})
+}
+
+// goneOnGetKV wraps a bucket so a Get of one key says the key is not found, as if it were deleted after the listing.
+type goneOnGetKV struct {
+	jetstream.KeyValue
+	key string
+}
+
+func (k *goneOnGetKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if key == k.key {
+		return nil, jetstream.ErrKeyNotFound
+	}
+	return k.KeyValue.Get(ctx, key)
 }

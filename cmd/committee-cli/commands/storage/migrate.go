@@ -57,7 +57,12 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 
 	opts := backfill.Options{DryRun: *dryRun, IncludeOrphans: *includeOrphans, Workers: *workers, BatchSize: *batchSize}
 	if *entities != "" {
-		opts.Entities = strings.Split(*entities, ",")
+		for _, entity := range strings.Split(*entities, ",") {
+			opts.Entities = append(opts.Entities, strings.TrimSpace(entity))
+		}
+		if err := backfill.ValidateEntities(opts.Entities); err != nil {
+			return err
+		}
 	}
 
 	sink, closeSink, err := rc.PostgresSink(ctx)

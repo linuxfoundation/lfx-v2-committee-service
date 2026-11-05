@@ -45,6 +45,9 @@ func (s *storage) EachCommitteeExport(ctx context.Context, fn func(port.Committe
 		settings := &model.CommitteeSettings{}
 		switch revision, errSettings := s.get(ctx, constants.KVBucketNameCommitteeSettings, uid, settings, false); {
 		case errSettings == nil:
+			// The settings are keyed by the committee uid; the store writes and updates them by the uid in
+			// the record, so a record whose own uid is empty or different must not change what they are keyed by.
+			settings.UID = uid
 			export.Settings, export.SettingsRevision = settings, revision
 		case !errors.Is(errSettings, jetstream.ErrKeyNotFound):
 			slog.WarnContext(ctx, "failed to get committee settings while streaming all", "committee_uid", uid, "error", errSettings)
