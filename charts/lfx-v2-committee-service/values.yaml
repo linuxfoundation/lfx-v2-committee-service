@@ -602,6 +602,12 @@ app:
           name: lfx-v2-committee-service-secrets
           key: org_seat_page_token_hmac_key
           optional: true
+    # STORAGE_MODE — which store the service reads and writes: kv, dual, dual-pg or
+    # postgres. Empty (the default) means kv, which is what the service has always
+    # done. A value that is not recognized, or a mode that is not available yet
+    # (today only kv is), stops the pod at startup instead of falling back to kv.
+    STORAGE_MODE:
+      value: ""
     # POSTGRES_ENABLED — feature flag for PostgreSQL. Only the exact value
     # "true" turns it on; anything else (the default) means the service never
     # connects to PostgreSQL, even if POSTGRES_URL is set. When enabled, a

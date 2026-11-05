@@ -16,6 +16,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/report"
 	storagecmd "github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/storage"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/sync"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/env"
@@ -91,6 +92,14 @@ func run() error {
 	if offline, ok := sub.(commands.OfflineSubcommand); ok && offline.RunsOffline(parsed.SubArgs) {
 		return sub.Run(ctx, commands.RunContext{Args: parsed.SubArgs})
 	}
+
+	// A store mode that was set on purpose and cannot be used stops the command before anything connects; with
+	// STORAGE_MODE unset the mode is kv and the command is as it has always been.
+	storageMode, err := composite.ModeFromEnv(os.Getenv)
+	if err != nil {
+		return fmt.Errorf("invalid storage mode: %w", err)
+	}
+	composite.NewMetrics().RecordMode(ctx, storageMode)
 
 	natsURL := env.Get("NATS_URL", "nats://localhost:4222")
 	natsTimeout := 120 * time.Second
@@ -172,6 +181,7 @@ func printUsage(w io.Writer, registry map[string]commands.Command) {
 	_, _ = fmt.Fprintln(w, "  NATS_TIMEOUT        NATS connection dial/timeout (default: 120s); KV ops use caller context")
 	_, _ = fmt.Fprintln(w, "  POSTGRES_URL        PostgreSQL connection string (storage migrate)")
 	_, _ = fmt.Fprintln(w, "  POSTGRES_MAX_CONNS  PostgreSQL pool size (storage migrate; default 10)")
+	_, _ = fmt.Fprintln(w, "  STORAGE_MODE        Store mode: kv, dual, dual-pg, postgres (default: kv; only kv is available)")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_URL      OpenSearch base URL (default: http://localhost:9200)")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_INDEX    OpenSearch resources index (default: resources)")
 	_, _ = fmt.Fprintln(w, "  LOG_LEVEL           Log verbosity, e.g. info (default: debug)")

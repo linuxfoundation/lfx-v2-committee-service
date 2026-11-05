@@ -4,9 +4,17 @@
 package service
 
 import (
+	"bytes"
+	"context"
+	"log/slog"
+	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 )
 
 func TestLFXSelfServeBaseURL(t *testing.T) {
@@ -75,4 +83,87 @@ func TestLFXSelfServeBaseURL(t *testing.T) {
 			assert.Equal(t, tt.want, LFXSelfServeBaseURL())
 		})
 	}
+}
+
+func TestInitStorageMode(t *testing.T) {
+	ctx := context.Background()
+	env := func(values map[string]string) func(string) string {
+		return func(key string) string { return values[key] }
+	}
+
+	t.Run("with STORAGE_MODE unset the mode is kv and the service is as it has always been", func(t *testing.T) {
+		mode, err := initStorageMode(ctx, env(nil))
+		require.NoError(t, err)
+		assert.Equal(t, composite.ModeKV, mode)
+
+		mode, err = initStorageMode(ctx, env(map[string]string{"POSTGRES_ENABLED": "true", "POSTGRES_URL": "postgres://user:password@localhost/db"}))
+		require.NoError(t, err, "PostgreSQL being on does not change the mode")
+		assert.Equal(t, composite.ModeKV, mode)
+	})
+
+	t.Run("the effective mode is logged, so it can be read from the pod logs", func(t *testing.T) {
+		var logs bytes.Buffer
+		previous := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+		t.Cleanup(func() { slog.SetDefault(previous) })
+
+		_, err := initStorageMode(ctx, env(nil))
+
+		require.NoError(t, err)
+		assert.Contains(t, logs.String(), `msg="storage mode" mode=kv`)
+	})
+
+	t.Run("a mode set on purpose that cannot be used is an error and never kv", func(t *testing.T) {
+		for name, values := range map[string]map[string]string{
+			"not recognized":    {"STORAGE_MODE": "dual-write"},
+			"no connection":     {"STORAGE_MODE": "dual"},
+			"not available yet": {"STORAGE_MODE": "postgres", "POSTGRES_URL": "postgres://user:password@localhost/db"},
+		} {
+			mode, err := initStorageMode(ctx, env(values))
+			require.Error(t, err, name)
+			assert.Empty(t, mode, name)
+		}
+	})
+}
+
+// natsInitChildEnv marks the test binary as the child that runs natsInit, which ends the process when it fails.
+const natsInitChildEnv = "LFX_TEST_RUN_NATS_INIT"
+
+// TestNatsInit_StorageMode runs natsInit in a child process, because a configuration it cannot accept ends the process
+// with log.Fatalf. NATS is pointed at an address nothing listens on, so how far natsInit got shows in which error ends it.
+func TestNatsInit_StorageMode(t *testing.T) {
+	if os.Getenv(natsInitChildEnv) == "1" {
+		natsInit(context.Background())
+		return
+	}
+
+	run := func(t *testing.T, storageMode string) (string, error) {
+		t.Helper()
+		cmd := exec.Command(os.Args[0], "-test.run=^TestNatsInit_StorageMode$")
+		cmd.Env = append(os.Environ(), natsInitChildEnv+"=1", "STORAGE_MODE="+storageMode,
+			"NATS_URL=nats://127.0.0.1:1", "NATS_TIMEOUT=1s", "NATS_MAX_RECONNECT=0", "NATS_RECONNECT_WAIT=100ms")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+
+	t.Run("a mode set on purpose that cannot be used ends startup before NATS is contacted", func(t *testing.T) {
+		out, err := run(t, "dual-write")
+
+		var exitErr *exec.ExitError
+		require.ErrorAs(t, err, &exitErr)
+		assert.NotZero(t, exitErr.ExitCode())
+		assert.Contains(t, out, "invalid storage mode")
+		assert.NotContains(t, out, "failed to create NATS client", "the check runs before NATS is connected")
+	})
+
+	t.Run("with STORAGE_MODE unset or kv startup goes on to connect to NATS, as it always did", func(t *testing.T) {
+		for _, mode := range []string{"", "kv"} {
+			out, err := run(t, mode)
+
+			var exitErr *exec.ExitError
+			require.ErrorAs(t, err, &exitErr, "mode %q", mode)
+			assert.Contains(t, out, "failed to create NATS client", "mode %q: the only thing in the way is the NATS that is not there", mode)
+			assert.NotContains(t, out, "invalid storage mode", "mode %q", mode)
+		}
+	})
 }

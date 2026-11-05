@@ -18,6 +18,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/ai"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/auth"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/m2m"
 	infrastructure "github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
@@ -47,9 +48,28 @@ var (
 	natsDoOnce sync.Once
 )
 
+// initStorageMode reads and checks STORAGE_MODE and records the effective mode in the log and in the metrics. It
+// returns an error only for a mode that was set on purpose and cannot be used; with the variable unset it returns
+// composite.ModeKV and the service is as it has always been.
+func initStorageMode(ctx context.Context, getenv func(string) string) (composite.Mode, error) {
+	mode, err := composite.ModeFromEnv(getenv)
+	if err != nil {
+		return "", err
+	}
+	composite.NewMetrics().RecordMode(ctx, mode)
+	return mode, nil
+}
+
 func natsInit(ctx context.Context) {
 
 	natsDoOnce.Do(func() {
+		// Checked before NATS is connected: with STORAGE_MODE unset the mode is kv and nothing else changes; a mode
+		// set on purpose that cannot be used stops the service here instead of running in another mode. Nothing reads
+		// the mode yet: the storage below is the KV storage in every case the check lets through.
+		if _, errMode := initStorageMode(ctx, os.Getenv); errMode != nil {
+			log.Fatalf("invalid storage mode: %v", errMode)
+		}
+
 		natsURL := os.Getenv("NATS_URL")
 		if natsURL == "" {
 			natsURL = "nats://localhost:4222"
