@@ -524,3 +524,30 @@ func TestSchema(t *testing.T) {
 		}
 	})
 }
+
+func TestCheckMigrated(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("a fully migrated database passes", func(t *testing.T) {
+		require.NoError(t, CheckMigrated(ctx, migratedDB(t)))
+	})
+
+	t.Run("a database that stopped after the tables is refused, naming the migration it lacks", func(t *testing.T) {
+		db := newSchemaDB(t)
+		provider, err := newProvider(db)
+		require.NoError(t, err)
+		_, err = provider.UpTo(ctx, 1)
+		require.NoError(t, err)
+
+		err = CheckMigrated(ctx, db)
+
+		require.ErrorContains(t, err, "[2] have not been applied")
+	})
+
+	t.Run("an empty database is refused and nothing is created in it", func(t *testing.T) {
+		db := newSchemaDB(t)
+
+		require.Error(t, CheckMigrated(ctx, db))
+		assert.Empty(t, tablesIn(t, db), "the check only reads: it must not create goose's version table")
+	})
+}
