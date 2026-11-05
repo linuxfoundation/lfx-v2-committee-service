@@ -43,7 +43,16 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 			if err != nil {
 				return err
 			}
-			return s.pg.Create(wctx, &model.Committee{CommitteeBase: *base, CommitteeSettings: settings})
+			if err := s.pg.Create(wctx, &model.Committee{CommitteeBase: *base, CommitteeSettings: settings}); err != nil {
+				return err
+			}
+			// A delete that finished in KV while this was being copied found nothing in PostgreSQL to remove, and so
+			// left the insert above to bring the committee back. If it is gone from KV, take it out again: from either
+			// order of the two the committee ends up in neither store.
+			if _, _, err := s.kv.GetBase(ctx, uid); isNotFound(err) {
+				return s.deleteInPostgreSQL(ctx, uid, baseRevision)
+			}
+			return nil
 		})
 	}
 	return nil
@@ -79,27 +88,31 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 		return err
 	}
 	if s.mode == ModeDual {
-		s.replicate(ctx, "delete_committee", func(ctx context.Context) error {
-			err := s.pg.Delete(ctx, uid, revision)
-			var stale errs.Conflict
-			if errors.As(err, &stale) {
-				// PostgreSQL is not at the revision KV had, because an earlier copy of this committee failed. KV has
-				// already decided that the committee is gone, and storage migrate never deletes, so what PostgreSQL holds
-				// is removed under the revision it has now: left behind it would keep the name and the SSO group name taken
-				// there, and the settings with their webhook URL.
-				_, current, getErr := s.pg.GetBase(ctx, uid)
-				if getErr != nil {
-					return getErr
-				}
-				err = s.pg.Delete(ctx, uid, current)
-			}
-			if isNotFound(err) {
-				return nil // it is not there, which is where a delete leaves it
-			}
-			return err
-		})
+		s.replicate(ctx, "delete_committee", func(ctx context.Context) error { return s.deleteInPostgreSQL(ctx, uid, revision) })
 	}
 	return nil
+}
+
+// deleteInPostgreSQL removes the committee and its settings from PostgreSQL after KV decided that it is gone. It is
+// guarded by the revision the committee had. If PostgreSQL is not at that revision, because an earlier copy of this
+// committee failed, it is removed under the revision it has now: storage migrate never deletes, and left behind the row
+// would keep the name and the SSO group name taken there, and the settings with their webhook URL. A committee that is
+// not there, or goes away meanwhile, is where a delete leaves it, and is not a failure.
+func (s *Store) deleteInPostgreSQL(ctx context.Context, uid string, revision uint64) error {
+	err := s.pg.Delete(ctx, uid, revision)
+	var stale errs.Conflict
+	if errors.As(err, &stale) {
+		_, current, getErr := s.pg.GetBase(ctx, uid)
+		if getErr != nil {
+			err = getErr
+		} else {
+			err = s.pg.Delete(ctx, uid, current)
+		}
+	}
+	if isNotFound(err) {
+		return nil
+	}
+	return err
 }
 
 // UpdateHasMailingList sets has_mailing_list; see port.CommitteeBaseWriter.

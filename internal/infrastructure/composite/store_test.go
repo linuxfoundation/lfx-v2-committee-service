@@ -312,6 +312,66 @@ func TestStore_DualADeleteRemovesWhatPostgreSQLHoldsWhateverItsRevision(t *testi
 	})
 }
 
+// deletingKV is a KV store that deletes the committee as its settings are read back for the copy, which is where a delete
+// that finishes while a create is being copied lands.
+type deletingKV struct {
+	port.CommitteeReaderWriter
+	once sync.Once
+}
+
+func (d *deletingKV) GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error) {
+	settings, revision, err := d.CommitteeReaderWriter.GetSettings(ctx, uid)
+	d.once.Do(func() {
+		if _, current, getErr := d.GetBase(ctx, uid); getErr == nil {
+			_ = d.Delete(ctx, uid, current)
+		}
+	})
+	return settings, revision, err
+}
+
+// A delete that finishes in KV while a create is being copied finds nothing to remove in PostgreSQL, so the copy must not
+// leave the committee behind.
+func TestStore_DualACreateCopiedWhileADeleteFinishesDoesNotBringTheCommitteeBack(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, nil)
+	r.store.kv = &deletingKV{CommitteeReaderWriter: r.kv} // what the copy reads from; the primary store is still the real one
+
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+
+	_, _, kvErr := r.kv.GetBase(ctx, "uid-1")
+	assert.True(t, isNotFound(kvErr), "the delete finished in KV while the copy was being made")
+	_, _, pgErr := r.pg.GetBase(ctx, "uid-1")
+	_, _, settingsErr := r.pg.GetSettings(ctx, "uid-1")
+	assert.True(t, isNotFound(pgErr) && isNotFound(settingsErr), "the committee and its settings are in neither store")
+	assert.Empty(t, r.counts(t, failures))
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-2", "project-1", "Committee One")), "the name is free again")
+	assert.Empty(t, r.counts(t, failures), "and is free in PostgreSQL too")
+}
+
+// vanishingPG is a PostgreSQL store whose delete reports a stale revision and whose row is gone when it is read again, as
+// when another instance has just removed it.
+type vanishingPG struct{ port.CommitteeReaderWriter }
+
+func (vanishingPG) Delete(context.Context, string, uint64) error {
+	return errs.NewConflict("committee has been modified by another process")
+}
+
+func (vanishingPG) GetBase(context.Context, string) (*model.CommitteeBase, uint64, error) {
+	return nil, 0, errs.NewNotFound("committee not found")
+}
+
+func TestStore_DualARowThatGoesAwayDuringAConvergingDeleteIsNotAFailure(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDual, func(pg port.CommitteeReaderWriter) port.CommitteeReaderWriter { return vanishingPG{pg} })
+	require.NoError(t, r.kv.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	_, revision, err := r.kv.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+
+	require.NoError(t, r.store.Delete(ctx, "uid-1", revision))
+
+	assert.Empty(t, r.counts(t, failures), "the delete converged: there is nothing left in PostgreSQL")
+}
+
 // flakyPG is a PostgreSQL store whose updates fail while fail is set.
 type flakyPG struct {
 	port.CommitteeReaderWriter
