@@ -160,6 +160,23 @@ func (s *Store) GetDocumentMetadata(ctx context.Context, committeeUID, documentU
 	return doc, revision, nil
 }
 
+// DocumentRevision returns the revision of the document found by its uid alone, whichever committee it belongs to, for the
+// callers that replace a document by uid, as UpdateDocumentMetadata does. A document that does not exist is errs.NotFound.
+func (s *Store) DocumentRevision(ctx context.Context, documentUID string) (uint64, error) {
+	if documentUID == "" {
+		return 0, errs.NewValidation("document UID cannot be empty")
+	}
+	var revision int64
+	err := s.pool.QueryRow(ctx, "SELECT revision FROM committee_documents WHERE uid = $1", documentUID).Scan(&revision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
+	}
+	if err != nil {
+		return 0, unexpected("failed to get document revision", err)
+	}
+	return uint64(revision), nil
+}
+
 // DocumentNameExists reports whether the committee already has a document with the name.
 func (s *Store) DocumentNameExists(ctx context.Context, committeeUID, name string) (bool, error) {
 	var exists bool

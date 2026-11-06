@@ -103,6 +103,23 @@ func TestStore_GetDocumentMetadata(t *testing.T) {
 	require.ErrorAs(t, err, &validation)
 }
 
+func TestStore_DocumentRevision(t *testing.T) {
+	ctx := context.Background()
+	store := seedDocuments(t)
+
+	revision, err := store.DocumentRevision(ctx, "d-1")
+	require.NoError(t, err)
+	_, want, err := store.GetDocumentMetadata(ctx, "committee-1", "d-1")
+	require.NoError(t, err)
+	assert.Equal(t, want, revision, "the revision of the document, whichever committee it is in")
+
+	_, err = store.DocumentRevision(ctx, "missing")
+	requireNotFound(t, err)
+	var validation errs.Validation
+	_, err = store.DocumentRevision(ctx, "")
+	require.ErrorAs(t, err, &validation)
+}
+
 func TestStore_DocumentNameExists(t *testing.T) {
 	ctx := context.Background()
 	store := seedDocuments(t)

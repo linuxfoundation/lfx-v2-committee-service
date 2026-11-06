@@ -22,6 +22,13 @@ type DocumentMetadataBackend interface {
 	ListAllDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error)
 }
 
+// DocumentPGBackend is the PostgreSQL side of the documents: the metadata store, which can also tell the revision of a
+// document by its uid alone, as the copy of an update that moved the document needs.
+type DocumentPGBackend interface {
+	DocumentMetadataBackend
+	DocumentRevision(ctx context.Context, documentUID string) (uint64, error)
+}
+
 // DocumentKVBackend is the NATS side of the documents: the metadata in KV and the files in the Object Store.
 type DocumentKVBackend interface {
 	DocumentMetadataBackend
@@ -39,23 +46,24 @@ type DocumentKVBackend interface {
 //
 // A file and its metadata are two writes the caller makes one after the other, and the composite keeps that order: the
 // file is put first, then the metadata is created, and the caller removes the file when the create fails. Deleting the
-// metadata removes the file with it, whichever store decided: the NATS adapter does it itself, and in postgres mode the composite does after the metadata is gone, best
-// effort and logged, since the metadata is already gone and the file can no longer be reached through the API.
+// metadata removes the file with it, whichever store decided: the NATS adapter does it itself, and in postgres mode the
+// composite does after the metadata is gone, best effort, counted and logged, since the metadata is already gone and the
+// file can no longer be reached through the API.
 type Documents struct {
 	DocumentMetadataBackend
 	core
 	kv DocumentKVBackend
-	pg DocumentMetadataBackend
+	pg DocumentPGBackend
 }
 
 var _ port.CommitteeDocumentReaderWriter = (*Documents)(nil)
 
 // NewDocuments returns the composite of the documents for the mode; see New. kv is needed in every mode, for the files.
-func NewDocuments(mode Mode, kv DocumentKVBackend, pg DocumentMetadataBackend, opts ...Option) (*Documents, error) {
+func NewDocuments(mode Mode, kv DocumentKVBackend, pg DocumentPGBackend, opts ...Option) (*Documents, error) {
 	if kv == nil {
 		return nil, errors.New("the documents need the KV store in every storage mode, for the files")
 	}
-	primary, err := selectPrimary(mode, DocumentMetadataBackend(kv), pg)
+	primary, err := selectPrimary(mode, DocumentMetadataBackend(kv), DocumentMetadataBackend(pg))
 	if err != nil {
 		return nil, err
 	}
@@ -113,30 +121,15 @@ func (d *Documents) copyUpdate(ctx context.Context, committeeUID, uid string) er
 	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
 		return d.kv.GetDocumentMetadata(ctx, committeeUID, uid)
 	},
-		func(ctx context.Context) (uint64, error) { return d.postgreSQLRevision(ctx, committeeUID, uid) },
+		func(ctx context.Context) (uint64, error) { return d.postgreSQLRevision(ctx, uid) },
 		d.pg.UpdateDocumentMetadata)
 }
 
 // postgreSQLRevision returns the revision PostgreSQL holds the document at. An update replaces the metadata by uid and may
-// change the committee, so the row can still be under the committee it had before, which the committee-scoped read does
-// not find; it is then found by uid among all the documents. That scan is made only when the scoped read finds nothing,
-// which is a document that is missing, or one that moved to another committee.
-func (d *Documents) postgreSQLRevision(ctx context.Context, committeeUID, uid string) (uint64, error) {
-	_, current, err := d.pg.GetDocumentMetadata(ctx, committeeUID, uid)
-	if !isNotFound(err) {
-		return current, err
-	}
-	docs, listErr := d.pg.ListAllDocuments(ctx, "")
-	if listErr != nil {
-		return 0, listErr
-	}
-	for _, doc := range docs {
-		if doc.UID == uid {
-			_, current, getErr := d.pg.GetDocumentMetadata(ctx, doc.CommitteeUID, uid)
-			return current, getErr
-		}
-	}
-	return 0, err
+// change the committee, so the row can still be under the committee it had before, which a committee-scoped read does not
+// find: it is looked up by uid alone.
+func (d *Documents) postgreSQLRevision(ctx context.Context, uid string) (uint64, error) {
+	return d.pg.DocumentRevision(ctx, uid)
 }
 
 // DeleteDocumentMetadata removes the document's metadata when the revision is still current, and its file with it.
