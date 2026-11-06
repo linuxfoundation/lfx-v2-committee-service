@@ -54,16 +54,17 @@ func (s *CommitteeSettings) IndexingConfig(tags []string) *indexerTypes.Indexing
 
 // CommitteeSettings represents sensitive committee settings
 type CommitteeSettings struct {
-	UID                   string          `json:"uid"`
-	BusinessEmailRequired bool            `json:"business_email_required"`
-	ShowMeetingAttendees  bool            `json:"show_meeting_attendees"`
-	MemberVisibility      string          `json:"member_visibility"`
-	ChatWebhookURL        *string         `json:"chat_webhook_url,omitempty"`
-	HasChatWebhook        bool            `json:"has_chat_webhook"`
-	LastReviewedAt        *string         `json:"last_reviewed_at,omitempty"`
-	LastReviewedBy        *string         `json:"last_reviewed_by,omitempty"`
-	Writers               []CommitteeUser `json:"writers"`
-	Auditors              []CommitteeUser `json:"auditors"`
-	CreatedAt             time.Time       `json:"created_at"`
-	UpdatedAt             time.Time       `json:"updated_at"`
+	UID                           string          `json:"uid"`
+	BusinessEmailRequired         bool            `json:"business_email_required"`
+	ShowMeetingAttendees          bool            `json:"show_meeting_attendees"`
+	MembersCanViewSocialListening bool            `json:"members_can_view_social_listening"`
+	MemberVisibility              string          `json:"member_visibility"`
+	ChatWebhookURL                *string         `json:"chat_webhook_url,omitempty"`
+	HasChatWebhook                bool            `json:"has_chat_webhook"`
+	LastReviewedAt                *string         `json:"last_reviewed_at,omitempty"`
+	LastReviewedBy                *string         `json:"last_reviewed_by,omitempty"`
+	Writers                       []CommitteeUser `json:"writers"`
+	Auditors                      []CommitteeUser `json:"auditors"`
+	CreatedAt                     time.Time       `json:"created_at"`
+	UpdatedAt                     time.Time       `json:"updated_at"`
 }
