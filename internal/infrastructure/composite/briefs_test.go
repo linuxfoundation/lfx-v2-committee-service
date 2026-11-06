@@ -5,6 +5,7 @@ package composite
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,6 +85,9 @@ func sameThrottleInBoth(t *testing.T, r *briefRig) {
 // disagreed, with one exception: the suite also puts a second brief for a window, which KV lets take the window over and
 // PostgreSQL refuses. That copy is counted as a failure, and a read of that window then differs between the two stores,
 // which is the difference docs/postgres-schema.md describes. Nothing else is counted.
+// secondBriefSubtest is the contract case that puts a second brief for a window, the one place the stores differ.
+const secondBriefSubtest = "a_second_brief_with_another_uid_for_a_window_that_has_one_leaves_the_window_with_one_brief"
+
 func TestContract_Briefs(t *testing.T) {
 	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
@@ -91,12 +95,13 @@ func TestContract_Briefs(t *testing.T) {
 				r := newBriefRig(t, mode, nil, WithSampleRate(1))
 				t.Cleanup(func() {
 					assert.Empty(t, r.counts(t, compareErr))
-					for operation := range r.counts(t, mismatches) {
-						assert.Equal(t, "get_weekly_brief", operation, "only the window of the second brief differs")
+					wantMismatches, wantFailures := map[string]int64{}, map[string]int64{}
+					if mode == ModeDual && strings.HasSuffix(t.Name(), secondBriefSubtest) {
+						wantFailures["put_weekly_brief"] = 1
+						wantMismatches["get_weekly_brief"] = 1
 					}
-					for operation := range r.counts(t, failures) {
-						assert.Equal(t, "put_weekly_brief", operation, "only a brief that another brief holds the window of is refused")
-					}
+					assert.Equal(t, wantFailures, r.counts(t, failures), "only a second brief for a window is refused")
+					assert.Equal(t, wantMismatches, r.counts(t, mismatches), "only the window of the second brief differs")
 				})
 				return r.briefs
 			})
@@ -241,7 +246,7 @@ func TestBriefs_DualASecondBriefForAWindowIsRefusedByPostgreSQLAndCounted(t *tes
 	assert.Equal(t, map[string]int64{"put_weekly_brief": 1}, r.counts(t, failures))
 }
 
-// A copy of what PostgreSQL already holds writes nothing, and a copy of something older than what it holds does not go back.
+// A copy of what PostgreSQL already holds writes nothing, and a copy never goes back when PostgreSQL holds something newer.
 func TestBriefs_CopiesAreIdempotentAndNeverGoBack(t *testing.T) {
 	ctx := context.Background()
 	r := newBriefRig(t, ModeDual, nil)
@@ -250,20 +255,123 @@ func TestBriefs_CopiesAreIdempotentAndNeverGoBack(t *testing.T) {
 	throttle, err := r.briefs.PutGroupWeeklyBriefThrottle(ctx, storetest.NewThrottle("uid-1", storetest.FixtureWindow))
 	require.NoError(t, err)
 
-	again, olderBrief := *brief, *brief
-	olderBrief.Revision = brief.Revision - 1
-	olderBrief.BriefText = "older"
-	require.NoError(t, r.briefs.copyBrief(ctx, &again), "the same revision again")
-	require.NoError(t, r.briefs.copyBrief(ctx, &olderBrief), "an older revision")
-	againThrottle, olderThrottle := *throttle, *throttle
-	olderThrottle.Revision = throttle.Revision - 1
-	olderThrottle.GeneratesUsed = 99
-	require.NoError(t, r.briefs.copyThrottle(ctx, &againThrottle), "the same revision again")
-	require.NoError(t, r.briefs.copyThrottle(ctx, &olderThrottle), "an older revision")
-
+	require.NoError(t, r.briefs.copyBrief(ctx, "uid-1", briefWindow), "the same revision again")
+	require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow), "the same revision again")
 	sameBriefInBoth(t, r)
 	sameThrottleInBoth(t, r)
+
+	// PostgreSQL moves ahead of KV (a revision KV has not reached): the copy leaves it alone.
+	ahead, _, err := r.pg.GetGroupWeeklyBriefForWindow(ctx, "uid-1", briefWindow)
+	require.NoError(t, err)
+	ahead.BriefText = "newer in PostgreSQL"
+	wctx, err := postgres.WithRevision(ctx, brief.Revision+1000)
+	require.NoError(t, err)
+	ahead.Revision = 0
+	_, err = r.pg.PutGroupWeeklyBrief(wctx, ahead)
+	require.NoError(t, err)
+	aheadThrottle, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+	require.NoError(t, err)
+	aheadThrottle.GeneratesUsed = 99
+	wctx, err = postgres.WithRevision(ctx, throttle.Revision+1000)
+	require.NoError(t, err)
+	_, err = r.pg.PutGroupWeeklyBriefThrottle(wctx, aheadThrottle)
+	require.NoError(t, err)
+
+	require.NoError(t, r.briefs.copyBrief(ctx, "uid-1", briefWindow))
+	require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+
+	gotBrief, _, err := r.pg.GetGroupWeeklyBriefForWindow(ctx, "uid-1", briefWindow)
+	require.NoError(t, err)
+	assert.Equal(t, "newer in PostgreSQL", gotBrief.BriefText)
+	gotThrottle, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+	require.NoError(t, err)
+	assert.Equal(t, 99, gotThrottle.GeneratesUsed)
 	assert.Empty(t, r.counts(t, failures))
+}
+
+// racingBriefPG makes the copy lose a race: right before its write goes through, another copy writes the same record.
+type racingBriefPG struct {
+	BriefBackend
+	before func(context.Context)
+}
+
+func (p racingBriefPG) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, error) {
+	if p.before != nil {
+		p.before(ctx)
+	}
+	return p.BriefBackend.PutGroupWeeklyBrief(ctx, brief)
+}
+
+func (p racingBriefPG) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *model.GroupWeeklyBriefThrottle) (*model.GroupWeeklyBriefThrottle, error) {
+	if p.before != nil {
+		p.before(ctx)
+	}
+	return p.BriefBackend.PutGroupWeeklyBriefThrottle(ctx, throttle)
+}
+
+// When two copies of the same brief or entry overlap, PostgreSQL refuses the second one's revision as not above the first's;
+// that is a copy that is already there, not a failure.
+func TestBriefs_DualOverlappingCopiesAreNotFailures(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("brief", func(t *testing.T) {
+		var r *briefRig
+		fired := false
+		r = newBriefRig(t, ModeDual, func(pg BriefBackend) BriefBackend {
+			return racingBriefPG{BriefBackend: pg, before: func(ctx context.Context) {
+				if fired {
+					return
+				}
+				fired = true
+				require.NoError(t, r.briefs.copyBrief(ctx, "uid-1", briefWindow)) // the other copy
+			}}
+		})
+		_, err := r.kv.PutGroupWeeklyBrief(ctx, storetest.NewBrief("b-1", "uid-1", storetest.FixtureWindow))
+		require.NoError(t, err)
+
+		require.NoError(t, r.briefs.copyBrief(ctx, "uid-1", briefWindow))
+
+		sameBriefInBoth(t, r)
+	})
+
+	t.Run("throttle", func(t *testing.T) {
+		var r *briefRig
+		fired := false
+		r = newBriefRig(t, ModeDual, func(pg BriefBackend) BriefBackend {
+			return racingBriefPG{BriefBackend: pg, before: func(ctx context.Context) {
+				if fired {
+					return
+				}
+				fired = true
+				require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+			}}
+		})
+		_, err := r.kv.PutGroupWeeklyBriefThrottle(ctx, storetest.NewThrottle("uid-1", storetest.FixtureWindow))
+		require.NoError(t, err)
+
+		require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+
+		sameThrottleInBoth(t, r)
+	})
+}
+
+// Two puts of the same throttle entry whose copies run in the wrong order leave PostgreSQL on the newest, because a copy
+// writes what KV holds when it runs and not what its put returned.
+func TestBriefs_DualACopyWritesWhatKVHoldsNotWhatItsPutReturned(t *testing.T) {
+	ctx := context.Background()
+	r := newBriefRig(t, ModeDual, nil)
+	first, err := r.kv.PutGroupWeeklyBriefThrottle(ctx, storetest.NewThrottle("uid-1", storetest.FixtureWindow))
+	require.NoError(t, err)
+	first.GeneratesUsed = 7
+	_, err = r.kv.PutGroupWeeklyBriefThrottle(ctx, first) // KV is now ahead of what the first put returned
+
+	require.NoError(t, err)
+	require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+
+	sameThrottleInBoth(t, r)
+	got, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+	require.NoError(t, err)
+	assert.Equal(t, 7, got.GeneratesUsed)
 }
 
 func TestBriefs_DualCompareCountsWhatDiffers(t *testing.T) {
@@ -345,9 +453,5 @@ func TestBriefs_Defaults(t *testing.T) {
 	_, err = NewBriefs(ModeDual, kv, nil)
 	assert.Error(t, err)
 	_, err = NewBriefs(ModeDualPG, kv, pg)
-	assert.Error(t, err)
-	_, err = NewLinks(ModePostgres, kv, nil)
-	assert.Error(t, err)
-	_, err = NewLinks(ModeKV, nil, pg)
 	assert.Error(t, err)
 }

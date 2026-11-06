@@ -5,11 +5,13 @@ package composite
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // BriefBackend is what the composite needs of a store of the weekly briefs and their throttle entries.
@@ -19,9 +21,12 @@ type BriefBackend interface {
 }
 
 // Briefs is the composite of the weekly briefs and throttle entries, built like Store: the primary store decides every
-// result and is embedded, so every method not overridden goes to it unchanged; in dual mode each put is copied to
-// PostgreSQL from what KV returned for it, with the revision KV gave it, and a sampled fraction of reads is compared. See Store
-// for what that guarantees. A brief or a throttle entry is never deleted, so a copy has no delete to race with.
+// result and is embedded, so every method not overridden goes to it unchanged; in dual mode each put is followed by a copy
+// to PostgreSQL of what KV holds, with the revision KV gave it, and a sampled fraction of reads is compared. See Store for
+// what that guarantees. A brief or a throttle entry is never deleted, so a copy has no delete to race with. PostgreSQL
+// holds one brief per window: when KV lets a second brief take a window over, PostgreSQL keeps the first, and a cutover to a
+// PostgreSQL-primary mode needs that repaired first (storage verify reports the brief KV serves as missing and the one
+// PostgreSQL kept as extra).
 type Briefs struct {
 	BriefBackend
 	core
@@ -39,78 +44,123 @@ func NewBriefs(mode Mode, kv, pg BriefBackend, opts ...Option) (*Briefs, error) 
 	return &Briefs{BriefBackend: primary, core: newCore(mode, opts), kv: kv, pg: pg}, nil
 }
 
-// PutGroupWeeklyBrief writes the brief and returns it with its new revision. In dual mode the brief KV returned is copied
-// to PostgreSQL, which holds one brief per committee and window: a second brief for a window KV let through is refused
-// there and counted.
+// PutGroupWeeklyBrief writes the brief and returns it with its new revision. In dual mode the brief KV serves for the
+// window is copied to PostgreSQL, which holds one brief per committee and window: a second brief for a window KV let
+// through is refused there and counted.
 func (b *Briefs) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, error) {
 	stored, err := b.BriefBackend.PutGroupWeeklyBrief(ctx, brief)
 	if err != nil || stored == nil {
 		return stored, err
 	}
 	if b.mode == ModeDual {
-		copied := *stored
-		b.replicate(ctx, "put_weekly_brief", copied.UID, func(ctx context.Context) error { return b.copyBrief(ctx, &copied) })
+		committeeUID, window := stored.CommitteeUID, *stored
+		b.replicate(ctx, "put_weekly_brief", stored.UID, func(ctx context.Context) error { return b.copyBrief(ctx, committeeUID, window) })
 	}
 	return stored, nil
 }
 
-// copyBrief writes the brief to PostgreSQL with the revision KV gave it. A write replaces the brief with the same uid, so a
-// copy that was missed is made up for by the next one; nothing is written when PostgreSQL already holds this revision or a
-// newer one of the brief.
-func (b *Briefs) copyBrief(ctx context.Context, stored *model.GroupWeeklyBrief) error {
-	existing, _, err := b.pg.GetGroupWeeklyBriefForWindow(ctx, stored.CommitteeUID, *stored)
+// copyBrief writes the brief KV serves for the window now to PostgreSQL, with the revision KV gave it. It reads KV again,
+// like copyUpdated, and does not copy the value a put returned: when two puts of a brief overlap, each copy then writes
+// the newest state, and the one that comes second finds it already there and writes nothing, where copying what each put
+// returned would leave PostgreSQL on the older one, or count a refused copy that is not a failure. A write replaces the
+// brief with the same uid, so a copy that was missed is made up for by the next one; nothing is written when PostgreSQL
+// already holds this revision or a newer one of the brief.
+func (b *Briefs) copyBrief(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) error {
+	served, _, err := b.kv.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
 	if err != nil {
 		return err
 	}
-	if existing != nil && existing.UID == stored.UID && existing.Revision >= stored.Revision {
+	if served == nil {
+		return nil // there is no brief for the window, so there is nothing to copy
+	}
+	existing, _, err := b.pg.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+	if err != nil {
+		return err
+	}
+	if existing != nil && existing.UID == served.UID && existing.Revision >= served.Revision {
 		return nil
 	}
-	wctx, err := postgres.WithRevision(ctx, stored.Revision)
+	wctx, err := postgres.WithRevision(ctx, served.Revision)
 	if err != nil {
 		return err
 	}
-	stored.Revision = 0 // a put without a revision replaces the brief with the same uid, as a write of KV does
-	_, err = b.pg.PutGroupWeeklyBrief(wctx, stored)
+	copied := *served
+	copied.Revision = 0 // a put without a revision replaces the brief with the same uid, as a write of KV does
+	_, err = b.pg.PutGroupWeeklyBrief(wctx, &copied)
+	if refusedAsStale(err) {
+		// Another copy wrote between the read above and this write; PostgreSQL then refuses a revision that is not above
+		// its own. That is not a failure if the window now holds this brief at this revision or a newer one.
+		existing, _, getErr := b.pg.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+		if getErr == nil && existing != nil && existing.UID == served.UID && existing.Revision >= served.Revision {
+			return nil
+		}
+	}
 	return err
 }
 
+// refusedAsStale reports whether PostgreSQL refused a write because its revision is not above the one stored, or because
+// a compare-and-swap was lost (it answers that with a service-unavailable error to retry): what an overlapping copy of
+// the same record causes. The caller decides from a read whether the record is where it should be.
+func refusedAsStale(err error) bool {
+	var validation errs.Validation
+	var conflict errs.Conflict
+	var lost errs.ServiceUnavailable
+	return errors.As(err, &validation) || errors.As(err, &conflict) || errors.As(err, &lost)
+}
+
 // PutGroupWeeklyBriefThrottle writes or updates the throttle entry, guarded by the revision it carries. In dual mode the
-// entry KV returned is copied to PostgreSQL.
+// entry KV holds now is copied to PostgreSQL.
 func (b *Briefs) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *model.GroupWeeklyBriefThrottle) (*model.GroupWeeklyBriefThrottle, error) {
 	stored, err := b.BriefBackend.PutGroupWeeklyBriefThrottle(ctx, throttle)
 	if err != nil || stored == nil {
 		return stored, err
 	}
 	if b.mode == ModeDual {
-		copied := *stored
-		b.replicate(ctx, "put_weekly_brief_throttle", copied.CommitteeUID+"."+model.WindowDateKey(copied.WindowStart),
-			func(ctx context.Context) error { return b.copyThrottle(ctx, &copied) })
+		committeeUID, windowStart := stored.CommitteeUID, stored.WindowStart
+		b.replicate(ctx, "put_weekly_brief_throttle", committeeUID+"."+model.WindowDateKey(windowStart),
+			func(ctx context.Context) error { return b.copyThrottle(ctx, committeeUID, windowStart) })
 	}
 	return stored, nil
 }
 
-// copyThrottle writes the throttle entry to PostgreSQL with the revision KV gave it, guarded by the revision PostgreSQL has
-// now, like copyUpdated: it creates the entry when PostgreSQL has none and writes nothing when it already holds this
-// revision or a newer one.
-func (b *Briefs) copyThrottle(ctx context.Context, stored *model.GroupWeeklyBriefThrottle) error {
-	current, err := b.pg.GetGroupWeeklyBriefThrottle(ctx, stored.CommitteeUID, stored.WindowStart)
+// copyThrottle writes the throttle entry KV holds now to PostgreSQL, with the revision KV gave it, guarded by the revision
+// PostgreSQL has now. It reads KV again, like copyUpdated: when two puts overlap each copy writes the newest entry, and a
+// copy that finds PostgreSQL already there writes nothing, where copying what each put returned would leave the older one
+// whenever the first copy wins the swap. It creates the entry when PostgreSQL has none, and a swap or create an overlapping
+// copy won is not a failure when PostgreSQL then holds this revision or a newer one.
+func (b *Briefs) copyThrottle(ctx context.Context, committeeUID string, windowStart time.Time) error {
+	served, err := b.kv.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
 	if err != nil {
 		return err
 	}
-	revision := stored.Revision
+	if served == nil {
+		return nil
+	}
+	current, err := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+	if err != nil {
+		return err
+	}
+	revision := served.Revision
+	copied := *served
 	switch {
 	case current == nil:
-		stored.Revision = 0 // a create
+		copied.Revision = 0 // a create
 	case current.Revision >= revision:
 		return nil
 	default:
-		stored.Revision = current.Revision // the guard
+		copied.Revision = current.Revision // the guard
 	}
 	wctx, err := postgres.WithRevision(ctx, revision)
 	if err != nil {
 		return err
 	}
-	_, err = b.pg.PutGroupWeeklyBriefThrottle(wctx, stored)
+	_, err = b.pg.PutGroupWeeklyBriefThrottle(wctx, &copied)
+	if refusedAsStale(err) {
+		now, getErr := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+		if getErr == nil && now != nil && now.Revision >= revision {
+			return nil
+		}
+	}
 	return err
 }
 

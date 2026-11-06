@@ -315,7 +315,6 @@ func (d *deletingLinkKV) GetLinkFolder(ctx context.Context, committeeUID, uid st
 // A delete that finishes in KV while a create is being copied finds nothing to remove in PostgreSQL, so the copy must not
 // leave the record behind.
 func TestLinks_DualACreateCopiedWhileADeleteFinishesDoesNotBringTheRecordBack(t *testing.T) {
-	ctx := context.Background()
 	for _, k := range linkKinds() {
 		t.Run(k.name, func(t *testing.T) {
 			r := newLinkRig(t, ModeDual, nil)
@@ -325,7 +324,6 @@ func TestLinks_DualACreateCopiedWhileADeleteFinishesDoesNotBringTheRecordBack(t 
 
 			assert.True(t, goneFromLinks(k, r.kv, uid) && goneFromLinks(k, r.pg, uid), "the %s is in neither store", k.name)
 			assert.Empty(t, r.counts(t, failures))
-			_ = ctx
 		})
 	}
 }
@@ -468,3 +466,14 @@ func TestLinks_DualCompareCountsWhatDiffers(t *testing.T) {
 }
 
 var _ = errs.NewNotFound
+
+func TestLinks_NewLinksNeedsTheStoresTheModeUses(t *testing.T) {
+	kv, pg := natstest.NewBackend(t), postgrestest.NewStore(t)
+
+	_, err := NewLinks(ModePostgres, kv, nil)
+	assert.Error(t, err)
+	_, err = NewLinks(ModeKV, nil, pg)
+	assert.Error(t, err)
+	_, err = NewLinks(ModeDual, kv, pg)
+	assert.NoError(t, err)
+}
