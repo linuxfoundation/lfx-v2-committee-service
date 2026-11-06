@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -42,6 +43,10 @@ type verifyOptions struct {
 	// IncludeOrphans expects the children whose committee does not exist in KV to have been copied (migrate
 	// --include-orphans), so one that is missing from PostgreSQL is a difference. By default they are only counted.
 	IncludeOrphans bool
+	// ByContent compares the content of a record and not its revision, for the stores that give a record revisions of
+	// their own: in dual-pg mode KV holds each record at a revision of its own, not the one PostgreSQL gave it. A weekly
+	// brief is compared without its update time too, which KV stamps with the time of the copy.
+	ByContent bool
 }
 
 // The kinds of problem a comparison reports. The first four are differences between the stores.
@@ -121,6 +126,8 @@ type verifySpec[T any] struct {
 	// uid names the record; committeeUID is the committee it belongs to, nil for the committees themselves.
 	uid          func(T) string
 	committeeUID func(T) string
+	// normalize, when set, makes a record comparable by content alone: the fields a store sets itself are cleared.
+	normalize func(T) T
 	// orphansNotCopied is set for a record migrate cannot copy when its committee is gone, even with --include-orphans:
 	// the store creates the settings only along with their committee. Such a record is counted as an orphan and is
 	// never reported missing.
@@ -140,7 +147,7 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 	rows := map[string]compared{}
 	err := spec.pg(ctx, func(record T, revision uint64) error {
 		res.PostgreSQL++
-		digest, err := digestOf(record)
+		digest, err := spec.digest(record, opts)
 		if err != nil {
 			return err
 		}
@@ -176,7 +183,7 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 			return nil
 		}
 		delete(rows, uid)
-		digest, err := digestOf(record)
+		digest, err := spec.digest(record, opts)
 		if err != nil {
 			return err
 		}
@@ -184,7 +191,7 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 		if digest != row.digest {
 			differs = append(differs, "content differs")
 		}
-		if revision != row.revision {
+		if !opts.ByContent && revision != row.revision {
 			differs = append(differs, fmt.Sprintf("revision differs (KV %d, PostgreSQL %d)", revision, row.revision))
 		}
 		if len(differs) > 0 {
@@ -209,6 +216,14 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 	for _, uid := range extra {
 		res.add(ctx, uid, verifyExtra, "in PostgreSQL and not in KV")
 	}
+}
+
+// digest is the digest of the record to compare: of its content alone when the comparison is by content.
+func (s verifySpec[T]) digest(record T, opts verifyOptions) ([sha256.Size]byte, error) {
+	if opts.ByContent && s.normalize != nil {
+		record = s.normalize(record)
+	}
+	return digestOf(record)
 }
 
 // digestOf is the SHA-256 of the record in a form that does not depend on how a store holds it; see composite.Digest.
@@ -358,6 +373,11 @@ func childVerifies(src port.KVExportReader, dst verifySource) []childVerify {
 		}),
 		verifyChild(entityBriefs, verifySpec[*model.GroupWeeklyBrief]{
 			kv: src.EachBriefExport, pg: dst.EachBriefExport,
+			normalize: func(b *model.GroupWeeklyBrief) *model.GroupWeeklyBrief {
+				c := *b
+				c.UpdatedAt = time.Time{} // KV stamps the update time of a brief itself on every put
+				return &c
+			},
 			uid:          func(b *model.GroupWeeklyBrief) string { return b.UID },
 			committeeUID: func(b *model.GroupWeeklyBrief) string { return b.CommitteeUID },
 		}),

@@ -13,13 +13,14 @@ type command struct{}
 func (c *command) Name() string { return "storage" }
 
 func (c *command) Help() string {
-	return "copy committee data from the NATS KV store to PostgreSQL and verify the copy"
+	return "copy committee data from the NATS KV store to PostgreSQL, verify the copy and prepare PostgreSQL to issue the revisions"
 }
 
 func (c *command) Subcommands() map[string]commands.Subcommand {
 	return map[string]commands.Subcommand{
 		"migrate": &migrateSubcommand{},
 		"verify":  &verifySubcommand{},
+		"flip":    &flipSubcommand{},
 	}
 }
 

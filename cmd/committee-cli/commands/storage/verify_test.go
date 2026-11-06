@@ -154,4 +154,5 @@ func TestStorageCommand_HasMigrateAndVerify(t *testing.T) {
 	subcommands := NewCommand().Subcommands()
 	assert.Contains(t, subcommands, "migrate")
 	assert.Contains(t, subcommands, "verify")
+	assert.Contains(t, subcommands, "flip")
 }
