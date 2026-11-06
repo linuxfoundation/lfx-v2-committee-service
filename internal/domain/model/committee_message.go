@@ -46,6 +46,10 @@ type CommitteeMemberCreatedEventData struct {
 	*CommitteeMember
 	SkipNotification bool   `json:"skip_notification,omitempty"`
 	CreatedBy        string `json:"created_by,omitempty"`
+	// RecipientAccountAbsent is set only when the addition confirmed that no account
+	// owns the member's email, so the invite handler can skip repeating that lookup.
+	// A failed lookup never sets it.
+	RecipientAccountAbsent bool `json:"recipient_account_absent,omitempty"`
 }
 
 // CommitteeMemberDeletedEventData is the payload for committee_member.deleted events.

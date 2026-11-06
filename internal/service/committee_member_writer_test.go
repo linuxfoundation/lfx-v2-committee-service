@@ -233,9 +233,11 @@ func setupMemberWriterTest() (*committeeWriterOrchestrator, *mock.MockRepository
 type writerTestUserReader struct {
 	usernames map[string]string // email → username
 	err       error             // returned by UsernameByEmail when non-nil
+	calls     int               // number of UsernameByEmail calls
 }
 
 func (r *writerTestUserReader) UsernameByEmail(_ context.Context, email string) (string, error) {
+	r.calls++
 	if r.err != nil {
 		return "", r.err
 	}
@@ -1844,6 +1846,149 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 		require.NoError(t, err)
 		assert.Equal(t, "sync-lfid", result.Username)
 	})
+}
+
+func TestCommitteeWriterOrchestrator_CreateMember_IdentityReuse(t *testing.T) {
+	const email = "first.last@example.com"
+	found := model.NewIdentityLookup(email, "first-last", nil)
+	absent := model.NewIdentityLookup(email, "", errs.NewNotFound("user not found"))
+	unresolved := model.NewIdentityLookup(email, "", errs.NewServiceUnavailable("auth service down"))
+
+	tests := []struct {
+		name           string
+		userReader     *writerTestUserReader // nil leaves the orchestrator without a user reader
+		lookup         *model.IdentityLookup
+		username       string
+		skipEnrichment bool
+		wantCalls      int
+		wantUsername   string
+		wantStatus     model.IdentityLookupStatus
+		wantAbsentFlag bool
+	}{
+		{
+			name:         "found lookup for the email is reused without a call",
+			userReader:   &writerTestUserReader{usernames: map[string]string{email: "first-last-live"}},
+			lookup:       found,
+			wantCalls:    0,
+			wantUsername: "first-last",
+			wantStatus:   model.IdentityLookupFound,
+		},
+		{
+			name:           "absent lookup for the email is reused without a call",
+			userReader:     &writerTestUserReader{usernames: map[string]string{email: "first-last-live"}},
+			lookup:         absent,
+			wantCalls:      0,
+			wantUsername:   "",
+			wantStatus:     model.IdentityLookupAbsent,
+			wantAbsentFlag: true,
+		},
+		{
+			name:         "unresolved lookup is retried",
+			userReader:   &writerTestUserReader{usernames: map[string]string{email: "first-last"}},
+			lookup:       unresolved,
+			wantCalls:    1,
+			wantUsername: "first-last",
+			wantStatus:   model.IdentityLookupFound,
+		},
+		{
+			name:         "unresolved lookup whose retry fails stays unresolved",
+			userReader:   &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")},
+			lookup:       unresolved,
+			wantCalls:    1,
+			wantUsername: "",
+			wantStatus:   model.IdentityLookupUnresolved,
+		},
+		{
+			name:         "found lookup for a different email is not reused",
+			userReader:   &writerTestUserReader{usernames: map[string]string{email: "first-last"}},
+			lookup:       model.NewIdentityLookup("other.last@example.com", "other-last", nil),
+			wantCalls:    1,
+			wantUsername: "first-last",
+			wantStatus:   model.IdentityLookupFound,
+		},
+		{
+			name:         "caller-supplied username without a lookup is overwritten",
+			userReader:   &writerTestUserReader{usernames: map[string]string{email: "first-last"}},
+			username:     "first-last-forged",
+			wantCalls:    1,
+			wantUsername: "first-last",
+			wantStatus:   model.IdentityLookupFound,
+		},
+		{
+			name:           "caller-supplied username with an absent lookup is cleared",
+			userReader:     &writerTestUserReader{usernames: map[string]string{email: "first-last"}},
+			lookup:         absent,
+			username:       "first-last-forged",
+			wantCalls:      0,
+			wantUsername:   "",
+			wantStatus:     model.IdentityLookupAbsent,
+			wantAbsentFlag: true,
+		},
+		{
+			name:           "skip enrichment keeps the caller username without a call",
+			userReader:     &writerTestUserReader{usernames: map[string]string{email: "first-last"}},
+			username:       "first-last-sync",
+			skipEnrichment: true,
+			wantCalls:      0,
+			wantUsername:   "first-last-sync",
+			wantStatus:     model.IdentityLookupUnresolved,
+		},
+		{
+			name:         "nil user reader is unresolved, never absent",
+			wantUsername: "",
+			wantStatus:   model.IdentityLookupUnresolved,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orchestrator, mockRepo, _ := setupMemberWriterTest()
+			if tt.userReader != nil {
+				orchestrator.userReader = tt.userReader
+			}
+			publisher := &mock.MockCommitteePublisher{}
+			orchestrator.committeePublisher = publisher
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase:     model.CommitteeBase{UID: "c-1", Name: "C", Category: "TC"},
+				CommitteeSettings: &model.CommitteeSettings{UID: "c-1"},
+			})
+
+			var lookup *model.IdentityLookup
+			if tt.lookup != nil {
+				copied := *tt.lookup
+				lookup = &copied
+			}
+			result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: "c-1",
+					Email:        email,
+					Username:     tt.username,
+					FirstName:    "First",
+					LastName:     "Last",
+					Organization: model.CommitteeMemberOrganization{Name: "Org"},
+				},
+				IdentityLookup: lookup,
+			}, false, tt.skipEnrichment)
+			require.NoError(t, err)
+
+			if tt.userReader != nil {
+				assert.Equal(t, tt.wantCalls, tt.userReader.calls, "UsernameByEmail calls")
+			}
+			assert.Equal(t, tt.wantUsername, result.Username)
+			if tt.skipEnrichment {
+				assert.Nil(t, result.IdentityLookup, "skip enrichment must not record a lookup")
+			} else {
+				require.NotNil(t, result.IdentityLookup)
+				assert.Equal(t, tt.wantStatus, result.IdentityLookup.Status)
+			}
+
+			committeeEvent, ok := publisher.LastEvent.(*model.CommitteeEvent)
+			require.True(t, ok, "LastEvent must be *model.CommitteeEvent")
+			createdData, ok := committeeEvent.Data.(*model.CommitteeMemberCreatedEventData)
+			require.True(t, ok, "event Data must be *model.CommitteeMemberCreatedEventData")
+			assert.Equal(t, tt.wantAbsentFlag, createdData.RecipientAccountAbsent, "recipient_account_absent")
+		})
+	}
 }
 
 func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.T) {
