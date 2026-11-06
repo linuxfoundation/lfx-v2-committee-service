@@ -126,19 +126,31 @@ func (b *Briefs) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mode
 // copyThrottle writes the throttle entry KV holds now to PostgreSQL, with the revision KV gave it, guarded by the revision
 // PostgreSQL has now. It reads KV again, like copyUpdated: when two puts overlap each copy writes the newest entry, and a
 // copy that finds PostgreSQL already there writes nothing, where copying what each put returned would leave the older one
-// whenever the first copy wins the swap. It creates the entry when PostgreSQL has none, and a swap or create an overlapping
-// copy won is not a failure when PostgreSQL then holds this revision or a newer one.
+// whenever the first copy wins the swap. It creates the entry when PostgreSQL has none. When an overlapping copy wins the
+// write first, this one is settled if PostgreSQL then holds this revision or a newer one; if it holds an older one (the
+// other copy had read an older entry) the copy is made once more from the start, so the newest entry is not left behind.
 func (b *Briefs) copyThrottle(ctx context.Context, committeeUID string, windowStart time.Time) error {
+	for attempt := 0; ; attempt++ {
+		settled, err := b.copyThrottleOnce(ctx, committeeUID, windowStart)
+		if settled || attempt > 0 {
+			return err
+		}
+	}
+}
+
+// copyThrottleOnce makes one copy. settled is false only when a write was refused because an overlapping copy got there
+// first and PostgreSQL still holds an older revision than the one KV holds, so that another attempt can succeed.
+func (b *Briefs) copyThrottleOnce(ctx context.Context, committeeUID string, windowStart time.Time) (settled bool, err error) {
 	served, err := b.kv.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
 	if err != nil {
-		return err
+		return true, err
 	}
 	if served == nil {
-		return nil
+		return true, nil
 	}
 	current, err := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
 	if err != nil {
-		return err
+		return true, err
 	}
 	revision := served.Revision
 	copied := *served
@@ -146,22 +158,23 @@ func (b *Briefs) copyThrottle(ctx context.Context, committeeUID string, windowSt
 	case current == nil:
 		copied.Revision = 0 // a create
 	case current.Revision >= revision:
-		return nil
+		return true, nil
 	default:
 		copied.Revision = current.Revision // the guard
 	}
 	wctx, err := postgres.WithRevision(ctx, revision)
 	if err != nil {
-		return err
+		return true, err
 	}
 	_, err = b.pg.PutGroupWeeklyBriefThrottle(wctx, &copied)
-	if refusedAsStale(err) {
-		now, getErr := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
-		if getErr == nil && now != nil && now.Revision >= revision {
-			return nil
-		}
+	if !refusedAsStale(err) {
+		return true, err
 	}
-	return err
+	now, getErr := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+	if getErr == nil && now != nil && now.Revision >= revision {
+		return true, nil
+	}
+	return false, err
 }
 
 // GetGroupWeeklyBriefForWindow returns the committee's brief for the window and the throttle JSON of the same window. In

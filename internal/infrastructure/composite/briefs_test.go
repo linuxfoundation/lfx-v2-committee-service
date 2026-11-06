@@ -80,14 +80,14 @@ func sameThrottleInBoth(t *testing.T, r *briefRig) {
 	assert.True(t, same, "the throttle entry is the same, with the revision KV gave it")
 }
 
+// secondBriefSubtest is the contract case that puts a second brief for a window, the one place the stores differ.
+const secondBriefSubtest = "a_second_brief_with_another_uid_for_a_window_that_has_one_leaves_the_window_with_one_brief"
+
 // Whatever the mode, the composite behaves as one store does for the weekly briefs and their throttle entries: the same
 // suite the KV store and the PostgreSQL store pass. In dual mode every read of the suite was compared, and the stores never
 // disagreed, with one exception: the suite also puts a second brief for a window, which KV lets take the window over and
 // PostgreSQL refuses. That copy is counted as a failure, and a read of that window then differs between the two stores,
 // which is the difference docs/postgres-schema.md describes. Nothing else is counted.
-// secondBriefSubtest is the contract case that puts a second brief for a window, the one place the stores differ.
-const secondBriefSubtest = "a_second_brief_with_another_uid_for_a_window_that_has_one_leaves_the_window_with_one_brief"
-
 func TestContract_Briefs(t *testing.T) {
 	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
@@ -353,6 +353,69 @@ func TestBriefs_DualOverlappingCopiesAreNotFailures(t *testing.T) {
 
 		sameThrottleInBoth(t, r)
 	})
+}
+
+// Two copies of different revisions that both read the same PostgreSQL state: if the older one writes first, the newer one
+// loses its write and makes the copy again, so PostgreSQL ends on the newest entry, for an empty row and an existing one.
+func TestBriefs_DualANewerThrottleCopyRetriesWhenAnOlderOneWroteFirst(t *testing.T) {
+	ctx := context.Background()
+	for _, existing := range []bool{false, true} {
+		name := "an empty row"
+		if existing {
+			name = "an existing row"
+		}
+		t.Run(name, func(t *testing.T) {
+			var r *briefRig
+			var olderThrottle *model.GroupWeeklyBriefThrottle // the entry the older copy writes
+			fired := false
+			r = newBriefRig(t, ModeDual, func(pg BriefBackend) BriefBackend {
+				return racingBriefPG{BriefBackend: pg, before: func(ctx context.Context) {
+					if fired {
+						return
+					}
+					fired = true
+					// The older copy: it read the entry as of the first put and writes it now, before the newer one does.
+					older := *olderThrottle
+					older.GeneratesUsed = 1
+					current, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+					require.NoError(t, err)
+					if current != nil {
+						older.Revision = current.Revision
+					} else {
+						older.Revision = 0
+					}
+					wctx, err := postgres.WithRevision(ctx, olderThrottle.Revision)
+					require.NoError(t, err)
+					_, err = r.pg.PutGroupWeeklyBriefThrottle(wctx, &older)
+					require.NoError(t, err)
+				}}
+			})
+			first, err := r.kv.PutGroupWeeklyBriefThrottle(ctx, storetest.NewThrottle("uid-1", storetest.FixtureWindow))
+			require.NoError(t, err)
+			olderThrottle = first
+			if existing {
+				require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+				fired = false
+				first, err = r.kv.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+				require.NoError(t, err)
+				first.GeneratesUsed = 5
+				first, err = r.kv.PutGroupWeeklyBriefThrottle(ctx, first)
+				require.NoError(t, err)
+				olderThrottle = first
+			}
+			newest := *olderThrottle
+			newest.GeneratesUsed = 9
+			_, err = r.kv.PutGroupWeeklyBriefThrottle(ctx, &newest) // KV holds the newest now
+
+			require.NoError(t, err)
+			require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+
+			sameThrottleInBoth(t, r)
+			got, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+			require.NoError(t, err)
+			assert.Equal(t, 9, got.GeneratesUsed, "PostgreSQL holds the newest entry")
+		})
+	}
 }
 
 // Two puts of the same throttle entry whose copies run in the wrong order leave PostgreSQL on the newest, because a copy

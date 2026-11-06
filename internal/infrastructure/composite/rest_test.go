@@ -18,7 +18,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres/postgrestest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
-	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // newMetricsReader returns metrics that count into a reader the test can read.
@@ -464,8 +463,6 @@ func TestLinks_DualCompareCountsWhatDiffers(t *testing.T) {
 		assert.Empty(t, r.counts(t, compareErr))
 	})
 }
-
-var _ = errs.NewNotFound
 
 func TestLinks_NewLinksNeedsTheStoresTheModeUses(t *testing.T) {
 	kv, pg := natstest.NewBackend(t), postgrestest.NewStore(t)
