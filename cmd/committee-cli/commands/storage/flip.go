@@ -77,7 +77,9 @@ func (s *flipSubcommand) Run(ctx context.Context, rc commands.RunContext) error 
 func runFlip(ctx context.Context, src port.KVExportReader, dst flipTarget, confirm bool, out io.Writer) error {
 	results, err := runVerify(ctx, src, dst, verifyOptions{})
 	if err != nil {
-		(&verifySubcommand{out: out}).print(results)
+		if results != nil {
+			(&verifySubcommand{out: out}).print(results)
+		}
 		return fmt.Errorf("refusing to flip: %w", err)
 	}
 	highest, err := highestKVRevision(ctx, src)

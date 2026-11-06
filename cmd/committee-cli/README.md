@@ -24,7 +24,7 @@ committee-cli <command> <subcommand> [subcommand flags]
 | `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
 | `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate`, `storage verify` and `storage flip`. Holds a credential and is never logged |
-| `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`, `storage verify`) |
+| `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`, `storage verify`, `storage flip`) |
 | `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or one that cannot be used yet (today only `kv` can), stops a command that connects before it connects; commands that need no infrastructure ignore it |
 
 ### Commands
