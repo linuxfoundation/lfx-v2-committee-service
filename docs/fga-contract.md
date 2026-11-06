@@ -94,6 +94,8 @@ Published to `lfx.fga-sync.member_put` when a committee member is created or upd
 
 The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UID.
 
+When enrichment runs, caller-supplied usernames are not trusted: the service uses its email-to-username lookup and the stored-identity fallback described below. Within one create or update request, a confirmed lookup result (account found or confirmed absent) for the member's current email is reused instead of asking auth-service again; a failed lookup is retried once in the writer and is never treated as a confirmed absence. On update, when no account is found or the lookup fails, the stored username is kept if the email did not change and cleared if it did, so a confirmed absence leaves an email-only member email-only and publishes no `member_put`. Requests that skip enrichment (NATS LFID invite-accepted reconciliation via `lfx.invite-service.invite_accepted`, user events, sync tooling, `X-Skip-Enrichment`) make no identity lookup in the writer and publish the supplied identity unchanged; user-event and sync-tooling callers may perform their own lookup before invoking the writer. HTTP `AcceptInvite` uses normal server-side enrichment and reuses the confirmed lookup result.
+
 #### Message Envelope
 
 | Field | Value |
