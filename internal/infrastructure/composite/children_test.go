@@ -32,7 +32,7 @@ func TestContract_Children(t *testing.T) {
 		"applications": storetest.RunApplicationContract,
 	}
 	for name, run := range suites {
-		for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+		for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 			t.Run(name+"/"+string(mode), func(t *testing.T) {
 				run(t, storetest.Backend{Name: "composite-" + string(mode)}, func(t *testing.T) port.CommitteeReaderWriter {
 					r := newRig(t, mode, nil, WithSampleRate(1))
@@ -155,7 +155,7 @@ func goneFrom(c child, store port.CommitteeReaderWriter, uid string) bool {
 
 func TestChildren_EachModeWritesToItsStores(t *testing.T) {
 	for _, c := range children() {
-		for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModePostgres: {false, true}} {
+		for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModeDualPG: {true, true}, ModePostgres: {false, true}} {
 			t.Run(c.name+"/"+string(mode), func(t *testing.T) {
 				r := newRig(t, mode, nil)
 
@@ -353,7 +353,7 @@ func TestChildren_DualACreateCopiedWhileADeleteFinishesDoesNotBringTheRecordBack
 		t.Run(c.name, func(t *testing.T) {
 			r := newRig(t, ModeDual, nil)
 			newCommittee(t, r)
-			r.store.kv = &deletingChildKV{CommitteeReaderWriter: r.kv} // what the copy reads from; the primary store is still the real one
+			r.store.src = &deletingChildKV{CommitteeReaderWriter: r.kv} // what the copy reads from; the primary store is still the real one
 
 			switch c.name {
 			case "member":
@@ -568,7 +568,7 @@ func TestChildren_DualARecordKVHasLostIsNothingToCopy(t *testing.T) {
 		for _, c := range children() {
 			r := newRig(t, ModeDual, nil)
 			uid := c.create(t, r)
-			r.store.kv = goneKV{r.kv}
+			r.store.src = goneKV{r.kv}
 
 			c.update(t, r, uid)
 
@@ -579,7 +579,7 @@ func TestChildren_DualARecordKVHasLostIsNothingToCopy(t *testing.T) {
 	t.Run("a create", func(t *testing.T) {
 		r := newRig(t, ModeDual, nil)
 		newCommittee(t, r)
-		r.store.kv = goneKV{r.kv}
+		r.store.src = goneKV{r.kv}
 
 		require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
 		require.NoError(t, r.store.CreateInvite(ctx, storetest.NewInvite("i-1", "uid-1", "first.last@example.com")))
@@ -614,7 +614,7 @@ func TestChildren_DualAMemberDeletedInBothStoresWhileItWasBeingCopiedIsNotAFailu
 	require.NoError(t, r.kv.CreateMember(ctx, member), "in KV only, so PostgreSQL has nothing to update")
 	_, revision, err := r.kv.GetMember(ctx, "m-1")
 	require.NoError(t, err)
-	r.store.kv = &vanishingKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &vanishingKV{CommitteeReaderWriter: r.kv}
 
 	_, err = r.store.UpdateMember(ctx, member, revision)
 
@@ -640,7 +640,7 @@ func TestChildren_DualAReadOfKVAfterTheCopyThatFailsIsCounted(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
 	newCommittee(t, r)
-	r.store.kv = &failingRecheckKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &failingRecheckKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
 
@@ -670,7 +670,7 @@ func TestChildren_DualACreateCopiedWhileAnUpdateFinishesLeavesTheNewVersion(t *t
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
 	newCommittee(t, r)
-	r.store.kv = &updatingKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &updatingKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.CreateMember(ctx, storetest.NewMember("m-1", "uid-1", "first.last@example.com")))
 
@@ -692,7 +692,7 @@ func (m markerKV) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 }
 
 func TestChildren_UpdateMemberReturnsWhatThePrimaryStoreReturns(t *testing.T) {
-	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+	for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
 			ctx := context.Background()
 			r := newRig(t, mode, nil)

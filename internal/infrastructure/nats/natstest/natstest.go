@@ -50,11 +50,26 @@ type DocumentBackend interface {
 	port.CommitteeDocumentReaderWriter
 	UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error
 	ListAllDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error)
+	DocumentRevision(ctx context.Context, documentUID string) (uint64, error)
+	DocumentCommittee(ctx context.Context, documentUID string) (string, error)
 }
 
 type documentBackend struct {
 	port.CommitteeDocumentReaderWriter
 	audit port.DocumentAuditSyncStorage
+	// lookups are the lookups of a document by uid alone, which the document storage has beside its port.
+	lookups interface {
+		DocumentRevision(ctx context.Context, documentUID string) (uint64, error)
+		DocumentCommittee(ctx context.Context, documentUID string) (string, error)
+	}
+}
+
+func (d documentBackend) DocumentRevision(ctx context.Context, documentUID string) (uint64, error) {
+	return d.lookups.DocumentRevision(ctx, documentUID)
+}
+
+func (d documentBackend) DocumentCommittee(ctx context.Context, documentUID string) (string, error) {
+	return d.lookups.DocumentCommittee(ctx, documentUID)
 }
 
 func (d documentBackend) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
@@ -69,7 +84,14 @@ func (d documentBackend) ListAllDocuments(ctx context.Context, committeeUID stri
 func NewDocumentBackend(t *testing.T) DocumentBackend {
 	t.Helper()
 	client := newClient(t)
-	return documentBackend{CommitteeDocumentReaderWriter: nats.NewDocumentStorage(client), audit: nats.NewStorageBackend(client)}
+	docs := nats.NewDocumentStorage(client)
+	return documentBackend{
+		CommitteeDocumentReaderWriter: docs, audit: nats.NewStorageBackend(client),
+		lookups: docs.(interface {
+			DocumentRevision(ctx context.Context, documentUID string) (uint64, error)
+			DocumentCommittee(ctx context.Context, documentUID string) (string, error)
+		}),
+	}
 }
 
 func newClient(t *testing.T) *nats.NATSClient {

@@ -83,7 +83,7 @@ func TestContract_Links(t *testing.T) {
 		"links": storetest.RunLinkContract, "folders": storetest.RunFolderContract,
 	}
 	for name, run := range suites {
-		for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+		for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 			t.Run(name+"/"+string(mode), func(t *testing.T) {
 				run(t, storetest.Backend{Name: "composite-" + string(mode)}, func(t *testing.T) storetest.LinkStore {
 					r := newLinkRig(t, mode, nil, WithSampleRate(1))
@@ -184,7 +184,7 @@ func goneFromLinks(k linkKind, store LinkBackend, uid string) bool {
 
 func TestLinks_EachModeWritesToItsStores(t *testing.T) {
 	for _, k := range linkKinds() {
-		for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModePostgres: {false, true}} {
+		for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModeDualPG: {true, true}, ModePostgres: {false, true}} {
 			t.Run(k.name+"/"+string(mode), func(t *testing.T) {
 				r := newLinkRig(t, mode, nil)
 
@@ -317,7 +317,7 @@ func TestLinks_DualACreateCopiedWhileADeleteFinishesDoesNotBringTheRecordBack(t 
 	for _, k := range linkKinds() {
 		t.Run(k.name, func(t *testing.T) {
 			r := newLinkRig(t, ModeDual, nil)
-			r.links.kv = &deletingLinkKV{LinkBackend: r.kv} // what the copy reads from; the primary store is still the real one
+			r.links.src = &deletingLinkKV{LinkBackend: r.kv} // what the copy reads from; the primary store is still the real one
 
 			uid := k.create(t, r)
 
@@ -404,7 +404,7 @@ func TestLinks_DualACreateCopiedWhileAnUpdateFinishesLeavesTheNewVersion(t *test
 	for _, k := range linkKinds() {
 		t.Run(k.name, func(t *testing.T) {
 			r := newLinkRig(t, ModeDual, nil)
-			r.links.kv = &updatingLinkKV{LinkBackend: r.kv} // what the copy reads from; the primary store is still the real one
+			r.links.src = &updatingLinkKV{LinkBackend: r.kv} // what the copy reads from; the primary store is still the real one
 
 			uid := k.create(t, r)
 

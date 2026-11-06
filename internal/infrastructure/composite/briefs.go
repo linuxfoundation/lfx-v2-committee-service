@@ -10,7 +10,6 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
-	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -27,11 +26,14 @@ type BriefBackend interface {
 // holds one brief per window: when KV lets a second brief take a window over, PostgreSQL keeps the first, and a cutover to a
 // PostgreSQL-primary mode needs that reconciled first: which brief owns the window has to be decided and repaired by hand.
 // storage verify does not flag the one PostgreSQL kept as extra, because the export includes briefs the window index no
-// longer names and matches them by uid; it reports only the brief KV serves as missing.
+// longer names and matches them by uid; it reports only the brief KV serves as missing. In dual-pg mode PostgreSQL is the
+// primary store and each put is copied to KV, which stamps the update time of a brief itself: the brief in KV carries the
+// time of its copy, and briefs are compared without it.
 type Briefs struct {
 	BriefBackend
 	core
-	kv, pg BriefBackend
+	// src is the primary store the copy reads and dst the secondary store it writes; see Store.
+	src, dst BriefBackend
 }
 
 var _ BriefBackend = (*Briefs)(nil)
@@ -42,7 +44,11 @@ func NewBriefs(mode Mode, kv, pg BriefBackend, opts ...Option) (*Briefs, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &Briefs{BriefBackend: primary, core: newCore(mode, opts), kv: kv, pg: pg}, nil
+	b := &Briefs{BriefBackend: primary, core: newCore(mode, opts), src: kv, dst: pg}
+	if mode == ModeDualPG {
+		b.src, b.dst = pg, kv
+	}
+	return b, nil
 }
 
 // PutGroupWeeklyBrief writes the brief and returns it with its new revision. In dual mode the brief KV serves for the
@@ -53,50 +59,125 @@ func (b *Briefs) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeek
 	if err != nil || stored == nil {
 		return stored, err
 	}
-	if b.mode == ModeDual {
+	if b.mode.HasSecondary() {
 		committeeUID, window := stored.CommitteeUID, *stored
 		b.replicate(ctx, "put_weekly_brief", stored.UID, func(ctx context.Context) error { return b.copyBrief(ctx, committeeUID, window) })
 	}
 	return stored, nil
 }
 
-// copyBrief writes the brief KV serves for the window now to PostgreSQL, with the revision KV gave it. It reads KV again,
-// like copyUpdated, and does not copy the value a put returned: when two puts of a brief overlap, each copy then writes
-// the newest state, and the one that comes second finds it already there and writes nothing, where copying what each put
-// returned would leave PostgreSQL on the older one, or count a refused copy that is not a failure. A write replaces the
-// brief with the same uid, so a copy that was missed is made up for by the next one; nothing is written when PostgreSQL
-// already holds this revision or a newer one of the brief.
+// copyBrief writes the brief the primary store serves for the window now to the secondary store, with the revision the primary
+// store gave it where the secondary store can take one. It reads the primary store again, like copyUpdated, and does not copy
+// the value a put returned: when two puts of a brief overlap, each copy then writes the newest state, and the one that comes
+// second finds it already there and writes nothing, where copying what each put returned would leave the secondary store on
+// the older one, or count a refused copy that is not a failure. A write replaces the brief with the same uid, so a copy that
+// was missed is made up for by the next one; nothing is written when PostgreSQL already holds this revision or a newer one of
+// the brief.
+//
+// In dual-pg mode KV is the secondary store, which refuses nothing but a stale guard, so as in copyUpdated it is read before
+// the primary store and the write is guarded by the revision read then, and a refused write is made once more from the
+// start. A window that has no brief in KV is put without a guard, which an overlapping copy of an older brief could
+// overwrite, and a copy that found KV already at the brief it was to write skips it, which lets a delayed copy of the brief
+// before through. So after every put the two stores are compared again and the copy is made once more if they differ.
 func (b *Briefs) copyBrief(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) error {
-	served, _, err := b.kv.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
-	if err != nil {
-		return err
+	attempts := 1
+	if !b.secondaryIsPostgres() {
+		attempts = 2
 	}
-	if served == nil {
-		return nil // there is no brief for the window, so there is nothing to copy
-	}
-	existing, _, err := b.pg.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
-	if err != nil {
-		return err
-	}
-	if existing != nil && existing.UID == served.UID && existing.Revision >= served.Revision {
-		return nil
-	}
-	wctx, err := postgres.WithRevision(ctx, served.Revision)
-	if err != nil {
-		return err
-	}
-	copied := *served
-	copied.Revision = 0 // a put without a revision replaces the brief with the same uid, as a write of KV does
-	_, err = b.pg.PutGroupWeeklyBrief(wctx, &copied)
-	if refusedAsStale(err) {
-		// Another copy wrote between the read above and this write; PostgreSQL then refuses a revision that is not above
-		// its own. That is not a failure if the window now holds this brief at this revision or a newer one.
-		existing, _, getErr := b.pg.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
-		if getErr == nil && existing != nil && existing.UID == served.UID && existing.Revision >= served.Revision {
-			return nil
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		var settled bool
+		if settled, err = b.copyBriefOnce(ctx, committeeUID, window); settled {
+			return err
 		}
 	}
+	if err == nil {
+		err = errors.New("the copy of the weekly brief was overtaken by another copy and left KV behind")
+	}
 	return err
+}
+
+// copyBriefOnce makes one copy. settled is false only when an overlapping copy got in the way of KV's write.
+func (b *Briefs) copyBriefOnce(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) (settled bool, err error) {
+	var existing *model.GroupWeeklyBrief
+	if !b.secondaryIsPostgres() {
+		if existing, _, err = b.dst.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window); err != nil {
+			return true, err // before the primary store, see copyBrief
+		}
+	}
+	served, _, err := b.src.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+	if err != nil {
+		return true, err
+	}
+	if served == nil {
+		return true, nil // there is no brief for the window, so there is nothing to copy
+	}
+	if b.secondaryIsPostgres() {
+		if existing, _, err = b.dst.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window); err != nil {
+			return true, err
+		}
+	}
+	copied := *served
+	if b.secondaryIsPostgres() {
+		if existing != nil && existing.UID == served.UID && existing.Revision >= served.Revision {
+			return true, nil
+		}
+		copied.Revision = 0 // a put without a revision replaces the brief with the same uid, as a write of KV does
+	} else {
+		// KV has revisions of its own: the brief with the same uid is replaced under the revision KV has, nothing is written
+		// when it already holds the same content, and a window without one, or with another brief, is put as a new one.
+		copied.Revision = 0
+		if existing != nil && existing.UID == served.UID {
+			if same, err := sameBriefContent(served, existing); err != nil || same {
+				return true, err
+			}
+			copied.Revision = existing.Revision
+		}
+	}
+	wctx, err := b.carry(ctx, served.Revision)
+	if err != nil {
+		return true, err
+	}
+	_, err = b.dst.PutGroupWeeklyBrief(wctx, &copied)
+	if refusedAsStale(err) {
+		// Another copy wrote between the read above and this write. That is not a failure if the window now holds this
+		// brief at this revision or a newer one (in dual-pg mode, with the same content).
+		now, _, getErr := b.dst.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+		if getErr == nil && now != nil && now.UID == served.UID {
+			if b.secondaryIsPostgres() && now.Revision >= served.Revision {
+				return true, nil
+			}
+			if same, sameErr := sameBriefContent(served, now); !b.secondaryIsPostgres() && sameErr == nil && same {
+				return true, nil
+			}
+		}
+		return b.secondaryIsPostgres(), err
+	}
+	if err != nil || b.secondaryIsPostgres() {
+		return true, err
+	}
+	// See whether the primary store moved on while the brief was being written: an overlapping copy of an older brief can
+	// overwrite a newer one when KV was put without a guard, and a guarded write goes through when the newer copy found KV
+	// already at the content it was to write and skipped it.
+	latest, _, srcErr := b.src.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+	held, _, dstErr := b.dst.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+	if srcErr != nil || dstErr != nil {
+		return true, errors.Join(srcErr, dstErr)
+	}
+	if latest == nil || held == nil {
+		return latest == nil, nil
+	}
+	same, err := sameBriefContent(latest, held)
+	return err != nil || same, err
+}
+
+// sameBriefContent reports whether two briefs have the same content apart from the update time. KV stamps the update time
+// of every put of a brief with the time of the write and cannot be given one, so the brief KV holds as the secondary store
+// of dual-pg mode carries the time of the copy, and the two stores' update times never agree.
+func sameBriefContent(a, b *model.GroupWeeklyBrief) (bool, error) {
+	x, y := *a, *b
+	x.UpdatedAt, y.UpdatedAt = time.Time{}, time.Time{}
+	return sameContent(&x, &y)
 }
 
 // refusedAsStale reports whether PostgreSQL refused a write because its revision is not above the one stored, or because
@@ -116,7 +197,7 @@ func (b *Briefs) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mode
 	if err != nil || stored == nil {
 		return stored, err
 	}
-	if b.mode == ModeDual {
+	if b.mode.HasSecondary() {
 		committeeUID, windowStart := stored.CommitteeUID, stored.WindowStart
 		b.replicate(ctx, "put_weekly_brief_throttle", committeeUID+"."+model.WindowDateKey(windowStart),
 			func(ctx context.Context) error { return b.copyThrottle(ctx, committeeUID, windowStart) })
@@ -124,56 +205,91 @@ func (b *Briefs) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mode
 	return stored, nil
 }
 
-// copyThrottle writes the throttle entry KV holds now to PostgreSQL, with the revision KV gave it, guarded by the revision
+// copyThrottle writes the throttle entry the primary store holds now to the secondary store, with the revision it gave where
+// the secondary store can take one (see copyBrief), guarded by the revision
 // PostgreSQL has now. It reads KV again, like copyUpdated: when two puts overlap each copy writes the newest entry, and a
 // copy that finds PostgreSQL already there writes nothing, where copying what each put returned would leave the older one
 // whenever the first copy wins the swap. It creates the entry when PostgreSQL has none. When an overlapping copy wins the
 // write first, this one is settled if PostgreSQL then holds this revision or a newer one; if it holds an older one (the
 // other copy had read an older entry) the copy is made once more from the start, so the newest entry is not left behind.
 func (b *Briefs) copyThrottle(ctx context.Context, committeeUID string, windowStart time.Time) error {
-	for attempt := 0; ; attempt++ {
-		settled, err := b.copyThrottleOnce(ctx, committeeUID, windowStart)
-		if settled || attempt > 0 {
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		var settled bool
+		if settled, err = b.copyThrottleOnce(ctx, committeeUID, windowStart); settled {
 			return err
 		}
 	}
+	if err == nil {
+		err = errors.New("the copy of the throttle entry was overtaken by newer puts and left the secondary store behind")
+	}
+	return err
 }
 
 // copyThrottleOnce makes one copy. settled is false only when a write was refused because an overlapping copy got there
 // first and PostgreSQL still holds an older revision than the one KV holds, so that another attempt can succeed.
 func (b *Briefs) copyThrottleOnce(ctx context.Context, committeeUID string, windowStart time.Time) (settled bool, err error) {
-	served, err := b.kv.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+	var current *model.GroupWeeklyBriefThrottle
+	if !b.secondaryIsPostgres() {
+		if current, err = b.dst.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart); err != nil {
+			return true, err // before the primary store, see copyBrief
+		}
+	}
+	served, err := b.src.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
 	if err != nil {
 		return true, err
 	}
 	if served == nil {
 		return true, nil
 	}
-	current, err := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
-	if err != nil {
-		return true, err
+	if b.secondaryIsPostgres() {
+		if current, err = b.dst.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart); err != nil {
+			return true, err
+		}
 	}
 	revision := served.Revision
 	copied := *served
 	switch {
 	case current == nil:
 		copied.Revision = 0 // a create
-	case current.Revision >= revision:
+	case b.secondaryIsPostgres() && current.Revision >= revision:
 		return true, nil
+	case !b.secondaryIsPostgres():
+		if same, err := sameContent(served, current); err != nil || same {
+			return true, err
+		}
+		copied.Revision = current.Revision // the guard, KV's own
 	default:
 		copied.Revision = current.Revision // the guard
 	}
-	wctx, err := postgres.WithRevision(ctx, revision)
+	wctx, err := b.carry(ctx, revision)
 	if err != nil {
 		return true, err
 	}
-	_, err = b.pg.PutGroupWeeklyBriefThrottle(wctx, &copied)
+	_, err = b.dst.PutGroupWeeklyBriefThrottle(wctx, &copied)
 	if !refusedAsStale(err) {
-		return true, err
+		if err != nil || b.secondaryIsPostgres() {
+			return true, err
+		}
+		// See whether the primary store moved on while the entry was being written; see copyBrief.
+		latest, srcErr := b.src.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+		if srcErr != nil {
+			return true, srcErr
+		}
+		if latest == nil {
+			return true, nil
+		}
+		same, sameErr := sameContent(served, latest)
+		return sameErr != nil || same, sameErr
 	}
-	now, getErr := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
-	if getErr == nil && now != nil && now.Revision >= revision {
-		return true, nil
+	now, getErr := b.dst.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+	if getErr == nil && now != nil {
+		if b.secondaryIsPostgres() && now.Revision >= revision {
+			return true, nil
+		}
+		if same, sameErr := sameContent(served, now); !b.secondaryIsPostgres() && sameErr == nil && same {
+			return true, nil
+		}
 	}
 	return false, err
 }
@@ -185,11 +301,11 @@ func (b *Briefs) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID 
 	brief, throttle, err := b.BriefBackend.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
 	if err == nil && b.sampled() {
 		b.compareValue(ctx, "get_weekly_brief", func(ctx context.Context) (bool, error) {
-			other, _, otherErr := b.pg.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+			other, _, otherErr := b.dst.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
 			if otherErr != nil {
 				return false, otherErr
 			}
-			return sameBrief(brief, other)
+			return b.agreeBrief(brief, other)
 		})
 	}
 	return brief, throttle, err
@@ -200,14 +316,36 @@ func (b *Briefs) GetGroupWeeklyBriefThrottle(ctx context.Context, committeeUID s
 	throttle, err := b.BriefBackend.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
 	if err == nil && b.sampled() {
 		b.compareValue(ctx, "get_weekly_brief_throttle", func(ctx context.Context) (bool, error) {
-			other, otherErr := b.pg.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+			other, otherErr := b.dst.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
 			if otherErr != nil {
 				return false, otherErr
 			}
-			return sameThrottle(throttle, other)
+			return b.agreeThrottle(throttle, other)
 		})
 	}
 	return throttle, err
+}
+
+// agreeBrief compares the brief the primary store returned with the secondary store's: by content and revision in dual mode,
+// and in dual-pg mode by content alone, where the two stores have revisions of their own, and without the update time.
+func (b *Briefs) agreeBrief(a, other *model.GroupWeeklyBrief) (bool, error) {
+	if !b.secondaryIsPostgres() && a != nil && other != nil {
+		x, y := *a, *other
+		x.Revision, y.Revision = 0, 0
+		x.UpdatedAt, y.UpdatedAt = time.Time{}, time.Time{} // see sameBriefContent
+		return sameBrief(&x, &y)
+	}
+	return sameBrief(a, other)
+}
+
+// agreeThrottle is agreeBrief for the throttle entry.
+func (b *Briefs) agreeThrottle(a, other *model.GroupWeeklyBriefThrottle) (bool, error) {
+	if !b.secondaryIsPostgres() && a != nil && other != nil {
+		x, y := *a, *other
+		x.Revision, y.Revision = 0, 0
+		return sameThrottle(&x, &y)
+	}
+	return sameThrottle(a, other)
 }
 
 // sameBrief compares two briefs, either of which may be missing, by content and revision.

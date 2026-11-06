@@ -127,7 +127,9 @@ func TestNew(t *testing.T) {
 		{ModeDual, nil, pg, false},
 		{ModePostgres, nil, pg, true},
 		{ModePostgres, kv, nil, false},
-		{ModeDualPG, kv, pg, false},
+		{ModeDualPG, kv, pg, true},
+		{ModeDualPG, kv, nil, false},
+		{ModeDualPG, nil, pg, false},
 		{Mode("other"), kv, pg, false},
 	} {
 		_, err := New(tc.mode, tc.kv, tc.pg)
@@ -158,7 +160,7 @@ func TestNew_Defaults(t *testing.T) {
 
 // Whatever the mode, the composite behaves as one store does: the same suite the KV store and the PostgreSQL store pass.
 func TestContract_Committee(t *testing.T) {
-	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+	for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
 			storetest.RunCommitteeContract(t, storetest.Backend{Name: "composite-" + string(mode)}, func(t *testing.T) port.CommitteeReaderWriter {
 				r := newRig(t, mode, nil, WithSampleRate(1))
@@ -176,7 +178,7 @@ func TestContract_Committee(t *testing.T) {
 
 func TestStore_EachModeWritesToItsStores(t *testing.T) {
 	ctx := context.Background()
-	for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModePostgres: {false, true}} {
+	for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModeDualPG: {true, true}, ModePostgres: {false, true}} {
 		t.Run(string(mode), func(t *testing.T) {
 			r := newRig(t, mode, nil)
 
@@ -340,7 +342,7 @@ func (d *deletingKV) GetSettings(ctx context.Context, uid string) (*model.Commit
 func TestStore_DualACreateCopiedWhileADeleteFinishesDoesNotBringTheCommitteeBack(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
-	r.store.kv = &deletingKV{CommitteeReaderWriter: r.kv} // what the copy reads from; the primary store is still the real one
+	r.store.src = &deletingKV{CommitteeReaderWriter: r.kv} // what the copy reads from; the primary store is still the real one
 
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 
@@ -622,7 +624,7 @@ func (k cancelingKV) Create(ctx context.Context, committee *model.Committee) err
 func TestStore_DualTheSecondaryWriteDoesNotDependOnTheRequestStayingOpen(t *testing.T) {
 	r := newRig(t, ModeDual, nil)
 	ctx, cancel := context.WithCancel(context.Background())
-	r.store.kv, r.store.CommitteeReaderWriter = cancelingKV{r.kv, cancel}, cancelingKV{r.kv, cancel}
+	r.store.src, r.store.CommitteeReaderWriter = cancelingKV{r.kv, cancel}, cancelingKV{r.kv, cancel}
 
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 
@@ -632,7 +634,7 @@ func TestStore_DualTheSecondaryWriteDoesNotDependOnTheRequestStayingOpen(t *test
 
 func TestStore_ReadsComeFromThePrimaryStore(t *testing.T) {
 	ctx := context.Background()
-	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+	for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
 			r := newRig(t, mode, nil, WithSampleRate(0))
 			// The same uid holds different names in the two stores, so each read says which one it came from.
@@ -641,10 +643,10 @@ func TestStore_ReadsComeFromThePrimaryStore(t *testing.T) {
 
 			base, _, err := r.store.GetBase(ctx, "uid-1")
 			require.NoError(t, err)
-			uid, err := r.store.FindUIDByProjectAndName(ctx, "project-1", map[Mode]string{ModeKV: "In KV", ModeDual: "In KV", ModePostgres: "In PostgreSQL"}[mode])
+			uid, err := r.store.FindUIDByProjectAndName(ctx, "project-1", map[Mode]string{ModeKV: "In KV", ModeDual: "In KV", ModeDualPG: "In PostgreSQL", ModePostgres: "In PostgreSQL"}[mode])
 			require.NoError(t, err)
 
-			want := map[Mode]string{ModeKV: "In KV", ModeDual: "In KV", ModePostgres: "In PostgreSQL"}[mode]
+			want := map[Mode]string{ModeKV: "In KV", ModeDual: "In KV", ModeDualPG: "In PostgreSQL", ModePostgres: "In PostgreSQL"}[mode]
 			assert.Equal(t, want, base.Name)
 			assert.Equal(t, "uid-1", uid)
 		})
@@ -850,7 +852,7 @@ func (u *updatingCommitteeKV) GetBase(ctx context.Context, uid string) (*model.C
 func TestStore_DualACreateCopiedWhileAnUpdateFinishesLeavesTheNewVersion(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
-	r.store.kv = &updatingCommitteeKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &updatingCommitteeKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 
@@ -870,7 +872,7 @@ func TestStore_DualACommitteeKVHasLostIsNothingToCopy(t *testing.T) {
 	require.NoError(t, err)
 	settings, settingsRevision, err := r.store.GetSettings(ctx, "uid-1")
 	require.NoError(t, err)
-	r.store.kv = goneKV{r.kv}
+	r.store.src = goneKV{r.kv}
 
 	base.Description = "changed"
 	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
@@ -900,7 +902,7 @@ func (f *failingRecheckCommitteeKV) GetBase(ctx context.Context, uid string) (*m
 func TestStore_DualAReadOfKVAfterTheCopyOfACommitteeThatFailsIsCounted(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
-	r.store.kv = &failingRecheckCommitteeKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &failingRecheckCommitteeKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 
@@ -926,7 +928,7 @@ func (f *failingRecheckSettingsKV) GetSettings(ctx context.Context, uid string) 
 func TestStore_DualASettingsKVHasLostAfterTheCopyOfACommitteeAreNotAFailure(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
-	r.store.kv = &lostRecheckSettingsKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &lostRecheckSettingsKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 
@@ -949,7 +951,7 @@ func (l *lostRecheckSettingsKV) GetSettings(ctx context.Context, uid string) (*m
 func TestStore_DualAReadOfTheSettingsAfterTheCopyOfACommitteeThatFailsIsCounted(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
-	r.store.kv = &failingRecheckSettingsKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &failingRecheckSettingsKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 
@@ -976,7 +978,7 @@ func (u *updatingSettingsKV) GetSettings(ctx context.Context, uid string) (*mode
 func TestStore_DualACreateCopiedWhileTheSettingsAreUpdatedLeavesTheNewSettings(t *testing.T) {
 	ctx := context.Background()
 	r := newRig(t, ModeDual, nil)
-	r.store.kv = &updatingSettingsKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &updatingSettingsKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 
@@ -1005,7 +1007,7 @@ func TestStore_DualACommitteeDeletedInBothStoresWhileItWasBeingCopiedIsNotAFailu
 	require.NoError(t, r.kv.Create(ctx, committee), "in KV only, so PostgreSQL has nothing to update")
 	base, revision, err := r.kv.GetBase(ctx, "uid-1")
 	require.NoError(t, err)
-	r.store.kv = &vanishingCommitteeKV{CommitteeReaderWriter: r.kv}
+	r.store.src = &vanishingCommitteeKV{CommitteeReaderWriter: r.kv}
 
 	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
 

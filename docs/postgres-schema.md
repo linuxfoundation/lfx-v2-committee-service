@@ -228,6 +228,19 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   can never match a revision issued after it, and a lower value never lowers the sequence. Call it while no writes
   are in flight, because the read and the set are not one atomic step. Rolling back from PostgreSQL to KV, and
   invalidating the tokens issued in between, is the composite store's to define: it needs no primitive here.
+- **`dual-pg` mode and the way back.** In `dual-pg` PostgreSQL decides and each write is then copied to KV, which cannot be
+  given a revision: it assigns its own, so a record is at one revision in PostgreSQL, the one a client holds, and at
+  another in KV. A copy to KV is guarded by the revision KV has, is skipped when KV already holds the same content, and a
+  delete is guarded by the revision KV has. KV stamps the update time of a weekly brief itself, so a brief in KV carries the
+  time of its copy. A failed copy is counted and left for the next update of the record, and a record whose create was
+  not copied stays missing in KV: no command copies PostgreSQL to KV yet, since `storage migrate` copies in the other
+  direction only, and that copy is part of the flip and rollback work. Switching back to `kv` therefore needs two things: the
+  switch is made with no writes in flight, and KV is known to hold what PostgreSQL holds, because it would otherwise serve
+  what it last received. `storage verify` cannot show that as it is: it compares KV with PostgreSQL in that one direction
+  and reports a record at another revision as a mismatch, which in `dual-pg` is every record that was copied. It does
+  report what only PostgreSQL has as `extra`. A comparison by content that also reports what only PostgreSQL has is part
+  of the flip and rollback work. A client that holds a token from `dual-pg` when `kv` takes over gets a revision mismatch,
+  or, when the number happens to be the one KV has for that record, writes over what it did not read.
 
 - **Cascade delete.** `Store.DeleteCommitteeCascade` removes the committee, its settings and every member, invite,
   application, link, link folder, document metadata row, weekly brief and throttle entry of the committee in one

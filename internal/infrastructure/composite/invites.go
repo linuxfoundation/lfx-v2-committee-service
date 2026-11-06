@@ -17,13 +17,13 @@ func (s *Store) CreateInvite(ctx context.Context, invite *model.CommitteeInvite)
 	if err := s.CommitteeReaderWriter.CreateInvite(ctx, invite); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := invite.UID
 		s.replicate(ctx, "create_invite", uid, func(ctx context.Context) error {
 			// An invite is never deleted on its own (port.CommitteeInviteWriter has no delete), so there is no delete to race
 			// with and nothing to take out again.
-			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.kv.GetInvite(ctx, uid) },
-				s.pg.CreateInvite, func(context.Context, uint64) error { return nil },
+			return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.src.GetInvite(ctx, uid) },
+				s.dst.CreateInvite, func(context.Context, uint64) error { return nil },
 				func(ctx context.Context) error { return s.copyInviteUpdate(ctx, uid) })
 		})
 	}
@@ -35,27 +35,25 @@ func (s *Store) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite,
 	if err := s.CommitteeReaderWriter.UpdateInvite(ctx, invite, revision); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := invite.UID
 		s.replicate(ctx, "update_invite", uid, func(ctx context.Context) error { return s.copyInviteUpdate(ctx, uid) })
 	}
 	return nil
 }
 
-// copyInviteUpdate writes the invite KV holds now to PostgreSQL; see copyUpdated.
+// copyInviteUpdate writes the invite the primary store holds now to the secondary store; see copyUpdated.
 func (s *Store) copyInviteUpdate(ctx context.Context, uid string) error {
-	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.kv.GetInvite(ctx, uid) },
-		func(ctx context.Context) (uint64, error) {
-			_, current, err := s.pg.GetInvite(ctx, uid)
-			return current, err
-		}, s.pg.UpdateInvite)
+	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.src.GetInvite(ctx, uid) },
+		func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.dst.GetInvite(ctx, uid) },
+		s.dst.UpdateInvite)
 }
 
 // GetInvite returns the invite and its revision.
 func (s *Store) GetInvite(ctx context.Context, uid string) (*model.CommitteeInvite, uint64, error) {
 	invite, revision, err := s.CommitteeReaderWriter.GetInvite(ctx, uid)
 	if s.sampled() {
-		s.compareRecord(ctx, "get_invite", invite, revision, err, func(ctx context.Context) (any, uint64, error) { return s.pg.GetInvite(ctx, uid) })
+		s.compareRecord(ctx, "get_invite", invite, revision, err, func(ctx context.Context) (any, uint64, error) { return s.dst.GetInvite(ctx, uid) })
 	}
 	return invite, revision, err
 }
@@ -65,7 +63,7 @@ func (s *Store) ListInvites(ctx context.Context, committeeUID string) ([]*model.
 	invites, err := s.CommitteeReaderWriter.ListInvites(ctx, committeeUID)
 	if s.sampled() {
 		compareRecords(ctx, s, "list_invites", invites, err, func(ctx context.Context) ([]*model.CommitteeInvite, error) {
-			return s.pg.ListInvites(ctx, committeeUID)
+			return s.dst.ListInvites(ctx, committeeUID)
 		})
 	}
 	return invites, err

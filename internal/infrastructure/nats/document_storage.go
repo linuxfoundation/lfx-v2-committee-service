@@ -25,6 +25,13 @@ import (
 // Keeping this separate from the shared storage struct allows swapping to S3 (or another
 // backend) in the future by implementing port.CommitteeDocumentReaderWriter in a new adapter
 // and updating only the provider.
+// DocumentRevision and DocumentCommittee are not part of port.CommitteeDocumentReaderWriter, which NewDocumentStorage
+// returns, so the tests and the composite store reach them through this interface: keep them implemented.
+var _ interface {
+	DocumentRevision(ctx context.Context, documentUID string) (uint64, error)
+	DocumentCommittee(ctx context.Context, documentUID string) (string, error)
+} = (*documentStorage)(nil)
+
 type documentStorage struct {
 	client *NATSClient
 }
@@ -161,6 +168,38 @@ func (ds *documentStorage) DeleteDocumentFile(ctx context.Context, documentUID s
 		return errs.NewUnexpected("failed to delete document file", errDel)
 	}
 	return nil
+}
+
+// DocumentRevision returns the revision of the document found by its uid alone, whichever committee it belongs to, for the
+// callers that replace a document by uid, as the audit sync does. A document that does not exist is errs.NotFound.
+func (ds *documentStorage) DocumentRevision(ctx context.Context, documentUID string) (uint64, error) {
+	if documentUID == "" {
+		return 0, errs.NewValidation("document UID cannot be empty")
+	}
+	rev, errGet := ds.getMetadata(ctx, documentUID, &model.CommitteeDocument{})
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return 0, errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
+		}
+		return 0, errs.NewUnexpected("failed to get document revision", errGet)
+	}
+	return rev, nil
+}
+
+// DocumentCommittee returns the committee the document belongs to, found by its uid alone. A document that does not exist is
+// errs.NotFound.
+func (ds *documentStorage) DocumentCommittee(ctx context.Context, documentUID string) (string, error) {
+	if documentUID == "" {
+		return "", errs.NewValidation("document UID cannot be empty")
+	}
+	doc := &model.CommitteeDocument{}
+	if _, errGet := ds.getMetadata(ctx, documentUID, doc); errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return "", errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
+		}
+		return "", errs.NewUnexpected("failed to get document committee", errGet)
+	}
+	return doc.CommitteeUID, nil
 }
 
 func (ds *documentStorage) DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error {

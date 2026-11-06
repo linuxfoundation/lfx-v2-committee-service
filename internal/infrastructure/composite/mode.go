@@ -53,6 +53,9 @@ func ParseMode(raw string) (Mode, error) {
 // UsesPostgres reports whether the mode reads or writes PostgreSQL at all.
 func (m Mode) UsesPostgres() bool { return m != ModeKV }
 
+// HasSecondary reports whether the mode writes both stores, the primary one deciding and the other following it.
+func (m Mode) HasSecondary() bool { return m == ModeDual || m == ModeDualPG }
+
 // PostgresIsPrimary reports whether PostgreSQL is the authoritative store, which is when its writes decide the result.
 func (m Mode) PostgresIsPrimary() bool { return m == ModeDualPG || m == ModePostgres }
 

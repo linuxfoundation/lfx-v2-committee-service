@@ -23,11 +23,13 @@ type LinkBackend interface {
 // Links is the composite of the committee links and link folders, built like Store: the primary store, the one the mode
 // makes authoritative, decides every result and is embedded, so every method not overridden goes to it unchanged; in dual
 // mode each write is copied to PostgreSQL from what KV holds after it, with the revision KV gave it, and a sampled fraction
-// of reads is compared. See Store for what that guarantees. The lists of the audit-sync tooling go to the primary store alone.
+// of reads is compared; in dual-pg mode the roles are the other way round. See Store for what that guarantees. The lists
+// of the audit-sync tooling go to the primary store alone.
 type Links struct {
 	LinkBackend
 	core
-	kv, pg LinkBackend
+	// src is the primary store the copy reads and dst the secondary store it writes; see Store.
+	src, dst LinkBackend
 }
 
 var _ LinkBackend = (*Links)(nil)
@@ -38,7 +40,11 @@ func NewLinks(mode Mode, kv, pg LinkBackend, opts ...Option) (*Links, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Links{LinkBackend: primary, core: newCore(mode, opts), kv: kv, pg: pg}, nil
+	l := &Links{LinkBackend: primary, core: newCore(mode, opts), src: kv, dst: pg}
+	if mode == ModeDualPG {
+		l.src, l.dst = pg, kv
+	}
+	return l, nil
 }
 
 // CreateLink persists a link.
@@ -46,14 +52,14 @@ func (l *Links) CreateLink(ctx context.Context, link *model.CommitteeLink) error
 	if err := l.LinkBackend.CreateLink(ctx, link); err != nil {
 		return err
 	}
-	if l.mode == ModeDual {
+	if l.mode.HasSecondary() {
 		committeeUID, uid := link.CommitteeUID, link.UID
 		l.replicate(ctx, "create_link", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
-				return l.kv.GetLink(ctx, committeeUID, uid)
+			return copyCreated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
+				return l.src.GetLink(ctx, committeeUID, uid)
 			},
-				l.pg.CreateLink, func(ctx context.Context, revision uint64) error {
-					return l.deleteLinkInPostgreSQL(ctx, committeeUID, uid, revision)
+				l.dst.CreateLink, func(ctx context.Context, revision uint64) error {
+					return l.deleteLinkInSecondary(ctx, committeeUID, uid, revision)
 				},
 				func(ctx context.Context) error { return l.copyLinkUpdate(ctx, committeeUID, uid) })
 		})
@@ -66,22 +72,22 @@ func (l *Links) UpdateLink(ctx context.Context, link *model.CommitteeLink, revis
 	if err := l.LinkBackend.UpdateLink(ctx, link, revision); err != nil {
 		return err
 	}
-	if l.mode == ModeDual {
+	if l.mode.HasSecondary() {
 		committeeUID, uid := link.CommitteeUID, link.UID
 		l.replicate(ctx, "update_link", uid, func(ctx context.Context) error { return l.copyLinkUpdate(ctx, committeeUID, uid) })
 	}
 	return nil
 }
 
-// copyLinkUpdate writes the link KV holds now to PostgreSQL; see copyUpdated.
+// copyLinkUpdate writes the link the primary store holds now to the secondary store; see copyUpdated.
 func (l *Links) copyLinkUpdate(ctx context.Context, committeeUID, uid string) error {
-	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
-		return l.kv.GetLink(ctx, committeeUID, uid)
+	return copyUpdated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
+		return l.src.GetLink(ctx, committeeUID, uid)
 	},
-		func(ctx context.Context) (uint64, error) {
-			_, current, err := l.pg.GetLink(ctx, committeeUID, uid)
-			return current, err
-		}, l.pg.UpdateLink)
+		func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
+			return l.dst.GetLink(ctx, committeeUID, uid)
+		},
+		l.dst.UpdateLink)
 }
 
 // DeleteLink removes the link when the revision is still current.
@@ -89,20 +95,20 @@ func (l *Links) DeleteLink(ctx context.Context, committeeUID, linkUID string, re
 	if err := l.LinkBackend.DeleteLink(ctx, committeeUID, linkUID, revision); err != nil {
 		return err
 	}
-	if l.mode == ModeDual {
-		l.replicate(ctx, "delete_link", linkUID, func(ctx context.Context) error { return l.deleteLinkInPostgreSQL(ctx, committeeUID, linkUID, revision) })
+	if l.mode.HasSecondary() {
+		l.replicate(ctx, "delete_link", linkUID, func(ctx context.Context) error { return l.deleteLinkInSecondary(ctx, committeeUID, linkUID, revision) })
 	}
 	return nil
 }
 
-// deleteLinkInPostgreSQL removes the link from PostgreSQL after KV decided that it is gone; see deleteConverged.
-func (l *Links) deleteLinkInPostgreSQL(ctx context.Context, committeeUID, uid string, revision uint64) error {
-	return deleteConverged(ctx,
+// deleteLinkInSecondary removes the link from the secondary store after the primary store decided that it is gone; see deleteConverged.
+func (l *Links) deleteLinkInSecondary(ctx context.Context, committeeUID, uid string, revision uint64) error {
+	return deleteConverged(ctx, &l.core,
 		func(ctx context.Context, revision uint64) error {
-			return l.pg.DeleteLink(ctx, committeeUID, uid, revision)
+			return l.dst.DeleteLink(ctx, committeeUID, uid, revision)
 		},
 		func(ctx context.Context) (uint64, error) {
-			_, current, err := l.pg.GetLink(ctx, committeeUID, uid)
+			_, current, err := l.dst.GetLink(ctx, committeeUID, uid)
 			return current, err
 		}, revision)
 }
@@ -112,13 +118,13 @@ func (l *Links) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	if err := l.LinkBackend.CreateLinkFolder(ctx, folder); err != nil {
 		return err
 	}
-	if l.mode == ModeDual {
+	if l.mode.HasSecondary() {
 		committeeUID, uid := folder.CommitteeUID, folder.UID
 		l.replicate(ctx, "create_link_folder", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
-				return l.kv.GetLinkFolder(ctx, committeeUID, uid)
-			}, l.pg.CreateLinkFolder, func(ctx context.Context, revision uint64) error {
-				return l.deleteFolderInPostgreSQL(ctx, committeeUID, uid, revision)
+			return copyCreated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
+				return l.src.GetLinkFolder(ctx, committeeUID, uid)
+			}, l.dst.CreateLinkFolder, func(ctx context.Context, revision uint64) error {
+				return l.deleteFolderInSecondary(ctx, committeeUID, uid, revision)
 			}, func(ctx context.Context) error { return l.copyFolderUpdate(ctx, committeeUID, uid) })
 		})
 	}
@@ -130,22 +136,21 @@ func (l *Links) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	if err := l.LinkBackend.UpdateLinkFolder(ctx, folder, revision); err != nil {
 		return err
 	}
-	if l.mode == ModeDual {
+	if l.mode.HasSecondary() {
 		committeeUID, uid := folder.CommitteeUID, folder.UID
 		l.replicate(ctx, "update_link_folder", uid, func(ctx context.Context) error { return l.copyFolderUpdate(ctx, committeeUID, uid) })
 	}
 	return nil
 }
 
-// copyFolderUpdate writes the folder KV holds now to PostgreSQL; see copyUpdated.
+// copyFolderUpdate writes the folder the primary store holds now to the secondary store; see copyUpdated.
 func (l *Links) copyFolderUpdate(ctx context.Context, committeeUID, uid string) error {
-	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
-		return l.kv.GetLinkFolder(ctx, committeeUID, uid)
+	return copyUpdated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
+		return l.src.GetLinkFolder(ctx, committeeUID, uid)
 	},
-		func(ctx context.Context) (uint64, error) {
-			_, current, err := l.pg.GetLinkFolder(ctx, committeeUID, uid)
-			return current, err
-		}, l.pg.UpdateLinkFolder)
+		func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
+			return l.dst.GetLinkFolder(ctx, committeeUID, uid)
+		}, l.dst.UpdateLinkFolder)
 }
 
 // DeleteLinkFolder removes the folder when the revision is still current. The links in it are left alone.
@@ -153,22 +158,22 @@ func (l *Links) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID st
 	if err := l.LinkBackend.DeleteLinkFolder(ctx, committeeUID, folderUID, revision); err != nil {
 		return err
 	}
-	if l.mode == ModeDual {
+	if l.mode.HasSecondary() {
 		l.replicate(ctx, "delete_link_folder", folderUID, func(ctx context.Context) error {
-			return l.deleteFolderInPostgreSQL(ctx, committeeUID, folderUID, revision)
+			return l.deleteFolderInSecondary(ctx, committeeUID, folderUID, revision)
 		})
 	}
 	return nil
 }
 
-// deleteFolderInPostgreSQL removes the folder from PostgreSQL after KV decided that it is gone; see deleteConverged.
-func (l *Links) deleteFolderInPostgreSQL(ctx context.Context, committeeUID, uid string, revision uint64) error {
-	return deleteConverged(ctx,
+// deleteFolderInSecondary removes the folder from the secondary store after the primary store decided that it is gone; see deleteConverged.
+func (l *Links) deleteFolderInSecondary(ctx context.Context, committeeUID, uid string, revision uint64) error {
+	return deleteConverged(ctx, &l.core,
 		func(ctx context.Context, revision uint64) error {
-			return l.pg.DeleteLinkFolder(ctx, committeeUID, uid, revision)
+			return l.dst.DeleteLinkFolder(ctx, committeeUID, uid, revision)
 		},
 		func(ctx context.Context) (uint64, error) {
-			_, current, err := l.pg.GetLinkFolder(ctx, committeeUID, uid)
+			_, current, err := l.dst.GetLinkFolder(ctx, committeeUID, uid)
 			return current, err
 		}, revision)
 }
@@ -178,7 +183,7 @@ func (l *Links) GetLink(ctx context.Context, committeeUID, linkUID string) (*mod
 	link, revision, err := l.LinkBackend.GetLink(ctx, committeeUID, linkUID)
 	if l.sampled() {
 		l.compareRecord(ctx, "get_link", link, revision, err, func(ctx context.Context) (any, uint64, error) {
-			return l.pg.GetLink(ctx, committeeUID, linkUID)
+			return l.dst.GetLink(ctx, committeeUID, linkUID)
 		})
 	}
 	return link, revision, err
@@ -189,7 +194,7 @@ func (l *Links) ListLinks(ctx context.Context, committeeUID string) ([]*model.Co
 	links, err := l.LinkBackend.ListLinks(ctx, committeeUID)
 	if l.sampled() {
 		compareRecords(ctx, l, "list_links", links, err, func(ctx context.Context) ([]*model.CommitteeLink, error) {
-			return l.pg.ListLinks(ctx, committeeUID)
+			return l.dst.ListLinks(ctx, committeeUID)
 		})
 	}
 	return links, err
@@ -200,7 +205,7 @@ func (l *Links) GetLinkFolder(ctx context.Context, committeeUID, folderUID strin
 	folder, revision, err := l.LinkBackend.GetLinkFolder(ctx, committeeUID, folderUID)
 	if l.sampled() {
 		l.compareRecord(ctx, "get_link_folder", folder, revision, err, func(ctx context.Context) (any, uint64, error) {
-			return l.pg.GetLinkFolder(ctx, committeeUID, folderUID)
+			return l.dst.GetLinkFolder(ctx, committeeUID, folderUID)
 		})
 	}
 	return folder, revision, err
@@ -211,7 +216,7 @@ func (l *Links) ListLinkFolders(ctx context.Context, committeeUID string) ([]*mo
 	folders, err := l.LinkBackend.ListLinkFolders(ctx, committeeUID)
 	if l.sampled() {
 		compareRecords(ctx, l, "list_link_folders", folders, err, func(ctx context.Context) ([]*model.CommitteeLinkFolder, error) {
-			return l.pg.ListLinkFolders(ctx, committeeUID)
+			return l.dst.ListLinkFolders(ctx, committeeUID)
 		})
 	}
 	return folders, err
