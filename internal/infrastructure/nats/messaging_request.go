@@ -99,6 +99,7 @@ func (m *messageRequest) Writers(ctx context.Context, uid string) ([]model.Commi
 
 // UsernameByEmail resolves the registered LFID username for the given primary email address.
 // The auth service replies with a plain-text username on success, or a JSON error envelope on miss.
+// Empty replies are unresolved failures, not confirmation that the account is absent.
 func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (string, error) {
 	data := []byte(email)
 	_, msg, err := m.client.requestWithSpan(ctx, constants.AuthEmailToUsernameLookupSubject, data)
@@ -108,7 +109,7 @@ func (m *messageRequest) UsernameByEmail(ctx context.Context, email string) (str
 
 	body := strings.TrimSpace(string(msg.Data))
 	if body == "" {
-		return "", errors.NewNotFound(fmt.Sprintf("user not found for email: %s", redaction.RedactEmail(email)))
+		return "", errors.NewUnexpected("empty email_to_username response")
 	}
 
 	// Auth-service error responses are JSON objects; success replies are plain-text usernames.

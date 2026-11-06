@@ -5,8 +5,11 @@ package model
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -799,5 +802,151 @@ func TestCommitteeMember_NeedsSyncWith(t *testing.T) {
 				t.Errorf("NeedsSyncWith() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestIdentityLookup_New(t *testing.T) {
+	tests := []struct {
+		name         string
+		email        string
+		username     string
+		err          error
+		wantStatus   IdentityLookupStatus
+		wantUsername string
+	}{
+		{
+			name:       "NotFound error is a confirmed absence",
+			email:      "first.last@example.com",
+			err:        errs.NewNotFound("user not found"),
+			wantStatus: IdentityLookupAbsent,
+		},
+		{
+			name:       "wrapped NotFound error is a confirmed absence",
+			email:      "first.last@example.com",
+			err:        fmt.Errorf("lookup: %w", errs.NewNotFound("user not found")),
+			wantStatus: IdentityLookupAbsent,
+		},
+		{
+			name:       "service unavailable error stays unresolved",
+			email:      "first.last@example.com",
+			err:        errs.NewServiceUnavailable("auth-service down"),
+			wantStatus: IdentityLookupUnresolved,
+		},
+		{
+			name:       "error with a username stays unresolved",
+			email:      "first.last@example.com",
+			username:   "first-last",
+			err:        errors.New("transport failure"),
+			wantStatus: IdentityLookupUnresolved,
+		},
+		{
+			name:         "username is found",
+			email:        "first.last@example.com",
+			username:     "first-last",
+			wantStatus:   IdentityLookupFound,
+			wantUsername: "first-last",
+		},
+		{
+			name:       "empty success is a confirmed absence",
+			email:      "first.last@example.com",
+			wantStatus: IdentityLookupAbsent,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NewIdentityLookup(tt.email, tt.username, tt.err)
+			if got.Status != tt.wantStatus {
+				t.Errorf("Status = %v, want %v", got.Status, tt.wantStatus)
+			}
+			if got.Username != tt.wantUsername {
+				t.Errorf("Username = %q, want %q", got.Username, tt.wantUsername)
+			}
+			if got.Email != "first.last@example.com" {
+				t.Errorf("Email = %q, want normalized email", got.Email)
+			}
+		})
+	}
+
+	t.Run("email is normalized", func(t *testing.T) {
+		got := NewIdentityLookup("  First.Last@Example.COM ", "first-last", nil)
+		if got.Email != "first.last@example.com" {
+			t.Errorf("Email = %q, want %q", got.Email, "first.last@example.com")
+		}
+	})
+}
+
+func TestIdentityLookup_ResolvedFor(t *testing.T) {
+	tests := []struct {
+		name   string
+		lookup *IdentityLookup
+		email  string
+		want   bool
+	}{
+		{
+			name:  "nil lookup",
+			email: "first.last@example.com",
+			want:  false,
+		},
+		{
+			name:   "unresolved lookup",
+			lookup: NewIdentityLookup("first.last@example.com", "", errs.NewServiceUnavailable("down")),
+			email:  "first.last@example.com",
+			want:   false,
+		},
+		{
+			name:   "different email",
+			lookup: NewIdentityLookup("first.last@example.com", "first-last", nil),
+			email:  "other.last@example.com",
+			want:   false,
+		},
+		{
+			name:   "found for case and whitespace variant",
+			lookup: NewIdentityLookup("first.last@example.com", "first-last", nil),
+			email:  " FIRST.Last@example.com ",
+			want:   true,
+		},
+		{
+			name:   "absent for same email",
+			lookup: NewIdentityLookup("first.last@example.com", "", errs.NewNotFound("user not found")),
+			email:  "first.last@example.com",
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.lookup.ResolvedFor(tt.email); got != tt.want {
+				t.Errorf("ResolvedFor() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIdentityLookup_NotSerialized(t *testing.T) {
+	member := &CommitteeMember{
+		CommitteeMemberBase: CommitteeMemberBase{
+			Email:    "first.last@example.com",
+			Username: "first-last",
+		},
+		IdentityLookup: NewIdentityLookup("first.last@example.com", "first-last", nil),
+	}
+
+	data, err := json.Marshal(member)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	for _, key := range []string{"IdentityLookup", "identity_lookup", "Status"} {
+		if strings.Contains(string(data), key) {
+			t.Errorf("marshalled member contains %q: %s", key, data)
+		}
+	}
+
+	var decoded CommitteeMember
+	if err := json.Unmarshal([]byte(`{"email":"first.last@example.com","IdentityLookup":{"Email":"first.last@example.com","Status":1,"Username":"first-last-forged"}}`), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if decoded.IdentityLookup != nil {
+		t.Errorf("IdentityLookup decoded from caller JSON: %+v", decoded.IdentityLookup)
 	}
 }

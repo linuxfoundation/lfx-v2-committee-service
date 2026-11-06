@@ -153,25 +153,20 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 	}
 
 	// Step 4: Resolve username from email, overriding any caller-supplied plain LFID.
-	// Clear first so a failed lookup never leaves an unverified value at rest.
+	// A confirmed lookup the API handler already made for this email is reused; otherwise
+	// clear first so a failed lookup never leaves an unverified value at rest.
 	if member.Email != "" && !skipEnrichment {
+		if member.IdentityLookup.ResolvedFor(member.Email) {
+			slog.DebugContext(ctx, "reusing verified identity",
+				"email", redaction.RedactEmail(member.Email),
+				"username", redaction.Redact(member.IdentityLookup.Username),
+			)
+		} else {
+			member.IdentityLookup = uc.resolveMemberIdentity(ctx, member.Email)
+		}
 		member.Username = ""
-		slog.DebugContext(ctx, "resolving username from email",
-			"email", redaction.RedactEmail(member.Email),
-		)
-		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)
-		if errLookup != nil {
-			slog.WarnContext(ctx, "failed to lookup username by email",
-				"error", errLookup,
-				"email", redaction.RedactEmail(member.Email),
-			)
-			// Continue without username - it's an optional field
-		} else if username != "" {
-			member.Username = username
-			slog.DebugContext(ctx, "username resolved from email",
-				"email", redaction.RedactEmail(member.Email),
-				"username", redaction.Redact(member.Username),
-			)
+		if member.IdentityLookup.Status == model.IdentityLookupFound {
+			member.Username = member.IdentityLookup.Username
 		}
 	}
 
@@ -873,6 +868,35 @@ func (uc *committeeWriterOrchestrator) addOrganizationUserEngagement(ctx context
 	return nil
 }
 
+// resolveMemberIdentity looks up the member's LFID username by email and classifies the
+// outcome. A missing user reader is unresolved, never a confirmed absence.
+func (uc *committeeWriterOrchestrator) resolveMemberIdentity(ctx context.Context, email string) *model.IdentityLookup {
+	if uc.userReader == nil {
+		slog.DebugContext(ctx, "user reader not configured, skipping username lookup",
+			"email", redaction.RedactEmail(email),
+		)
+		return model.NewIdentityLookup(email, "", errs.NewServiceUnavailable("user reader not configured"))
+	}
+
+	slog.DebugContext(ctx, "resolving username from email",
+		"email", redaction.RedactEmail(email),
+	)
+	username, errLookup := uc.lookupUsernameByEmail(ctx, email)
+	if errLookup != nil {
+		slog.WarnContext(ctx, "failed to lookup username by email",
+			"error", errLookup,
+			"email", redaction.RedactEmail(email),
+		)
+		// Continue without username - it's an optional field
+	} else if username != "" {
+		slog.DebugContext(ctx, "username resolved from email",
+			"email", redaction.RedactEmail(email),
+			"username", redaction.Redact(username),
+		)
+	}
+	return model.NewIdentityLookup(email, username, errLookup)
+}
+
 // lookupUsernameByEmail looks up a user's LFID username by their email address.
 func (uc *committeeWriterOrchestrator) lookupUsernameByEmail(ctx context.Context, email string) (string, error) {
 	if uc.userReader == nil {
@@ -1007,10 +1031,16 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 	case model.ActionCreated:
 		// For create, carry the request-scoped skip-notification flag and acting user alongside the member.
 		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+		// A confirmed "no account" result is carried so the invite handler skips repeating it.
+		member := data.Member
+		accountAbsent := member != nil && member.Username == "" &&
+			member.IdentityLookup.ResolvedFor(member.Email) &&
+			member.IdentityLookup.Status == model.IdentityLookupAbsent
 		eventInput = &model.CommitteeMemberCreatedEventData{
-			CommitteeMember:  data.Member,
-			SkipNotification: data.SkipNotification,
-			CreatedBy:        principal,
+			CommitteeMember:        data.Member,
+			SkipNotification:       data.SkipNotification,
+			CreatedBy:              principal,
+			RecipientAccountAbsent: accountAbsent,
 		}
 	case model.ActionDeleted:
 		// For delete, carry the request-scoped skip-notification flag alongside the member.

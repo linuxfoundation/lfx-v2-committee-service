@@ -140,7 +140,7 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 	if member.Username == "" {
 		// No LFID — route through the invite service so the user must create an
 		// account before gaining committee access.
-		_ = h.sendMemberInvite(ctx, &member, recipientName, committeeURL, created.CreatedBy)
+		_ = h.sendMemberInvite(ctx, &member, recipientName, committeeURL, created.CreatedBy, created.RecipientAccountAbsent)
 		return nil, nil
 	}
 
@@ -193,8 +193,12 @@ func (h *committeeNotificationHandler) HandleCommitteeMemberCreated(ctx context.
 // non-empty the inviter's display name is resolved and passed so the invite subject reads
 // "<FirstName> invited you to join …". When empty or the lookup fails, Inviter.Name is
 // left blank so the invite-service uses its HasInviter=false branch: "You've been
-// invited to join …". Best-effort: logs failures internally; callers may ignore the returned error.
-func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL, createdBy string) error {
+// invited to join …". accountConfirmedAbsent is true when the member addition already
+// confirmed that no account owns member.Email; the recipient account lookup is then skipped
+// and the invite uses the new-user template. Otherwise (including a failed lookup during the
+// addition, or an older event) the account is looked up here.
+// Best-effort: logs failures internally; callers may ignore the returned error.
+func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, member *model.CommitteeMember, recipientName, deepLinkURL, createdBy string, accountConfirmedAbsent bool) error {
 	if h.inviteSender == nil {
 		slog.DebugContext(ctx, "invite sender not configured — skipping member invite",
 			"committee_uid", member.CommitteeUID)
@@ -227,6 +231,9 @@ func (h *committeeNotificationHandler) sendMemberInvite(ctx context.Context, mem
 	}()
 	go func() {
 		defer wg.Done()
+		if accountConfirmedAbsent {
+			return
+		}
 		recipientHasAccount = h.lookupRecipientHasAccount(resolveCtx, member.Email, member.CommitteeUID)
 	}()
 	wg.Wait()
