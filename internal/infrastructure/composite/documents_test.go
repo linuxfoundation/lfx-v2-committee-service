@@ -28,17 +28,17 @@ type documentRig struct {
 	reader *sdkmetric.ManualReader
 }
 
-func newDocumentRig(t *testing.T, mode Mode, wrapPG func(DocumentPGBackend) DocumentPGBackend, opts ...Option) *documentRig {
+func newDocumentRig(t *testing.T, mode Mode, wrapPG func(DocumentMetadataBackend) DocumentMetadataBackend, opts ...Option) *documentRig {
 	t.Helper()
 	kv, pg := natstest.NewDocumentBackend(t), postgrestest.NewStore(t)
 	return newDocumentRigOver(t, mode, kv, pg, wrapPG, opts...)
 }
 
 func newDocumentRigOver(t *testing.T, mode Mode, kv natstest.DocumentBackend, pg *postgres.Store,
-	wrapPG func(DocumentPGBackend) DocumentPGBackend, opts ...Option) *documentRig {
+	wrapPG func(DocumentMetadataBackend) DocumentMetadataBackend, opts ...Option) *documentRig {
 	t.Helper()
 	metrics, reader := newMetricsReader()
-	var used DocumentPGBackend = pg
+	var used DocumentMetadataBackend = pg
 	if wrapPG != nil {
 		used = wrapPG(pg)
 	}
@@ -56,7 +56,7 @@ func (r *documentRig) counts(t *testing.T, name string) map[string]int64 {
 // the PostgreSQL store pass. In dual mode every read of the suite was compared and every write copied, and the stores
 // never disagreed and nothing failed.
 func TestContract_Documents(t *testing.T) {
-	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+	for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
 			storetest.RunDocumentContract(t, storetest.Backend{Name: "composite-" + string(mode)}, func(t *testing.T) storetest.DocumentStore {
 				r := newDocumentRig(t, mode, nil, WithSampleRate(1))
@@ -78,7 +78,7 @@ func fileOf(t *testing.T, r *documentRig, uid string) ([]byte, error) {
 
 func TestDocuments_EachModeWritesTheMetadataToItsStoresAndTheFileToKV(t *testing.T) {
 	ctx := context.Background()
-	for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModePostgres: {false, true}} {
+	for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModeDualPG: {true, true}, ModePostgres: {false, true}} {
 		t.Run(string(mode), func(t *testing.T) {
 			r := newDocumentRig(t, mode, nil)
 
@@ -139,7 +139,7 @@ func TestDocuments_DualWritesCarryTheKVRevisionToPostgreSQL(t *testing.T) {
 }
 
 // failingDocumentPG is a PostgreSQL store whose writes fail.
-type failingDocumentPG struct{ DocumentPGBackend }
+type failingDocumentPG struct{ DocumentMetadataBackend }
 
 func (failingDocumentPG) CreateDocumentMetadata(context.Context, *model.CommitteeDocument) error {
 	return errPG
@@ -155,7 +155,7 @@ func (failingDocumentPG) DeleteDocumentMetadata(context.Context, string, string,
 
 func TestDocuments_DualASecondaryFailureIsCountedAndNeverFailsTheRequest(t *testing.T) {
 	ctx := context.Background()
-	r := newDocumentRig(t, ModeDual, func(pg DocumentPGBackend) DocumentPGBackend { return failingDocumentPG{pg} })
+	r := newDocumentRig(t, ModeDual, func(pg DocumentMetadataBackend) DocumentMetadataBackend { return failingDocumentPG{pg} })
 
 	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
 	doc, revision, err := r.docs.GetDocumentMetadata(ctx, "uid-1", "d-1")
@@ -216,7 +216,7 @@ func mustRevision(t *testing.T, ctx context.Context, revision uint64) context.Co
 // composite does, since the PostgreSQL store holds metadata only.
 func TestDocuments_DeletingTheMetadataRemovesTheFileInEveryMode(t *testing.T) {
 	ctx := context.Background()
-	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+	for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
 			r := newDocumentRig(t, mode, nil)
 			require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
@@ -259,12 +259,12 @@ func TestDocuments_APostgresDeleteDoesNotFailWhenTheFileCannotBeRemoved(t *testi
 
 // cancellingDocumentPG cancels the request once the metadata is deleted, as a client that goes away would.
 type cancellingDocumentPG struct {
-	DocumentPGBackend
+	DocumentMetadataBackend
 	cancel context.CancelFunc
 }
 
 func (p cancellingDocumentPG) DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error {
-	err := p.DocumentPGBackend.DeleteDocumentMetadata(ctx, committeeUID, documentUID, revision)
+	err := p.DocumentMetadataBackend.DeleteDocumentMetadata(ctx, committeeUID, documentUID, revision)
 	p.cancel()
 	return err
 }
@@ -273,8 +273,8 @@ func (p cancellingDocumentPG) DeleteDocumentMetadata(ctx context.Context, commit
 func TestDocuments_APostgresDeleteRemovesTheFileWhenTheRequestIsCancelledMeanwhile(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	r := newDocumentRig(t, ModePostgres, func(pg DocumentPGBackend) DocumentPGBackend {
-		return cancellingDocumentPG{DocumentPGBackend: pg, cancel: cancel}
+	r := newDocumentRig(t, ModePostgres, func(pg DocumentMetadataBackend) DocumentMetadataBackend {
+		return cancellingDocumentPG{DocumentMetadataBackend: pg, cancel: cancel}
 	})
 	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
 	require.NoError(t, r.docs.PutDocumentFile(ctx, "d-1", []byte("file")))
@@ -387,5 +387,9 @@ func TestDocuments_Defaults(t *testing.T) {
 	_, err = NewDocuments(ModePostgres, kv, nil)
 	assert.Error(t, err)
 	_, err = NewDocuments(ModeDualPG, kv, pg)
+	assert.NoError(t, err)
+	_, err = NewDocuments(ModeDualPG, kv, nil)
+	assert.Error(t, err)
+	_, err = NewDocuments(Mode("other"), kv, pg)
 	assert.Error(t, err)
 }

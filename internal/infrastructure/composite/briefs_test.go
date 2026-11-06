@@ -89,7 +89,7 @@ const secondBriefSubtest = "a_second_brief_with_another_uid_for_a_window_that_ha
 // PostgreSQL refuses. That copy is counted as a failure, and a read of that window then differs between the two stores,
 // which is the difference docs/postgres-schema.md describes. Nothing else is counted.
 func TestContract_Briefs(t *testing.T) {
-	for _, mode := range []Mode{ModeKV, ModeDual, ModePostgres} {
+	for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
 			storetest.RunBriefContract(t, storetest.Backend{Name: "composite-" + string(mode)}, func(t *testing.T) storetest.BriefStore {
 				r := newBriefRig(t, mode, nil, WithSampleRate(1))
@@ -111,7 +111,7 @@ func TestContract_Briefs(t *testing.T) {
 
 func TestBriefs_EachModeWritesToItsStores(t *testing.T) {
 	ctx := context.Background()
-	for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModePostgres: {false, true}} {
+	for mode, want := range map[Mode]struct{ kv, pg bool }{ModeKV: {true, false}, ModeDual: {true, true}, ModeDualPG: {true, true}, ModePostgres: {false, true}} {
 		t.Run(string(mode), func(t *testing.T) {
 			r := newBriefRig(t, mode, nil)
 
@@ -516,5 +516,9 @@ func TestBriefs_Defaults(t *testing.T) {
 	_, err = NewBriefs(ModeDual, kv, nil)
 	assert.Error(t, err)
 	_, err = NewBriefs(ModeDualPG, kv, pg)
+	assert.NoError(t, err)
+	_, err = NewBriefs(ModeDualPG, kv, nil)
+	assert.Error(t, err)
+	_, err = NewBriefs(Mode("other"), kv, pg)
 	assert.Error(t, err)
 }

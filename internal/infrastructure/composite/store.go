@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
@@ -40,6 +41,15 @@ const (
 //     delete, so a row that a delete still could not remove is reported as extra by storage verify and has to be
 //     removed by hand; before dual mode is turned on, storage verify must report no extra record. A sampled fraction of reads is also made against PostgreSQL and compared, the KV result being
 //     the one returned; a write that is being copied while the read is made can show as a mismatch.
+//   - dual-pg: PostgreSQL decides, the mirror of dual. After a write succeeds, the record is read back from PostgreSQL and
+//     written to KV. KV assigns revisions of its own and cannot be given the one PostgreSQL gave, so the token a client
+//     holds is PostgreSQL's and the copy in KV is at another revision: a write to KV is guarded by the revision KV has, is
+//     skipped when KV already holds the same content, and a delete is guarded by the revision KV has too. A failed copy to
+//     KV is logged and counted (store "kv") and never fails the request, and the next update of the same record brings KV up
+//     to what PostgreSQL holds. Reads are compared with KV by content alone. KV stamps the update time of a weekly brief
+//     itself, so a brief in KV carries the time of its copy, and briefs are compared without it. A client that holds a token
+//     from before a switch back to kv gets a revision mismatch, or, when the number happens to be KV's own, writes over what
+//     it did not read; the switch is to be made with no writes in flight (docs/postgres-schema.md).
 //   - postgres: the PostgreSQL store only.
 //
 // There is no transaction across the two stores. A write the primary store only partly made, and so refused, is not
@@ -54,7 +64,9 @@ type Store struct {
 	port.CommitteeReaderWriter
 
 	core
-	kv, pg port.CommitteeReaderWriter
+	// src is the primary store, which the copy to the secondary store reads from, and dst the secondary store it writes.
+	// In dual mode they are KV and PostgreSQL; in dual-pg mode, PostgreSQL and KV.
+	src, dst port.CommitteeReaderWriter
 }
 
 // core is what the composites of every aggregate share: the mode, the metrics, the sampling and the timeouts, and what
@@ -109,9 +121,9 @@ func WithTimeouts(compare, write time.Duration) Option {
 }
 
 // New returns the composite for the mode. kv is needed by every mode that uses KV (kv and dual) and pg by every mode
-// that uses PostgreSQL (dual and postgres); the one a mode does not use may be nil. dual-pg is not available yet.
+// that uses PostgreSQL (dual, dual-pg and postgres); the one a mode does not use may be nil.
 func New(mode Mode, kv, pg port.CommitteeReaderWriter, opts ...Option) (*Store, error) {
-	s := &Store{core: newCore(mode, opts), kv: kv, pg: pg}
+	s := &Store{core: newCore(mode, opts), src: kv, dst: pg}
 	switch mode {
 	case ModeKV:
 		if kv == nil {
@@ -123,6 +135,12 @@ func New(mode Mode, kv, pg port.CommitteeReaderWriter, opts ...Option) (*Store, 
 			return nil, errors.New("storage mode dual needs the KV store and the PostgreSQL store")
 		}
 		s.CommitteeReaderWriter = kv
+	case ModeDualPG:
+		if kv == nil || pg == nil {
+			return nil, errors.New("storage mode dual-pg needs the KV store and the PostgreSQL store")
+		}
+		s.CommitteeReaderWriter = pg
+		s.src, s.dst = pg, kv
 	case ModePostgres:
 		if pg == nil {
 			return nil, errors.New("storage mode postgres needs the PostgreSQL store")
@@ -135,7 +153,7 @@ func New(mode Mode, kv, pg port.CommitteeReaderWriter, opts ...Option) (*Store, 
 }
 
 // selectPrimary checks that the stores the mode needs are there and returns the primary one: KV for kv and dual,
-// PostgreSQL for postgres. dual-pg is not available yet.
+// PostgreSQL for dual-pg and postgres.
 func selectPrimary[T comparable](mode Mode, kv, pg T) (T, error) {
 	var none T
 	switch mode {
@@ -149,6 +167,11 @@ func selectPrimary[T comparable](mode Mode, kv, pg T) (T, error) {
 			return none, errors.New("storage mode dual needs the KV store and the PostgreSQL store")
 		}
 		return kv, nil
+	case ModeDualPG:
+		if kv == none || pg == none {
+			return none, errors.New("storage mode dual-pg needs the KV store and the PostgreSQL store")
+		}
+		return pg, nil
 	case ModePostgres:
 		if pg == none {
 			return none, errors.New("storage mode postgres needs the PostgreSQL store")
@@ -158,9 +181,9 @@ func selectPrimary[T comparable](mode Mode, kv, pg T) (T, error) {
 	return none, fmt.Errorf("storage mode %q is not available in the composite store yet", mode)
 }
 
-// sampled decides whether this read is also made against the secondary store. Only dual mode has one.
+// sampled decides whether this read is also made against the secondary store. Only the modes that write both have one.
 func (s *core) sampled() bool {
-	if s.mode != ModeDual || s.rate <= 0 {
+	if !s.mode.HasSecondary() || s.rate <= 0 {
 		return false
 	}
 	return s.rate >= 1 || s.random() < s.rate
@@ -183,8 +206,36 @@ func (s *core) replicate(ctx context.Context, operation, uid string, write func(
 		return write(wctx)
 	}()
 	if err != nil {
-		s.metrics.SecondaryWriteFailed(ctx, s.mode, "postgres", operation, uid, err)
+		s.metrics.SecondaryWriteFailed(ctx, s.mode, s.secondaryName(), operation, uid, err)
 	}
+}
+
+// secondaryIsPostgres reports whether the secondary store is PostgreSQL, as in dual mode, which is the one that can be
+// given the revision the primary store gave. In dual-pg mode the secondary store is KV, which assigns its own revisions: a
+// copy there is guarded by the revision KV has, is skipped when the content is already there, and is compared by content
+// alone, because the two stores hold the same record at different revisions and the token a client holds is the primary's.
+func (s *core) secondaryIsPostgres() bool { return s.mode == ModeDual }
+
+// secondaryName is the store the metrics name for a failed copy.
+func (s *core) secondaryName() string {
+	if s.mode == ModeDualPG {
+		return "kv"
+	}
+	return "postgres"
+}
+
+// carry makes the context the secondary store is written with: in dual mode one that gives the record the revision of the
+// primary store, in dual-pg mode the context unchanged, since KV cannot be given one.
+func (s *core) carry(ctx context.Context, revision uint64) (context.Context, error) {
+	if !s.secondaryIsPostgres() {
+		return ctx, nil
+	}
+	return postgres.WithRevision(ctx, revision)
+}
+
+// sameRevision reports whether the two stores' revisions of a record agree, which only means something in dual mode.
+func (s *core) sameRevision(primary, secondary uint64) bool {
+	return !s.secondaryIsPostgres() || primary == secondary
 }
 
 func isNotFound(err error) bool {

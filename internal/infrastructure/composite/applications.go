@@ -17,14 +17,14 @@ func (s *Store) CreateApplication(ctx context.Context, application *model.Commit
 	if err := s.CommitteeReaderWriter.CreateApplication(ctx, application); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := application.UID
 		s.replicate(ctx, "create_application", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
-				return s.kv.GetApplication(ctx, uid)
+			return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
+				return s.src.GetApplication(ctx, uid)
 			},
-				s.pg.CreateApplication, func(ctx context.Context, _ uint64) error {
-					return s.pg.DeleteApplication(ctx, application)
+				s.dst.CreateApplication, func(ctx context.Context, _ uint64) error {
+					return s.dst.DeleteApplication(ctx, application)
 				}, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, uid) })
 		})
 	}
@@ -36,7 +36,7 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	if err := s.CommitteeReaderWriter.UpdateApplication(ctx, application, revision); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := application.UID
 		s.replicate(ctx, "update_application", uid, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, uid) })
 	}
@@ -45,13 +45,13 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 
 // copyApplicationUpdate writes the application KV holds now to PostgreSQL; see copyUpdated.
 func (s *Store) copyApplicationUpdate(ctx context.Context, uid string) error {
-	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
-		return s.kv.GetApplication(ctx, uid)
+	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
+		return s.src.GetApplication(ctx, uid)
 	},
-		func(ctx context.Context) (uint64, error) {
-			_, current, err := s.pg.GetApplication(ctx, uid)
-			return current, err
-		}, s.pg.UpdateApplication)
+		func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
+			return s.dst.GetApplication(ctx, uid)
+		},
+		s.dst.UpdateApplication)
 }
 
 // DeleteApplication removes a committee application. It has no revision to check, and deleting one that is already
@@ -60,8 +60,8 @@ func (s *Store) DeleteApplication(ctx context.Context, application *model.Commit
 	if err := s.CommitteeReaderWriter.DeleteApplication(ctx, application); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
-		s.replicate(ctx, "delete_application", application.UID, func(ctx context.Context) error { return s.pg.DeleteApplication(ctx, application) })
+	if s.mode.HasSecondary() {
+		s.replicate(ctx, "delete_application", application.UID, func(ctx context.Context) error { return s.dst.DeleteApplication(ctx, application) })
 	}
 	return nil
 }
@@ -71,7 +71,7 @@ func (s *Store) GetApplication(ctx context.Context, uid string) (*model.Committe
 	application, revision, err := s.CommitteeReaderWriter.GetApplication(ctx, uid)
 	if s.sampled() {
 		s.compareRecord(ctx, "get_application", application, revision, err, func(ctx context.Context) (any, uint64, error) {
-			return s.pg.GetApplication(ctx, uid)
+			return s.dst.GetApplication(ctx, uid)
 		})
 	}
 	return application, revision, err
@@ -82,7 +82,7 @@ func (s *Store) ListApplications(ctx context.Context, committeeUID string) ([]*m
 	applications, err := s.CommitteeReaderWriter.ListApplications(ctx, committeeUID)
 	if s.sampled() {
 		compareRecords(ctx, s, "list_applications", applications, err, func(ctx context.Context) ([]*model.CommitteeApplication, error) {
-			return s.pg.ListApplications(ctx, committeeUID)
+			return s.dst.ListApplications(ctx, committeeUID)
 		})
 	}
 	return applications, err

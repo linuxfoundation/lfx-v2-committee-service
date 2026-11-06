@@ -17,12 +17,12 @@ func (s *Store) CreateMember(ctx context.Context, member *model.CommitteeMember)
 	if err := s.CommitteeReaderWriter.CreateMember(ctx, member); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := member.UID
 		s.replicate(ctx, "create_member", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.kv.GetMember(ctx, uid) },
-				s.pg.CreateMember, func(ctx context.Context, revision uint64) error {
-					return s.deleteMemberInPostgreSQL(ctx, uid, revision)
+			return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
+				s.dst.CreateMember, func(ctx context.Context, revision uint64) error {
+					return s.deleteMemberInSecondary(ctx, uid, revision)
 				},
 				func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
 		})
@@ -36,7 +36,7 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	if err != nil {
 		return updated, err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := member.UID
 		s.replicate(ctx, "update_member", uid, func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
 	}
@@ -45,10 +45,10 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 
 // copyMemberUpdate writes the member KV holds now to PostgreSQL; see copyUpdated.
 func (s *Store) copyMemberUpdate(ctx context.Context, uid string) error {
-	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.kv.GetMember(ctx, uid) },
-		func(ctx context.Context) (uint64, error) { return s.pg.GetMemberRevision(ctx, uid) },
+	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
+		func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.dst.GetMember(ctx, uid) },
 		func(ctx context.Context, current *model.CommitteeMember, guard uint64) error {
-			_, err := s.pg.UpdateMember(ctx, current, guard)
+			_, err := s.dst.UpdateMember(ctx, current, guard)
 			return err
 		})
 }
@@ -58,17 +58,18 @@ func (s *Store) DeleteMember(ctx context.Context, uid string, revision uint64) e
 	if err := s.CommitteeReaderWriter.DeleteMember(ctx, uid, revision); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
-		s.replicate(ctx, "delete_member", uid, func(ctx context.Context) error { return s.deleteMemberInPostgreSQL(ctx, uid, revision) })
+	if s.mode.HasSecondary() {
+		s.replicate(ctx, "delete_member", uid, func(ctx context.Context) error { return s.deleteMemberInSecondary(ctx, uid, revision) })
 	}
 	return nil
 }
 
-// deleteMemberInPostgreSQL removes the member from PostgreSQL after KV decided that it is gone; see deleteConverged.
-func (s *Store) deleteMemberInPostgreSQL(ctx context.Context, uid string, revision uint64) error {
-	return deleteConverged(ctx,
-		func(ctx context.Context, revision uint64) error { return s.pg.DeleteMember(ctx, uid, revision) },
-		func(ctx context.Context) (uint64, error) { return s.pg.GetMemberRevision(ctx, uid) }, revision)
+// deleteMemberInSecondary removes the member from the secondary store after the primary store decided that it is gone; see
+// deleteConverged.
+func (s *Store) deleteMemberInSecondary(ctx context.Context, uid string, revision uint64) error {
+	return deleteConverged(ctx, &s.core,
+		func(ctx context.Context, revision uint64) error { return s.dst.DeleteMember(ctx, uid, revision) },
+		func(ctx context.Context) (uint64, error) { return s.dst.GetMemberRevision(ctx, uid) }, revision)
 }
 
 // The reads of the members return what the primary store returns. In dual mode a sampled fraction is also made against
@@ -79,7 +80,7 @@ func (s *Store) deleteMemberInPostgreSQL(ctx context.Context, uid string, revisi
 func (s *Store) GetMember(ctx context.Context, uid string) (*model.CommitteeMember, uint64, error) {
 	member, revision, err := s.CommitteeReaderWriter.GetMember(ctx, uid)
 	if s.sampled() {
-		s.compareRecord(ctx, "get_member", member, revision, err, func(ctx context.Context) (any, uint64, error) { return s.pg.GetMember(ctx, uid) })
+		s.compareRecord(ctx, "get_member", member, revision, err, func(ctx context.Context) (any, uint64, error) { return s.dst.GetMember(ctx, uid) })
 	}
 	return member, revision, err
 }
@@ -89,11 +90,11 @@ func (s *Store) GetMemberRevision(ctx context.Context, uid string) (uint64, erro
 	revision, err := s.CommitteeReaderWriter.GetMemberRevision(ctx, uid)
 	if s.sampled() && (err == nil || isNotFound(err)) {
 		s.compareValue(ctx, "get_member_revision", func(ctx context.Context) (bool, error) {
-			other, otherErr := s.pg.GetMemberRevision(ctx, uid)
+			other, otherErr := s.dst.GetMemberRevision(ctx, uid)
 			if otherErr != nil && !isNotFound(otherErr) {
 				return false, otherErr
 			}
-			return isNotFound(err) == isNotFound(otherErr) && revision == other, nil
+			return isNotFound(err) == isNotFound(otherErr) && s.sameRevision(revision, other), nil
 		})
 	}
 	return revision, err
@@ -104,7 +105,7 @@ func (s *Store) ListMembersByCommittee(ctx context.Context, committeeUID string)
 	members, err := s.CommitteeReaderWriter.ListMembersByCommittee(ctx, committeeUID)
 	if s.sampled() {
 		compareRecords(ctx, s, "list_members_by_committee", members, err, func(ctx context.Context) ([]*model.CommitteeMember, error) {
-			return s.pg.ListMembersByCommittee(ctx, committeeUID)
+			return s.dst.ListMembersByCommittee(ctx, committeeUID)
 		})
 	}
 	return members, err
@@ -115,7 +116,7 @@ func (s *Store) ListMembersByOrganization(ctx context.Context, orgSFID string) (
 	members, err := s.CommitteeReaderWriter.ListMembersByOrganization(ctx, orgSFID)
 	if s.sampled() {
 		compareRecords(ctx, s, "list_members_by_organization", members, err, func(ctx context.Context) ([]*model.CommitteeMember, error) {
-			return s.pg.ListMembersByOrganization(ctx, orgSFID)
+			return s.dst.ListMembersByOrganization(ctx, orgSFID)
 		})
 	}
 	return members, err
@@ -126,7 +127,7 @@ func (s *Store) ListMembersByEmail(ctx context.Context, email string) ([]*model.
 	members, err := s.CommitteeReaderWriter.ListMembersByEmail(ctx, email)
 	if s.sampled() {
 		compareRecords(ctx, s, "list_members_by_email", members, err, func(ctx context.Context) ([]*model.CommitteeMember, error) {
-			return s.pg.ListMembersByEmail(ctx, email)
+			return s.dst.ListMembersByEmail(ctx, email)
 		})
 	}
 	return members, err
@@ -137,7 +138,7 @@ func (s *Store) ListMembersByUsername(ctx context.Context, username string) ([]*
 	members, err := s.CommitteeReaderWriter.ListMembersByUsername(ctx, username)
 	if s.sampled() {
 		compareRecords(ctx, s, "list_members_by_username", members, err, func(ctx context.Context) ([]*model.CommitteeMember, error) {
-			return s.pg.ListMembersByUsername(ctx, username)
+			return s.dst.ListMembersByUsername(ctx, username)
 		})
 	}
 	return members, err

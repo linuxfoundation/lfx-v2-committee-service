@@ -20,43 +20,43 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 	if err := s.CommitteeReaderWriter.Create(ctx, committee); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := committee.CommitteeBase.UID
 		s.replicate(ctx, "create_committee", uid, func(ctx context.Context) error {
-			base, baseRevision, err := s.kv.GetBase(ctx, uid)
+			base, baseRevision, err := s.src.GetBase(ctx, uid)
 			if isNotFound(err) {
 				return nil // deleted meanwhile, so there is nothing to copy
 			}
 			if err != nil {
 				return err
 			}
-			settings, settingsRevision, err := s.kv.GetSettings(ctx, uid)
+			settings, settingsRevision, err := s.src.GetSettings(ctx, uid)
 			if err != nil && !isNotFound(err) {
 				return err
 			}
 			if err != nil {
 				settings = nil
 			}
-			wctx, err := postgres.WithRevision(ctx, baseRevision)
-			if err == nil && settings != nil {
+			wctx, err := s.carry(ctx, baseRevision)
+			if err == nil && settings != nil && s.secondaryIsPostgres() {
 				wctx, err = postgres.WithSettingsRevision(wctx, settingsRevision)
 			}
 			if err != nil {
 				return err
 			}
-			if err := s.pg.Create(wctx, &model.Committee{CommitteeBase: *base, CommitteeSettings: settings}); err != nil {
+			if err := s.dst.Create(wctx, &model.Committee{CommitteeBase: *base, CommitteeSettings: settings}); err != nil {
 				return err
 			}
 			// A delete that finished in KV while this was being copied found nothing in PostgreSQL to remove, and so
 			// left the insert above to bring the committee back; an update that finished meanwhile failed to copy for the
 			// same reason, and left the older version. So read KV again: if the committee is gone take it out, and if it
 			// has moved on copy what KV holds now. From either order the two stores end up the same.
-			_, current, err := s.kv.GetBase(ctx, uid)
+			_, current, err := s.src.GetBase(ctx, uid)
 			switch {
 			case isNotFound(err):
-				return s.deleteInPostgreSQL(ctx, uid, baseRevision)
+				return s.deleteInSecondary(ctx, uid, baseRevision)
 			case err != nil:
-				return fmt.Errorf("reading KV again after the copy: %w", err)
+				return fmt.Errorf("reading the primary store again after the copy: %w", err)
 			}
 			if current != baseRevision {
 				if err := s.replicateBase(ctx, uid); err != nil {
@@ -64,12 +64,12 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 				}
 			}
 			if settings != nil {
-				_, currentSettings, err := s.kv.GetSettings(ctx, uid)
+				_, currentSettings, err := s.src.GetSettings(ctx, uid)
 				switch {
 				case isNotFound(err):
 					// Deleted with the committee meanwhile; the check of the base above covers it.
 				case err != nil:
-					return fmt.Errorf("reading KV settings again after the copy: %w", err)
+					return fmt.Errorf("reading the primary store settings again after the copy: %w", err)
 				case currentSettings != settingsRevision:
 					return s.replicateSettings(ctx, uid)
 				}
@@ -85,7 +85,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 	if err := s.CommitteeReaderWriter.UpdateBase(ctx, committee, revision); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := committee.CommitteeBase.UID
 		s.replicate(ctx, "update_committee", uid, func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
 	}
@@ -97,7 +97,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	if err := s.CommitteeReaderWriter.UpdateSetting(ctx, settings, revision); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		uid := settings.UID
 		s.replicate(ctx, "update_settings", uid, func(ctx context.Context) error { return s.replicateSettings(ctx, uid) })
 	}
@@ -109,20 +109,20 @@ func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 	if err := s.CommitteeReaderWriter.Delete(ctx, uid, revision); err != nil {
 		return err
 	}
-	if s.mode == ModeDual {
-		s.replicate(ctx, "delete_committee", uid, func(ctx context.Context) error { return s.deleteInPostgreSQL(ctx, uid, revision) })
+	if s.mode.HasSecondary() {
+		s.replicate(ctx, "delete_committee", uid, func(ctx context.Context) error { return s.deleteInSecondary(ctx, uid, revision) })
 	}
 	return nil
 }
 
-// deleteInPostgreSQL removes the committee and its settings from PostgreSQL after KV decided that it is gone; see
-// deleteConverged. Left behind, the row would keep the name and the SSO group name taken there, and the settings with their
-// webhook URL.
-func (s *Store) deleteInPostgreSQL(ctx context.Context, uid string, revision uint64) error {
-	return deleteConverged(ctx,
-		func(ctx context.Context, revision uint64) error { return s.pg.Delete(ctx, uid, revision) },
+// deleteInSecondary removes the committee and its settings from the secondary store after the primary store decided that
+// it is gone; see deleteConverged. Left behind, the committee would keep the name and the SSO group name taken there, and
+// the settings with their webhook URL.
+func (s *Store) deleteInSecondary(ctx context.Context, uid string, revision uint64) error {
+	return deleteConverged(ctx, &s.core,
+		func(ctx context.Context, revision uint64) error { return s.dst.Delete(ctx, uid, revision) },
 		func(ctx context.Context) (uint64, error) {
-			_, current, err := s.pg.GetBase(ctx, uid)
+			_, current, err := s.dst.GetBase(ctx, uid)
 			return current, err
 		}, revision)
 }
@@ -133,7 +133,7 @@ func (s *Store) UpdateHasMailingList(ctx context.Context, uid string, hasMailing
 	if err != nil || !changed {
 		return base, changed, err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		s.replicate(ctx, "update_has_mailing_list", uid, func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
 	}
 	return base, changed, nil
@@ -145,73 +145,34 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 	if err != nil || !changed {
 		return base, changed, err
 	}
-	if s.mode == ModeDual {
+	if s.mode.HasSecondary() {
 		s.replicate(ctx, "update_total_members", uid, func(ctx context.Context) error { return s.replicateBase(ctx, uid) })
 	}
 	return base, changed, nil
 }
 
-// replicateBase writes the committee base KV holds now to PostgreSQL, with the revision KV gave it. Every update of the
-// base is replicated this way, as the state KV holds, and not by running it again in PostgreSQL, which would stamp its own
-// update time and leave the two records different. The write is guarded by the revision PostgreSQL has now, not by the
-// one the caller sent: when an earlier copy failed the two differ, and guarding by the caller's would fail every later
-// update of that committee too, where this one brings PostgreSQL up to what KV holds. It cannot lose an update or go
-// back: PostgreSQL refuses a revision that is not above the one it replaces.
+// replicateBase writes the committee base the primary store holds now to the secondary store; see copyUpdated. Every update
+// of the base is replicated this way, as the state the primary store holds, and not by running it again in the secondary
+// store, which would stamp its own update time and leave the two records different.
 func (s *Store) replicateBase(ctx context.Context, uid string) error {
-	base, newRevision, err := s.kv.GetBase(ctx, uid)
-	if isNotFound(err) {
-		return nil // deleted meanwhile, so there is nothing to copy
-	}
-	if err != nil {
-		return err
-	}
-	_, current, err := s.pg.GetBase(ctx, uid)
-	if isNotFound(err) {
-		if _, _, kvErr := s.kv.GetBase(ctx, uid); isNotFound(kvErr) {
-			return nil // deleted in both stores while this was being copied
-		}
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	if newRevision == current {
-		return nil // PostgreSQL already holds this revision: KV wrote nothing, or the copy is already there
-	}
-	wctx, err := postgres.WithRevision(ctx, newRevision)
-	if err != nil {
-		return err
-	}
-	return s.pg.UpdateBase(wctx, &model.Committee{CommitteeBase: *base}, current)
+	return copyUpdated(ctx, &s.core,
+		func(ctx context.Context) (*model.CommitteeBase, uint64, error) { return s.src.GetBase(ctx, uid) },
+		func(ctx context.Context) (*model.CommitteeBase, uint64, error) { return s.dst.GetBase(ctx, uid) },
+		func(ctx context.Context, base *model.CommitteeBase, guard uint64) error {
+			return s.dst.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, guard)
+		})
 }
 
 // replicateSettings is replicateBase for the settings.
 func (s *Store) replicateSettings(ctx context.Context, uid string) error {
-	settings, newRevision, err := s.kv.GetSettings(ctx, uid)
-	if isNotFound(err) {
-		return nil // deleted meanwhile, so there is nothing to copy
-	}
-	if err != nil {
-		return err
-	}
-	_, current, err := s.pg.GetSettings(ctx, uid)
-	if isNotFound(err) {
-		if _, _, kvErr := s.kv.GetSettings(ctx, uid); isNotFound(kvErr) {
-			return nil // deleted in both stores while this was being copied
-		}
-		return err
-	}
-	if err != nil {
-		return err
-	}
-	if newRevision == current {
-		return nil
-	}
-	wctx, err := postgres.WithRevision(ctx, newRevision)
-	if err != nil {
-		return err
-	}
-	return s.pg.UpdateSetting(wctx, settings, current)
+	return copyUpdated(ctx, &s.core,
+		func(ctx context.Context) (*model.CommitteeSettings, uint64, error) {
+			return s.src.GetSettings(ctx, uid)
+		},
+		func(ctx context.Context) (*model.CommitteeSettings, uint64, error) {
+			return s.dst.GetSettings(ctx, uid)
+		},
+		s.dst.UpdateSetting)
 }
 
 // The reads below return what the primary store returns. In dual mode a sampled fraction is also made against
@@ -222,7 +183,7 @@ func (s *Store) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, 
 	base, revision, err := s.CommitteeReaderWriter.GetBase(ctx, uid)
 	if s.sampled() {
 		s.compareRecord(ctx, "get_committee", base, revision, err, func(ctx context.Context) (any, uint64, error) {
-			return s.pg.GetBase(ctx, uid)
+			return s.dst.GetBase(ctx, uid)
 		})
 	}
 	return base, revision, err
@@ -233,7 +194,7 @@ func (s *Store) GetSettings(ctx context.Context, uid string) (*model.CommitteeSe
 	settings, revision, err := s.CommitteeReaderWriter.GetSettings(ctx, uid)
 	if s.sampled() {
 		s.compareRecord(ctx, "get_settings", settings, revision, err, func(ctx context.Context) (any, uint64, error) {
-			return s.pg.GetSettings(ctx, uid)
+			return s.dst.GetSettings(ctx, uid)
 		})
 	}
 	return settings, revision, err
@@ -244,7 +205,7 @@ func (s *Store) ListAllUIDs(ctx context.Context) ([]string, error) {
 	uids, err := s.CommitteeReaderWriter.ListAllUIDs(ctx)
 	if err == nil && s.sampled() {
 		s.compareValue(ctx, "list_committees", func(ctx context.Context) (bool, error) {
-			other, err := s.pg.ListAllUIDs(ctx)
+			other, err := s.dst.ListAllUIDs(ctx)
 			if err != nil {
 				return false, err
 			}
@@ -259,7 +220,7 @@ func (s *Store) FindUIDByProjectAndName(ctx context.Context, projectUID, name st
 	uid, err := s.CommitteeReaderWriter.FindUIDByProjectAndName(ctx, projectUID, name)
 	if s.sampled() && (err == nil || isNotFound(err)) {
 		s.compareValue(ctx, "find_committee", func(ctx context.Context) (bool, error) {
-			other, otherErr := s.pg.FindUIDByProjectAndName(ctx, projectUID, name)
+			other, otherErr := s.dst.FindUIDByProjectAndName(ctx, projectUID, name)
 			if otherErr != nil && !isNotFound(otherErr) {
 				return false, otherErr
 			}
@@ -291,7 +252,7 @@ func (s *core) compareRecord(ctx context.Context, operation string, record any, 
 		if err != nil {
 			return false, err
 		}
-		return digest == otherDigest && revision == otherRevision, nil
+		return digest == otherDigest && s.sameRevision(revision, otherRevision), nil
 	})
 }
 

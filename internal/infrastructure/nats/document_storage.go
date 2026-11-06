@@ -163,6 +163,22 @@ func (ds *documentStorage) DeleteDocumentFile(ctx context.Context, documentUID s
 	return nil
 }
 
+// DocumentRevision returns the revision of the document found by its uid alone, whichever committee it belongs to, for the
+// callers that replace a document by uid, as the audit sync does. A document that does not exist is errs.NotFound.
+func (ds *documentStorage) DocumentRevision(ctx context.Context, documentUID string) (uint64, error) {
+	if documentUID == "" {
+		return 0, errs.NewValidation("document UID cannot be empty")
+	}
+	rev, errGet := ds.getMetadata(ctx, documentUID, &model.CommitteeDocument{})
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return 0, errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
+		}
+		return 0, errs.NewUnexpected("failed to get document revision", errGet)
+	}
+	return rev, nil
+}
+
 func (ds *documentStorage) DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error {
 	doc, _, errGet := ds.GetDocumentMetadata(ctx, committeeUID, documentUID)
 	if errGet != nil {
