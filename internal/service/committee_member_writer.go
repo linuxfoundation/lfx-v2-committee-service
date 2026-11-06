@@ -416,7 +416,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 			)
 		case emailChanged:
 			slog.WarnContext(ctx, "username not resolved during update; clearing username after email change",
-				"lookup_status", member.IdentityLookup.Status,
+				"lookup_unresolved", member.IdentityLookup.Status == model.IdentityLookupUnresolved,
 				"email", redaction.RedactEmail(member.Email),
 				"stored_username", redaction.Redact(existing.Username),
 			)
