@@ -21,9 +21,24 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 )
 
+// Backend is the KV store as every aggregate of the service sees it.
+type Backend interface {
+	port.CommitteeReaderWriter
+	port.CommitteeLinkReaderWriter
+	port.DocumentAuditSyncStorage
+	port.GroupWeeklyBriefReader
+	port.GroupWeeklyBriefWriter
+}
+
 // NewStore returns the KV store on a JetStream server of its own, with every bucket the service binds to, which a
 // deployment creates ahead of time. The server is shut down when the test ends.
 func NewStore(t *testing.T) port.CommitteeReaderWriter {
+	t.Helper()
+	return NewBackend(t)
+}
+
+// NewBackend is NewStore for the tests of the aggregates beyond the committees.
+func NewBackend(t *testing.T) Backend {
 	t.Helper()
 	ns, err := natsserver.NewServer(&natsserver.Options{
 		Host:      "127.0.0.1",
@@ -67,5 +82,5 @@ func NewStore(t *testing.T) port.CommitteeReaderWriter {
 	client, err := nats.NewClient(ctx, nats.Config{URL: ns.ClientURL(), Timeout: 5 * time.Second, MaxReconnect: 3, ReconnectWait: time.Second})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
-	return nats.NewStorage(client)
+	return nats.NewStorageBackend(client)
 }
