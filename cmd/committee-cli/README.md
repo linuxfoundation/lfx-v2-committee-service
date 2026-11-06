@@ -654,8 +654,8 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 **The way back: `storage migrate --direction pg-to-kv`.** For rolling back from `dual-pg` or `postgres` mode to `kv`, and for the records whose create copy to KV failed in `dual-pg`, which nothing else brings over. PostgreSQL decides: a record KV lacks is created, one KV holds with other content is replaced, and one with the same content is left alone, whatever revision each store holds it at. KV assigns the revisions itself, through its own create and update, so its secondary indexes are written as they always are. The flags and the exit code are as above, with these differences:
 
 - It **never deletes**. A record only KV holds stays, and `storage verify --by-content` reports it as `missing`; remove it by hand if KV must not serve it.
-- A record KV holds with other content is **replaced** by PostgreSQL's, guarded by the revision KV has now; a write that loses to another writer is reported as `constraint`, and a rerun settles it. Run it with no writes in flight.
-- A weekly brief is compared without its update time, which KV stamps itself, and a window KV holds for another brief is a `constraint`. Documents move as metadata only.
+- A record KV holds with other content is **replaced** by PostgreSQL's, guarded by the revision KV has now; a replace that loses to another writer is reported as `constraint`, and a rerun settles it. The create of a weekly brief is not guarded, because KV has no guarded create for it: a brief another writer stores for the window meanwhile is overwritten. Run it with no writes in flight.
+- A weekly brief is compared without its update time, which KV stamps itself, and a window KV already holds for another brief is a `constraint`. Documents move as metadata only.
 - Settings are created in KV only along with their committee: settings missing next to a committee KV already holds are reported as `missing`.
 - Orphans are the PostgreSQL children whose committee has no row there.
 - The output ends with a reminder that nothing was deleted, instead of the highest revision. See the rollback checklist in `docs/postgres-schema.md`.

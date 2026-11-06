@@ -218,6 +218,14 @@ func compareEntity[T any](ctx context.Context, spec verifySpec[T], opts verifyOp
 	}
 }
 
+// briefContent is a weekly brief without the update time, which KV stamps itself on every put, so that a brief is compared
+// by what it says.
+func briefContent(b *model.GroupWeeklyBrief) *model.GroupWeeklyBrief {
+	c := *b
+	c.UpdatedAt = time.Time{}
+	return &c
+}
+
 // digest is the digest of the record to compare: of its content alone when the comparison is by content.
 func (s verifySpec[T]) digest(record T, opts verifyOptions) ([sha256.Size]byte, error) {
 	if opts.ByContent && s.normalize != nil {
@@ -373,11 +381,7 @@ func childVerifies(src port.KVExportReader, dst verifySource) []childVerify {
 		}),
 		verifyChild(entityBriefs, verifySpec[*model.GroupWeeklyBrief]{
 			kv: src.EachBriefExport, pg: dst.EachBriefExport,
-			normalize: func(b *model.GroupWeeklyBrief) *model.GroupWeeklyBrief {
-				c := *b
-				c.UpdatedAt = time.Time{} // KV stamps the update time of a brief itself on every put
-				return &c
-			},
+			normalize:    briefContent,
 			uid:          func(b *model.GroupWeeklyBrief) string { return b.UID },
 			committeeUID: func(b *model.GroupWeeklyBrief) string { return b.CommitteeUID },
 		}),

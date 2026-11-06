@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -46,15 +45,7 @@ func (s reverseSpec[T]) sameRecord(a, b T) (bool, error) {
 	if s.normalize != nil {
 		a, b = s.normalize(a), s.normalize(b)
 	}
-	da, err := digestOf(a)
-	if err != nil {
-		return false, err
-	}
-	db, err := digestOf(b)
-	if err != nil {
-		return false, err
-	}
-	return da == db, nil
+	return sameContent(a, b)
 }
 
 // copyBack copies every PostgreSQL record of an entity whose committee exists in PostgreSQL, or every record with
@@ -425,18 +416,14 @@ func documentBackSpec(src reverseSource, sink port.KVRepairStore) reverseSpec[*m
 
 // briefBackSpec copies the weekly briefs. KV finds a brief by its committee and window, as readers do, and holds one
 // brief per window, as PostgreSQL does, so the order they are copied in does not matter: a window that KV already holds
-// for another brief is a constraint. KV stamps the update time of a brief
+// for another brief, when the copy looks it up, is a constraint. KV stamps the update time of a brief
 // itself on every put, so it is not compared.
 func briefBackSpec(src reverseSource, sink port.KVRepairStore) reverseSpec[*model.GroupWeeklyBrief] {
 	return reverseSpec[*model.GroupWeeklyBrief]{
 		each:         src.EachBriefExport,
 		uid:          func(b *model.GroupWeeklyBrief) string { return b.UID },
 		committeeUID: func(b *model.GroupWeeklyBrief) string { return b.CommitteeUID },
-		normalize: func(b *model.GroupWeeklyBrief) *model.GroupWeeklyBrief {
-			c := *b
-			c.UpdatedAt = time.Time{}
-			return &c
-		},
+		normalize:    briefContent,
 		lookup: func(ctx context.Context, b *model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, uint64, error) {
 			existing, _, err := sink.GetGroupWeeklyBriefForWindow(ctx, b.CommitteeUID, *b)
 			switch {
@@ -449,10 +436,13 @@ func briefBackSpec(src reverseSource, sink port.KVRepairStore) reverseSpec[*mode
 			}
 			return existing, existing.Revision, nil
 		},
+		// KV has no guarded create for a brief: a put without a revision overwrites, and moves the window index. A brief
+		// another writer stores between the lookup and the create is therefore replaced, which is why the copy needs no
+		// writes in flight. A replace is guarded by the revision.
 		create: func(ctx context.Context, b *model.GroupWeeklyBrief) error {
 			b.Revision = 0
 			_, err := sink.PutGroupWeeklyBrief(ctx, b)
-			return lostWrite(err, briefHeld)
+			return err
 		},
 		update: func(ctx context.Context, b *model.GroupWeeklyBrief, kvRevision uint64) error {
 			b.Revision = kvRevision
