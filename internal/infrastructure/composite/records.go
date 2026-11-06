@@ -56,43 +56,78 @@ func copyCreated[T any](ctx context.Context, c *core, readSrc func(context.Conte
 // store has now and not by the one the caller sent: when an earlier copy failed the two differ, and guarding by the
 // caller's would fail every later update of the record too. In dual mode PostgreSQL is given the revision the primary store
 // gave, cannot lose an update or go back, since it refuses a revision that is not above the one it replaces, and nothing is
-// written when it already holds that revision. KV, the secondary store of dual-pg mode, assigns its own revisions, so there
-// nothing is written when it already holds the same content. A record that the primary store no longer has was deleted
-// meanwhile, and there is nothing to copy; one that the secondary store does not have is missing there, unless the primary
-// store has lost it too.
+// written when it already holds that revision. A record that the primary store no longer has was deleted meanwhile, and
+// there is nothing to copy; one that the secondary store does not have is missing there, unless the primary store has lost
+// it too.
+//
+// KV, the secondary store of dual-pg mode, assigns its own revisions and refuses nothing but a stale guard, so two copies
+// that overlap could leave an older record over a newer one: a copy that has read the primary store, is overtaken by a
+// newer update and its copy, and only then reads KV, would find the newer content, take it for a change and write the older
+// record over it. So there the secondary store is read before the primary one, and the guard is the revision read then: a
+// copy that is overtaken in between fails its write instead, and is made once more from the start. Nothing is written when
+// KV already holds the same content.
 func copyUpdated[T any](ctx context.Context, c *core, readSrc, readDst func(context.Context) (T, uint64, error),
 	updateDst func(ctx context.Context, record T, guard uint64) error) error {
+	attempts := 1
+	if !c.secondaryIsPostgres() {
+		attempts = 2
+	}
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		var settled bool
+		if settled, err = copyUpdatedOnce(ctx, c, readSrc, readDst, updateDst); settled {
+			return err
+		}
+	}
+	return err
+}
+
+// copyUpdatedOnce makes one copy. settled is false only when KV refused the write because another copy got there first.
+func copyUpdatedOnce[T any](ctx context.Context, c *core, readSrc, readDst func(context.Context) (T, uint64, error),
+	updateDst func(ctx context.Context, record T, guard uint64) error) (settled bool, err error) {
+	var existing T
+	var current uint64
+	var dstErr error
+	if !c.secondaryIsPostgres() {
+		existing, current, dstErr = readDst(ctx) // before the primary store, see copyUpdated
+	}
 	record, revision, err := readSrc(ctx)
 	if isNotFound(err) {
-		return nil
+		return true, nil
 	}
 	if err != nil {
-		return err
+		return true, err
 	}
-	existing, current, err := readDst(ctx)
-	if isNotFound(err) {
+	if c.secondaryIsPostgres() {
+		existing, current, dstErr = readDst(ctx)
+	}
+	if isNotFound(dstErr) {
 		if _, _, srcErr := readSrc(ctx); isNotFound(srcErr) {
-			return nil // deleted in both stores while this was being copied
+			return true, nil // deleted in both stores while this was being copied
 		}
-		return err
+		return true, dstErr
 	}
-	if err != nil {
-		return err
+	if dstErr != nil {
+		return true, dstErr
 	}
 	if c.secondaryIsPostgres() {
 		if revision == current {
-			return nil
+			return true, nil
 		}
 	} else if same, err := sameContent(record, existing); err != nil {
-		return err
+		return true, err
 	} else if same {
-		return nil
+		return true, nil
 	}
 	wctx, err := c.carry(ctx, revision)
 	if err != nil {
-		return err
+		return true, err
 	}
-	return updateDst(wctx, record, current)
+	err = updateDst(wctx, record, current)
+	if !c.secondaryIsPostgres() && refusedAsStale(err) {
+		return false, err
+	}
+	return true, err
 }
 
 // sameContent reports whether two records have the same content, by their digests.

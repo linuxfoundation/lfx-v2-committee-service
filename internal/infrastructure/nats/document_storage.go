@@ -25,6 +25,12 @@ import (
 // Keeping this separate from the shared storage struct allows swapping to S3 (or another
 // backend) in the future by implementing port.CommitteeDocumentReaderWriter in a new adapter
 // and updating only the provider.
+// DocumentRevision is not part of port.CommitteeDocumentReaderWriter, which NewDocumentStorage returns, so the tests and the
+// composite store reach it through this interface: keep it implemented.
+var _ interface {
+	DocumentRevision(ctx context.Context, documentUID string) (uint64, error)
+} = (*documentStorage)(nil)
+
 type documentStorage struct {
 	client *NATSClient
 }

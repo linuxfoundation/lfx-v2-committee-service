@@ -6,11 +6,13 @@ package composite
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 )
 
@@ -357,4 +359,124 @@ func TestDualPG_TheFileIsRemovedEvenWhenTheCopyOfTheDeleteToKVFails(t *testing.T
 	_, fileErr := r.kv.GetDocumentFile(ctx, "d-1")
 	assert.True(t, isNotFound(fileErr), "the file is gone")
 	assert.Equal(t, map[string]int64{"delete_document": 1}, r.counts(t, failures), "the failed copy is counted")
+}
+
+// afterFirstRead runs a side effect once, right after the copy has read from the primary store, which is the moment another
+// update and its copy can overtake it.
+type afterFirstReadBaseStore struct {
+	port.CommitteeReaderWriter
+	after func()
+	fired bool
+}
+
+func (h *afterFirstReadBaseStore) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	base, revision, err := h.CommitteeReaderWriter.GetBase(ctx, uid)
+	if !h.fired {
+		h.fired = true
+		h.after()
+	}
+	return base, revision, err
+}
+
+// A copy that has read the primary store and is overtaken by a newer update and its copy must not write the older record
+// over the newer one in KV, which refuses nothing but a stale guard.
+func TestDualPG_ASlowCopyNeverLeavesAnOlderRecordOverANewerOne(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDualPG, nil)
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	base, revision, err := r.pg.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	base.Description = "v1"
+	require.NoError(t, r.pg.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision)) // PostgreSQL only: KV is behind
+	r.store.src = &afterFirstReadBaseStore{CommitteeReaderWriter: r.pg, after: func() {
+		newer, rev, err := r.pg.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		newer.Description = "v2"
+		require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *newer}, rev)) // the newer update and its copy
+	}}
+
+	require.NoError(t, r.store.replicateBase(ctx, "uid-1"))
+
+	contentInBoth(t, r, "uid-1")
+	inKV, _, err := r.kv.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	assert.Equal(t, "v2", inKV.Description, "KV holds the newer record")
+	assert.Empty(t, r.counts(t, failures))
+}
+
+type afterFirstReadBriefStore struct {
+	BriefBackend
+	after func()
+	fired bool
+}
+
+func (h *afterFirstReadBriefStore) GetGroupWeeklyBriefForWindow(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) (*model.GroupWeeklyBrief, []byte, error) {
+	brief, throttle, err := h.BriefBackend.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
+	if !h.fired {
+		h.fired = true
+		h.after()
+	}
+	return brief, throttle, err
+}
+
+// The first copy of a brief to KV is a put without a guard, which an overlapping copy of an older brief could overwrite: the
+// copy looks again and makes the newer one the one KV holds.
+func TestDualPG_ASlowFirstCopyOfABriefNeverLeavesAnOlderBriefInKV(t *testing.T) {
+	ctx := context.Background()
+	r := newBriefRig(t, ModeDualPG, nil)
+	v1 := storetest.NewBrief("b-1", "uid-1", storetest.FixtureWindow)
+	v1.BriefText = "v1"
+	_, err := r.pg.PutGroupWeeklyBrief(ctx, v1) // PostgreSQL only: KV has no brief for the window
+	require.NoError(t, err)
+	r.briefs.src = &afterFirstReadBriefStore{BriefBackend: r.pg, after: func() {
+		v2 := storetest.NewBrief("b-1", "uid-1", storetest.FixtureWindow)
+		v2.BriefText = "v2"
+		_, err := r.briefs.PutGroupWeeklyBrief(ctx, v2) // the newer put and its copy
+		require.NoError(t, err)
+	}}
+
+	require.NoError(t, r.briefs.copyBrief(ctx, "uid-1", briefWindow))
+
+	inKV, _, err := r.kv.GetGroupWeeklyBriefForWindow(ctx, "uid-1", briefWindow)
+	require.NoError(t, err)
+	require.NotNil(t, inKV)
+	assert.Equal(t, "v2", inKV.BriefText, "KV holds the newer brief")
+}
+
+type afterFirstReadThrottleStore struct {
+	BriefBackend
+	after func()
+	fired bool
+}
+
+func (h *afterFirstReadThrottleStore) GetGroupWeeklyBriefThrottle(ctx context.Context, committeeUID string, windowStart time.Time) (*model.GroupWeeklyBriefThrottle, error) {
+	throttle, err := h.BriefBackend.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+	if !h.fired {
+		h.fired = true
+		h.after()
+	}
+	return throttle, err
+}
+
+func TestDualPG_ASlowFirstCopyOfAThrottleNeverLeavesAnOlderEntryInKV(t *testing.T) {
+	ctx := context.Background()
+	r := newBriefRig(t, ModeDualPG, nil)
+	v1 := storetest.NewThrottle("uid-1", storetest.FixtureWindow)
+	v1.GeneratesUsed = 1
+	_, err := r.pg.PutGroupWeeklyBriefThrottle(ctx, v1) // PostgreSQL only
+	require.NoError(t, err)
+	r.briefs.src = &afterFirstReadThrottleStore{BriefBackend: r.pg, after: func() {
+		current, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+		require.NoError(t, err)
+		current.GeneratesUsed = 2
+		_, err = r.briefs.PutGroupWeeklyBriefThrottle(ctx, current) // the newer put and its copy
+		require.NoError(t, err)
+	}}
+
+	require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+
+	inKV, err := r.kv.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+	require.NoError(t, err)
+	require.NotNil(t, inKV)
+	assert.Equal(t, 2, inKV.GeneratesUsed, "KV holds the newer entry")
 }
