@@ -25,8 +25,9 @@ type BriefBackend interface {
 // to PostgreSQL of what KV holds, with the revision KV gave it, and a sampled fraction of reads is compared. See Store for
 // what that guarantees. A brief or a throttle entry is never deleted, so a copy has no delete to race with. PostgreSQL
 // holds one brief per window: when KV lets a second brief take a window over, PostgreSQL keeps the first, and a cutover to a
-// PostgreSQL-primary mode needs that repaired first (storage verify reports the brief KV serves as missing and the one
-// PostgreSQL kept as extra).
+// PostgreSQL-primary mode needs that reconciled first: which brief owns the window has to be decided and repaired by hand.
+// storage verify does not flag the one PostgreSQL kept as extra, because the export includes briefs the window index no
+// longer names and matches them by uid; it reports only the brief KV serves as missing.
 type Briefs struct {
 	BriefBackend
 	core
