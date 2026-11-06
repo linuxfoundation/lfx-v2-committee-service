@@ -44,6 +44,24 @@ func NewBackend(t *testing.T) Backend {
 	return nats.NewStorageBackend(newClient(t))
 }
 
+// RepairBackend is the KV store as the copy back from PostgreSQL uses it, with the export that checks the copy.
+type RepairBackend interface {
+	port.KVRepairStore
+	port.KVExportReader
+}
+
+type repairBackend struct {
+	port.KVRepairStore
+	port.KVExportReader
+}
+
+// NewRepairBackend is NewBackend for the tests of the copy back from PostgreSQL.
+func NewRepairBackend(t *testing.T) RepairBackend {
+	t.Helper()
+	client := newClient(t)
+	return repairBackend{KVRepairStore: nats.NewKVRepairStore(client), KVExportReader: nats.NewStorageBackend(client)}
+}
+
 // DocumentBackend is the KV and Object Store as the documents see them: the metadata and the files, and the lists and
 // updates of the audit-sync tooling.
 type DocumentBackend interface {

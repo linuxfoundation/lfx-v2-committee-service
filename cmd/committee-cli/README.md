@@ -622,7 +622,7 @@ NATS_URL=nats://localhost:4222 LOG_LEVEL=warn \
 
 #### `storage migrate`
 
-Copies committee data from the NATS KV store into PostgreSQL: committees with their settings, members, invites, applications, links, link folders, document metadata, weekly briefs and weekly-brief throttle entries. It reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
+Copies committee data from the NATS KV store into PostgreSQL, or with `--direction pg-to-kv` back from PostgreSQL into KV (see *The way back* below): committees with their settings, members, invites, applications, links, link folders, document metadata, weekly briefs and weekly-brief throttle entries. It reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
 
 The schema must already be applied: start the API once with `POSTGRES_ENABLED=true`, which runs the migrations. The command checks and says so if it is not.
 
@@ -630,6 +630,7 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 
 | Flag | Default | Description |
 |---|---|---|
+| `--direction` | `kv-to-pg` | `kv-to-pg` copies KV into PostgreSQL, keeping the revisions; `pg-to-kv` copies PostgreSQL into KV, which gives each record a revision of its own. Neither deletes |
 | `--entity` | all | Comma-separated entities to copy: `committees` (with settings), `members`, `invites`, `applications`, `links`, `folders`, `documents`, `briefs`, `throttles` |
 | `--dry-run` | `false` | Read and classify everything, write nothing; `written` is what a run would write |
 | `--include-orphans` | `false` | Also copy children whose committee does not exist in KV |
@@ -649,6 +650,15 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 **Exit code:** `0` if every record was copied, left alone or reported as an orphan; `1` if any record could not be copied or read.
 
 **Output:** a line per entity with `scanned`, `written`, `unchanged`, `orphans` and `errors`, the problems, and the highest KV revision seen. At the flip to PostgreSQL the revision sequence has to be advanced past the highest revision over every KV bucket, so note it from each run; the same summary is logged as `backfill summary`.
+
+**The way back: `storage migrate --direction pg-to-kv`.** For rolling back from `dual-pg` or `postgres` mode to `kv`, and for the records whose create copy to KV failed in `dual-pg`, which nothing else brings over. PostgreSQL decides: a record KV lacks is created, one KV holds with other content is replaced, and one with the same content is left alone, whatever revision each store holds it at. KV assigns the revisions itself, through its own create and update, so its secondary indexes are written as they always are. The flags and the exit code are as above, with these differences:
+
+- It **never deletes**. A record only KV holds stays, and `storage verify --by-content` reports it as `missing`; remove it by hand if KV must not serve it.
+- A record KV holds with other content is **replaced** by PostgreSQL's, guarded by the revision KV has now; a write that loses to another writer is reported as `constraint`, and a rerun settles it. Run it with no writes in flight.
+- A weekly brief is compared without its update time, which KV stamps itself, and a window KV holds for another brief is a `constraint`. Documents move as metadata only.
+- Settings are created in KV only along with their committee: settings missing next to a committee KV already holds are reported as `missing`.
+- Orphans are the PostgreSQL children whose committee has no row there.
+- The output ends with a reminder that nothing was deleted, instead of the highest revision. See the rollback checklist in `docs/postgres-schema.md`.
 
 **Examples**
 

@@ -18,7 +18,14 @@ import (
 // maxPrintedProblems bounds the problems the summary lists; every one is in the log.
 const maxPrintedProblems = 100
 
-// migrateSubcommand copies the committee data from the KV store into PostgreSQL.
+// The directions of a migration.
+const (
+	directionKVToPG = "kv-to-pg"
+	directionPGToKV = "pg-to-kv"
+)
+
+// migrateSubcommand copies the committee data between the KV store and PostgreSQL: into PostgreSQL by default, and
+// back into KV with --direction pg-to-kv.
 type migrateSubcommand struct {
 	// out receives the summary; os.Stdout when nil.
 	out io.Writer
@@ -27,7 +34,7 @@ type migrateSubcommand struct {
 func (s *migrateSubcommand) Name() string { return "migrate" }
 
 func (s *migrateSubcommand) Help() string {
-	return "copy the committee data from the NATS KV store to PostgreSQL, keeping the revisions"
+	return "copy the committee data from the NATS KV store to PostgreSQL, keeping the revisions, or with --direction pg-to-kv back from PostgreSQL to KV"
 }
 
 func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) error {
@@ -36,6 +43,7 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 		_, _ = fmt.Fprintf(fs.Output(), "usage: committee-cli storage migrate [flags]\n\nflags:\n")
 		fs.PrintDefaults()
 	}
+	direction := fs.String("direction", directionKVToPG, "kv-to-pg copies KV into PostgreSQL, keeping the revisions; pg-to-kv copies PostgreSQL into KV, which gives each record a revision of its own, and replaces a record KV holds with other content; neither deletes")
 	entities := fs.String("entity", "", "comma-separated entities to copy ("+strings.Join(allEntities, ", ")+"); default all")
 	dryRun := fs.Bool("dry-run", false, "read and classify everything but write nothing to PostgreSQL")
 	includeOrphans := fs.Bool("include-orphans", false, "also copy children whose committee does not exist in KV; they are only reported by default")
@@ -55,7 +63,14 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 	if *workers <= 0 || *batchSize <= 0 {
 		return errs.NewValidation("--workers and --batch-size must be greater than zero")
 	}
-	if rc.KVExport == nil || rc.PostgresStore == nil {
+	if *direction != directionKVToPG && *direction != directionPGToKV {
+		return errs.NewValidation(fmt.Sprintf("unknown direction %q: use %s or %s", *direction, directionKVToPG, directionPGToKV))
+	}
+	reverse := *direction == directionPGToKV
+	if reverse && (rc.KVRepair == nil || rc.PostgresStore == nil) {
+		return errs.NewUnexpected("the KV store and the PostgreSQL store are not wired in RunContext")
+	}
+	if !reverse && (rc.KVExport == nil || rc.PostgresStore == nil) {
 		return errs.NewUnexpected("the KV export and the PostgreSQL store are not wired in RunContext")
 	}
 
@@ -75,15 +90,22 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 	}
 	defer closeStore()
 
+	if reverse {
+		results, runErr := runReverse(ctx, store, rc.KVRepair, opts)
+		if results != nil {
+			s.print(results, *dryRun, true)
+		}
+		return runErr
+	}
 	results, runErr := runBackfill(ctx, rc.KVExport, store, opts)
 	if results != nil {
-		s.print(results, *dryRun)
+		s.print(results, *dryRun, false)
 	}
 	return runErr
 }
 
 // print writes the summary: one line per entity, the problems with their uids, and the highest revision.
-func (s *migrateSubcommand) print(results []backfillResult, dryRun bool) {
+func (s *migrateSubcommand) print(results []backfillResult, dryRun, reverse bool) {
 	out := s.out
 	if out == nil {
 		out = os.Stdout
@@ -107,6 +129,10 @@ func (s *migrateSubcommand) print(results []backfillResult, dryRun bool) {
 			_, _ = fmt.Fprintf(out, "  %s %s uid=%s: %s\n", r.Entity, p.Kind, p.UID, p.Message)
 			printed++
 		}
+	}
+	if reverse {
+		_, _ = fmt.Fprintln(out, "nothing was deleted: what only KV holds stays; check the copy with storage verify --by-content")
+		return
 	}
 	_, _ = fmt.Fprintf(out, "highest KV revision seen: %d (advance the PostgreSQL revision sequence past the highest over every bucket at the flip)\n", highest)
 }
