@@ -38,8 +38,8 @@ type DocumentKVBackend interface {
 // the deletion of a file. Nothing in KV is written for the metadata in postgres mode.
 //
 // A file and its metadata are two writes the caller makes one after the other, and the composite keeps that order: the
-// metadata is created first, then the file is put. Deleting the metadata removes the file with it, whichever store
-// decided: the NATS adapter does it itself, and in postgres mode the composite does after the metadata is gone, best
+// file is put first, then the metadata is created, and the caller removes the file when the create fails. Deleting the
+// metadata removes the file with it, whichever store decided: the NATS adapter does it itself, and in postgres mode the composite does after the metadata is gone, best
 // effort and logged, since the metadata is already gone and the file can no longer be reached through the API.
 type Documents struct {
 	DocumentMetadataBackend
@@ -113,10 +113,30 @@ func (d *Documents) copyUpdate(ctx context.Context, committeeUID, uid string) er
 	return copyUpdated(ctx, func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
 		return d.kv.GetDocumentMetadata(ctx, committeeUID, uid)
 	},
-		func(ctx context.Context) (uint64, error) {
-			_, current, err := d.pg.GetDocumentMetadata(ctx, committeeUID, uid)
-			return current, err
-		}, d.pg.UpdateDocumentMetadata)
+		func(ctx context.Context) (uint64, error) { return d.postgreSQLRevision(ctx, committeeUID, uid) },
+		d.pg.UpdateDocumentMetadata)
+}
+
+// postgreSQLRevision returns the revision PostgreSQL holds the document at. An update replaces the metadata by uid and may
+// change the committee, so the row can still be under the committee it had before, which the committee-scoped read does
+// not find; it is then found by uid among all the documents. That scan is made only when the scoped read finds nothing,
+// which is a document that is missing, or one that moved to another committee.
+func (d *Documents) postgreSQLRevision(ctx context.Context, committeeUID, uid string) (uint64, error) {
+	_, current, err := d.pg.GetDocumentMetadata(ctx, committeeUID, uid)
+	if !isNotFound(err) {
+		return current, err
+	}
+	docs, listErr := d.pg.ListAllDocuments(ctx, "")
+	if listErr != nil {
+		return 0, listErr
+	}
+	for _, doc := range docs {
+		if doc.UID == uid {
+			_, current, getErr := d.pg.GetDocumentMetadata(ctx, doc.CommitteeUID, uid)
+			return current, getErr
+		}
+	}
+	return 0, err
 }
 
 // DeleteDocumentMetadata removes the document's metadata when the revision is still current, and its file with it.

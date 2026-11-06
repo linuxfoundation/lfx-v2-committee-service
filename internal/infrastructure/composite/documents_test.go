@@ -169,6 +169,27 @@ func TestDocuments_DualASecondaryFailureIsCountedAndNeverFailsTheRequest(t *test
 	assert.Equal(t, map[string]int64{"create_document": 1, "update_document": 1, "delete_document": 1}, r.counts(t, failures))
 }
 
+// An update replaces the metadata by uid and may move the document to another committee: the copy still reaches the row,
+// which PostgreSQL holds under the committee it had.
+func TestDocuments_DualAnUpdateThatChangesTheCommitteeIsCopied(t *testing.T) {
+	ctx := context.Background()
+	r := newDocumentRig(t, ModeDual, nil, WithSampleRate(1))
+	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
+	doc, revision, err := r.docs.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	require.NoError(t, err)
+
+	doc.CommitteeUID = "uid-2"
+	require.NoError(t, r.docs.UpdateDocumentMetadata(ctx, doc, revision))
+
+	assert.Empty(t, r.counts(t, failures), "the copy found the row under its old committee")
+	kv, kvRevision, err := r.kv.GetDocumentMetadata(ctx, "uid-2", "d-1")
+	require.NoError(t, err)
+	pg, pgRevision, err := r.pg.GetDocumentMetadata(ctx, "uid-2", "d-1")
+	require.NoError(t, err, "PostgreSQL holds the document under the new committee")
+	assert.Equal(t, kvRevision, pgRevision)
+	assert.Equal(t, kv.CommitteeUID, pg.CommitteeUID)
+}
+
 // A copy that was missed is made up for by the next update of the same document, which copies what KV holds then.
 func TestDocuments_DualTheNextUpdateBringsPostgreSQLUpToWhatKVHolds(t *testing.T) {
 	ctx := context.Background()
