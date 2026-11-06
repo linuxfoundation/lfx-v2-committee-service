@@ -6,7 +6,6 @@ package composite
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
@@ -132,9 +131,12 @@ func (d *Documents) DeleteDocumentMetadata(ctx context.Context, committeeUID, do
 		})
 	case ModePostgres:
 		// The PostgreSQL store holds the metadata only, so the file is left for the composite to remove. The metadata is
-		// gone, so a file that stays is unreachable and is only logged.
-		if err := d.kv.DeleteDocumentFile(ctx, documentUID); err != nil {
-			slog.WarnContext(ctx, "failed to delete document file from object store (non-fatal)", "document_uid", documentUID, "error", err)
+		// gone, so a file that stays is unreachable: the failure is logged and counted, and does not fail the request. Like
+		// a copy to the secondary store, it does not depend on the request staying open, since the delete has happened.
+		fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.writeTimeout)
+		defer cancel()
+		if err := d.kv.DeleteDocumentFile(fctx, documentUID); err != nil {
+			d.metrics.SecondaryWriteFailed(ctx, d.mode, "object_store", "delete_document_file", documentUID, err)
 		}
 	}
 	return nil

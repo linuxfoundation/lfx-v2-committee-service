@@ -221,9 +221,10 @@ func (failingFileKV) DeleteDocumentFile(context.Context, string) error { return 
 func TestDocuments_APostgresDeleteDoesNotFailWhenTheFileCannotBeRemoved(t *testing.T) {
 	ctx := context.Background()
 	kv, pg := natstest.NewDocumentBackend(t), postgrestest.NewStore(t)
-	metrics, _ := newMetricsReader()
+	metrics, reader := newMetricsReader()
 	docs, err := NewDocuments(ModePostgres, failingFileKV{kv}, pg, WithMetrics(metrics))
 	require.NoError(t, err)
+
 	require.NoError(t, docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
 	_, revision, err := docs.GetDocumentMetadata(ctx, "uid-1", "d-1")
 	require.NoError(t, err)
@@ -232,6 +233,39 @@ func TestDocuments_APostgresDeleteDoesNotFailWhenTheFileCannotBeRemoved(t *testi
 
 	_, _, err = pg.GetDocumentMetadata(ctx, "uid-1", "d-1")
 	assert.Error(t, err, "the metadata is gone")
+	assert.Equal(t, map[string]int64{"delete_document_file": 1}, countsOf(t, reader, failures), "the file left behind is counted")
+}
+
+// cancellingDocumentPG cancels the request once the metadata is deleted, as a client that goes away would.
+type cancellingDocumentPG struct {
+	DocumentMetadataBackend
+	cancel context.CancelFunc
+}
+
+func (p cancellingDocumentPG) DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error {
+	err := p.DocumentMetadataBackend.DeleteDocumentMetadata(ctx, committeeUID, documentUID, revision)
+	p.cancel()
+	return err
+}
+
+// A client that goes away right after the metadata was deleted does not leave the file behind.
+func TestDocuments_APostgresDeleteRemovesTheFileWhenTheRequestIsCancelledMeanwhile(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r := newDocumentRig(t, ModePostgres, func(pg DocumentMetadataBackend) DocumentMetadataBackend {
+		return cancellingDocumentPG{DocumentMetadataBackend: pg, cancel: cancel}
+	})
+	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
+	require.NoError(t, r.docs.PutDocumentFile(ctx, "d-1", []byte("file")))
+	_, revision, err := r.docs.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	require.NoError(t, err)
+
+	require.NoError(t, r.docs.DeleteDocumentMetadata(ctx, "uid-1", "d-1", revision))
+
+	_, err = fileOf(t, r, "d-1")
+	var notFound errs.NotFound
+	assert.ErrorAs(t, err, &notFound, "the file is gone")
+	assert.Empty(t, r.counts(t, failures))
 }
 
 // A document that PostgreSQL holds at another revision, because an earlier copy failed, is still removed by a delete, and a
