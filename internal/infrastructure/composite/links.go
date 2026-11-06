@@ -79,7 +79,7 @@ func (l *Links) UpdateLink(ctx context.Context, link *model.CommitteeLink, revis
 	return nil
 }
 
-// copyLinkUpdate writes the link KV holds now to PostgreSQL; see copyUpdated.
+// copyLinkUpdate writes the link the primary store holds now to the secondary store; see copyUpdated.
 func (l *Links) copyLinkUpdate(ctx context.Context, committeeUID, uid string) error {
 	return copyUpdated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
 		return l.src.GetLink(ctx, committeeUID, uid)
@@ -143,7 +143,7 @@ func (l *Links) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	return nil
 }
 
-// copyFolderUpdate writes the folder KV holds now to PostgreSQL; see copyUpdated.
+// copyFolderUpdate writes the folder the primary store holds now to the secondary store; see copyUpdated.
 func (l *Links) copyFolderUpdate(ctx context.Context, committeeUID, uid string) error {
 	return copyUpdated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
 		return l.src.GetLinkFolder(ctx, committeeUID, uid)

@@ -43,7 +43,7 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	return nil
 }
 
-// copyApplicationUpdate writes the application KV holds now to PostgreSQL; see copyUpdated.
+// copyApplicationUpdate writes the application the primary store holds now to the secondary store; see copyUpdated.
 func (s *Store) copyApplicationUpdate(ctx context.Context, uid string) error {
 	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
 		return s.src.GetApplication(ctx, uid)

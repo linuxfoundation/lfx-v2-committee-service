@@ -166,7 +166,22 @@ func TestDocuments_DualASecondaryFailureIsCountedAndNeverFailsTheRequest(t *test
 	require.NoError(t, err)
 	require.NoError(t, r.docs.DeleteDocumentMetadata(ctx, "uid-1", "d-1", revision))
 
-	assert.Equal(t, map[string]int64{"create_document": 1, "update_document": 1, "delete_document": 1}, r.counts(t, failures))
+	// The copy of the create failed, so the delete finds nothing in PostgreSQL to remove, which is where a delete leaves it.
+	assert.Equal(t, map[string]int64{"create_document": 1, "update_document": 1}, r.counts(t, failures))
+}
+
+// A delete that PostgreSQL, the secondary store of dual mode, refuses is counted and never fails the request.
+func TestDocuments_DualAFailedCopyOfADeleteIsCounted(t *testing.T) {
+	ctx := context.Background()
+	r := newDocumentRig(t, ModeDual, nil)
+	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
+	_, revision, err := r.docs.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	require.NoError(t, err)
+	r.docs.dst = failingDocumentPG{r.pg}
+
+	require.NoError(t, r.docs.DeleteDocumentMetadata(ctx, "uid-1", "d-1", revision))
+
+	assert.Equal(t, map[string]int64{"delete_document": 1}, r.counts(t, failures))
 }
 
 // An update replaces the metadata by uid and may move the document to another committee: the copy still reaches the row,

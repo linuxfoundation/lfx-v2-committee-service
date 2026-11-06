@@ -203,7 +203,8 @@ func (b *Briefs) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mode
 	return stored, nil
 }
 
-// copyThrottle writes the throttle entry KV holds now to PostgreSQL, with the revision KV gave it, guarded by the revision
+// copyThrottle writes the throttle entry the primary store holds now to the secondary store, with the revision it gave where
+// the secondary store can take one (see copyBrief), guarded by the revision
 // PostgreSQL has now. It reads KV again, like copyUpdated: when two puts overlap each copy writes the newest entry, and a
 // copy that finds PostgreSQL already there writes nothing, where copying what each put returned would leave the older one
 // whenever the first copy wins the swap. It creates the entry when PostgreSQL has none. When an overlapping copy wins the

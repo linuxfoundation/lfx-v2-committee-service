@@ -101,7 +101,7 @@ func (d *Documents) CreateDocumentMetadata(ctx context.Context, doc *model.Commi
 			return copyCreated(ctx, &d.core, func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
 				return d.src.GetDocumentMetadata(ctx, committeeUID, uid)
 			}, d.dst.CreateDocumentMetadata, func(ctx context.Context, revision uint64) error {
-				return d.deleteInSecondary(ctx, committeeUID, uid, revision)
+				return d.deleteUnlessMoved(ctx, committeeUID, uid, revision)
 			}, func(ctx context.Context) error { return d.copyUpdate(ctx, committeeUID, uid) })
 		})
 	}
@@ -120,7 +120,7 @@ func (d *Documents) UpdateDocumentMetadata(ctx context.Context, doc *model.Commi
 	return nil
 }
 
-// copyUpdate writes the metadata KV holds now to PostgreSQL; see copyUpdated.
+// copyUpdate writes the metadata the primary store holds now to the secondary store; see copyUpdated.
 func (d *Documents) copyUpdate(ctx context.Context, committeeUID, uid string) error {
 	return copyUpdated(ctx, &d.core, func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
 		return d.src.GetDocumentMetadata(ctx, committeeUID, uid)
@@ -169,9 +169,30 @@ func (d *Documents) DeleteDocumentMetadata(ctx context.Context, committeeUID, do
 	return nil
 }
 
+// deleteUnlessMoved is the delete of the copy of a create that finds the document gone from the primary store under the
+// committee it was created in. The committee-scoped read does not tell a delete from a move to another committee, and a
+// delete of the secondary store's document removes the file with it, so the primary store is asked by uid: a document it
+// still has was moved, and is left to the copy of the move, which updates the secondary store.
+func (d *Documents) deleteUnlessMoved(ctx context.Context, committeeUID, uid string, revision uint64) error {
+	if _, err := d.src.DocumentRevision(ctx, uid); err == nil {
+		return nil
+	} else if !isNotFound(err) {
+		return err
+	}
+	return d.deleteInSecondary(ctx, committeeUID, uid, revision)
+}
+
 // deleteInSecondary removes the metadata from the secondary store after the primary store decided that it is gone; see
-// deleteConverged.
+// deleteConverged. The secondary store may still hold the document under the committee it had before a move whose copy
+// failed, so it is deleted under the committee the secondary store has it in.
 func (d *Documents) deleteInSecondary(ctx context.Context, committeeUID, uid string, revision uint64) error {
+	committeeUID, err := d.dstCommittee(ctx, committeeUID, uid)
+	if isNotFound(err) {
+		return nil // not there: where a delete leaves it
+	}
+	if err != nil {
+		return err
+	}
 	return deleteConverged(ctx, &d.core,
 		func(ctx context.Context, revision uint64) error {
 			return d.dst.DeleteDocumentMetadata(ctx, committeeUID, uid, revision)
@@ -180,6 +201,29 @@ func (d *Documents) deleteInSecondary(ctx context.Context, committeeUID, uid str
 			_, current, err := d.dst.GetDocumentMetadata(ctx, committeeUID, uid)
 			return current, err
 		}, revision)
+}
+
+// dstCommittee returns the committee the secondary store holds the document in: the one given, or, when the document is
+// not there but is under another committee, that one. The search through the documents is made only in that case, which
+// is a document whose move was not copied.
+func (d *Documents) dstCommittee(ctx context.Context, committeeUID, uid string) (string, error) {
+	_, _, err := d.dst.GetDocumentMetadata(ctx, committeeUID, uid)
+	if !isNotFound(err) {
+		return committeeUID, err
+	}
+	if _, revisionErr := d.dst.DocumentRevision(ctx, uid); revisionErr != nil {
+		return "", revisionErr // NotFound when the document is not there at all
+	}
+	docs, listErr := d.dst.ListAllDocuments(ctx, "")
+	if listErr != nil {
+		return "", listErr
+	}
+	for _, doc := range docs {
+		if doc.UID == uid {
+			return doc.CommitteeUID, nil
+		}
+	}
+	return "", err
 }
 
 // GetDocumentMetadata returns the document's metadata and its revision.

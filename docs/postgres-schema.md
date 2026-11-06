@@ -232,11 +232,14 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   given a revision: it assigns its own, so a record is at one revision in PostgreSQL, the one a client holds, and at
   another in KV. A copy to KV is guarded by the revision KV has, is skipped when KV already holds the same content, and a
   delete is guarded by the revision KV has. KV stamps the update time of a weekly brief itself, so a brief in KV carries the
-  time of its copy. A failed copy is counted and left for the next update of the record. Switching back to `kv`
-  therefore needs two things: the switch is made with no writes in flight, and `storage verify` (run the other way, KV
-  against PostgreSQL) reports no record that is behind, because KV would otherwise serve what it last received. A client
-  that holds a token from `dual-pg` when `kv` takes over gets a revision mismatch, or, when the number happens to be the one KV
-  has for that record, writes over what it did not read.
+  time of its copy. A failed copy is counted and left for the next update of the record, and a record whose create was
+  not copied stays missing in KV until `storage migrate` copies it. Switching back to `kv` therefore needs two things: the
+  switch is made with no writes in flight, and KV is known to hold what PostgreSQL holds, because it would otherwise serve
+  what it last received. `storage verify` cannot show that as it is: it compares KV with PostgreSQL in that one direction
+  and reports a record at another revision as a mismatch, which in `dual-pg` is every record that was copied. It does
+  report what only PostgreSQL has as `extra`. A comparison by content that also reports what only PostgreSQL has is part
+  of the flip and rollback work. A client that holds a token from `dual-pg` when `kv` takes over gets a revision mismatch,
+  or, when the number happens to be the one KV has for that record, writes over what it did not read.
 
 - **Cascade delete.** `Store.DeleteCommitteeCascade` removes the committee, its settings and every member, invite,
   application, link, link folder, document metadata row, weekly brief and throttle entry of the committee in one

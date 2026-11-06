@@ -42,7 +42,7 @@ func (s *Store) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite,
 	return nil
 }
 
-// copyInviteUpdate writes the invite KV holds now to PostgreSQL; see copyUpdated.
+// copyInviteUpdate writes the invite the primary store holds now to the secondary store; see copyUpdated.
 func (s *Store) copyInviteUpdate(ctx context.Context, uid string) error {
 	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.src.GetInvite(ctx, uid) },
 		func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.dst.GetInvite(ctx, uid) },

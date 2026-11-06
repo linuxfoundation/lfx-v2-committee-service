@@ -43,7 +43,7 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	return updated, nil
 }
 
-// copyMemberUpdate writes the member KV holds now to PostgreSQL; see copyUpdated.
+// copyMemberUpdate writes the member the primary store holds now to the secondary store; see copyUpdated.
 func (s *Store) copyMemberUpdate(ctx context.Context, uid string) error {
 	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
 		func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.dst.GetMember(ctx, uid) },

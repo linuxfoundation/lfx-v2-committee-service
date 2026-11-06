@@ -14,6 +14,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // In dual-pg mode PostgreSQL decides and KV follows. KV assigns revisions of its own and cannot be given the one
@@ -479,4 +480,82 @@ func TestDualPG_ASlowFirstCopyOfAThrottleNeverLeavesAnOlderEntryInKV(t *testing.
 	require.NoError(t, err)
 	require.NotNil(t, inKV)
 	assert.Equal(t, 2, inKV.GeneratesUsed, "KV holds the newer entry")
+}
+
+// movedAfterFirstRead reports the document as gone from its committee on every read after the first, as it is when it was
+// moved to another committee meanwhile, though the primary store still has it.
+type movedAfterFirstRead struct {
+	DocumentMetadataBackend
+	reads int
+}
+
+func (m *movedAfterFirstRead) GetDocumentMetadata(ctx context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error) {
+	m.reads++
+	if m.reads > 1 {
+		return nil, 0, errs.NewNotFound("document not found")
+	}
+	return m.DocumentMetadataBackend.GetDocumentMetadata(ctx, committeeUID, documentUID)
+}
+
+// The copy of a create that finds the document gone from its committee meanwhile cannot tell a delete from a move, and a delete
+// in KV removes the file as well: a document the primary store still has is left alone.
+func TestDualPG_ACreateCopyThatFindsTheDocumentMovedDoesNotDeleteItOrItsFile(t *testing.T) {
+	ctx := context.Background()
+	r := newDocumentRig(t, ModeDualPG, nil)
+	require.NoError(t, r.docs.PutDocumentFile(ctx, "d-1", []byte("file")))
+	r.docs.src = &movedAfterFirstRead{DocumentMetadataBackend: r.pg}
+
+	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
+
+	_, _, err := r.kv.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	require.NoError(t, err, "KV still holds the document")
+	file, err := r.kv.GetDocumentFile(ctx, "d-1")
+	require.NoError(t, err, "and its file")
+	assert.Equal(t, []byte("file"), file)
+	assert.Empty(t, r.counts(t, failures))
+}
+
+func TestDualPG_ADocumentThatWasReallyDeletedMeanwhileIsTakenOutOfKV(t *testing.T) {
+	ctx := context.Background()
+	r := newDocumentRig(t, ModeDualPG, nil)
+	require.NoError(t, r.docs.PutDocumentFile(ctx, "d-1", []byte("file")))
+	gone := &movedAfterFirstRead{DocumentMetadataBackend: r.pg}
+	r.docs.src = goneAfterFirstRead{gone, r.pg}
+
+	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
+
+	_, _, err := r.kv.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	assert.True(t, isNotFound(err), "the delete reached KV")
+}
+
+// goneAfterFirstRead is movedAfterFirstRead for a document that is really gone: the lookup by uid does not find it either.
+type goneAfterFirstRead struct {
+	*movedAfterFirstRead
+	pg DocumentMetadataBackend
+}
+
+func (goneAfterFirstRead) DocumentRevision(context.Context, string) (uint64, error) {
+	return 0, errs.NewNotFound("document not found")
+}
+
+// A move that PostgreSQL decided and KV did not get leaves the document in KV under its old committee; a delete under the new
+// committee still removes it.
+func TestDualPG_ADeleteAfterAMoveThatWasNotCopiedRemovesTheDocumentFromKV(t *testing.T) {
+	ctx := context.Background()
+	r := newDocumentRig(t, ModeDualPG, nil)
+	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
+	doc, revision, err := r.docs.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	require.NoError(t, err)
+	r.docs.dst = failingDocumentPG{r.kv}
+	doc.CommitteeUID = "uid-2"
+	require.NoError(t, r.docs.UpdateDocumentMetadata(ctx, doc, revision))
+	r.docs.dst = r.kv
+	_, revision, err = r.docs.GetDocumentMetadata(ctx, "uid-2", "d-1")
+	require.NoError(t, err)
+
+	require.NoError(t, r.docs.DeleteDocumentMetadata(ctx, "uid-2", "d-1", revision))
+
+	_, _, oldErr := r.kv.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	assert.True(t, isNotFound(oldErr), "the metadata under the old committee is gone from KV")
+	assert.Equal(t, map[string]int64{"update_document": 1}, r.counts(t, failures), "only the move that was not copied")
 }
