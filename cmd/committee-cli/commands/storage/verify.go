@@ -35,6 +35,7 @@ func (s *verifySubcommand) Run(ctx context.Context, rc commands.RunContext) erro
 	}
 	entities := fs.String("entity", "", "comma-separated entities to compare ("+strings.Join(allEntities, ", ")+"); default all")
 	includeOrphans := fs.Bool("include-orphans", false, "expect the children whose committee does not exist in KV to have been copied (migrate --include-orphans); they are only counted by default")
+	byContent := fs.Bool("by-content", false, "compare the content of each record and not its revision: for dual-pg mode, where KV holds each record at a revision of its own (a weekly brief is compared without its update time too)")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -48,7 +49,7 @@ func (s *verifySubcommand) Run(ctx context.Context, rc commands.RunContext) erro
 		return errs.NewUnexpected("the KV export and the PostgreSQL store are not wired in RunContext")
 	}
 
-	opts := verifyOptions{IncludeOrphans: *includeOrphans}
+	opts := verifyOptions{IncludeOrphans: *includeOrphans, ByContent: *byContent}
 	if *entities != "" {
 		for _, entity := range strings.Split(*entities, ",") {
 			opts.Entities = append(opts.Entities, strings.TrimSpace(entity))

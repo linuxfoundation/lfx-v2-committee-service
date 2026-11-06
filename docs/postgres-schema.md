@@ -222,7 +222,7 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   change is reported as an error, never as an unchanged value; replacing a brief by uid follows the same rule. A revision of 0 or above the range of
   the column is an error. In `dual` mode every write must carry its revision: a write without one takes a sequence
   value that can equal a KV revision a stale client still holds, unless the sequence was also advanced before `dual`
-  started. At the flip from KV to PostgreSQL, call `Store.AdvanceRevisionSequence(ctx, highest)` with the highest
+  started. At the flip from KV to PostgreSQL, call `Store.AdvanceRevisionSequence(ctx, highest)` (`committee-cli storage flip --confirm` does, after `verify` finds the stores equal) with the highest
   revision over **every** KV bucket the tables mirror (KV revisions are stream sequences counted per bucket, while
   all tables share this one sequence): the sequence then issues only values above it, so a token from before the flip
   can never match a revision issued after it, and a lower value never lowers the sequence. Call it while no writes
@@ -236,10 +236,9 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   not copied stays missing in KV: no command copies PostgreSQL to KV yet, since `storage migrate` copies in the other
   direction only, and that copy is part of the flip and rollback work. Switching back to `kv` therefore needs two things: the
   switch is made with no writes in flight, and KV is known to hold what PostgreSQL holds, because it would otherwise serve
-  what it last received. `storage verify` cannot show that as it is: it compares KV with PostgreSQL in that one direction
-  and reports a record at another revision as a mismatch, which in `dual-pg` is every record that was copied. It does
-  report what only PostgreSQL has as `extra`. A comparison by content that also reports what only PostgreSQL has is part
-  of the flip and rollback work. A client that holds a token from `dual-pg` when `kv` takes over gets a revision mismatch,
+  what it last received. `storage verify` reports a record at another revision as a mismatch, which in `dual-pg` is every
+  record that was copied, so for that check it is run with `--by-content`: the content of each record is compared, a weekly
+  brief without the update time KV stamps itself, and what only PostgreSQL has is still reported as `extra`. A client that holds a token from `dual-pg` when `kv` takes over gets a revision mismatch,
   or, when the number happens to be the one KV has for that record, writes over what it did not read.
 
 - **Cascade delete.** `Store.DeleteCommitteeCascade` removes the committee, its settings and every member, invite,

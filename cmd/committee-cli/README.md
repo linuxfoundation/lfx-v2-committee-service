@@ -23,7 +23,7 @@ committee-cli <command> <subcommand> [subcommand flags]
 | `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
 | `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
-| `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate` and `storage verify`. Holds a credential and is never logged |
+| `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate`, `storage verify` and `storage flip`. Holds a credential and is never logged |
 | `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`, `storage verify`) |
 | `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or one that cannot be used yet (today only `kv` can), stops a command that connects before it connects; commands that need no infrastructure ignore it |
 
@@ -683,6 +683,7 @@ The schema must already be applied, as for `migrate`.
 |---|---|---|
 | `--entity` | all | Comma-separated entities to compare: `committees` (with settings), `members`, `invites`, `applications`, `links`, `folders`, `documents`, `briefs`, `throttles` |
 | `--include-orphans` | `false` | Expect the children whose committee does not exist in KV to have been copied (`migrate --include-orphans`), so one that is missing from PostgreSQL is a difference. By default they are only counted |
+| `--by-content` | `false` | Compare the content of each record and not its revision, for `dual-pg` mode, where KV holds each record at a revision of its own and not the one PostgreSQL gave it. A weekly brief is compared without its update time too, which KV stamps with the time of the copy. What only PostgreSQL has is still reported `extra` |
 
 **Orphans** are reported and are not a difference by themselves. `orphans(kv)` are KV children of a committee KV no longer has, which `migrate` skips unless asked; `orphans(postgresql)` are rows whose committee has no row in PostgreSQL, the rows that would stop a foreign key being added, so a run with none is the evidence that the keys can be added. Both are listed with their uids (`kv-orphan`, `pg-orphan`), after the differences, so that they cannot push the differences out of the lines that are listed. The settings of a committee KV no longer has (see `storage migrate`) are `kv-orphan` too, and are never reported `missing`, since `migrate` cannot copy them.
 
@@ -706,6 +707,21 @@ NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5
 Only the members, expecting the orphans to have been copied:
 ```sh
 NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage verify --entity=members --include-orphans
+```
+
+#### `storage flip`
+
+Makes PostgreSQL ready to issue the revisions: it advances the revision sequence of PostgreSQL above the highest revision of any record in the NATS KV store, so that a token a client holds from before the cutover can never equal a revision issued after it. KV counts the revisions of each bucket on its own while every table in PostgreSQL shares one sequence, so the highest revision is taken over every record of every bucket the tables mirror, the orphans included.
+
+It first runs `storage verify` over everything and **refuses** unless KV and PostgreSQL hold the same records at the same revisions (no `missing`, `extra`, `mismatch` or `source` finding), and it refuses if a scan of KV cannot be completed, since the highest revision of the records it did not reach is not known. Without `--confirm` it is a dry run: it changes nothing and says what it would do. The read of the highest revision and the advance are not one atomic step, so run it with no writes in flight.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--confirm` | `false` | Advance the sequence. Without it nothing is changed |
+
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage flip
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage flip --confirm
 ```
 
 ## Building
