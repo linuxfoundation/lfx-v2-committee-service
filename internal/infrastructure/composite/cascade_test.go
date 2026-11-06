@@ -93,7 +93,7 @@ func TestWithCascade_OnlyAModeWithPostgreSQLAsItsPrimaryStoreCascades(t *testing
 	}
 }
 
-func TestWithCascade_ANodeThatCascadesNeedsTheCascadingDeleteOfPostgreSQL(t *testing.T) {
+func TestWithCascade_AModeThatCascadesNeedsTheCascadingDeleteOfPostgreSQL(t *testing.T) {
 	kv, pg := natstest.NewBackend(t), postgrestest.NewStore(t)
 	for _, mode := range []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres} {
 		t.Run(string(mode), func(t *testing.T) {
@@ -231,4 +231,16 @@ func TestCascade_ACommitteeThatIsNotThereIsNotFound(t *testing.T) {
 	_, err := r.writer.(port.CommitteeCascadeDeleter).DeleteCommitteeCascade(ctx, "missing", 1)
 
 	assert.True(t, isNotFound(err))
+}
+
+// A committee that KV never got, because the copy of its create failed, is where a delete leaves it: not a failure.
+func TestCascade_DualPGACommitteeKVNeverHadIsNotAFailure(t *testing.T) {
+	ctx := context.Background()
+	r := newCascadeRig(t, ModeDualPG)
+	require.NoError(t, r.pg.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One"))) // never copied to KV
+
+	_, err := r.writer.(port.CommitteeCascadeDeleter).DeleteCommitteeCascade(ctx, "uid-1", r.revision(t))
+
+	require.NoError(t, err)
+	assert.Empty(t, r.counts(t, failures))
 }
