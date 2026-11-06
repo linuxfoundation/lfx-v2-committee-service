@@ -16,6 +16,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/require"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
@@ -39,6 +40,39 @@ func NewStore(t *testing.T) port.CommitteeReaderWriter {
 
 // NewBackend is NewStore for the tests of the aggregates beyond the committees.
 func NewBackend(t *testing.T) Backend {
+	t.Helper()
+	return nats.NewStorageBackend(newClient(t))
+}
+
+// DocumentBackend is the KV and Object Store as the documents see them: the metadata and the files, and the lists and
+// updates of the audit-sync tooling.
+type DocumentBackend interface {
+	port.CommitteeDocumentReaderWriter
+	UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error
+	ListAllDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error)
+}
+
+type documentBackend struct {
+	port.CommitteeDocumentReaderWriter
+	audit port.DocumentAuditSyncStorage
+}
+
+func (d documentBackend) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
+	return d.audit.UpdateDocumentMetadata(ctx, doc, revision)
+}
+
+func (d documentBackend) ListAllDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
+	return d.audit.ListAllDocuments(ctx, committeeUID)
+}
+
+// NewDocumentBackend is NewBackend for the tests of the documents, over a server of its own.
+func NewDocumentBackend(t *testing.T) DocumentBackend {
+	t.Helper()
+	client := newClient(t)
+	return documentBackend{CommitteeDocumentReaderWriter: nats.NewDocumentStorage(client), audit: nats.NewStorageBackend(client)}
+}
+
+func newClient(t *testing.T) *nats.NATSClient {
 	t.Helper()
 	ns, err := natsserver.NewServer(&natsserver.Options{
 		Host:      "127.0.0.1",
@@ -82,5 +116,5 @@ func NewBackend(t *testing.T) Backend {
 	client, err := nats.NewClient(ctx, nats.Config{URL: ns.ClientURL(), Timeout: 5 * time.Second, MaxReconnect: 3, ReconnectWait: time.Second})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
-	return nats.NewStorageBackend(client)
+	return client
 }
