@@ -57,9 +57,11 @@ const (
 // of port.CommitteeReaderWriter apart from the streams EachMember and EachMemberStrict, which go to the primary store
 // alone. The links and folders (Links), the weekly briefs and throttle entries (Briefs) and the documents (Documents, whose
 // files stay in the Object Store in every mode) are other aggregates with stores of their own, composed the same way.
-// The Store does not expose port.CommitteeCascadeDeleter, which in postgres mode would leave the children of a deleted
-// committee behind. None of them is complete enough to be wired in until the cascade is
-// exposed for the stores that have it, which is why no mode but kv is available at startup.
+// The Store does not itself have the cascading delete of a committee, port.CommitteeCascadeDeleter, which the service uses
+// in place of Delete when its writer has it: a mode in which PostgreSQL is the primary store would otherwise leave the
+// children of a deleted committee behind there, and kv and dual keep the committee delete the service has always had. Where
+// PostgreSQL is the primary store, WithCascade returns a CascadingStore that has it. None of this is wired in yet, which is
+// why no mode but kv is available at startup.
 type Store struct {
 	port.CommitteeReaderWriter
 
