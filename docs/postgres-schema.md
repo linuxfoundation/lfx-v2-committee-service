@@ -251,7 +251,11 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   as an orphan would be in KV. The stored files of the removed documents are not touched by the store: the service deletes the
   Object Store file of each returned document uid, when it is built with a document file deleter (the API is). In KV, `Delete` still removes only the
   committee and its settings, and the service removes only the applications, so a committee's members, invites, links,
-  folders, documents and briefs stay behind as orphans there; this difference lasts until KV mode is retired.
+  folders, documents and briefs stay behind as orphans there; this difference lasts until KV mode is retired. The composite
+  store gives the service this cascade only where PostgreSQL is the primary store (`composite.WithCascade`, which returns a
+  `CascadingStore` for `dual-pg` and `postgres`); in `kv` and `dual` the writer has no cascade, so the committee delete is the
+  one KV has always had. In `dual-pg` the committee, its settings and the removed applications are then removed from KV too,
+  under the revisions KV has, and the other children are left in KV as a delete in KV mode leaves them.
 
 ## Running the tests
 
