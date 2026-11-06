@@ -177,6 +177,23 @@ func (s *Store) DocumentRevision(ctx context.Context, documentUID string) (uint6
 	return uint64(revision), nil
 }
 
+// DocumentCommittee returns the committee the document belongs to, found by its uid alone, for the callers that replace or
+// delete a document by uid and so may not know which committee it is in. A document that does not exist is errs.NotFound.
+func (s *Store) DocumentCommittee(ctx context.Context, documentUID string) (string, error) {
+	if documentUID == "" {
+		return "", errs.NewValidation("document UID cannot be empty")
+	}
+	var committeeUID string
+	err := s.pool.QueryRow(ctx, "SELECT committee_uid FROM committee_documents WHERE uid = $1", documentUID).Scan(&committeeUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", documentUID))
+	}
+	if err != nil {
+		return "", unexpected("failed to get document committee", err)
+	}
+	return committeeUID, nil
+}
+
 // DocumentNameExists reports whether the committee already has a document with the name.
 func (s *Store) DocumentNameExists(ctx context.Context, committeeUID, name string) (bool, error) {
 	var exists bool

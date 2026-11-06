@@ -77,7 +77,8 @@ func (b *Briefs) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeek
 // In dual-pg mode KV is the secondary store, which refuses nothing but a stale guard, so as in copyUpdated it is read before
 // the primary store and the write is guarded by the revision read then, and a refused write is made once more from the
 // start. A window that has no brief in KV is put without a guard, which an overlapping copy of an older brief could
-// overwrite, so after such a put the two stores are compared again and the copy is made once more if they differ.
+// overwrite, and a copy that found KV already at the brief it was to write skips it, which lets a delayed copy of the brief
+// before through. So after every put the two stores are compared again and the copy is made once more if they differ.
 func (b *Briefs) copyBrief(ctx context.Context, committeeUID string, window model.GroupWeeklyBrief) error {
 	attempts := 1
 	if !b.secondaryIsPostgres() {
@@ -137,7 +138,6 @@ func (b *Briefs) copyBriefOnce(ctx context.Context, committeeUID string, window 
 	if err != nil {
 		return true, err
 	}
-	guarded := copied.Revision != 0 // the put sets the revision on what it is given
 	_, err = b.dst.PutGroupWeeklyBrief(wctx, &copied)
 	if refusedAsStale(err) {
 		// Another copy wrote between the read above and this write. That is not a failure if the window now holds this
@@ -153,10 +153,12 @@ func (b *Briefs) copyBriefOnce(ctx context.Context, committeeUID string, window 
 		}
 		return b.secondaryIsPostgres(), err
 	}
-	if err != nil || b.secondaryIsPostgres() || guarded {
+	if err != nil || b.secondaryIsPostgres() {
 		return true, err
 	}
-	// KV was put without a guard: see whether an overlapping copy of an older brief overwrote a newer one.
+	// See whether the primary store moved on while the brief was being written: an overlapping copy of an older brief can
+	// overwrite a newer one when KV was put without a guard, and a guarded write goes through when the newer copy found KV
+	// already at the content it was to write and skipped it.
 	latest, _, srcErr := b.src.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
 	held, _, dstErr := b.dst.GetGroupWeeklyBriefForWindow(ctx, committeeUID, window)
 	if srcErr != nil || dstErr != nil {
@@ -211,12 +213,17 @@ func (b *Briefs) PutGroupWeeklyBriefThrottle(ctx context.Context, throttle *mode
 // write first, this one is settled if PostgreSQL then holds this revision or a newer one; if it holds an older one (the
 // other copy had read an older entry) the copy is made once more from the start, so the newest entry is not left behind.
 func (b *Briefs) copyThrottle(ctx context.Context, committeeUID string, windowStart time.Time) error {
-	for attempt := 0; ; attempt++ {
-		settled, err := b.copyThrottleOnce(ctx, committeeUID, windowStart)
-		if settled || attempt > 0 {
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		var settled bool
+		if settled, err = b.copyThrottleOnce(ctx, committeeUID, windowStart); settled {
 			return err
 		}
 	}
+	if err == nil {
+		err = errors.New("the copy of the throttle entry was overtaken by newer puts and left the secondary store behind")
+	}
+	return err
 }
 
 // copyThrottleOnce makes one copy. settled is false only when a write was refused because an overlapping copy got there
@@ -261,7 +268,19 @@ func (b *Briefs) copyThrottleOnce(ctx context.Context, committeeUID string, wind
 	}
 	_, err = b.dst.PutGroupWeeklyBriefThrottle(wctx, &copied)
 	if !refusedAsStale(err) {
-		return true, err
+		if err != nil || b.secondaryIsPostgres() {
+			return true, err
+		}
+		// See whether the primary store moved on while the entry was being written; see copyBrief.
+		latest, srcErr := b.src.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
+		if srcErr != nil {
+			return true, srcErr
+		}
+		if latest == nil {
+			return true, nil
+		}
+		same, sameErr := sameContent(served, latest)
+		return sameErr != nil || same, sameErr
 	}
 	now, getErr := b.dst.GetGroupWeeklyBriefThrottle(ctx, committeeUID, windowStart)
 	if getErr == nil && now != nil {

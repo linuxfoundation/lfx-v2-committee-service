@@ -65,7 +65,10 @@ func copyCreated[T any](ctx context.Context, c *core, readSrc func(context.Conte
 // newer update and its copy, and only then reads KV, would find the newer content, take it for a change and write the older
 // record over it. So there the secondary store is read before the primary one, and the guard is the revision read then: a
 // copy that is overtaken in between fails its write instead, and is made once more from the start. Nothing is written when
-// KV already holds the same content.
+// KV already holds the same content. That skip lets a delayed copy through when the record went from A to B and back to A: the
+// copy that found KV at A and the primary at A wrote nothing, and the delayed copy of B still holds a valid guard and writes
+// B. So after a write the primary store is read again, and the copy is made once more if it no longer holds what was written;
+// one that is still behind after that is a failure.
 func copyUpdated[T any](ctx context.Context, c *core, readSrc, readDst func(context.Context) (T, uint64, error),
 	updateDst func(ctx context.Context, record T, guard uint64) error) error {
 	attempts := 1
@@ -78,6 +81,9 @@ func copyUpdated[T any](ctx context.Context, c *core, readSrc, readDst func(cont
 		if settled, err = copyUpdatedOnce(ctx, c, readSrc, readDst, updateDst); settled {
 			return err
 		}
+	}
+	if err == nil {
+		err = errors.New("the copy was overtaken by newer updates and left the secondary store behind")
 	}
 	return err
 }
@@ -124,10 +130,24 @@ func copyUpdatedOnce[T any](ctx context.Context, c *core, readSrc, readDst func(
 		return true, err
 	}
 	err = updateDst(wctx, record, current)
-	if !c.secondaryIsPostgres() && refusedAsStale(err) {
+	if c.secondaryIsPostgres() {
+		return true, err
+	}
+	if refusedAsStale(err) {
 		return false, err
 	}
-	return true, err
+	if err != nil {
+		return true, err
+	}
+	latest, _, srcErr := readSrc(ctx)
+	switch {
+	case isNotFound(srcErr):
+		return true, nil // deleted meanwhile: the copy of the delete takes it out
+	case srcErr != nil:
+		return true, fmt.Errorf("reading the primary store again after the copy: %w", srcErr)
+	}
+	same, err := sameContent(record, latest)
+	return err != nil || same, err
 }
 
 // sameContent reports whether two records have the same content, by their digests.

@@ -14,7 +14,6 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
-	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // In dual-pg mode PostgreSQL decides and KV follows. KV assigns revisions of its own and cannot be given the one
@@ -482,35 +481,45 @@ func TestDualPG_ASlowFirstCopyOfAThrottleNeverLeavesAnOlderEntryInKV(t *testing.
 	assert.Equal(t, 2, inKV.GeneratesUsed, "KV holds the newer entry")
 }
 
-// movedAfterFirstRead reports the document as gone from its committee on every read after the first, as it is when it was
-// moved to another committee meanwhile, though the primary store still has it.
-type movedAfterFirstRead struct {
+// afterFirstDocumentRead runs a side effect once, right after the first read of a document from the primary store, which is
+// the moment a move or a delete can overtake the copy of a create.
+type afterFirstDocumentRead struct {
 	DocumentMetadataBackend
-	reads int
+	after func()
+	fired bool
 }
 
-func (m *movedAfterFirstRead) GetDocumentMetadata(ctx context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error) {
-	m.reads++
-	if m.reads > 1 {
-		return nil, 0, errs.NewNotFound("document not found")
+func (h *afterFirstDocumentRead) GetDocumentMetadata(ctx context.Context, committeeUID, documentUID string) (*model.CommitteeDocument, uint64, error) {
+	doc, revision, err := h.DocumentMetadataBackend.GetDocumentMetadata(ctx, committeeUID, documentUID)
+	if !h.fired {
+		h.fired = true
+		h.after()
 	}
-	return m.DocumentMetadataBackend.GetDocumentMetadata(ctx, committeeUID, documentUID)
+	return doc, revision, err
 }
 
 // The copy of a create that finds the document gone from its committee meanwhile cannot tell a delete from a move, and a delete
-// in KV removes the file as well: a document the primary store still has is left alone.
-func TestDualPG_ACreateCopyThatFindsTheDocumentMovedDoesNotDeleteItOrItsFile(t *testing.T) {
+// in KV removes the file as well: a document the primary store still has is not deleted, and what it is now is copied.
+func TestDualPG_ACreateCopyThatFindsTheDocumentMovedCopiesTheMoveAndKeepsTheFile(t *testing.T) {
 	ctx := context.Background()
 	r := newDocumentRig(t, ModeDualPG, nil)
 	require.NoError(t, r.docs.PutDocumentFile(ctx, "d-1", []byte("file")))
-	r.docs.src = &movedAfterFirstRead{DocumentMetadataBackend: r.pg}
+	r.docs.src = &afterFirstDocumentRead{DocumentMetadataBackend: r.pg, after: func() {
+		doc, revision, err := r.pg.GetDocumentMetadata(ctx, "uid-1", "d-1")
+		require.NoError(t, err)
+		doc.CommitteeUID = "uid-2"
+		require.NoError(t, r.pg.UpdateDocumentMetadata(ctx, doc, revision)) // the move, before the copy has written KV
+	}}
 
 	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
 
-	_, _, err := r.kv.GetDocumentMetadata(ctx, "uid-1", "d-1")
-	require.NoError(t, err, "KV still holds the document")
+	moved, _, err := r.kv.GetDocumentMetadata(ctx, "uid-2", "d-1")
+	require.NoError(t, err, "KV holds the document under the committee it was moved to")
+	assert.Equal(t, "uid-2", moved.CommitteeUID)
+	_, _, oldErr := r.kv.GetDocumentMetadata(ctx, "uid-1", "d-1")
+	assert.True(t, isNotFound(oldErr), "and no longer under the old one")
 	file, err := r.kv.GetDocumentFile(ctx, "d-1")
-	require.NoError(t, err, "and its file")
+	require.NoError(t, err, "its file is still there")
 	assert.Equal(t, []byte("file"), file)
 	assert.Empty(t, r.counts(t, failures))
 }
@@ -518,24 +527,17 @@ func TestDualPG_ACreateCopyThatFindsTheDocumentMovedDoesNotDeleteItOrItsFile(t *
 func TestDualPG_ADocumentThatWasReallyDeletedMeanwhileIsTakenOutOfKV(t *testing.T) {
 	ctx := context.Background()
 	r := newDocumentRig(t, ModeDualPG, nil)
-	require.NoError(t, r.docs.PutDocumentFile(ctx, "d-1", []byte("file")))
-	gone := &movedAfterFirstRead{DocumentMetadataBackend: r.pg}
-	r.docs.src = goneAfterFirstRead{gone, r.pg}
+	r.docs.src = &afterFirstDocumentRead{DocumentMetadataBackend: r.pg, after: func() {
+		_, revision, err := r.pg.GetDocumentMetadata(ctx, "uid-1", "d-1")
+		require.NoError(t, err)
+		require.NoError(t, r.pg.DeleteDocumentMetadata(ctx, "uid-1", "d-1", revision)) // deleted before the copy has written KV
+	}}
 
 	require.NoError(t, r.docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "uid-1", "Minutes")))
 
 	_, _, err := r.kv.GetDocumentMetadata(ctx, "uid-1", "d-1")
 	assert.True(t, isNotFound(err), "the delete reached KV")
-}
-
-// goneAfterFirstRead is movedAfterFirstRead for a document that is really gone: the lookup by uid does not find it either.
-type goneAfterFirstRead struct {
-	*movedAfterFirstRead
-	pg DocumentMetadataBackend
-}
-
-func (goneAfterFirstRead) DocumentRevision(context.Context, string) (uint64, error) {
-	return 0, errs.NewNotFound("document not found")
+	assert.Empty(t, r.counts(t, failures))
 }
 
 // A move that PostgreSQL decided and KV did not get leaves the document in KV under its old committee; a delete under the new
@@ -558,4 +560,122 @@ func TestDualPG_ADeleteAfterAMoveThatWasNotCopiedRemovesTheDocumentFromKV(t *tes
 	_, _, oldErr := r.kv.GetDocumentMetadata(ctx, "uid-1", "d-1")
 	assert.True(t, isNotFound(oldErr), "the metadata under the old committee is gone from KV")
 	assert.Equal(t, map[string]int64{"update_document": 1}, r.counts(t, failures), "only the move that was not copied")
+}
+
+// A record that went from A to B and back to A while a copy of B was delayed: the copy that found KV at A and the primary at A
+// wrote nothing, and the delayed copy of B still holds a valid guard. The copy looks at the primary store again after it
+// writes, and puts A back.
+func TestDualPG_ADelayedCopyOfAnOlderStateIsCorrectedWhenTheRecordWentBackToWhatKVHeld(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDualPG, nil)
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	base, revision, err := r.pg.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	original := base.Description
+	base.Description = "B"
+	require.NoError(t, r.pg.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision)) // PostgreSQL moved to B
+	r.store.src = &afterFirstReadBaseStore{CommitteeReaderWriter: r.pg, after: func() {
+		back, rev, err := r.pg.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		back.Description = original
+		require.NoError(t, r.pg.UpdateBase(ctx, &model.Committee{CommitteeBase: *back}, rev)) // and back to what KV holds
+		require.NoError(t, r.store.replicateBase(ctx, "uid-1"))                               // its copy finds nothing to write
+	}}
+
+	require.NoError(t, r.store.replicateBase(ctx, "uid-1"))
+
+	contentInBoth(t, r, "uid-1")
+	inKV, _, err := r.kv.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	assert.Equal(t, original, inKV.Description, "KV holds what PostgreSQL holds again")
+	assert.Empty(t, r.counts(t, failures))
+}
+
+func TestDualPG_ADelayedCopyOfAnOlderBriefIsCorrectedWhenTheBriefWentBack(t *testing.T) {
+	ctx := context.Background()
+	r := newBriefRig(t, ModeDualPG, nil)
+	a := storetest.NewBrief("b-1", "uid-1", storetest.FixtureWindow)
+	a.BriefText = "A"
+	_, err := r.briefs.PutGroupWeeklyBrief(ctx, a) // both stores hold A
+	require.NoError(t, err)
+	b := storetest.NewBrief("b-1", "uid-1", storetest.FixtureWindow)
+	b.BriefText = "B"
+	_, err = r.pg.PutGroupWeeklyBrief(ctx, b) // PostgreSQL moved to B
+	require.NoError(t, err)
+	r.briefs.src = &afterFirstReadBriefStore{BriefBackend: r.pg, after: func() {
+		back := storetest.NewBrief("b-1", "uid-1", storetest.FixtureWindow)
+		back.BriefText = "A"
+		_, err := r.pg.PutGroupWeeklyBrief(ctx, back) // and back to A
+		require.NoError(t, err)
+		require.NoError(t, r.briefs.copyBrief(ctx, "uid-1", briefWindow)) // its copy finds nothing to write
+	}}
+
+	require.NoError(t, r.briefs.copyBrief(ctx, "uid-1", briefWindow))
+
+	inKV, _, err := r.kv.GetGroupWeeklyBriefForWindow(ctx, "uid-1", briefWindow)
+	require.NoError(t, err)
+	require.NotNil(t, inKV)
+	assert.Equal(t, "A", inKV.BriefText, "KV holds what PostgreSQL holds again")
+}
+
+func TestDualPG_ADelayedCopyOfAnOlderThrottleEntryIsCorrectedWhenTheEntryWentBack(t *testing.T) {
+	ctx := context.Background()
+	r := newBriefRig(t, ModeDualPG, nil)
+	a := storetest.NewThrottle("uid-1", storetest.FixtureWindow)
+	a.GeneratesUsed = 1
+	_, err := r.briefs.PutGroupWeeklyBriefThrottle(ctx, a) // both stores hold A
+	require.NoError(t, err)
+	current, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+	require.NoError(t, err)
+	current.GeneratesUsed = 2
+	_, err = r.pg.PutGroupWeeklyBriefThrottle(ctx, current) // PostgreSQL moved to B
+	require.NoError(t, err)
+	r.briefs.src = &afterFirstReadThrottleStore{BriefBackend: r.pg, after: func() {
+		back, err := r.pg.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+		require.NoError(t, err)
+		back.GeneratesUsed = 1
+		_, err = r.pg.PutGroupWeeklyBriefThrottle(ctx, back) // and back to A
+		require.NoError(t, err)
+		require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow)) // its copy finds nothing to write
+	}}
+
+	require.NoError(t, r.briefs.copyThrottle(ctx, "uid-1", storetest.FixtureWindow))
+
+	inKV, err := r.kv.GetGroupWeeklyBriefThrottle(ctx, "uid-1", storetest.FixtureWindow)
+	require.NoError(t, err)
+	require.NotNil(t, inKV)
+	assert.Equal(t, 1, inKV.GeneratesUsed, "KV holds what PostgreSQL holds again")
+}
+
+// A copy that is overtaken again after it was made once more has not brought KV up to the primary store, and is a failure
+// that gets counted, not a success.
+func TestCopyUpdated_AnOvertakenCopyThatStaysBehindIsAFailure(t *testing.T) {
+	c := newCore(ModeDualPG, nil)
+	reads, writes := 0, 0
+	readSrc := func(context.Context) (string, uint64, error) {
+		reads++
+		if reads%2 == 1 {
+			return "B", 2, nil // what the copy writes
+		}
+		return "A", 3, nil // and what the primary store holds when it looks again: it keeps moving
+	}
+	readDst := func(context.Context) (string, uint64, error) { return "older", 1, nil }
+	updateDst := func(context.Context, string, uint64) error { writes++; return nil }
+
+	err := copyUpdated(context.Background(), &c, readSrc, readDst, updateDst)
+
+	require.Error(t, err)
+	assert.Equal(t, 2, writes, "it was made once more, and no more than that")
+}
+
+func TestCopyUpdated_ACopyThatIsNotOvertakenIsMadeOnce(t *testing.T) {
+	c := newCore(ModeDualPG, nil)
+	writes := 0
+	readSrc := func(context.Context) (string, uint64, error) { return "B", 2, nil }
+	readDst := func(context.Context) (string, uint64, error) { return "older", 1, nil }
+	updateDst := func(context.Context, string, uint64) error { writes++; return nil }
+
+	require.NoError(t, copyUpdated(context.Background(), &c, readSrc, readDst, updateDst))
+
+	assert.Equal(t, 1, writes)
 }

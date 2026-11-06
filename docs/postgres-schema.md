@@ -233,7 +233,8 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   another in KV. A copy to KV is guarded by the revision KV has, is skipped when KV already holds the same content, and a
   delete is guarded by the revision KV has. KV stamps the update time of a weekly brief itself, so a brief in KV carries the
   time of its copy. A failed copy is counted and left for the next update of the record, and a record whose create was
-  not copied stays missing in KV until `storage migrate` copies it. Switching back to `kv` therefore needs two things: the
+  not copied stays missing in KV: no command copies PostgreSQL to KV yet, since `storage migrate` copies in the other
+  direction only, and that copy is part of the flip and rollback work. Switching back to `kv` therefore needs two things: the
   switch is made with no writes in flight, and KV is known to hold what PostgreSQL holds, because it would otherwise serve
   what it last received. `storage verify` cannot show that as it is: it compares KV with PostgreSQL in that one direction
   and reports a record at another revision as a mismatch, which in `dual-pg` is every record that was copied. It does

@@ -120,6 +120,21 @@ func TestStore_DocumentRevision(t *testing.T) {
 	require.ErrorAs(t, err, &validation)
 }
 
+func TestStore_DocumentCommittee(t *testing.T) {
+	ctx := context.Background()
+	store := seedDocuments(t)
+
+	committeeUID, err := store.DocumentCommittee(ctx, "d-1")
+	require.NoError(t, err)
+	assert.Equal(t, "committee-1", committeeUID)
+
+	_, err = store.DocumentCommittee(ctx, "missing")
+	requireNotFound(t, err)
+	var validation errs.Validation
+	_, err = store.DocumentCommittee(ctx, "")
+	require.ErrorAs(t, err, &validation)
+}
+
 func TestStore_DocumentNameExists(t *testing.T) {
 	ctx := context.Background()
 	store := seedDocuments(t)

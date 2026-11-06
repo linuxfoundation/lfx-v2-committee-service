@@ -23,6 +23,9 @@ type DocumentMetadataBackend interface {
 	// DocumentRevision returns the revision of the document found by its uid alone, as the copy of an update that moved
 	// the document to another committee needs.
 	DocumentRevision(ctx context.Context, documentUID string) (uint64, error)
+	// DocumentCommittee returns the committee the document is in, found by its uid alone, as the delete of a document the
+	// store holds under another committee than the primary store does needs.
+	DocumentCommittee(ctx context.Context, documentUID string) (string, error)
 }
 
 // DocumentKVBackend is the NATS side of the documents: the metadata in KV and the files in the Object Store.
@@ -172,11 +175,13 @@ func (d *Documents) DeleteDocumentMetadata(ctx context.Context, committeeUID, do
 // deleteUnlessMoved is the delete of the copy of a create that finds the document gone from the primary store under the
 // committee it was created in. The committee-scoped read does not tell a delete from a move to another committee, and a
 // delete of the secondary store's document removes the file with it, so the primary store is asked by uid: a document it
-// still has was moved, and is left to the copy of the move, which updates the secondary store.
+// still has was moved, and what it is now is copied, which moves the secondary store's document too; the file stays.
 func (d *Documents) deleteUnlessMoved(ctx context.Context, committeeUID, uid string, revision uint64) error {
-	if _, err := d.src.DocumentRevision(ctx, uid); err == nil {
-		return nil
-	} else if !isNotFound(err) {
+	current, err := d.src.DocumentCommittee(ctx, uid)
+	if err == nil {
+		return d.copyUpdate(ctx, current, uid)
+	}
+	if !isNotFound(err) {
 		return err
 	}
 	return d.deleteInSecondary(ctx, committeeUID, uid, revision)
@@ -204,26 +209,13 @@ func (d *Documents) deleteInSecondary(ctx context.Context, committeeUID, uid str
 }
 
 // dstCommittee returns the committee the secondary store holds the document in: the one given, or, when the document is
-// not there but is under another committee, that one. The search through the documents is made only in that case, which
-// is a document whose move was not copied.
+// not there but is under another committee, that one, found by uid. It is NotFound when the secondary store does not have it.
 func (d *Documents) dstCommittee(ctx context.Context, committeeUID, uid string) (string, error) {
 	_, _, err := d.dst.GetDocumentMetadata(ctx, committeeUID, uid)
 	if !isNotFound(err) {
 		return committeeUID, err
 	}
-	if _, revisionErr := d.dst.DocumentRevision(ctx, uid); revisionErr != nil {
-		return "", revisionErr // NotFound when the document is not there at all
-	}
-	docs, listErr := d.dst.ListAllDocuments(ctx, "")
-	if listErr != nil {
-		return "", listErr
-	}
-	for _, doc := range docs {
-		if doc.UID == uid {
-			return doc.CommitteeUID, nil
-		}
-	}
-	return "", err
+	return d.dst.DocumentCommittee(ctx, uid)
 }
 
 // GetDocumentMetadata returns the document's metadata and its revision.
