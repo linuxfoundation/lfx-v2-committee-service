@@ -1992,108 +1992,300 @@ func TestCommitteeWriterOrchestrator_CreateMember_IdentityReuse(t *testing.T) {
 }
 
 func TestCommitteeWriterOrchestrator_UpdateMember_UsernameResolution(t *testing.T) {
-	addCommitteeAndMember := func(mockRepo *mock.MockRepository, memberWriter *TestMockCommitteeMemberWriter) {
-		mockRepo.AddCommittee(&model.Committee{
-			CommitteeBase:     model.CommitteeBase{UID: "c-1", Name: "C", Category: "TC"},
-			CommitteeSettings: &model.CommitteeSettings{UID: "c-1"},
-		})
-		existing := &model.CommitteeMember{
-			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID: "m-1", CommitteeUID: "c-1", Email: "old@example.com",
-				Username: "old", FirstName: "Old",
-				Organization: model.CommitteeMemberOrganization{Name: "Org"},
-				CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
-			},
-		}
-		mockRepo.AddCommitteeMember("c-1", existing)
-		memberWriter.members["m-1"] = existing
-		memberWriter.customRevisions["m-1"] = 1
+	const (
+		committeeUID = "c-1391-update-identity"
+		memberUID    = "m-1391-update-identity"
+		storedEmail  = "first.last@example.com"
+		changedEmail = "first.last2@example.com"
+	)
+	authDown := errs.NewServiceUnavailable("auth service down")
+	found := func(email, username string) *model.IdentityLookup {
+		return model.NewIdentityLookup(email, username, nil)
+	}
+	absent := func(email string) *model.IdentityLookup {
+		return model.NewIdentityLookup(email, "", errs.NewNotFound("user not found"))
+	}
+	unresolved := func(email string) *model.IdentityLookup {
+		return model.NewIdentityLookup(email, "", authDown)
 	}
 
-	t.Run("plain LFID overridden by username from email lookup", func(t *testing.T) {
-		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"new@example.com": "new"}}
-		addCommitteeAndMember(mockRepo, memberWriter)
+	tests := []struct {
+		name              string
+		storedUsername    string
+		email             string
+		submittedUsername string
+		lookup            *model.IdentityLookup
+		userReader        *writerTestUserReader // nil leaves the orchestrator without a user reader
+		skipEnrichment    bool
+		wantCalls         int
+		wantUsername      string
+		wantStatus        model.IdentityLookupStatus
+		wantPut           []string
+		wantRemove        []string
+	}{
+		{
+			name:           "found lookup for the unchanged email is reused without a call",
+			storedUsername: "first-last",
+			email:          storedEmail,
+			lookup:         found(storedEmail, "first-last"),
+			userReader:     &writerTestUserReader{usernames: map[string]string{storedEmail: "first-last-live"}},
+			wantCalls:      0,
+			wantUsername:   "first-last",
+			wantStatus:     model.IdentityLookupFound,
+			wantPut:        []string{"first-last"},
+		},
+		{
+			name:           "found lookup for a changed email is reused and replaces the old identity",
+			storedUsername: "first-last",
+			email:          changedEmail,
+			lookup:         found(changedEmail, "first-last2"),
+			userReader:     &writerTestUserReader{usernames: map[string]string{changedEmail: "first-last-live"}},
+			wantCalls:      0,
+			wantUsername:   "first-last2",
+			wantStatus:     model.IdentityLookupFound,
+			wantPut:        []string{"first-last2"},
+			wantRemove:     []string{"first-last"},
+		},
+		{
+			name:           "found lookup matches case- and whitespace-insensitively",
+			storedUsername: "first-last",
+			email:          "First.Last@Example.com",
+			lookup:         found(" first.last@example.com ", "first-last"),
+			userReader:     &writerTestUserReader{usernames: map[string]string{"First.Last@Example.com": "first-last-live"}},
+			wantCalls:      0,
+			wantUsername:   "first-last",
+			wantStatus:     model.IdentityLookupFound,
+			wantPut:        []string{"first-last"},
+		},
+		{
+			name:           "absent lookup for the unchanged email keeps the stored username without a call",
+			storedUsername: "first-last",
+			email:          storedEmail,
+			lookup:         absent(storedEmail),
+			userReader:     &writerTestUserReader{usernames: map[string]string{storedEmail: "first-last-live"}},
+			wantCalls:      0,
+			wantUsername:   "first-last",
+			wantStatus:     model.IdentityLookupAbsent,
+			wantPut:        []string{"first-last"},
+		},
+		{
+			name:              "absent lookup keeps an email-only member email-only and ignores a forged username",
+			storedUsername:    "",
+			email:             storedEmail,
+			submittedUsername: "first-last-forged",
+			lookup:            absent(storedEmail),
+			userReader:        &writerTestUserReader{usernames: map[string]string{storedEmail: "first-last-live"}},
+			wantCalls:         0,
+			wantUsername:      "",
+			wantStatus:        model.IdentityLookupAbsent,
+		},
+		{
+			name:           "absent lookup for a changed email clears the username without a call",
+			storedUsername: "first-last",
+			email:          changedEmail,
+			lookup:         absent(changedEmail),
+			userReader:     &writerTestUserReader{usernames: map[string]string{changedEmail: "first-last-live"}},
+			wantCalls:      0,
+			wantUsername:   "",
+			wantStatus:     model.IdentityLookupAbsent,
+			wantRemove:     []string{"first-last"},
+		},
+		{
+			name:           "unresolved lookup is retried and its result used",
+			storedUsername: "first-last",
+			email:          changedEmail,
+			lookup:         unresolved(changedEmail),
+			userReader:     &writerTestUserReader{usernames: map[string]string{changedEmail: "first-last2"}},
+			wantCalls:      1,
+			wantUsername:   "first-last2",
+			wantStatus:     model.IdentityLookupFound,
+			wantPut:        []string{"first-last2"},
+			wantRemove:     []string{"first-last"},
+		},
+		{
+			name:           "failed retry for the unchanged email keeps the stored username",
+			storedUsername: "first-last",
+			email:          storedEmail,
+			lookup:         unresolved(storedEmail),
+			userReader:     &writerTestUserReader{err: authDown},
+			wantCalls:      1,
+			wantUsername:   "first-last",
+			wantStatus:     model.IdentityLookupUnresolved,
+			wantPut:        []string{"first-last"},
+		},
+		{
+			name:           "failed retry for a changed email clears the username",
+			storedUsername: "first-last",
+			email:          changedEmail,
+			lookup:         unresolved(changedEmail),
+			userReader:     &writerTestUserReader{err: authDown},
+			wantCalls:      1,
+			wantUsername:   "",
+			wantStatus:     model.IdentityLookupUnresolved,
+			wantRemove:     []string{"first-last"},
+		},
+		{
+			name:           "lookup for a different email is not reused",
+			storedUsername: "first-last",
+			email:          changedEmail,
+			lookup:         found("other.last@example.com", "other-last"),
+			userReader:     &writerTestUserReader{usernames: map[string]string{changedEmail: "first-last2"}},
+			wantCalls:      1,
+			wantUsername:   "first-last2",
+			wantStatus:     model.IdentityLookupFound,
+			wantPut:        []string{"first-last2"},
+			wantRemove:     []string{"first-last"},
+		},
+		{
+			name:              "caller-supplied username without a lookup is overridden",
+			storedUsername:    "first-last",
+			email:             changedEmail,
+			submittedUsername: "first-last-forged",
+			userReader:        &writerTestUserReader{usernames: map[string]string{changedEmail: "first-last2"}},
+			wantCalls:         1,
+			wantUsername:      "first-last2",
+			wantStatus:        model.IdentityLookupFound,
+			wantPut:           []string{"first-last2"},
+			wantRemove:        []string{"first-last"},
+		},
+		{
+			name:              "empty lookup result for a changed email clears the username",
+			storedUsername:    "first-last",
+			email:             changedEmail,
+			submittedUsername: "first-last-forged",
+			userReader:        &writerTestUserReader{usernames: map[string]string{}},
+			wantCalls:         1,
+			wantUsername:      "",
+			wantStatus:        model.IdentityLookupAbsent,
+			wantRemove:        []string{"first-last"},
+		},
+		{
+			name:           "nil user reader is unresolved and keeps the stored username",
+			storedUsername: "first-last",
+			email:          storedEmail,
+			wantUsername:   "first-last",
+			wantStatus:     model.IdentityLookupUnresolved,
+			wantPut:        []string{"first-last"},
+		},
+		{
+			name:              "skip enrichment persists the caller-supplied username without a call",
+			storedUsername:    "first-last",
+			email:             changedEmail,
+			submittedUsername: "first-last-accepted",
+			userReader:        &writerTestUserReader{err: authDown},
+			skipEnrichment:    true,
+			wantCalls:         0,
+			wantUsername:      "first-last-accepted",
+			wantPut:           []string{"first-last-accepted"},
+			wantRemove:        []string{"first-last"},
+		},
+	}
 
-		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+			orchestrator.userReader = nil
+			if tt.userReader != nil {
+				orchestrator.userReader = tt.userReader
+			}
+			publisher := &spyCommitteePublisher{}
+			orchestrator.committeePublisher = publisher
+			addUpdateIdentityFixture(t, mockRepo, memberWriter, committeeUID, memberUID, storedEmail, tt.storedUsername)
+
+			var lookup *model.IdentityLookup
+			if tt.lookup != nil {
+				copied := *tt.lookup
+				lookup = &copied
+			}
+			result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID: memberUID, CommitteeUID: committeeUID, Email: tt.email,
+					Username: tt.submittedUsername, FirstName: "First", LastName: "Last",
+					Organization: model.CommitteeMemberOrganization{Name: "Org"},
+				},
+				IdentityLookup: lookup,
+			}, 1, false, tt.skipEnrichment)
+			require.NoError(t, err)
+
+			if tt.userReader != nil {
+				assert.Equal(t, tt.wantCalls, tt.userReader.calls, "UsernameByEmail calls")
+			}
+			assert.Equal(t, tt.wantUsername, result.Username)
+			assert.Equal(t, tt.wantUsername, memberWriter.members[memberUID].Username, "stored username")
+			assert.Equal(t, "First", memberWriter.members[memberUID].FirstName, "unrelated fields round-trip")
+			if tt.skipEnrichment {
+				assert.Nil(t, result.IdentityLookup, "skip enrichment must not record a lookup")
+			} else {
+				require.NotNil(t, result.IdentityLookup)
+				assert.Equal(t, tt.wantStatus, result.IdentityLookup.Status)
+			}
+			assert.Equal(t, tt.wantPut, memberAccessUsernames(t, publisher.capturedMemberPutMsgs), "member_put usernames")
+			assert.Equal(t, tt.wantRemove, memberAccessUsernames(t, publisher.capturedMemberRemoveMsgs), "member_remove usernames")
+		})
+	}
+
+	t.Run("empty email is rejected before any account lookup", func(t *testing.T) {
+		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
+		userReader := &writerTestUserReader{usernames: map[string]string{storedEmail: "first-last"}}
+		orchestrator.userReader = userReader
+		addUpdateIdentityFixture(t, mockRepo, memberWriter, committeeUID, memberUID, storedEmail, "first-last")
+
+		_, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
-				Username: "plain-lfid", FirstName: "New",
+				UID: memberUID, CommitteeUID: committeeUID, Email: "",
+				Username: "first-last-forged", FirstName: "First", LastName: "Last",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
 		}, 1, false, false)
 
-		require.NoError(t, err)
-		assert.Equal(t, "new", result.Username)
+		var validationErr errs.Validation
+		require.ErrorAs(t, err, &validationErr)
+		assert.Zero(t, userReader.calls, "UsernameByEmail calls")
+		assert.Equal(t, "first-last", memberWriter.members[memberUID].Username, "stored member unchanged")
 	})
+}
 
-	t.Run("username cleared when email changes and lookup fails", func(t *testing.T) {
-		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
-		addCommitteeAndMember(mockRepo, memberWriter)
-
-		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
-			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
-				Username: "plain-lfid", FirstName: "New",
-				Organization: model.CommitteeMemberOrganization{Name: "Org"},
-			},
-		}, 1, false, false)
-
-		require.NoError(t, err)
-		assert.Empty(t, result.Username)
+// addUpdateIdentityFixture seeds a committee and an existing member for update identity tests
+// and removes both from the shared mock repository when the test ends.
+func addUpdateIdentityFixture(t *testing.T, mockRepo *mock.MockRepository, memberWriter *TestMockCommitteeMemberWriter, committeeUID, memberUID, email, username string) {
+	t.Helper()
+	mockRepo.AddCommittee(&model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: committeeUID, Name: "C 1391", Category: "TC"},
+		CommitteeSettings: &model.CommitteeSettings{UID: committeeUID},
 	})
-
-	t.Run("username cleared when email changes and lookup returns empty", func(t *testing.T) {
-		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{}}
-		addCommitteeAndMember(mockRepo, memberWriter)
-
-		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
-			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
-				Username: "plain-lfid", FirstName: "New",
-				Organization: model.CommitteeMemberOrganization{Name: "Org"},
-			},
-		}, 1, false, false)
-
-		require.NoError(t, err)
-		assert.Empty(t, result.Username)
+	existing := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: memberUID, CommitteeUID: committeeUID, Email: email,
+			Username: username, FirstName: "First", LastName: "Last",
+			Organization: model.CommitteeMemberOrganization{Name: "Org"},
+			CreatedAt:    time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-time.Hour),
+		},
+	}
+	mockRepo.AddCommitteeMember(committeeUID, existing)
+	// Store a distinct snapshot so the writer's copy never aliases the repository's existing member.
+	stored := *existing
+	memberWriter.members[memberUID] = &stored
+	memberWriter.customRevisions[memberUID] = 1
+	t.Cleanup(func() {
+		repoWriter := mock.NewMockCommitteeWriter(mockRepo)
+		require.NoError(t, repoWriter.DeleteMember(context.Background(), memberUID, 1))
+		require.NoError(t, repoWriter.Delete(context.Background(), committeeUID, 1))
 	})
+}
 
-	t.Run("stored username kept when email unchanged and lookup fails", func(t *testing.T) {
-		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
-		addCommitteeAndMember(mockRepo, memberWriter)
-
-		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
-			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID: "m-1", CommitteeUID: "c-1", Email: "old@example.com",
-				Username: "plain-lfid", FirstName: "Old",
-				Organization: model.CommitteeMemberOrganization{Name: "Org"},
-			},
-		}, 1, false, false)
-
-		require.NoError(t, err)
-		assert.Equal(t, "old", result.Username)
-	})
-
-	t.Run("skip enrichment persists accepted_by without email lookup", func(t *testing.T) {
-		orchestrator, mockRepo, memberWriter := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{err: errs.NewServiceUnavailable("auth service down")}
-		addCommitteeAndMember(mockRepo, memberWriter)
-
-		result, err := orchestrator.UpdateMember(context.Background(), &model.CommitteeMember{
-			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID: "m-1", CommitteeUID: "c-1", Email: "new@example.com",
-				Username: "accepted-lfid", FirstName: "New",
-				Organization: model.CommitteeMemberOrganization{Name: "Org"},
-			},
-		}, 1, false, true)
-
-		require.NoError(t, err)
-		assert.Equal(t, "accepted-lfid", result.Username)
-	})
+// memberAccessUsernames returns the usernames carried by captured member_put/member_remove messages.
+func memberAccessUsernames(t *testing.T, msgs []any) []string {
+	t.Helper()
+	var usernames []string
+	for _, msg := range msgs {
+		fgaMsg, ok := msg.(fgatypes.GenericFGAMessage)
+		require.True(t, ok, "access message should be a GenericFGAMessage")
+		memberData, ok := fgaMsg.Data.(fgatypes.GenericMemberData)
+		require.True(t, ok, "FGA message Data should be GenericMemberData")
+		assert.Equal(t, "c-1391-update-identity", memberData.UID, "access message must reference the committee UID")
+		usernames = append(usernames, memberData.Username)
+	}
+	return usernames
 }
 
 // TestPublishMemberMessages_ClearedUsername_RevokesOldFGATuple verifies that when a member's

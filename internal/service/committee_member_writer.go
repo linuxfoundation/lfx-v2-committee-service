@@ -388,49 +388,47 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 
 	}
 
-	// Resolve username from email when auth can map the email to an LFID.
-	// When lookup fails or returns empty, keep the stored username only if the email did not change.
-	// If the email changed, clear username to avoid persisting a username/email mismatch.
+	// Resolve username from email when auth can map the email to an LFID, overriding any
+	// caller-supplied plain LFID. A confirmed lookup the API handler already made for this
+	// email is reused; otherwise look it up once here.
+	// When the lookup is absent or unresolved, keep the stored username only if the email did
+	// not change. If the email changed, clear username to avoid persisting a username/email mismatch.
 	// Invite acceptance and X-Skip-Enrichment skip this block and persist caller-supplied identity.
 	if member.Email != "" && !skipEnrichment {
-		slog.DebugContext(ctx, "resolving username from email during update",
-			"email", redaction.RedactEmail(member.Email),
-			"stored_username", redaction.Redact(existing.Username),
-		)
-		username, errLookup := uc.lookupUsernameByEmail(ctx, member.Email)
+		if member.IdentityLookup.ResolvedFor(member.Email) {
+			slog.DebugContext(ctx, "reusing verified identity during update",
+				"email", redaction.RedactEmail(member.Email),
+				"username", redaction.Redact(member.IdentityLookup.Username),
+			)
+		} else {
+			slog.DebugContext(ctx, "resolving username from email during update",
+				"email", redaction.RedactEmail(member.Email),
+				"stored_username", redaction.Redact(existing.Username),
+			)
+			member.IdentityLookup = uc.resolveMemberIdentity(ctx, member.Email)
+		}
 		switch {
-		case errLookup != nil:
-			if emailChanged {
-				slog.WarnContext(ctx, "failed to lookup username by email during update; clearing username after email change",
-					"error", errLookup,
-					"email", redaction.RedactEmail(member.Email),
-					"stored_username", redaction.Redact(existing.Username),
-				)
-				member.Username = ""
-			} else {
-				slog.WarnContext(ctx, "failed to lookup username by email during update; keeping stored username",
-					"error", errLookup,
-					"email", redaction.RedactEmail(member.Email),
-					"stored_username", redaction.Redact(existing.Username),
-				)
-				member.Username = existing.Username
-			}
-		case username != "":
-			member.Username = username
+		case member.IdentityLookup.Status == model.IdentityLookupFound:
+			member.Username = member.IdentityLookup.Username
 			slog.DebugContext(ctx, "username resolved from email during update",
 				"email", redaction.RedactEmail(member.Email),
 				"username", redaction.Redact(member.Username),
 			)
+		case emailChanged:
+			slog.WarnContext(ctx, "username not resolved during update; clearing username after email change",
+				"lookup_status", member.IdentityLookup.Status,
+				"email", redaction.RedactEmail(member.Email),
+				"stored_username", redaction.Redact(existing.Username),
+			)
+			member.Username = ""
 		default:
-			if emailChanged {
-				slog.WarnContext(ctx, "username lookup returned empty during update; clearing username after email change",
+			if member.IdentityLookup.Status == model.IdentityLookupUnresolved {
+				slog.WarnContext(ctx, "username lookup unresolved during update; keeping stored username",
 					"email", redaction.RedactEmail(member.Email),
 					"stored_username", redaction.Redact(existing.Username),
 				)
-				member.Username = ""
-			} else {
-				member.Username = existing.Username
 			}
+			member.Username = existing.Username
 		}
 	}
 

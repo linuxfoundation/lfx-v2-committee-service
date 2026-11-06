@@ -30,7 +30,7 @@ type CommitteeMember struct {
 	// it is carried into the create event via CommitteeMemberCreatedEventData.
 	SkipNotification bool `json:"-"`
 	// IdentityLookup is the request-scoped outcome of the server's email-to-username
-	// lookup for this member, so later steps of the same addition reuse it instead of
+	// lookup for this member, so later steps of the same addition or update reuse it instead of
 	// asking auth-service again. It is tagged json:"-" and absent from the API payload,
 	// so it is never persisted, published, or supplied by a caller.
 	IdentityLookup *IdentityLookup `json:"-"`

@@ -94,6 +94,8 @@ Published to `lfx.fga-sync.member_put` when a committee member is created or upd
 
 The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UID.
 
+The published `Username` comes from the server's email-to-username lookup, never from a caller-supplied value. Within one create or update request, a confirmed lookup result (account found or confirmed absent) for the member's current email is reused instead of asking auth-service again; a failed lookup is retried once in the writer and is never treated as a confirmed absence. On update, when no account is found or the lookup fails, the stored username is kept if the email did not change and cleared if it did, so a confirmed absence leaves an email-only member email-only and publishes no `member_put`. Requests that skip enrichment (invite acceptance, user events, sync tooling, `X-Skip-Enrichment`) make no lookup and publish the caller-supplied identity unchanged.
+
 #### Message Envelope
 
 | Field | Value |
