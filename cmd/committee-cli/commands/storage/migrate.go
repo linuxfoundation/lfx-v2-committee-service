@@ -45,9 +45,9 @@ func (s *migrateSubcommand) Run(ctx context.Context, rc commands.RunContext) err
 	}
 	direction := fs.String("direction", directionKVToPG, "kv-to-pg copies KV into PostgreSQL, keeping the revisions; pg-to-kv copies PostgreSQL into KV, which gives each record a revision of its own, and replaces a record KV holds with other content; neither deletes")
 	entities := fs.String("entity", "", "comma-separated entities to copy ("+strings.Join(allEntities, ", ")+"); default all")
-	dryRun := fs.Bool("dry-run", false, "read and classify everything but write nothing to PostgreSQL")
-	includeOrphans := fs.Bool("include-orphans", false, "also copy children whose committee does not exist in KV; they are only reported by default")
-	workers := fs.Int("workers", 4, "records written to PostgreSQL concurrently")
+	dryRun := fs.Bool("dry-run", false, "read and classify everything but write nothing (to PostgreSQL, or with --direction pg-to-kv to KV)")
+	includeOrphans := fs.Bool("include-orphans", false, "also copy children whose committee does not exist in the source store (KV, or with --direction pg-to-kv PostgreSQL); they are only reported by default")
+	workers := fs.Int("workers", 4, "records written concurrently (to PostgreSQL, or with --direction pg-to-kv to KV)")
 	batchSize := fs.Int("batch-size", 100, "records read ahead of the workers, which bounds the memory the records use (the committee uids are also held, for the orphan check)")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {

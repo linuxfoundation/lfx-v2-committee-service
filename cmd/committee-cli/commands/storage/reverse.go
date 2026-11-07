@@ -15,12 +15,9 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
-// reverseSource is the PostgreSQL store as the copy back to KV reads it: every table streamed, and the settings of one
-// committee. *postgres.Store implements it.
-type reverseSource interface {
-	verifySource
-	GetSettings(ctx context.Context, uid string) (*model.CommitteeSettings, uint64, error)
-}
+// reverseSource is the PostgreSQL store as the copy back to KV reads it: every table streamed. *postgres.Store
+// implements it.
+type reverseSource = verifySource
 
 var _ reverseSource = (*postgres.Store)(nil)
 
@@ -177,8 +174,17 @@ func runReverse(ctx context.Context, src reverseSource, sink port.KVRepairStore,
 
 // copyCommitteesBack copies every committee with its settings. One KV does not hold is created with its settings;
 // one it holds is replaced when the content differs. KV creates settings only along with their committee, so settings
-// missing next to a committee that exists are reported.
+// missing next to a committee that exists are reported. The settings are read before the committees are streamed and held,
+// one record each, because a worker that read them from PostgreSQL while the committees stream would wait for a pool
+// connection the scan holds, and a pool of one connection would never finish.
 func copyCommitteesBack(ctx context.Context, src reverseSource, sink port.KVRepairStore, opts backfillOptions, committees, settings *tracker) error {
+	held := map[string]childRecord[*model.CommitteeSettings]{}
+	if err := src.EachSettingsExport(ctx, func(s *model.CommitteeSettings, revision uint64) error {
+		held[s.UID] = childRecord[*model.CommitteeSettings]{record: s, revision: revision}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("reading the settings from PostgreSQL: %w", err)
+	}
 	return stream(ctx, opts.Workers, opts.BatchSize,
 		func(emit func(childRecord[*model.CommitteeBase]) error) error {
 			return src.EachCommitteeExport(ctx, func(base *model.CommitteeBase, revision uint64) error {
@@ -186,26 +192,20 @@ func copyCommitteesBack(ctx context.Context, src reverseSource, sink port.KVRepa
 			})
 		},
 		func(r childRecord[*model.CommitteeBase]) {
-			copyCommitteeBack(ctx, src, sink, opts, committees, settings, r)
+			copyCommitteeBack(ctx, sink, opts, committees, settings, held[r.record.UID], r)
 		})
 }
 
-func copyCommitteeBack(ctx context.Context, src reverseSource, sink port.KVRepairStore, opts backfillOptions, committees, settings *tracker, r childRecord[*model.CommitteeBase]) {
+// copyCommitteeBack copies one committee; held is its settings in PostgreSQL, the zero value when it has none.
+func copyCommitteeBack(ctx context.Context, sink port.KVRepairStore, opts backfillOptions, committees, settings *tracker, held childRecord[*model.CommitteeSettings], r childRecord[*model.CommitteeBase]) {
 	uid := r.record.UID
 	committees.scanned(ctx, r.revision)
-	pgSettings, pgSettingsRevision, err := src.GetSettings(ctx, uid)
-	switch {
-	case isNotFound(err):
-		pgSettings = nil
-	case err != nil:
-		committees.problem(ctx, uid, "read", err.Error())
-		return
-	}
+	pgSettings := held.record
 	if pgSettings != nil {
-		settings.scanned(ctx, pgSettingsRevision)
+		settings.scanned(ctx, held.revision)
 	}
 
-	held, kvRevision, err := sink.GetBase(ctx, uid)
+	inKV, kvRevision, err := sink.GetBase(ctx, uid)
 	switch {
 	case isNotFound(err):
 		createCommitteeBack(ctx, sink, opts, committees, settings, r.record, pgSettings)
@@ -215,7 +215,7 @@ func copyCommitteeBack(ctx context.Context, src reverseSource, sink port.KVRepai
 		skipSettingsBack(ctx, settings, pgSettings)
 		return
 	}
-	same, err := sameContent(r.record, held)
+	same, err := sameContent(r.record, inKV)
 	switch {
 	case err != nil:
 		committees.problem(ctx, uid, "read", err.Error())

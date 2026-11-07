@@ -622,7 +622,7 @@ NATS_URL=nats://localhost:4222 LOG_LEVEL=warn \
 
 #### `storage migrate`
 
-Copies committee data from the NATS KV store into PostgreSQL, or with `--direction pg-to-kv` back from PostgreSQL into KV (see *The way back* below): committees with their settings, members, invites, applications, links, link folders, document metadata, weekly briefs and weekly-brief throttle entries. It reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
+Copies committee data from the NATS KV store into PostgreSQL, or with `--direction pg-to-kv` back from PostgreSQL into KV (see *The way back* below): committees with their settings, members, invites, applications, links, link folders, document metadata, weekly briefs and weekly-brief throttle entries. By default (`kv-to-pg`) it reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
 
 The schema must already be applied: start the API once with `POSTGRES_ENABLED=true`, which runs the migrations. The command checks and says so if it is not.
 
@@ -632,10 +632,10 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 |---|---|---|
 | `--direction` | `kv-to-pg` | `kv-to-pg` copies KV into PostgreSQL, keeping the revisions; `pg-to-kv` copies PostgreSQL into KV, which gives each record a revision of its own. Neither deletes |
 | `--entity` | all | Comma-separated entities to copy: `committees` (with settings), `members`, `invites`, `applications`, `links`, `folders`, `documents`, `briefs`, `throttles` |
-| `--dry-run` | `false` | Read and classify everything, write nothing; `written` is what a run would write |
-| `--include-orphans` | `false` | Also copy children whose committee does not exist in KV |
-| `--workers` | `4` | Records written to PostgreSQL concurrently |
-| `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each), and of every served brief, is also held, for the orphan check and the brief order |
+| `--dry-run` | `false` | Read and classify everything, write nothing (to PostgreSQL, or with `pg-to-kv` to KV); `written` is what a run would write |
+| `--include-orphans` | `false` | Also copy children whose committee does not exist in the source store: KV, or with `pg-to-kv` PostgreSQL |
+| `--workers` | `4` | Records written concurrently (to PostgreSQL, or with `pg-to-kv` to KV) |
+| `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each), and of every served brief, is also held, for the orphan check and the brief order. With `pg-to-kv` the settings of every committee are held too, read before the committees are streamed, so that the scan never needs a second connection |
 
 **Orphans.** KV never removed a deleted committee's members, invites, links, folders, documents or briefs, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them. The same goes for settings: KV deletes a committee's base before its settings, so a failed delete leaves the settings behind. They are counted in the `settings` line's `orphans` and listed, and their revisions count for the highest revision seen, but they are never copied, even with `--include-orphans`, because PostgreSQL creates settings only along with their committee.
 
@@ -656,6 +656,7 @@ The schema must already be applied: start the API once with `POSTGRES_ENABLED=tr
 - It **never deletes**. A record only KV holds stays, and `storage verify --by-content` reports it as `missing`; remove it by hand if KV must not serve it.
 - A record KV holds with other content is **replaced** by PostgreSQL's, guarded by the revision KV has now; a replace that loses to another writer is reported as `constraint`, and a rerun settles it. The create of a weekly brief is not guarded, because KV has no guarded create for it: a brief another writer stores for the window meanwhile is overwritten. Run it with no writes in flight.
 - A weekly brief is compared without its update time, which KV stamps itself, and a window KV already holds for another brief is a `constraint`. Documents move as metadata only.
+- **Known limitation: moves and renames.** The copy finds a document, link or folder in KV under its committee. One that was moved to another committee in PostgreSQL, which only the audit-sync tooling does, is not found there and its create conflicts on the uid; it is reported as `constraint` with its uid on every run, and `verify --by-content` shows it as a difference. The name lookup keys of documents and folders are not reconciled either, since KV's own update of them never did. Put such a record right by hand in KV before the switch.
 - Settings are created in KV only along with their committee: settings missing next to a committee KV already holds are reported as `missing`.
 - Orphans are the PostgreSQL children whose committee has no row there.
 - The output ends with a reminder that nothing was deleted, instead of the highest revision. See the rollback checklist in `docs/postgres-schema.md`.

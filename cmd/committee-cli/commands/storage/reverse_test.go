@@ -6,7 +6,9 @@ package storage
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +17,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats/natstest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres/postgrestest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 )
 
@@ -52,6 +55,25 @@ func TestRunReverse_CopiesEveryEntityAndKVThenMatchesByContent(t *testing.T) {
 	for _, v := range verified {
 		assert.Zero(t, v.differences(), v.Entity)
 	}
+}
+
+func TestRunReverse_WorksWithASinglePostgreSQLConnection(t *testing.T) {
+	store, small := postgrestest.NewStoreWithSmallPool(t, 1)
+	_, err := runBackfill(context.Background(), childSource(), store, backfillOptions{})
+	require.NoError(t, err)
+	// More committees than the queue and the workers hold, so the scan is still streaming when every worker has a record.
+	for i := range 6 {
+		require.NoError(t, store.Create(context.Background(), storetest.NewCommittee(fmt.Sprintf("c-extra-%d", i), "project-1", fmt.Sprintf("Extra %d", i))))
+	}
+	kv := natstest.NewRepairBackend(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	results, err := runReverse(ctx, small, kv, backfillOptions{Workers: 1, BatchSize: 1})
+
+	require.NoError(t, err, "a pool of one connection must not stall the scan: the workers do not read from PostgreSQL")
+	assert.EqualValues(t, 8, result(t, results, entityCommittees).Written)
+	assert.EqualValues(t, 7, result(t, results, resultSettings).Written, "the six new committees have settings too")
 }
 
 func TestRunReverse_AgainChangesNothing(t *testing.T) {
