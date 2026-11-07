@@ -152,6 +152,7 @@ func run() error {
 		CommitteeBaseWriter:         storage,
 		KVStore:                     client.GetOrBindKVStore,
 		KVExport:                    storage,
+		KVRepair:                    nats.NewKVRepairStore(client),
 		PostgresStore:               connectPostgres,
 		CommitteeApplicationReader:  storage,
 		CommitteeApplicationWriter:  storage,

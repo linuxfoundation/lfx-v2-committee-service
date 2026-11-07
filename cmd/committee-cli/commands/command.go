@@ -79,6 +79,8 @@ type RunContext struct {
 	KVStore func(ctx context.Context, bucket string) (jetstream.KeyValue, error)
 	// KVExport streams the KV records with their revisions, for the storage subcommands that copy or compare data.
 	KVExport port.KVExportReader
+	// KVRepair reads and writes the KV records, for the storage subcommand that copies the data back from PostgreSQL.
+	KVRepair port.KVRepairStore
 	// PostgresStore connects to PostgreSQL for the subcommands that need it and returns the store and a
 	// function that releases the connection. The other subcommands never connect.
 	PostgresStore func(ctx context.Context) (store *postgres.Store, closeStore func(), err error)

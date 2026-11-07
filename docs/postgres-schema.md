@@ -233,13 +233,26 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   another in KV. A copy to KV is guarded by the revision KV has, is skipped when KV already holds the same content, and a
   delete is guarded by the revision KV has. KV stamps the update time of a weekly brief itself, so a brief in KV carries the
   time of its copy. A failed copy is counted and left for the next update of the record, and a record whose create was
-  not copied stays missing in KV: no command copies PostgreSQL to KV yet, since `storage migrate` copies in the other
-  direction only, and that copy is part of the flip and rollback work. Switching back to `kv` therefore needs two things: the
-  switch is made with no writes in flight, and KV is known to hold what PostgreSQL holds, because it would otherwise serve
-  what it last received. `storage verify` reports a record at another revision as a mismatch, which in `dual-pg` is every
+  not copied stays missing in KV until `storage migrate --direction pg-to-kv` brings it over: that copy creates what KV
+  lacks and replaces what KV holds with other content, through the KV store's own writers so that KV assigns the
+  revisions, and never deletes. Switching back to `kv` needs two things: the switch is made with no writes in flight, and
+  KV is known to hold what PostgreSQL holds, because it would otherwise serve what it last received. `storage verify` reports a record at another revision as a mismatch, which in `dual-pg` is every
   record that was copied, so for that check it is run with `--by-content`: the content of each record is compared, a weekly
   brief without the update time KV stamps itself, and what only PostgreSQL has is still reported as `extra`. A client that holds a token from `dual-pg` when `kv` takes over gets a revision mismatch,
   or, when the number happens to be the one KV has for that record, writes over what it did not read.
+
+  **Rollback checklist** (`dual-pg` or `postgres` back to `kv`):
+
+  1. Stop the writes: no request may write while the copy runs and until the mode is switched, because a write after the
+     last copy is in PostgreSQL only and KV would not serve it.
+  2. `storage migrate --direction pg-to-kv --dry-run`, then without `--dry-run`. Rerun it until it exits `0` and reports
+     `written=0` for every entity: a lost swap or a name KV holds for another record is listed with its uid and settles on a rerun
+     or by hand.
+  3. `storage verify --by-content` must report no difference. A `missing` record is one only KV holds, a record deleted in
+     PostgreSQL whose delete did not reach KV; the copy never deletes, so remove it by hand, or KV serves a record that was deleted.
+     An `extra` record is one the copy could not bring over: look at the problem it listed.
+  4. Switch the mode to `kv` and restart.
+  5. Clients that hold a revision token issued by `dual-pg` or `postgres` must read the record again before they write it.
 
 - **Cascade delete.** `Store.DeleteCommitteeCascade` removes the committee, its settings and every member, invite,
   application, link, link folder, document metadata row, weekly brief and throttle entry of the committee in one

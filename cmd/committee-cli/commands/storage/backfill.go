@@ -119,6 +119,8 @@ type tracker struct {
 	mu            sync.Mutex
 	res           backfillResult
 	progressEvery int64
+	// orphanMessage says what an orphan is missing; empty means its committee in KV.
+	orphanMessage string
 }
 
 func (t *tracker) scanned(ctx context.Context, revision uint64) {
@@ -138,7 +140,11 @@ func (t *tracker) unchanged() { t.mu.Lock(); t.res.Unchanged++; t.mu.Unlock() }
 func (t *tracker) orphan(ctx context.Context, uid string) {
 	t.mu.Lock()
 	t.res.Orphans++
-	t.keep(backfillProblem{UID: uid, Kind: "orphan", Message: "its committee does not exist in KV"})
+	message := t.orphanMessage
+	if message == "" {
+		message = "its committee does not exist in KV"
+	}
+	t.keep(backfillProblem{UID: uid, Kind: "orphan", Message: message})
 	t.mu.Unlock()
 	slog.WarnContext(ctx, "backfill skipped an orphan", "entity", t.res.Entity, "uid", uid)
 }

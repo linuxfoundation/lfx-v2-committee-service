@@ -31,6 +31,14 @@ const EnvDatabaseURL = "TEST_DATABASE_URL"
 // silently skips everywhere proves nothing.
 func NewStore(t *testing.T) *postgres.Store {
 	t.Helper()
+	store, _ := NewStoreWithSmallPool(t, 0)
+	return store
+}
+
+// NewStoreWithSmallPool is NewStore with a second store on the same schema whose pool has maxConns connections, for the
+// tests of what happens when an operator sets POSTGRES_MAX_CONNS low. The first store has the default pool.
+func NewStoreWithSmallPool(t *testing.T, maxConns int32) (store, small *postgres.Store) {
+	t.Helper()
 	dsn := strings.TrimSpace(os.Getenv(EnvDatabaseURL))
 	if dsn == "" {
 		if os.Getenv("CI") != "" {
@@ -58,7 +66,14 @@ func NewStore(t *testing.T) *postgres.Store {
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	return postgres.NewStore(pool)
+	if maxConns <= 0 {
+		return postgres.NewStore(pool), nil
+	}
+	cfg.MaxConns = maxConns
+	smallPool, err := pgxpool.NewWithConfig(ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(smallPool.Close)
+	return postgres.NewStore(pool), postgres.NewStore(smallPool)
 }
 
 func openDB(t *testing.T, dsn, schema string) *sql.DB {
