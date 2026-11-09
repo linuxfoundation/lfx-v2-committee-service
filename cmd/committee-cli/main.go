@@ -126,8 +126,8 @@ func run() error {
 
 	storage := nats.NewStorageBackend(client)
 	// What the commands write committee data through: the KV storage in kv mode, the composite stores of the mode otherwise.
-	// The KV maintenance commands below keep using the KV storage itself.
-	selected, err := selectStores(ctx, storageMode, client, storage, storage, connectPostgres)
+	// The KV maintenance commands below (index backfillers, exports) keep using the KV storage itself.
+	selected, err := selectStores(ctx, storageMode, client, storage, storage, storage, connectPostgres)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func run() error {
 		CommitteeMemberWriter:       selected.committees,
 		MemberIndexBackfiller:       storage,
 		CommitteeInviteWriter:       selected.committees,
-		DocumentAuditSync:           storage,
+		DocumentAuditSync:           selected.documentAudit,
 		Publisher:                   publisher,
 		UserReader:                  userReader,
 		GroupWeeklyBriefReader:      selected.briefs,

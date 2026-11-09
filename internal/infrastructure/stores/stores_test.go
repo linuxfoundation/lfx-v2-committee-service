@@ -37,6 +37,7 @@ func TestBuild_KVIsTheKVStoragesAndNothingElse(t *testing.T) {
 			assert.Equal(t, any(built.Committees), any(built.Links), "the links and the briefs are served by the same KV storage")
 			assert.Equal(t, any(built.Committees), any(built.Briefs))
 			assert.IsType(t, nats.NewDocumentStorage(client), built.Documents)
+			assert.Nil(t, built.DocumentAudit, "the audit syncs keep using the KV storage in kv mode")
 		})
 	}
 }
@@ -101,6 +102,37 @@ func TestBuild_DualWritesBothStores(t *testing.T) {
 		"document metadata, PG": func() error { _, _, err := pg.GetDocumentMetadata(ctx, "uid-1", "d-1"); return err },
 	} {
 		assert.NoError(t, read(), name)
+	}
+}
+
+// A repair made by the audit syncs reaches both stores in dual mode, and PostgreSQL alone in postgres mode.
+func TestBuild_TheAuditSyncsRepairThroughTheComposite(t *testing.T) {
+	ctx := context.Background()
+	for _, mode := range []composite.Mode{composite.ModeDual, composite.ModePostgres} {
+		t.Run(string(mode), func(t *testing.T) {
+			client := natstest.NewClient(t)
+			pg := postgrestest.NewStore(t)
+			built, err := stores.Build(mode, client, pg)
+			require.NoError(t, err)
+			require.NotNil(t, built.DocumentAudit)
+			require.NoError(t, built.Links.CreateLink(ctx, storetest.NewLink("l-1", "uid-1")))
+			link, revision, err := built.DocumentAudit.GetLink(ctx, "uid-1", "l-1")
+			require.NoError(t, err)
+			link.Name += " repaired"
+
+			require.NoError(t, built.DocumentAudit.UpdateLink(ctx, link, revision))
+
+			inPG, _, err := pg.GetLink(ctx, "uid-1", "l-1")
+			require.NoError(t, err)
+			assert.Equal(t, link.Name, inPG.Name, "PostgreSQL holds the repair")
+			inKV, _, kvErr := nats.NewStorageBackend(client).GetLink(ctx, "uid-1", "l-1")
+			if mode == composite.ModeDual {
+				require.NoError(t, kvErr)
+				assert.Equal(t, link.Name, inKV.Name, "so does KV")
+			} else {
+				assert.Error(t, kvErr, "KV is not written in postgres mode")
+			}
+		})
 	}
 }
 

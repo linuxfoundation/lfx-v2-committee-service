@@ -133,16 +133,17 @@ func buildStores(ctx context.Context, mode composite.Mode, client *nats.NATSClie
 	var pg *postgres.Store
 	var opts []composite.Option
 	if mode.UsesPostgres() {
-		postgresInit(ctx)
-		if postgresPool == nil {
-			log.Fatalf("storage mode %s needs PostgreSQL, which could not be set up", mode)
-		}
-		pg = postgres.NewStore(postgresPool)
+		// The settings are checked before PostgreSQL is connected to, so a typo does not wait for a connection and a migration.
 		var errOpts error
 		if opts, errOpts = composite.OptionsFromEnv(mode, os.Getenv); errOpts != nil {
 			log.Fatalf("invalid storage mode settings: %v", errOpts)
 		}
 		opts = append(opts, composite.WithMetrics(composite.NewMetrics()))
+		postgresInit(ctx)
+		if postgresPool == nil {
+			log.Fatalf("storage mode %s needs PostgreSQL, which could not be set up", mode)
+		}
+		pg = postgres.NewStore(postgresPool)
 	}
 	built, err := stores.Build(mode, client, pg, opts...)
 	if err != nil {

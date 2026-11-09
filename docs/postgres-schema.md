@@ -304,10 +304,10 @@ links and folders, weekly briefs, documents).
   the log), `committee.storage.read_compare_mismatches` and `committee.storage.read_compare_errors`, and the
   `committee.storage.mode` gauge. A copy that failed is made up for by the next update of the same record, which now also creates
   a record the secondary store never got; `storage verify` finds the rest and `storage migrate` brings it over.
-- **The KV maintenance commands stay on KV.** The CLI's backfillers, audit syncs and exports (and `storage migrate`, `verify`
+- **Only the KV maintenance commands stay on KV.** The CLI's index backfillers and exports (and `storage migrate`, `verify`
   and `flip`, which name both stores themselves) use the KV storage in every mode. The commands that write committee data
-  (`sync committee-fields`, member and invite writes, and so on) write through the composite, so a change reaches both stores
-  the mode names.
+  (`sync committee-fields`, member and invite writes, and so on) and the audit syncs write through the composite, so a
+  change reaches both stores the mode names.
 
 **Rollout order** (each step is reversible by the rollback checklist above, and `kv` stays the default until you change it):
 

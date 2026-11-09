@@ -36,11 +36,12 @@ func TestSelectStores_KVIsTheKVStorageAndConnectsToNothing(t *testing.T) {
 		return nil, nil, errors.New("not connected in this test")
 	}
 
-	selected, err := selectStores(context.Background(), composite.ModeKV, client, kv, kv, connect)
+	selected, err := selectStores(context.Background(), composite.ModeKV, client, kv, kv, kv, connect)
 
 	require.NoError(t, err)
 	assert.Equal(t, any(kv), any(selected.committees), "the commands write through the KV storage itself")
 	assert.Equal(t, any(kv), any(selected.briefs))
+	assert.Equal(t, any(kv), any(selected.documentAudit), "the audit syncs repair KV directly, as they always did")
 	assert.NotPanics(t, selected.close)
 	assert.Zero(t, connects, "PostgreSQL is not connected to")
 	_, _, err = selected.postgres(context.Background())
@@ -61,10 +62,12 @@ func TestSelectStores_TheOtherModesConnectFirstAndWriteThroughTheComposite(t *te
 				return pg, func() { closes++ }, nil
 			}
 
-			selected, err := selectStores(ctx, mode, client, kv, kv, connect)
+			selected, err := selectStores(ctx, mode, client, kv, kv, kv, connect)
 
 			require.NoError(t, err)
 			assert.NotEqual(t, any(kv), any(selected.committees), "the commands write through the composite")
+			assert.NotNil(t, selected.documentAudit)
+			assert.NotEqual(t, any(kv), any(selected.documentAudit), "the audit syncs repair through the composite")
 			require.NoError(t, selected.committees.Create(ctx, storetest.NewCommittee("uid-"+string(mode), "project-1", "Committee "+string(mode))))
 			_, _, err = pg.GetBase(ctx, "uid-"+string(mode))
 			assert.NoError(t, err, "PostgreSQL holds what the command wrote")
@@ -91,7 +94,7 @@ func TestSelectStores_AModeThatCannotBeUsedStopsTheCommand(t *testing.T) {
 			return nil, nil, errors.New("no route to host")
 		}
 
-		_, err := selectStores(ctx, composite.ModeDual, client, kv, kv, connect)
+		_, err := selectStores(ctx, composite.ModeDual, client, kv, kv, kv, connect)
 
 		require.ErrorContains(t, err, "STORAGE_MODE=dual needs PostgreSQL")
 		assert.ErrorContains(t, err, "no route to host")
@@ -100,7 +103,7 @@ func TestSelectStores_AModeThatCannotBeUsedStopsTheCommand(t *testing.T) {
 	t.Run("a setting of the mode cannot be used, and nothing connects", func(t *testing.T) {
 		t.Setenv(composite.EnvReadCompareRate, "lots")
 
-		_, err := selectStores(ctx, composite.ModeDual, client, kv, kv, neverConnect(t))
+		_, err := selectStores(ctx, composite.ModeDual, client, kv, kv, kv, neverConnect(t))
 
 		require.ErrorContains(t, err, composite.EnvReadCompareRate)
 	})
@@ -108,7 +111,7 @@ func TestSelectStores_AModeThatCannotBeUsedStopsTheCommand(t *testing.T) {
 	t.Run("the settings of a mode that writes both stores are not looked at in kv", func(t *testing.T) {
 		t.Setenv(composite.EnvReadCompareRate, "lots")
 
-		_, err := selectStores(ctx, composite.ModeKV, client, kv, kv, neverConnect(t))
+		_, err := selectStores(ctx, composite.ModeKV, client, kv, kv, kv, neverConnect(t))
 
 		require.NoError(t, err)
 	})

@@ -607,11 +607,22 @@ app:
     # done. A value that is not recognized, a mode that uses PostgreSQL without
     # POSTGRES_URL, or a PostgreSQL that cannot be reached or migrated in such a
     # mode, stops the pod at startup instead of falling back to kv. The dual and
-    # dual-pg modes can be tuned with STORAGE_READ_COMPARE_RATE,
-    # STORAGE_COMPARE_TIMEOUT and STORAGE_SECONDARY_WRITE_TIMEOUT (see
-    # docs/postgres-schema.md, "Selecting a storage mode"), which can be added with
-    # extraEnv.
+    # dual-pg modes can be tuned with the three variables below (see
+    # docs/postgres-schema.md, "Selecting a storage mode").
     STORAGE_MODE:
+      value: ""
+    # STORAGE_READ_COMPARE_RATE — the fraction of reads, from 0 to 1, that dual and
+    # dual-pg also make against the secondary store and compare. Empty keeps the
+    # default (0.01). Not read in kv or postgres mode.
+    STORAGE_READ_COMPARE_RATE:
+      value: ""
+    # STORAGE_COMPARE_TIMEOUT — bounds that extra read, as a Go duration. Empty
+    # keeps the default (2s).
+    STORAGE_COMPARE_TIMEOUT:
+      value: ""
+    # STORAGE_SECONDARY_WRITE_TIMEOUT — bounds the copy of a write to the secondary
+    # store, which is made on the request's path. Empty keeps the default (3s).
+    STORAGE_SECONDARY_WRITE_TIMEOUT:
       value: ""
     # POSTGRES_ENABLED — feature flag for PostgreSQL. Only the exact value
     # "true" turns it on; anything else (the default) means the service never

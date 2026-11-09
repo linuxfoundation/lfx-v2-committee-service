@@ -24,6 +24,16 @@ type Stores struct {
 	Links      port.CommitteeLinkReaderWriter
 	Briefs     composite.BriefBackend
 	Documents  port.CommitteeDocumentReaderWriter
+	// DocumentAudit is what the audit-sync commands repair links, folders and documents through. In kv mode it is nil and the
+	// caller keeps using the KV storage, as it always has; in the other modes it is the composites of the links and the
+	// documents, so a repair reaches both stores the mode names.
+	DocumentAudit port.DocumentAuditSyncStorage
+}
+
+// auditSync is the audit-sync port over the composites of the links and of the documents.
+type auditSync struct {
+	*composite.Links
+	*composite.Documents
 }
 
 // kvDocuments is the NATS side of the documents as the composite needs it: the metadata in KV and the files in the Object
@@ -106,5 +116,5 @@ func Build(mode composite.Mode, client *nats.NATSClient, pg *postgres.Store, opt
 	if err != nil {
 		return nil, err
 	}
-	return &Stores{Committees: cascading, Links: links, Briefs: briefs, Documents: documents}, nil
+	return &Stores{Committees: cascading, Links: links, Briefs: briefs, Documents: documents, DocumentAudit: auditSync{links, documents}}, nil
 }

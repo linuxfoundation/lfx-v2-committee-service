@@ -55,6 +55,8 @@ func TestOptionsFromEnv_ZeroAndOneAreValidRates(t *testing.T) {
 func TestOptionsFromEnv_RefusesWhatCannotBeUsed(t *testing.T) {
 	for name, values := range map[string]map[string]string{
 		"a rate that is not a number":              {EnvReadCompareRate: "lots"},
+		"a rate that is NaN":                       {EnvReadCompareRate: "NaN"},
+		"an infinite rate":                         {EnvReadCompareRate: "Inf"},
 		"a rate below zero":                        {EnvReadCompareRate: "-0.1"},
 		"a rate above one":                         {EnvReadCompareRate: "1.5"},
 		"a compare timeout that is not a duration": {EnvCompareTimeout: "fast"},

@@ -5,6 +5,7 @@ package composite
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ func OptionsFromEnv(mode Mode, getenv func(string) string) ([]Option, error) {
 	var opts []Option
 	if raw := strings.TrimSpace(getenv(EnvReadCompareRate)); raw != "" {
 		rate, err := strconv.ParseFloat(raw, 64)
-		if err != nil || rate < 0 || rate > 1 {
+		if err != nil || math.IsNaN(rate) || rate < 0 || rate > 1 {
 			return nil, fmt.Errorf("invalid %s %q: use a number from 0 to 1", EnvReadCompareRate, raw)
 		}
 		opts = append(opts, WithSampleRate(rate))

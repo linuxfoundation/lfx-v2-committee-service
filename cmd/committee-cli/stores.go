@@ -19,11 +19,14 @@ import (
 type postgresConnector func(ctx context.Context) (store *postgres.Store, closeStore func(), err error)
 
 // commandStores are the stores the commands that write committee data go through, for the storage mode. The commands that
-// repair or inspect the KV data itself (the backfillers, the audit syncs, the exports and storage migrate, verify and flip)
-// do not use them and keep the KV storage in every mode.
+// repair or inspect the KV data itself (the index backfillers, the exports and storage migrate, verify and flip) do not use
+// them and keep the KV storage in every mode. The audit syncs repair records people see, so in the other modes they go
+// through the composite and reach both stores.
 type commandStores struct {
 	committees port.CommitteeReaderWriter
 	briefs     port.GroupWeeklyBriefReader
+	// documentAudit is what the audit-sync commands repair links, folders and documents through.
+	documentAudit port.DocumentAuditSyncStorage
 	// postgres is what the storage subcommands connect to PostgreSQL with.
 	postgres postgresConnector
 	// close releases what was opened for the mode.
@@ -36,9 +39,9 @@ type commandStores struct {
 // stores, so a committee a command changes is changed in both stores the mode names; the storage subcommands then share that
 // connection.
 func selectStores(ctx context.Context, mode composite.Mode, client *nats.NATSClient, kvCommittees port.CommitteeReaderWriter,
-	kvBriefs port.GroupWeeklyBriefReader, connect postgresConnector) (*commandStores, error) {
+	kvBriefs port.GroupWeeklyBriefReader, kvAudit port.DocumentAuditSyncStorage, connect postgresConnector) (*commandStores, error) {
 	if mode == composite.ModeKV {
-		return &commandStores{committees: kvCommittees, briefs: kvBriefs, postgres: connect, close: func() {}}, nil
+		return &commandStores{committees: kvCommittees, briefs: kvBriefs, documentAudit: kvAudit, postgres: connect, close: func() {}}, nil
 	}
 	opts, err := composite.OptionsFromEnv(mode, os.Getenv)
 	if err != nil {
@@ -54,9 +57,10 @@ func selectStores(ctx context.Context, mode composite.Mode, client *nats.NATSCli
 		return nil, fmt.Errorf("building the stores for %s=%s: %w", composite.EnvStorageMode, mode, err)
 	}
 	return &commandStores{
-		committees: built.Committees,
-		briefs:     built.Briefs,
-		postgres:   func(context.Context) (*postgres.Store, func(), error) { return pg, func() {}, nil },
-		close:      closePostgres,
+		committees:    built.Committees,
+		briefs:        built.Briefs,
+		documentAudit: built.DocumentAudit,
+		postgres:      func(context.Context) (*postgres.Store, func(), error) { return pg, func() {}, nil },
+		close:         closePostgres,
 	}, nil
 }
