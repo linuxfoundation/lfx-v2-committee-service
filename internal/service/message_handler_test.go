@@ -796,6 +796,9 @@ func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _, _ st
 func (s *spyCommitteeWriterOrchestrator) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
 	return m, nil
 }
+func (s *spyCommitteeWriterOrchestrator) CreateMembers(_ context.Context, _ string, _ []*model.CommitteeMember, _ BulkMemberCreateOptions) ([]*model.BulkMemberResult, error) {
+	return nil, nil
+}
 
 func buildCommitteeUpdatedMsg(committeeUID string, old, updated *model.CommitteeBase) []byte {
 	data := model.CommitteeUpdateEventData{

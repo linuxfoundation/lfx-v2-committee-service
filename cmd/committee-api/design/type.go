@@ -780,6 +780,77 @@ func CommitteeMemberUpdateAttributes() {
 	CommitteeMemberBaseAttributes()
 }
 
+// CommitteeMemberBulkCreateRow is one member row of a bulk member create request. It carries the
+// same attributes as a single create-committee-member body.
+var CommitteeMemberBulkCreateRow = dsl.Type("committee-member-bulk-create-row", func() {
+	dsl.Description("A committee member to add as part of a bulk member create request.")
+
+	CommitteeMemberCreateAttributes()
+
+	dsl.Required("email")
+})
+
+// BulkMembersAttribute is the DSL attribute for the rows of a bulk member create request.
+// The 100-row cap bounds the work one request can trigger; clients chunk larger imports.
+func BulkMembersAttribute() {
+	dsl.Attribute("members", dsl.ArrayOf(CommitteeMemberBulkCreateRow), "The members to add, processed in submission order", func() {
+		dsl.MinLength(1)
+		dsl.MaxLength(100)
+	})
+}
+
+// CommitteeMemberBulkCreateRowResult is the outcome of one submitted row of a bulk member create request.
+var CommitteeMemberBulkCreateRowResult = dsl.Type("committee-member-bulk-create-row-result", func() {
+	dsl.Description("The outcome of one submitted row of a bulk member create request.")
+
+	dsl.Attribute("index", dsl.Int, "Zero-based position of the row in the submitted members list", func() {
+		dsl.Example(0)
+	})
+	dsl.Attribute("email", dsl.String, "Email address of the submitted row", func() {
+		dsl.Example("first.last@example.com")
+	})
+	dsl.Attribute("status", dsl.String, "Outcome of the row", func() {
+		dsl.Enum("added", "skipped", "failed")
+		dsl.Example("added")
+	})
+	dsl.Attribute("reason", dsl.String, "Why the row was skipped or failed; omitted for added rows", func() {
+		dsl.Enum("already_member", "duplicate_in_request", "invalid", "temporary", "not_attempted")
+		dsl.Example("already_member")
+	})
+	dsl.Attribute("retryable", dsl.Boolean, "Whether resubmitting the row later may succeed", func() {
+		dsl.Example(false)
+	})
+	dsl.Attribute("message", dsl.String, "Human-readable detail for a skipped or failed row", func() {
+		dsl.Example("member already exists in the committee")
+	})
+	dsl.Attribute("member_uid", dsl.String, "UID of the added member, or of the existing member for an already_member row", func() {
+		dsl.Format(dsl.FormatUUID)
+		dsl.Example("7cad5a8d-19d0-41a4-81a6-043453daf9ee")
+	})
+	dsl.Attribute("member", CommitteeMemberFullWithReadonlyAttributes, "The created member; present only for added rows")
+
+	dsl.Required("index", "email", "status", "retryable")
+})
+
+// CommitteeMemberBulkCreateResult is the result of a bulk member create request: one entry per
+// submitted row, in submission order, plus per-status counts.
+var CommitteeMemberBulkCreateResult = dsl.Type("committee-member-bulk-create-result", func() {
+	dsl.Description("Per-row outcomes and counts for a bulk member create request.")
+
+	dsl.Attribute("results", dsl.ArrayOf(CommitteeMemberBulkCreateRowResult), "One result per submitted row, in submission order")
+	dsl.Attribute("added", dsl.Int, "Number of rows added", func() {
+		dsl.Example(2)
+	})
+	dsl.Attribute("skipped", dsl.Int, "Number of rows skipped", func() {
+		dsl.Example(1)
+	})
+	dsl.Attribute("failed", dsl.Int, "Number of rows that failed", func() {
+		dsl.Example(0)
+	})
+
+	dsl.Required("results", "added", "skipped", "failed")
+})
+
 // AcceptInviteOptionalBody is an optional HTTP body for accept-invite (organization only).
 // Mapped via dsl.Body with the attribute left optional so the generated server decoder
 // tolerates a missing body (io.EOF) for backward compatibility. Note: Goa marks any

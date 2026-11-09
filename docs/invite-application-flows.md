@@ -341,6 +341,15 @@ When `X-Skip-Notification: true` is set:
 - `CommitteeMemberCreatedEventData.SkipNotification` is set to `true` in the `committee_member.created` NATS event payload.
 - `HandleCommitteeMemberCreated` short-circuits before sending either the direct notification email or the invite-service invite.
 
+### Bulk member create (`POST /committees/{uid}/members/bulk`)
+
+Each added row runs the same create path as a single member create:
+
+- Every added row publishes its own `committee_member.created` event, so each added member is notified (or invited) individually.
+- `X-Skip-Notification: true` applies to every row of the request.
+- Skipped rows (`already_member`, `duplicate_in_request`) and failed rows publish no event, so nobody is notified for them.
+- As with a single create, a direct bulk add does not change pending `CommitteeInvite` records.
+
 ### Member deleted (`DELETE /committees/{uid}/members/{member_uid}`)
 
 When `X-Skip-Notification: true` is set:

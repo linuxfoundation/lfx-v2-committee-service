@@ -35,6 +35,10 @@ type Service interface {
 	Livez(context.Context) (res []byte, err error)
 	// Add a new member to a committee
 	CreateCommitteeMember(context.Context, *CreateCommitteeMemberPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
+	// Add up to 100 members to a committee in one request. Every submitted row
+	// gets an added, skipped, or failed result; the request succeeds with 200 even
+	// when some rows are skipped or fail.
+	BulkCreateCommitteeMembers(context.Context, *BulkCreateCommitteeMembersPayload) (res *CommitteeMemberBulkCreateResult, err error)
 	// Get a specific committee member by UID
 	GetCommitteeMember(context.Context, *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error)
 	// List a B2B organization's committee seats across the membership project
@@ -160,7 +164,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [42]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
+var MethodNames = [43]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "bulk-create-committee-members", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
 
 // Optional accept-invite request body.
 type AcceptInviteOptionalBody struct {
@@ -205,6 +209,33 @@ type ApproveApplicationPayload struct {
 	ReviewerNotes *string
 	// When true, send an acceptance email to the applicant. Defaults to false.
 	Notify bool
+}
+
+// BulkCreateCommitteeMembersPayload is the payload type of the
+// committee-service service bulk-create-committee-members method.
+type BulkCreateCommitteeMembersPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Requests synchronous processing for applicable downstream operations.
+	// Indexer messages are always published fire-and-forget regardless of this
+	// flag (see indexer-contract.md); this header no longer affects indexer
+	// delivery. FGA update_access, delete_access, member_put, and member_remove
+	// publications remain asynchronous and do not wait for FGA processing or
+	// OpenFGA convergence.
+	XSync bool
+	// When true, suppress the notification email sent to the committee member
+	// (whether added or removed)
+	SkipNotification bool
+	// When true, skip auth-service enrichment: the username, name, and avatar from
+	// the request body are stored as-is without email→username lookup or profile
+	// metadata backfill. Intended for trusted sync callers.
+	SkipEnrichment bool
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// The members to add, processed in submission order
+	Members []*CommitteeMemberBulkCreateRow
 }
 
 // A committee's charter: a link to an externally hosted document, with an
@@ -508,6 +539,86 @@ type CommitteeLinkWithReadonlyAttributes struct {
 	CreatedAt *string
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string
+}
+
+// CommitteeMemberBulkCreateResult is the result type of the committee-service
+// service bulk-create-committee-members method.
+type CommitteeMemberBulkCreateResult struct {
+	// One result per submitted row, in submission order
+	Results []*CommitteeMemberBulkCreateRowResult
+	// Number of rows added
+	Added int
+	// Number of rows skipped
+	Skipped int
+	// Number of rows that failed
+	Failed int
+}
+
+// A committee member to add as part of a bulk member create request.
+type CommitteeMemberBulkCreateRow struct {
+	// User's LF ID
+	Username *string
+	// Primary email address
+	Email string
+	// First name
+	FirstName *string
+	// Last name
+	LastName *string
+	// Job title at organization
+	JobTitle *string
+	// LinkedIn profile URL
+	LinkedinProfile *string
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string
+		// Role start date
+		StartDate *string
+		// Role end date
+		EndDate *string
+	}
+	// How the member was appointed
+	AppointedBy string
+	// Member status
+	Status string
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string
+		// Voting start date
+		StartDate *string
+		// Voting end date
+		EndDate *string
+	}
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string
+		// Organization name
+		Name *string
+		// Organization website URL
+		Website *string
+	}
+}
+
+// The outcome of one submitted row of a bulk member create request.
+type CommitteeMemberBulkCreateRowResult struct {
+	// Zero-based position of the row in the submitted members list
+	Index int
+	// Email address of the submitted row
+	Email string
+	// Outcome of the row
+	Status string
+	// Why the row was skipped or failed; omitted for added rows
+	Reason *string
+	// Whether resubmitting the row later may succeed
+	Retryable bool
+	// Human-readable detail for a skipped or failed row
+	Message *string
+	// UID of the added member, or of the existing member for an already_member row
+	MemberUID *string
+	// The created member; present only for added rows
+	Member *CommitteeMemberFullWithReadonlyAttributes
 }
 
 // CommitteeMemberFullWithReadonlyAttributes is the result type of the

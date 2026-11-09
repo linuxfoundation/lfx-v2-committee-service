@@ -134,6 +134,21 @@ type CommitteeMemberDataWriter interface {
 	// newly-created member if the delete fails so no duplicate seat is left. It returns the created
 	// member. Used by the Org Lens reassign flow (LFXV2-1865).
 	ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error)
+	// CreateMembers adds up to model.MaxBulkMembers members to one committee and returns one result
+	// per submitted row, in submission order. Rows are skipped, failed, or added independently; an
+	// error is returned only when the request as a whole cannot run (invalid size, committee lookup).
+	CreateMembers(ctx context.Context, committeeUID string, members []*model.CommitteeMember, opts BulkMemberCreateOptions) ([]*model.BulkMemberResult, error)
+}
+
+// BulkMemberCreateOptions configures a bulk member create.
+type BulkMemberCreateOptions struct {
+	// Sync publishes each row's indexer message synchronously, as X-Sync does for a single create.
+	Sync bool
+	// SkipEnrichment stores each row's username and profile as submitted, without identity lookup.
+	SkipEnrichment bool
+	// Enrich, when set, runs for each row inside the bounded worker pool before the row is created,
+	// so request-scoped lookups (such as the API handler's identity enrichment) share the same limit.
+	Enrich func(context.Context, *model.CommitteeMember)
 }
 
 // committeeWriterOrchestratorOption defines a function type for setting options

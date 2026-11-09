@@ -57,6 +57,11 @@ func CreateCommitteeMemberCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/members", uid)
 }
 
+// BulkCreateCommitteeMembersCommitteeServicePath returns the URL path to the committee-service service bulk-create-committee-members HTTP endpoint.
+func BulkCreateCommitteeMembersCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/members/bulk", uid)
+}
+
 // GetCommitteeMemberCommitteeServicePath returns the URL path to the committee-service service get-committee-member HTTP endpoint.
 func GetCommitteeMemberCommitteeServicePath(uid string, memberUID string) string {
 	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)

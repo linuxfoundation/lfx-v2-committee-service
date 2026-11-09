@@ -222,7 +222,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
 
-**Indexed on:** create, update, delete of a committee member. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+**Indexed on:** create, update, delete of a committee member. A bulk member create publishes one create message per added row and none for skipped or failed rows. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 

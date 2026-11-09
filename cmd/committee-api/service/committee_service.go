@@ -303,6 +303,38 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	return result, nil
 }
 
+// BulkCreateCommitteeMembers adds up to 100 members to a committee and reports an added, skipped,
+// or failed result for every submitted row. Each row is enriched and created exactly as a single
+// create-committee-member request would be, inside the orchestrator's bounded worker pool.
+func (s *committeeServicesrvc) BulkCreateCommitteeMembers(ctx context.Context, p *committeeservice.BulkCreateCommitteeMembersPayload) (res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+	if p == nil {
+		return nil, &committeeservice.BadRequestError{Message: "request payload is required"}
+	}
+
+	slog.DebugContext(ctx, "committeeMemberService.bulk-create-committee-members",
+		"committee_uid", p.UID,
+		"rows", len(p.Members),
+		"x_sync", p.XSync,
+	)
+
+	members := make([]*model.CommitteeMember, len(p.Members))
+	for i, row := range p.Members {
+		members[i] = s.convertBulkMemberRowToDomain(p.UID, p.SkipNotification, row)
+	}
+
+	opts := service.BulkMemberCreateOptions{Sync: p.XSync, SkipEnrichment: p.SkipEnrichment}
+	if !p.SkipEnrichment {
+		opts.Enrich = s.enrichMember
+	}
+
+	results, err := s.committeeWriterOrchestrator.CreateMembers(ctx, p.UID, members, opts)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return s.convertBulkMemberResultsToResponse(results), nil
+}
+
 // GetCommitteeMember retrieves a specific committee member by UID
 func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *committeeservice.GetCommitteeMemberPayload) (res *committeeservice.GetCommitteeMemberResult, err error) {
 

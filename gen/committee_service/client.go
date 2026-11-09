@@ -26,6 +26,7 @@ type Client struct {
 	ReadyzEndpoint                     goa.Endpoint
 	LivezEndpoint                      goa.Endpoint
 	CreateCommitteeMemberEndpoint      goa.Endpoint
+	BulkCreateCommitteeMembersEndpoint goa.Endpoint
 	GetCommitteeMemberEndpoint         goa.Endpoint
 	GetOrgCommitteeSeatsEndpoint       goa.Endpoint
 	ReassignOrgCommitteeSeatEndpoint   goa.Endpoint
@@ -63,7 +64,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, bulkCreateCommitteeMembers, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:            createCommittee,
 		GetCommitteeBaseEndpoint:           getCommitteeBase,
@@ -74,6 +75,7 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		ReadyzEndpoint:                     readyz,
 		LivezEndpoint:                      livez,
 		CreateCommitteeMemberEndpoint:      createCommitteeMember,
+		BulkCreateCommitteeMembersEndpoint: bulkCreateCommitteeMembers,
 		GetCommitteeMemberEndpoint:         getCommitteeMember,
 		GetOrgCommitteeSeatsEndpoint:       getOrgCommitteeSeats,
 		ReassignOrgCommitteeSeatEndpoint:   reassignOrgCommitteeSeat,
@@ -249,6 +251,23 @@ func (c *Client) CreateCommitteeMember(ctx context.Context, p *CreateCommitteeMe
 		return
 	}
 	return ires.(*CommitteeMemberFullWithReadonlyAttributes), nil
+}
+
+// BulkCreateCommitteeMembers calls the "bulk-create-committee-members"
+// endpoint of the "committee-service" service.
+// BulkCreateCommitteeMembers may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Committee not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) BulkCreateCommitteeMembers(ctx context.Context, p *BulkCreateCommitteeMembersPayload) (res *CommitteeMemberBulkCreateResult, err error) {
+	var ires any
+	ires, err = c.BulkCreateCommitteeMembersEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeMemberBulkCreateResult), nil
 }
 
 // GetCommitteeMember calls the "get-committee-member" endpoint of the

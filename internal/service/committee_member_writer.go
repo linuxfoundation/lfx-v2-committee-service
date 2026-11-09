@@ -49,6 +49,17 @@ func (uc *committeeWriterOrchestrator) rollbackCreatedMember(ctx context.Context
 	}
 }
 
+// memberCreateTarget is the committee state a member create runs against. CreateMembers loads it
+// once per import and shares it read-only across rows.
+type memberCreateTarget struct {
+	committee *model.CommitteeBase
+	settings  *model.CommitteeSettings
+	// orgs memoizes b2b_org resolutions across the rows of one import; nil resolves directly.
+	orgs *orgResolutionMemo
+	// requireResolvedIdentity refuses to write a member whose identity lookup is still unresolved.
+	requireResolvedIdentity bool
+}
+
 // CreateMember creates a new committee member includes validation and rollback support
 func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member *model.CommitteeMember, sync bool, skipEnrichment bool) (result *model.CommitteeMember, err error) {
 	slog.DebugContext(ctx, "creating committee member",
@@ -58,6 +69,70 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		"sync", sync,
 	)
 
+	// createMemberIn recovers its own panics; this covers loading the committee, before anything is persisted.
+	defer func() {
+		if r := recover(); r != nil {
+			result, err = nil, handleCreatePanic(ctx, "committee member", r, false, nil)
+		}
+	}()
+
+	target, errTarget := uc.loadMemberCreateTarget(ctx, member.CommitteeUID)
+	if errTarget != nil {
+		return nil, errTarget
+	}
+
+	return uc.createMemberIn(ctx, member, target, sync, skipEnrichment)
+}
+
+// loadMemberCreateTarget reads the committee and its settings that a member create validates
+// against. Missing settings are treated as empty settings.
+func (uc *committeeWriterOrchestrator) loadMemberCreateTarget(ctx context.Context, committeeUID string) (*memberCreateTarget, error) {
+	// Step 1: Validate that the committee exists
+	committee, committeeRevision, errCommittee := uc.committeeReader.GetBase(ctx, committeeUID)
+	if errCommittee != nil {
+		slog.ErrorContext(ctx, "committee not found",
+			"error", errCommittee,
+			"committee_uid", committeeUID,
+		)
+		return nil, errCommittee
+	}
+
+	slog.DebugContext(ctx, "committee found",
+		"committee_uid", committee.UID,
+		"committee_name", committee.Name,
+		"committee_category", committee.Category,
+		"revision", committeeRevision,
+	)
+
+	// Get committee settings to check business email requirements
+	var settings *model.CommitteeSettings
+	settings, _, errSettings := uc.committeeReader.GetSettings(ctx, committeeUID)
+	if errSettings != nil {
+		var notFoundErr errs.NotFound
+		if !errors.As(errSettings, &notFoundErr) {
+			slog.ErrorContext(ctx, "failed to retrieve committee settings",
+				"error", errSettings,
+				"committee_uid", committeeUID,
+			)
+			return nil, errSettings
+		}
+	}
+	// Use empty settings if not found
+	if settings == nil {
+		settings = &model.CommitteeSettings{}
+	}
+
+	slog.DebugContext(ctx, "committee settings retrieved",
+		"committee_uid", committeeUID,
+		"business_email_required", settings.BusinessEmailRequired,
+	)
+
+	return &memberCreateTarget{committee: committee, settings: settings}, nil
+}
+
+// createMemberIn validates and persists one member against an already loaded committee, then
+// publishes its messages. A panic after the member was persisted rolls the member back.
+func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, member *model.CommitteeMember, target *memberCreateTarget, sync bool, skipEnrichment bool) (result *model.CommitteeMember, err error) {
 	now := time.Now()
 	member.UID = uuid.New().String()
 	member.CreatedAt = now
@@ -73,52 +148,14 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		}
 	}()
 
-	// Step 1: Validate that the committee exists
-	committee, committeeRevision, errCommittee := uc.committeeReader.GetBase(ctx, member.CommitteeUID)
-	if errCommittee != nil {
-		slog.ErrorContext(ctx, "committee not found",
-			"error", errCommittee,
-			"committee_uid", member.CommitteeUID,
-		)
-		return nil, errCommittee
-	}
+	committee, settings := target.committee, target.settings
 	member.CommitteeName = committee.Name
 	member.CommitteeCategory = committee.Category
 	member.ProjectUID = committee.ProjectUID
 	member.ProjectSlug = committee.ProjectSlug
 
-	slog.DebugContext(ctx, "committee found",
-		"committee_uid", committee.UID,
-		"committee_name", committee.Name,
-		"committee_category", committee.Category,
-		"revision", committeeRevision,
-	)
-
-	// Get committee settings to check business email requirements
-	var settings *model.CommitteeSettings
-	settings, _, errSettings := uc.committeeReader.GetSettings(ctx, member.CommitteeUID)
-	if errSettings != nil {
-		var notFoundErr errs.NotFound
-		if !errors.As(errSettings, &notFoundErr) {
-			slog.ErrorContext(ctx, "failed to retrieve committee settings",
-				"error", errSettings,
-				"committee_uid", member.CommitteeUID,
-			)
-			return nil, errSettings
-		}
-	}
-	// Use empty settings if not found
-	if settings == nil {
-		settings = &model.CommitteeSettings{}
-	}
-
-	slog.DebugContext(ctx, "committee settings retrieved",
-		"committee_uid", member.CommitteeUID,
-		"business_email_required", settings.BusinessEmailRequired,
-	)
-
 	// Step 2a: Accept organization.id only when it resolves to a b2b_org (LFXV2-2400).
-	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+	if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization, target.orgs); errOrg != nil {
 		slog.WarnContext(ctx, "organization id resolution unavailable; keeping organization id unchanged",
 			"error", errOrg,
 			"organization_id", member.Organization.ID,
@@ -167,6 +204,16 @@ func (uc *committeeWriterOrchestrator) CreateMember(ctx context.Context, member 
 		member.Username = ""
 		if member.IdentityLookup.Status == model.IdentityLookupFound {
 			member.Username = member.IdentityLookup.Username
+		}
+
+		// A bulk import never stores a member whose identity is still unknown after the retry
+		// above: under auth-service throttling that would store account holders without their LFID.
+		if target.requireResolvedIdentity && member.IdentityLookup.Status == model.IdentityLookupUnresolved {
+			slog.WarnContext(ctx, "identity lookup unresolved; not creating member",
+				"committee_uid", member.CommitteeUID,
+				"email", redaction.RedactEmail(member.Email),
+			)
+			return nil, errs.NewServiceUnavailable("identity lookup unavailable for member; retry later")
 		}
 	}
 
@@ -342,7 +389,7 @@ func (uc *committeeWriterOrchestrator) UpdateMember(ctx context.Context, member 
 	member.Organization.ID = strings.TrimSpace(member.Organization.ID)
 	trimmedExistingOrgID := strings.TrimSpace(existing.Organization.ID)
 	if member.Organization.ID != trimmedExistingOrgID {
-		if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization); errOrg != nil {
+		if errOrg := uc.sanitizeMemberOrganization(ctx, &member.Organization, nil); errOrg != nil {
 			slog.WarnContext(ctx, "organization id resolution unavailable during update; keeping organization id unchanged",
 				"error", errOrg,
 				"organization_id", member.Organization.ID,
@@ -758,7 +805,8 @@ const b2bOrgLookupTimeout = 10 * time.Second
 // sanitizeMemberOrganization validates organization.id against member-service b2b_org lookup.
 // When the id is not found, it clears organization.id and returns nil so create/update continues
 // with organization name and website only (LFXV2-2400). Infrastructure lookup errors are returned
-// to callers, which fail-open (warn and keep the submitted id).
+// to callers, which fail-open (warn and keep the submitted id). A non-nil memo reuses successful
+// resolutions across the rows of one bulk import; nil resolves directly.
 //
 // The name/website fallback is only consulted for ids that are not SFID-shaped (legacy ids, e.g.
 // CDP UUIDs, that inherently cannot be looked up against b2b_org). A submitted id that is
@@ -766,7 +814,7 @@ const b2bOrgLookupTimeout = 10 * time.Second
 // but unknown SFID is a stronger signal of a stale or mistaken reference than a legacy id in need
 // of migration, and retrying it via a name/website match risks silently attaching an unrelated
 // organization to the member.
-func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization) error {
+func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Context, org *model.CommitteeMemberOrganization, memo *orgResolutionMemo) error {
 	if org == nil {
 		return nil
 	}
@@ -779,7 +827,7 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 	// looked up against b2b_org directly, but may still resolve via the
 	// name/website fallback before being cleared.
 	if !utils.IsSFIDShaped(org.ID) {
-		if uc.tryB2BOrgFallback(ctx, org) {
+		if uc.tryB2BOrgFallback(ctx, org, memo) {
 			return nil
 		}
 		slog.InfoContext(ctx, "clearing organization id that is not SFID-shaped",
@@ -798,7 +846,7 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 	lookupCtx, cancel := context.WithTimeout(ctx, b2bOrgLookupTimeout)
 	defer cancel()
 
-	sfid, found, err := uc.b2bOrgResolver.ResolveByUID(lookupCtx, org.ID)
+	sfid, found, err := memo.resolveByUID(lookupCtx, uc.b2bOrgResolver, org.ID)
 	if err != nil {
 		return fmt.Errorf("resolve organization id against b2b_org: %w", err)
 	}
@@ -819,7 +867,7 @@ func (uc *committeeWriterOrchestrator) sanitizeMemberOrganization(ctx context.Co
 // tryB2BOrgFallback attempts to resolve org.ID via the name/website fallback
 // resolver. It returns true and sets org.ID when the fallback resolves a
 // b2b_org SFID; false otherwise (resolver unconfigured, miss, or error).
-func (uc *committeeWriterOrchestrator) tryB2BOrgFallback(ctx context.Context, org *model.CommitteeMemberOrganization) bool {
+func (uc *committeeWriterOrchestrator) tryB2BOrgFallback(ctx context.Context, org *model.CommitteeMemberOrganization, memo *orgResolutionMemo) bool {
 	if uc.b2bOrgFallbackResolver == nil {
 		return false
 	}
@@ -827,7 +875,7 @@ func (uc *committeeWriterOrchestrator) tryB2BOrgFallback(ctx context.Context, or
 	lookupCtx, cancel := context.WithTimeout(ctx, b2bOrgLookupTimeout)
 	defer cancel()
 
-	fallbackSFID, found, err := uc.b2bOrgFallbackResolver.ResolveSFID(lookupCtx, org.Name, org.Website)
+	fallbackSFID, found, err := memo.resolveSFID(lookupCtx, uc.b2bOrgFallbackResolver, org.Name, org.Website)
 	if err != nil {
 		slog.WarnContext(ctx, "b2b org fallback resolution failed; clearing organization id",
 			"organization_id", org.ID,
