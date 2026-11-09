@@ -93,7 +93,8 @@ func (s *storage) FindMemberCreate(ctx context.Context, committeeUID, email stri
 	}
 	entry, err := kv.Get(ctx, prepared.UID)
 	var record *memberCreateRecord
-	if errors.Is(err, jetstream.ErrKeyNotFound) {
+	switch {
+	case errors.Is(err, jetstream.ErrKeyNotFound):
 		if prepared.Create.State == memberCreatePending {
 			record = prepared
 		} else {
@@ -105,9 +106,9 @@ func (s *storage) FindMemberCreate(ctx context.Context, committeeUID, email stri
 			}
 			return nil, nil
 		}
-	} else if err != nil {
+	case err != nil:
 		return nil, memberCreateTemporary(err)
-	} else {
+	default:
 		record, err = decodeMemberCreateRecord(entry.Value())
 		if err != nil || record.UID != prepared.UID || record.Create == nil {
 			return nil, memberCreateTemporary(err)
