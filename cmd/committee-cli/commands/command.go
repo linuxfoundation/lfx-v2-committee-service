@@ -40,7 +40,11 @@ type OfflineSubcommand interface {
 
 // RunContext carries the wired infrastructure and global flags into a subcommand.
 type RunContext struct {
-	CommitteeReader             port.CommitteeReader
+	CommitteeReader port.CommitteeReader
+	// KVCommitteeReader reads the committees and members from the NATS KV store whatever the storage mode, for the commands
+	// that repair what KV holds (the member index backfillers): they must enumerate the records they write indexes for.
+	// Where it is not set they read CommitteeReader.
+	KVCommitteeReader           port.CommitteeReader
 	CommitteeWriterOrchestrator service.CommitteeWriter
 	// CommitteeMemberWriter provides direct storage-layer access to member write operations
 	// (create, update, delete). This is used by data-repair subcommands that bypass the
@@ -119,4 +123,13 @@ func (s *Stats) Log(ctx context.Context, commandName string) {
 		"duration_ms", duration.Milliseconds(),
 		"rate_per_sec", rate,
 	)
+}
+
+// KVReader is the reader of the commands that repair what the KV store holds: the KV store's own when it is wired,
+// otherwise CommitteeReader.
+func (rc RunContext) KVReader() port.CommitteeReader {
+	if rc.KVCommitteeReader != nil {
+		return rc.KVCommitteeReader
+	}
+	return rc.CommitteeReader
 }

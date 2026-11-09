@@ -117,22 +117,29 @@ Rules for adding a migration:
 
 ## Connecting
 
-PostgreSQL is behind a feature flag, `POSTGRES_ENABLED` (default off; only the exact value `true` enables it). With the
-flag off the service never connects, even if `POSTGRES_URL` is set, so deployments are unchanged until it is turned on
-(see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)).
+What the service does with PostgreSQL depends on the storage mode (see [Selecting a storage mode](#selecting-a-storage-mode)).
 
-With the flag on, at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate`
-(a session advisory lock keeps replicas starting together from racing). Nothing reads or writes the data yet, so
-PostgreSQL must not be able to take the service down: a missing URL, bad `POSTGRES_MAX_CONNS`, an unreachable
-database or a failed migration is logged as an error and the service keeps running without it. Once the service
-depends on the database (the dual-write and PostgreSQL modes), that choice has to be revisited per mode.
+**In `kv`, the default,** PostgreSQL is behind a feature flag, `POSTGRES_ENABLED` (default off; only the exact value `true`
+enables it). With the flag off the service never connects, even if `POSTGRES_URL` is set, so deployments are unchanged until
+it is turned on (see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)). With the flag on,
+at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate` (a session advisory lock keeps
+replicas starting together from racing). In `kv` nothing reads or writes the data, so PostgreSQL must not be able to take the
+service down: a missing URL, bad `POSTGRES_MAX_CONNS`, an unreachable database or a failed migration is logged as an error
+and the service keeps running without it.
+
+**In `dual`, `dual-pg` and `postgres`** the service uses the database, so it connects and migrates at startup whether or not
+`POSTGRES_ENABLED` is set, and the same failures stop startup instead of being logged: the service never runs in another
+mode than the one it was asked for. In `dual` a PostgreSQL that fails later never fails a request; in `dual-pg` and `postgres`
+it is the primary store and does.
 
 - The URL carries a password, so it is never logged and never appears in an error: `postgres.NewPool` removes the
   password (URL form, keyword form and `password=` query parameter) from everything it returns, and the startup log line
   uses `postgres.RedactURL`.
-- `/readyz` also pings PostgreSQL only when `POSTGRES_READINESS_CHECK=true`. Keep it off until the service depends on the
-  database, so a database outage does not take pods out of rotation. A failing check returns a generic 503 and logs the
-  cause, and if PostgreSQL is enabled but could not be set up the check reports not ready.
+- `/readyz` also pings PostgreSQL only when `POSTGRES_READINESS_CHECK=true`. Keep it off in `kv` and `dual`, where the service
+  does not depend on the database, so a database outage does not take pods out of rotation; turn it on in `dual-pg` and
+  `postgres`. A failing check returns a generic 503 and logs the cause, and if PostgreSQL is enabled but could not be set up
+  the check reports not ready. In `dual-pg` and `postgres` the readiness of the storage is PostgreSQL's ping and NATS's, since
+  the service needs both; in `kv` and `dual` it is NATS's, as it has always been.
 - Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
 - The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the

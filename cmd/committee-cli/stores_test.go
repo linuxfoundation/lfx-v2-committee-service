@@ -108,6 +108,24 @@ func TestSelectStores_AModeThatCannotBeUsedStopsTheCommand(t *testing.T) {
 		require.ErrorContains(t, err, composite.EnvReadCompareRate)
 	})
 
+	t.Run("a pool of one connection stalls the member scans, so it is refused before connecting", func(t *testing.T) {
+		t.Setenv("POSTGRES_URL", "postgres://user:"+"not-a-real-password"+"@localhost/db")
+		t.Setenv("POSTGRES_MAX_CONNS", "1")
+
+		_, err := selectStores(ctx, composite.ModePostgres, client, kv, kv, kv, neverConnect(t))
+
+		require.ErrorContains(t, err, "POSTGRES_MAX_CONNS of at least 2")
+		t.Setenv("POSTGRES_MAX_CONNS", "2")
+		connected := false
+		pg := postgrestest.NewStore(t)
+		_, err = selectStores(ctx, composite.ModePostgres, client, kv, kv, kv, func(context.Context) (*postgres.Store, func(), error) {
+			connected = true
+			return pg, func() {}, nil
+		})
+		require.NoError(t, err)
+		assert.True(t, connected, "two connections are enough")
+	})
+
 	t.Run("the settings of a mode that writes both stores are not looked at in kv", func(t *testing.T) {
 		t.Setenv(composite.EnvReadCompareRate, "lots")
 

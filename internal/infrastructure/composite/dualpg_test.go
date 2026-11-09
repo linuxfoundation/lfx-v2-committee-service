@@ -686,9 +686,11 @@ type budgetRecorder struct {
 	port.CommitteeReaderWriter
 	remaining time.Duration
 	carried   bool
+	seen      bool
 }
 
 func (b *budgetRecorder) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+	b.seen = true
 	b.remaining, b.carried = copybudget.Remaining(ctx)
 	return b.CommitteeReaderWriter.UpdateBase(ctx, committee, revision)
 }
@@ -714,8 +716,9 @@ func TestDualPG_TheCopyToKVCarriesItsDeadlineToTheAdapter(t *testing.T) {
 
 func TestKV_NothingCarriesABudgetWhenThereIsNoCopy(t *testing.T) {
 	r := newRig(t, ModeKV, nil)
+	// The recorder is the primary store, which is the one a kv write goes to.
 	recorder := &budgetRecorder{CommitteeReaderWriter: r.kv}
-	r.store.dst = recorder
+	r.store.CommitteeReaderWriter = recorder
 	ctx := context.Background()
 	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
 	base, revision, err := r.store.GetBase(ctx, "uid-1")
@@ -724,7 +727,8 @@ func TestKV_NothingCarriesABudgetWhenThereIsNoCopy(t *testing.T) {
 
 	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
 
-	assert.False(t, recorder.carried, "kv mode writes no copy, so nothing is touched")
+	require.True(t, recorder.seen, "the write reached the store the test watches")
+	assert.False(t, recorder.carried, "a write in kv mode carries no copy budget")
 }
 
 // A stalled KV: the copy that cannot finish is cut off at the write timeout and counted, and the request returns.

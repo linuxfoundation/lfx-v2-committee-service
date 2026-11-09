@@ -45,7 +45,7 @@ func (s *membersByCommitteeIndexSubcommand) Run(ctx context.Context, rc commands
 
 	rc.DryRun = *dryRun
 
-	if rc.CommitteeReader == nil {
+	if rc.KVReader() == nil {
 		return fmt.Errorf("CommitteeReader is not wired in RunContext")
 	}
 	if rc.MemberIndexBackfiller == nil {
@@ -56,7 +56,7 @@ func (s *membersByCommitteeIndexSubcommand) Run(ctx context.Context, rc commands
 
 	// Read all members via the full-scan path so we do not depend on an
 	// index that may not yet exist.
-	members, err := rc.CommitteeReader.ListAllMembers(ctx)
+	members, err := rc.KVReader().ListAllMembers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list all members: %w", err)
 	}

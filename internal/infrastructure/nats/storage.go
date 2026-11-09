@@ -58,10 +58,14 @@ const minRecoveryTimeout = 2 * time.Second
 // the request wait for it: it gets what is left of the copy's deadline, but at least minRecoveryTimeout. A write that is not
 // such a copy, which is every write in kv mode, never carries a deadline and is bounded as before.
 func detachedCtx(ctx context.Context) (context.Context, context.CancelFunc) {
-	timeout := committeeRollbackTimeout
-	if remaining, ok := copybudget.Remaining(ctx); ok {
-		timeout = min(timeout, max(remaining, minRecoveryTimeout))
-	}
+	return recoveryCtx(ctx, committeeRollbackTimeout)
+}
+
+// recoveryCtx is the context of a rollback or cleanup, detached from the request's cancellation and bounded by usual, or by
+// what is left of the copy's deadline where the write is a copy (see copybudget.Recovery). The lookup-key helpers use it too,
+// so none of them gives a stalled copy another full timeout, and one recovery that calls another shares one deadline.
+func recoveryCtx(ctx context.Context, usual time.Duration) (context.Context, context.CancelFunc) {
+	ctx, timeout := copybudget.Recovery(ctx, usual, minRecoveryTimeout)
 	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 }
 
@@ -2347,7 +2351,7 @@ func (s *storage) DeleteApplication(ctx context.Context, application *model.Comm
 // committee and the email, so callers pass non-identifying attributes (record and committee UIDs).
 // createErr is the error the record write returned and is logged with the read error.
 func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lookupKey string, createErr error, attrs ...any) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
 	defer cancel()
 
 	if _, errGet := kv.Get(ctx, recordKey); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
@@ -2368,7 +2372,7 @@ func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lo
 // the request, like rollbackLookupKey. Unlike the rollback after an ambiguous write error, it does not
 // need to confirm the record is absent: the server refused the write on the existing key.
 func releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, reserved uint64, createErr error, attrs ...any) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
 	defer cancel()
 	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs, jetstream.LastRevision(reserved))
 }
@@ -2395,7 +2399,7 @@ func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string
 // is left alone. A key already gone is fine; a failed purge is logged.
 func purgeOwnedLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey, ownerUID string) {
 	// The record is already deleted, so the release must not be cut short by the request ending.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
 	defer cancel()
 	entry, errGet := kv.Get(ctx, lookupKey)
 	if errGet != nil {

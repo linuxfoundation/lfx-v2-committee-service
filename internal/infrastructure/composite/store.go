@@ -70,6 +70,12 @@ type Store struct {
 	// src is the primary store, which the copy to the secondary store reads from, and dst the secondary store it writes.
 	// In dual mode they are KV and PostgreSQL; in dual-pg mode, PostgreSQL and KV.
 	src, dst port.CommitteeReaderWriter
+	// alsoReady is the KV store where PostgreSQL is the primary store: its readiness is the primary store's, which is
+	// PostgreSQL's, and the service also needs NATS (the files of documents, the indexer and access messages), which only
+	// the KV store reports. Nil where KV is the primary store, whose readiness is NATS's.
+	alsoReady interface {
+		IsReady(ctx context.Context) error
+	}
 }
 
 // core is what the composites of every aggregate share: the mode, the metrics, the sampling and the timeouts, and what
@@ -152,7 +158,23 @@ func New(mode Mode, kv, pg port.CommitteeReaderWriter, opts ...Option) (*Store, 
 	default:
 		return nil, fmt.Errorf("storage mode %q is not available in the composite store yet", mode)
 	}
+	if mode.PostgresIsPrimary() && kv != nil {
+		s.alsoReady = kv
+	}
 	return s, nil
+}
+
+// IsReady reports whether the store the service depends on is ready: the primary store's readiness, and where that is
+// PostgreSQL, NATS's too, which the primary store does not report. In kv and dual mode it is the KV store's, as it has always
+// been, and a PostgreSQL that is down is not a reason to leave rotation while KV decides.
+func (s *Store) IsReady(ctx context.Context) error {
+	if err := s.CommitteeReaderWriter.IsReady(ctx); err != nil {
+		return err
+	}
+	if s.alsoReady != nil {
+		return s.alsoReady.IsReady(ctx)
+	}
+	return nil
 }
 
 // selectPrimary checks that the stores the mode needs are there and returns the primary one: KV for kv and dual,

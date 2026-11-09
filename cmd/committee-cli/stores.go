@@ -47,6 +47,12 @@ func selectStores(ctx context.Context, mode composite.Mode, client *nats.NATSCli
 	if err != nil {
 		return nil, fmt.Errorf("invalid storage mode settings: %w", err)
 	}
+	// The member scans of PostgreSQL hold a connection while the command calls back into the store, so a pool of one
+	// connection stalls them: refuse it before connecting rather than hang part way through a command.
+	if cfg, cfgErr := postgres.ConfigFromEnv(os.Getenv); cfgErr == nil && cfg.MaxConns == 1 {
+		return nil, fmt.Errorf("%s=%s needs POSTGRES_MAX_CONNS of at least 2: a member scan holds a connection while the command "+
+			"reads the store again", composite.EnvStorageMode, mode)
+	}
 	pg, closePostgres, err := connect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%s=%s needs PostgreSQL: %w", composite.EnvStorageMode, mode, err)

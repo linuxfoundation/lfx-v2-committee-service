@@ -148,6 +148,7 @@ func run() error {
 
 	rc := commands.RunContext{
 		CommitteeReader:             selected.committees,
+		KVCommitteeReader:           storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
 		CommitteeMemberWriter:       selected.committees,
 		MemberIndexBackfiller:       storage,
