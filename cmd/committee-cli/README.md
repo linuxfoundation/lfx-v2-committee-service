@@ -25,7 +25,8 @@ committee-cli <command> <subcommand> [subcommand flags]
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
 | `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate`, `storage verify` and `storage flip`. Holds a credential and is never logged |
 | `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`, `storage verify`, `storage flip`) |
-| `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or one that cannot be used yet (today only `kv` can), stops a command that connects before it connects; commands that need no infrastructure ignore it |
+| `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or a mode that needs PostgreSQL without `POSTGRES_URL` (or with a PostgreSQL that cannot be reached or is not migrated), stops a command that connects before it runs; commands that need no infrastructure ignore it. In `dual`, `dual-pg` and `postgres` the commands that write committee data write through the composite store, so a change reaches both stores; the KV maintenance commands (the backfillers, audit syncs, exports, and `storage migrate`, `verify` and `flip`) use KV in every mode |
+| `STORAGE_READ_COMPARE_RATE`, `STORAGE_COMPARE_TIMEOUT`, `STORAGE_SECONDARY_WRITE_TIMEOUT` | `0.01`, `2s`, `3s` | Tune `dual` and `dual-pg`, as for the API; not read in the other modes |
 
 ### Commands
 

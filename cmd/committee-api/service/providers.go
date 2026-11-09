@@ -24,6 +24,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/slack"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/stores"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	inviteapi "github.com/linuxfoundation/lfx-v2-invite-service/pkg/api"
@@ -35,7 +36,9 @@ import (
 )
 
 var (
-	natsStorage                port.CommitteeReaderWriter
+	// committeeStorage is the committee storage of the storage mode: in kv mode, the NATS KV storage and nothing else.
+	committeeStorage           port.CommitteeReaderWriter
+	committeeStores            *stores.Stores
 	natsMessaging              port.ProjectReader
 	natsUserReader             port.UserReader
 	natsB2BOrgResolver         port.B2BOrgResolver
@@ -64,9 +67,9 @@ func natsInit(ctx context.Context) {
 
 	natsDoOnce.Do(func() {
 		// Checked before NATS is connected: with STORAGE_MODE unset the mode is kv and nothing else changes; a mode
-		// set on purpose that cannot be used stops the service here instead of running in another mode. Nothing reads
-		// the mode yet: the storage below is the KV storage in every case the check lets through.
-		if _, errMode := initStorageMode(ctx, os.Getenv); errMode != nil {
+		// set on purpose that cannot be used stops the service here instead of running in another mode.
+		mode, errMode := initStorageMode(ctx, os.Getenv)
+		if errMode != nil {
 			log.Fatalf("invalid storage mode: %v", errMode)
 		}
 
@@ -114,13 +117,38 @@ func natsInit(ctx context.Context) {
 			log.Fatalf("failed to create NATS client: %v", errNewClient)
 		}
 		natsClient = client
-		natsStorage = nats.NewStorage(client)
+		committeeStores, committeeStorage = buildStores(ctx, mode, client)
 		natsMessaging = nats.NewMessageRequest(client)
 		natsUserReader = nats.NewUserRequest(client)
 		natsB2BOrgResolver = nats.NewB2BOrgResolver(client)
 		natsB2BOrgFallbackResolver = nats.NewB2BOrgFallbackResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
 	})
+}
+
+// buildStores builds the stores of the storage mode. In kv mode that is the NATS KV storage, as it has always been, and
+// PostgreSQL is not touched. The other modes need PostgreSQL, which the mode asks for on purpose, so a PostgreSQL that cannot
+// be set up, or an option that cannot be used, stops the service here instead of running it in another mode.
+func buildStores(ctx context.Context, mode composite.Mode, client *nats.NATSClient) (*stores.Stores, port.CommitteeReaderWriter) {
+	var pg *postgres.Store
+	var opts []composite.Option
+	if mode.UsesPostgres() {
+		postgresInit(ctx)
+		if postgresPool == nil {
+			log.Fatalf("storage mode %s needs PostgreSQL, which could not be set up", mode)
+		}
+		pg = postgres.NewStore(postgresPool)
+		var errOpts error
+		if opts, errOpts = composite.OptionsFromEnv(mode, os.Getenv); errOpts != nil {
+			log.Fatalf("invalid storage mode settings: %v", errOpts)
+		}
+		opts = append(opts, composite.WithMetrics(composite.NewMetrics()))
+	}
+	built, err := stores.Build(mode, client, pg, opts...)
+	if err != nil {
+		log.Fatalf("failed to build the stores for storage mode %s: %v", mode, err)
+	}
+	return built, built.Committees
 }
 
 // postgresMigrateTimeout bounds the startup migration. goose waits up to five minutes for the
@@ -150,23 +178,36 @@ func postgresInit(ctx context.Context) {
 	})
 }
 
-// initPostgres connects to PostgreSQL and applies the schema migrations, only when POSTGRES_ENABLED
-// is "true". Nothing reads or writes the database yet, so PostgreSQL must never take the service
-// down: with the flag off it is not touched at all (a POSTGRES_URL alone does nothing), and with the
-// flag on any failure (missing URL, bad settings, unreachable database, failed migration) is logged
-// and the service carries on without it. The caller gets no pool in that case.
+// storageNeedsPostgres reports whether the storage mode reads or writes PostgreSQL, which is only so when STORAGE_MODE
+// asks for it on purpose. An unset or unusable mode does not: the mode check stops the service on the latter.
+func storageNeedsPostgres(getenv func(string) string) bool {
+	mode, err := composite.ModeFromEnv(getenv)
+	return err == nil && mode.UsesPostgres()
+}
+
+// initPostgres connects to PostgreSQL and applies the schema migrations, when POSTGRES_ENABLED is "true" or the storage
+// mode needs PostgreSQL. In kv mode PostgreSQL is never read or written, so it must never take the service down: with the
+// flag off it is not touched at all (a POSTGRES_URL alone does nothing), and with the flag on any failure (missing URL, bad
+// settings, unreachable database, failed migration) is logged and the service carries on without it. The caller gets no
+// pool in that case. A mode that needs PostgreSQL cannot carry on without it: the failure is logged the same way, and the
+// caller (buildStores) stops the service when it gets no pool.
 //
 // The opt-in readiness check (POSTGRES_READINESS_CHECK=true) is the only way PostgreSQL can affect
 // the probe, and then only by an operator's choice.
 func initPostgres(ctx context.Context, getenv func(string) string) (*pgxpool.Pool, []port.ReadinessChecker) {
-	if getenv("POSTGRES_ENABLED") != "true" {
+	required := storageNeedsPostgres(getenv)
+	if getenv("POSTGRES_ENABLED") != "true" && !required {
 		slog.InfoContext(ctx, "PostgreSQL is disabled (POSTGRES_ENABLED is not true); skipping")
 		return nil, nil
 	}
 
 	pool, err := connectPostgres(ctx, getenv)
 	if err != nil {
-		slog.ErrorContext(ctx, "PostgreSQL is enabled but unavailable; continuing without it", "error", err)
+		if required {
+			slog.ErrorContext(ctx, "the storage mode needs PostgreSQL but it is unavailable", "error", err)
+		} else {
+			slog.ErrorContext(ctx, "PostgreSQL is enabled but unavailable; continuing without it", "error", err)
+		}
 		if getenv("POSTGRES_READINESS_CHECK") == "true" {
 			return nil, []port.ReadinessChecker{postgresUnavailable{reason: err}}
 		}
@@ -222,9 +263,9 @@ func ClosePostgres() {
 	}
 }
 
-func natsStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
+func committeeStorageImpl(ctx context.Context) port.CommitteeReaderWriter {
 	natsInit(ctx)
-	return natsStorage
+	return committeeStorage
 }
 
 func natsMessagingImpl(ctx context.Context) port.ProjectReader {
@@ -254,7 +295,7 @@ func CommitteeReaderImpl(ctx context.Context) port.CommitteeReader {
 
 	case "nats":
 		slog.InfoContext(ctx, "initializing NATS committee reader")
-		natsClient := natsStorageImpl(ctx)
+		natsClient := committeeStorageImpl(ctx)
 		if natsClient == nil {
 			log.Fatalf("failed to initialize NATS client")
 		}
@@ -284,7 +325,7 @@ func CommitteeWriterImpl(ctx context.Context) port.CommitteeWriter {
 
 	case "nats":
 		slog.InfoContext(ctx, "initializing NATS committee writer")
-		natsClient := natsStorageImpl(ctx)
+		natsClient := committeeStorageImpl(ctx)
 		if natsClient == nil {
 			log.Fatalf("failed to initialize NATS client")
 		}
@@ -530,7 +571,7 @@ func CommitteeReaderWriterImpl(ctx context.Context) port.CommitteeReaderWriter {
 
 	case "nats":
 		slog.InfoContext(ctx, "initializing NATS committee storage")
-		natsClient := natsStorageImpl(ctx)
+		natsClient := committeeStorageImpl(ctx)
 		if natsClient == nil {
 			log.Fatalf("failed to initialize NATS client")
 		}
@@ -558,15 +599,11 @@ func CommitteeLinkReaderWriterImpl(ctx context.Context) port.CommitteeLinkReader
 
 	case "nats":
 		slog.InfoContext(ctx, "initializing NATS committee link storage")
-		s := natsStorageImpl(ctx)
-		if s == nil {
+		natsInit(ctx)
+		if committeeStores == nil {
 			log.Fatalf("failed to initialize NATS client for link storage")
 		}
-		linkRW, ok := s.(port.CommitteeLinkReaderWriter)
-		if !ok {
-			log.Fatalf("NATS storage does not implement CommitteeLinkReaderWriter")
-		}
-		return linkRW
+		return committeeStores.Links
 
 	default:
 		log.Fatalf("unsupported committee link storage implementation: %s", repoSource)
@@ -675,11 +712,7 @@ func GroupWeeklyBriefReaderImpl(ctx context.Context) port.GroupWeeklyBriefReader
 		if natsClient == nil {
 			log.Fatalf("failed to initialize NATS client for weekly brief reader")
 		}
-		reader, ok := natsStorage.(port.GroupWeeklyBriefReader)
-		if !ok {
-			log.Fatalf("NATS storage does not implement GroupWeeklyBriefReader")
-		}
-		return reader
+		return committeeStores.Briefs
 
 	default:
 		log.Fatalf("unsupported group weekly brief reader implementation: %s", repoSource)
@@ -940,11 +973,11 @@ func OrgCommitteeSeatReaderImpl(ctx context.Context) port.OrgCommitteeSeatReader
 		return infrastructure.NewMockOrgCommitteeSeatReader()
 	case "nats":
 		natsInit(ctx)
-		memberReader, ok := natsStorage.(port.CommitteeMemberReader)
+		memberReader, ok := committeeStorage.(port.CommitteeMemberReader)
 		if !ok {
 			log.Fatalf("NATS storage does not implement CommitteeMemberReader")
 		}
-		baseReader, ok := natsStorage.(port.CommitteeBaseReader)
+		baseReader, ok := committeeStorage.(port.CommitteeBaseReader)
 		if !ok {
 			log.Fatalf("NATS storage does not implement CommitteeBaseReader")
 		}
@@ -970,7 +1003,7 @@ func CommitteeWeeklyMemberReaderImpl(ctx context.Context) port.CommitteeWeeklyMe
 		return &emptyWeeklyMemberReader{}
 	case "nats":
 		natsInit(ctx)
-		memberReader, ok := natsStorage.(port.CommitteeMemberReader)
+		memberReader, ok := committeeStorage.(port.CommitteeMemberReader)
 		if !ok {
 			log.Fatalf("NATS storage does not implement CommitteeMemberReader")
 		}
@@ -993,11 +1026,7 @@ func GroupWeeklyBriefWriterImpl(ctx context.Context) port.GroupWeeklyBriefWriter
 		return &inMemoryGroupWeeklyBriefWriter{}
 	case "nats":
 		natsInit(ctx)
-		writer, ok := natsStorage.(port.GroupWeeklyBriefWriter)
-		if !ok {
-			log.Fatalf("NATS storage does not implement GroupWeeklyBriefWriter")
-		}
-		return writer
+		return committeeStores.Briefs
 	default:
 		log.Fatalf("unsupported repository source for weekly brief writer: %s", repoSource)
 	}
@@ -1061,7 +1090,7 @@ func CommitteeDocumentReaderWriterImpl(ctx context.Context) port.CommitteeDocume
 	case "nats":
 		slog.InfoContext(ctx, "initializing NATS committee document storage")
 		natsInit(ctx)
-		return nats.NewDocumentStorage(natsClient)
+		return committeeStores.Documents
 
 	default:
 		log.Fatalf("unsupported committee document storage implementation: %s", repoSource)

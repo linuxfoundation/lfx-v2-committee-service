@@ -19,13 +19,7 @@ func (s *Store) CreateMember(ctx context.Context, member *model.CommitteeMember)
 	}
 	if s.mode.HasSecondary() {
 		uid := member.UID
-		s.replicate(ctx, "create_member", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
-				s.dst.CreateMember, func(ctx context.Context, revision uint64) error {
-					return s.deleteMemberInSecondary(ctx, uid, revision)
-				},
-				func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
-		})
+		s.replicate(ctx, "create_member", uid, func(ctx context.Context) error { return s.copyMemberCreate(ctx, uid) })
 	}
 	return nil
 }
@@ -43,6 +37,15 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	return updated, nil
 }
 
+// copyMemberCreate copies the member the primary store holds to the secondary store; see copyCreated.
+func (s *Store) copyMemberCreate(ctx context.Context, uid string) error {
+	return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
+		s.dst.CreateMember, func(ctx context.Context, revision uint64) error {
+			return s.deleteMemberInSecondary(ctx, uid, revision)
+		},
+		func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
+}
+
 // copyMemberUpdate writes the member the primary store holds now to the secondary store; see copyUpdated.
 func (s *Store) copyMemberUpdate(ctx context.Context, uid string) error {
 	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
@@ -50,7 +53,7 @@ func (s *Store) copyMemberUpdate(ctx context.Context, uid string) error {
 		func(ctx context.Context, current *model.CommitteeMember, guard uint64) error {
 			_, err := s.dst.UpdateMember(ctx, current, guard)
 			return err
-		})
+		}, func(ctx context.Context) error { return s.copyMemberCreate(ctx, uid) })
 }
 
 // DeleteMember removes a committee member, guarded by the revision.

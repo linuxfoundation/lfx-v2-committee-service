@@ -20,12 +20,7 @@ func (s *Store) CreateApplication(ctx context.Context, application *model.Commit
 	if s.mode.HasSecondary() {
 		uid := application.UID
 		s.replicate(ctx, "create_application", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
-				return s.src.GetApplication(ctx, uid)
-			},
-				s.dst.CreateApplication, func(ctx context.Context, _ uint64) error {
-					return s.dst.DeleteApplication(ctx, application)
-				}, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, uid) })
+			return s.copyApplicationCreate(ctx, application)
 		})
 	}
 	return nil
@@ -38,20 +33,33 @@ func (s *Store) UpdateApplication(ctx context.Context, application *model.Commit
 	}
 	if s.mode.HasSecondary() {
 		uid := application.UID
-		s.replicate(ctx, "update_application", uid, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, uid) })
+		s.replicate(ctx, "update_application", uid, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, application) })
 	}
 	return nil
 }
 
+// copyApplicationCreate copies the application the primary store holds to the secondary store; see copyCreated. The
+// application is the one the caller wrote: a delete of it needs only its identity.
+func (s *Store) copyApplicationCreate(ctx context.Context, application *model.CommitteeApplication) error {
+	uid := application.UID
+	return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
+		return s.src.GetApplication(ctx, uid)
+	},
+		s.dst.CreateApplication, func(ctx context.Context, _ uint64) error {
+			return s.dst.DeleteApplication(ctx, application)
+		}, func(ctx context.Context) error { return s.copyApplicationUpdate(ctx, application) })
+}
+
 // copyApplicationUpdate writes the application the primary store holds now to the secondary store; see copyUpdated.
-func (s *Store) copyApplicationUpdate(ctx context.Context, uid string) error {
+func (s *Store) copyApplicationUpdate(ctx context.Context, application *model.CommitteeApplication) error {
+	uid := application.UID
 	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
 		return s.src.GetApplication(ctx, uid)
 	},
 		func(ctx context.Context) (*model.CommitteeApplication, uint64, error) {
 			return s.dst.GetApplication(ctx, uid)
 		},
-		s.dst.UpdateApplication)
+		s.dst.UpdateApplication, func(ctx context.Context) error { return s.copyApplicationCreate(ctx, application) })
 }
 
 // DeleteApplication removes a committee application. It has no revision to check, and deleting one that is already

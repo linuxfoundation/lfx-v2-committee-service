@@ -13,6 +13,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/copybudget"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 )
 
@@ -662,7 +663,7 @@ func TestCopyUpdated_AnOvertakenCopyThatStaysBehindIsAFailure(t *testing.T) {
 	readDst := func(context.Context) (string, uint64, error) { return "older", 1, nil }
 	updateDst := func(context.Context, string, uint64) error { writes++; return nil }
 
-	err := copyUpdated(context.Background(), &c, readSrc, readDst, updateDst)
+	err := copyUpdated(context.Background(), &c, readSrc, readDst, updateDst, nil)
 
 	require.Error(t, err)
 	assert.Equal(t, 2, writes, "it was made once more, and no more than that")
@@ -675,7 +676,70 @@ func TestCopyUpdated_ACopyThatIsNotOvertakenIsMadeOnce(t *testing.T) {
 	readDst := func(context.Context) (string, uint64, error) { return "older", 1, nil }
 	updateDst := func(context.Context, string, uint64) error { writes++; return nil }
 
-	require.NoError(t, copyUpdated(context.Background(), &c, readSrc, readDst, updateDst))
+	require.NoError(t, copyUpdated(context.Background(), &c, readSrc, readDst, updateDst, nil))
 
 	assert.Equal(t, 1, writes)
+}
+
+// budgetRecorder is a store the composite writes a copy to, which records the budget the copy's context carries.
+type budgetRecorder struct {
+	port.CommitteeReaderWriter
+	remaining time.Duration
+	carried   bool
+}
+
+func (b *budgetRecorder) UpdateBase(ctx context.Context, committee *model.Committee, revision uint64) error {
+	b.remaining, b.carried = copybudget.Remaining(ctx)
+	return b.CommitteeReaderWriter.UpdateBase(ctx, committee, revision)
+}
+
+// The NATS adapter detaches its rollback from the deadline it is given. The copy to KV in dual-pg mode tells it how much of
+// the copy's deadline is left, so a stalled KV does not make the request wait for a second timeout.
+func TestDualPG_TheCopyToKVCarriesItsDeadlineToTheAdapter(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDualPG, nil, WithTimeouts(0, 4*time.Second))
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	recorder := &budgetRecorder{CommitteeReaderWriter: r.kv}
+	r.store.dst = recorder
+	base, revision, err := r.store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	base.Description = "changed"
+
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+
+	require.True(t, recorder.carried, "the write to the secondary store carries the budget")
+	assert.Greater(t, recorder.remaining, 2*time.Second)
+	assert.LessOrEqual(t, recorder.remaining, 4*time.Second)
+}
+
+func TestKV_NothingCarriesABudgetWhenThereIsNoCopy(t *testing.T) {
+	r := newRig(t, ModeKV, nil)
+	recorder := &budgetRecorder{CommitteeReaderWriter: r.kv}
+	r.store.dst = recorder
+	ctx := context.Background()
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	base, revision, err := r.store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	base.Description = "changed"
+
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+
+	assert.False(t, recorder.carried, "kv mode writes no copy, so nothing is touched")
+}
+
+// A stalled KV: the copy that cannot finish is cut off at the write timeout and counted, and the request returns.
+func TestDualPG_AStalledCopyToKVIsCutOffAtTheWriteTimeoutAndCounted(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, ModeDualPG, nil, WithTimeouts(0, 200*time.Millisecond))
+	require.NoError(t, r.store.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+	r.store.dst = slowWritePG{r.kv}
+	base, revision, err := r.store.GetBase(ctx, "uid-1")
+	require.NoError(t, err)
+	base.Description = "changed"
+
+	started := time.Now()
+	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
+
+	assert.Less(t, time.Since(started), 3*time.Second, "the request is not held by the stalled KV")
+	assert.Equal(t, map[string]int64{"update_committee": 1}, r.counts(t, failures))
 }

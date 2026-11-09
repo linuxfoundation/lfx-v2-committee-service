@@ -594,9 +594,11 @@ func TestStore_DualAPanicInTheSecondaryStoreIsCountedAndNeverFailsTheRequest(t *
 }
 
 // A secondary store that is behind, because the record was never copied, is a failure to count and not an error.
+// An update of a committee that PostgreSQL never got, because the copy of its create failed, creates it there, from what KV
+// holds (see missing_test.go), so a missed create is made up for by the next write and not only by storage migrate.
 func TestStore_DualAWriteTheSecondaryCannotApplyIsCounted(t *testing.T) {
 	ctx := context.Background()
-	r := newRig(t, ModeDual, nil)
+	r := newRig(t, ModeDual, func(pg port.CommitteeReaderWriter) port.CommitteeReaderWriter { return failingPG{pg} })
 	require.NoError(t, r.kv.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")), "in KV only: it was never copied")
 	base, revision, err := r.store.GetBase(ctx, "uid-1")
 	require.NoError(t, err)
@@ -604,9 +606,9 @@ func TestStore_DualAWriteTheSecondaryCannotApplyIsCounted(t *testing.T) {
 
 	require.NoError(t, r.store.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, revision))
 
-	assert.Equal(t, map[string]int64{"update_committee": 1}, r.counts(t, failures))
+	assert.Equal(t, map[string]int64{"update_committee": 1}, r.counts(t, failures), "the create PostgreSQL refused is counted")
 	_, _, err = r.pg.GetBase(ctx, "uid-1")
-	assert.True(t, isNotFound(err), "storage migrate is what brings it over")
+	assert.True(t, isNotFound(err), "storage migrate is what brings it over, when PostgreSQL takes it again")
 }
 
 // cancelingKV cancels the request's context as soon as the KV write has succeeded, like a client that went away.

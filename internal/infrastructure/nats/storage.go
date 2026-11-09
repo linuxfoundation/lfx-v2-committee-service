@@ -16,6 +16,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/copybudget"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
@@ -42,12 +43,26 @@ func committeeLookupKeys(ctx context.Context, committee *model.Committee) (nameK
 // committeeRollbackTimeout bounds how long committee lock cleanup may take once detached from the request.
 const committeeRollbackTimeout = 5 * time.Second
 
+// minRecoveryTimeout is the least a rollback or cleanup is given when the write it follows was made as the copy of a
+// composite store (see copybudget) whose deadline has all but passed: enough to read the record and release the locks,
+// so a stalled KV does not leave locks reserved, and little enough that a copy still ends soon after its deadline.
+const minRecoveryTimeout = 2 * time.Second
+
 // detachedCtx returns a context that survives cancellation of the request, bounded by
 // committeeRollbackTimeout. The write errors that trigger a rollback are often caused by the request
 // context itself (a client disconnect or an expired deadline), and the rollback must still be able to
 // read the record and release the locks.
+//
+// When the write is the copy to KV that a composite store makes after PostgreSQL decided the request (dual-pg mode), the
+// recovery does not get a fresh committeeRollbackTimeout on top of the deadline the copy has run out of, which would make
+// the request wait for it: it gets what is left of the copy's deadline, but at least minRecoveryTimeout. A write that is not
+// such a copy, which is every write in kv mode, never carries a deadline and is bounded as before.
 func detachedCtx(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), committeeRollbackTimeout)
+	timeout := committeeRollbackTimeout
+	if remaining, ok := copybudget.Remaining(ctx); ok {
+		timeout = min(timeout, max(remaining, minRecoveryTimeout))
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 }
 
 // recordState is what a follow-up read says about a write that returned an error.

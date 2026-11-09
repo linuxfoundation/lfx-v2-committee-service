@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/copybudget"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
@@ -60,8 +61,8 @@ const (
 // The Store does not itself have the cascading delete of a committee, port.CommitteeCascadeDeleter, which the service uses
 // in place of Delete when its writer has it: a mode in which PostgreSQL is the primary store would otherwise leave the
 // children of a deleted committee behind there, and kv and dual keep the committee delete the service has always had. Where
-// PostgreSQL is the primary store, WithCascade returns a CascadingStore that has it. None of this is wired in yet, which is
-// why no mode but kv is available at startup.
+// PostgreSQL is the primary store, WithCascade returns a CascadingStore that has it. The API and the CLI build the stores of
+// the mode in package stores; in kv mode that is the KV storage itself, with no composite in between.
 type Store struct {
 	port.CommitteeReaderWriter
 
@@ -197,6 +198,9 @@ func (s *core) sampled() bool {
 func (s *core) replicate(ctx context.Context, operation, uid string, write func(ctx context.Context) error) {
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.writeTimeout)
 	defer cancel()
+	// The NATS adapter detaches its rollback and cleanup from the deadline it is given; the budget tells it how much of
+	// this copy's deadline is left, so a stalled KV does not make the request wait for a second timeout.
+	wctx = copybudget.With(wctx, time.Now().Add(s.writeTimeout))
 	// A panic in the secondary store is a failure of the secondary store like any other: it must not take down a request
 	// whose result the primary store has already decided.
 	err := func() (err error) {

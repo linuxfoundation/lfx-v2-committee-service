@@ -52,13 +52,20 @@ func copyCreated[T any](ctx context.Context, c *core, readSrc func(context.Conte
 	return nil
 }
 
+// creating marks a context whose copy is already making up for a record the secondary store lacks, so that copy does not
+// do it again if it finds the record missing once more.
+type creating struct{}
+
 // copyUpdated writes the record the primary store holds now to the secondary one, guarded by the revision the secondary
 // store has now and not by the one the caller sent: when an earlier copy failed the two differ, and guarding by the
 // caller's would fail every later update of the record too. In dual mode PostgreSQL is given the revision the primary store
 // gave, cannot lose an update or go back, since it refuses a revision that is not above the one it replaces, and nothing is
 // written when it already holds that revision. A record that the primary store no longer has was deleted meanwhile, and
-// there is nothing to copy; one that the secondary store does not have is missing there, unless the primary store has lost
-// it too.
+// there is nothing to copy. One that the secondary store does not have is missing there, because the copy of its create
+// failed: it is then created by createMissing, which is the copy of a create, so the record is read from the primary store
+// again after the insert and taken out if it has been deleted meanwhile, as it is after any create, and the update does not
+// bring a deleted record back. A record the primary store has lost too is nothing to copy. createMissing is nil where the
+// record cannot be created from its uid alone, and the update then fails and is counted.
 //
 // KV, the secondary store of dual-pg mode, assigns its own revisions and refuses nothing but a stale guard, so two copies
 // that overlap could leave an older record over a newer one: a copy that has read the primary store, is overtaken by a
@@ -70,7 +77,7 @@ func copyCreated[T any](ctx context.Context, c *core, readSrc func(context.Conte
 // B. So after a write the primary store is read again, and the copy is made once more if it no longer holds what was written;
 // one that is still behind after that is a failure.
 func copyUpdated[T any](ctx context.Context, c *core, readSrc, readDst func(context.Context) (T, uint64, error),
-	updateDst func(ctx context.Context, record T, guard uint64) error) error {
+	updateDst func(ctx context.Context, record T, guard uint64) error, createMissing func(context.Context) error) error {
 	attempts := 1
 	if !c.secondaryIsPostgres() {
 		attempts = 2
@@ -78,7 +85,7 @@ func copyUpdated[T any](ctx context.Context, c *core, readSrc, readDst func(cont
 	var err error
 	for attempt := 0; attempt < attempts; attempt++ {
 		var settled bool
-		if settled, err = copyUpdatedOnce(ctx, c, readSrc, readDst, updateDst); settled {
+		if settled, err = copyUpdatedOnce(ctx, c, readSrc, readDst, updateDst, createMissing); settled {
 			return err
 		}
 	}
@@ -90,7 +97,7 @@ func copyUpdated[T any](ctx context.Context, c *core, readSrc, readDst func(cont
 
 // copyUpdatedOnce makes one copy. settled is false only when KV refused the write because another copy got there first.
 func copyUpdatedOnce[T any](ctx context.Context, c *core, readSrc, readDst func(context.Context) (T, uint64, error),
-	updateDst func(ctx context.Context, record T, guard uint64) error) (settled bool, err error) {
+	updateDst func(ctx context.Context, record T, guard uint64) error, createMissing func(context.Context) error) (settled bool, err error) {
 	var existing T
 	var current uint64
 	var dstErr error
@@ -110,6 +117,9 @@ func copyUpdatedOnce[T any](ctx context.Context, c *core, readSrc, readDst func(
 	if isNotFound(dstErr) {
 		if _, _, srcErr := readSrc(ctx); isNotFound(srcErr) {
 			return true, nil // deleted in both stores while this was being copied
+		}
+		if createMissing != nil && ctx.Value(creating{}) == nil {
+			return true, createMissing(context.WithValue(ctx, creating{}, true))
 		}
 		return true, dstErr
 	}

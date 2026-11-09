@@ -604,8 +604,13 @@ app:
           optional: true
     # STORAGE_MODE — which store the service reads and writes: kv, dual, dual-pg or
     # postgres. Empty (the default) means kv, which is what the service has always
-    # done. A value that is not recognized, or a mode that is not available yet
-    # (today only kv is), stops the pod at startup instead of falling back to kv.
+    # done. A value that is not recognized, a mode that uses PostgreSQL without
+    # POSTGRES_URL, or a PostgreSQL that cannot be reached or migrated in such a
+    # mode, stops the pod at startup instead of falling back to kv. The dual and
+    # dual-pg modes can be tuned with STORAGE_READ_COMPARE_RATE,
+    # STORAGE_COMPARE_TIMEOUT and STORAGE_SECONDARY_WRITE_TIMEOUT (see
+    # docs/postgres-schema.md, "Selecting a storage mode"), which can be added with
+    # extraEnv.
     STORAGE_MODE:
       value: ""
     # POSTGRES_ENABLED — feature flag for PostgreSQL. Only the exact value

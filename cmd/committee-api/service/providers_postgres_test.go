@@ -15,6 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats/natstest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 )
 
@@ -52,6 +55,31 @@ func TestInitPostgres(t *testing.T) {
 			}))
 			assert.Nil(t, pool, value)
 			assert.Empty(t, checks, value)
+		}
+	})
+
+	t.Run("a storage mode that needs PostgreSQL connects without the flag", func(t *testing.T) {
+		// The URL does not connect, so what shows is that it was tried: the readiness opt-in reports the failure, which it
+		// only can if a connection was attempted. The caller (buildStores) stops the service when it gets no pool.
+		pool, checks := initPostgres(ctx, env(map[string]string{
+			"STORAGE_MODE":             "dual",
+			"POSTGRES_URL":             unreachableURL(),
+			"POSTGRES_READINESS_CHECK": "true",
+		}))
+		assert.Nil(t, pool)
+		require.Len(t, checks, 1)
+		assert.Error(t, checks[0].IsReady(ctx))
+	})
+
+	t.Run("kv mode never connects without the flag, whatever else is set", func(t *testing.T) {
+		for _, mode := range []string{"", "kv"} {
+			pool, checks := initPostgres(ctx, env(map[string]string{
+				"STORAGE_MODE":             mode,
+				"POSTGRES_URL":             unreachableURL(),
+				"POSTGRES_READINESS_CHECK": "true",
+			}))
+			assert.Nil(t, pool, mode)
+			assert.Empty(t, checks, "nothing was attempted: %q", mode)
 		}
 	})
 
@@ -175,4 +203,40 @@ func TestInitPostgres(t *testing.T) {
 		require.Len(t, checks, 1)
 		assert.Error(t, checks[0].IsReady(ctx))
 	})
+}
+
+func TestStorageNeedsPostgres(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		values map[string]string
+		want   bool
+	}{
+		{"unset", nil, false},
+		{"kv", map[string]string{"STORAGE_MODE": "kv", "POSTGRES_URL": unreachableURL()}, false},
+		{"dual", map[string]string{"STORAGE_MODE": "dual", "POSTGRES_URL": unreachableURL()}, true},
+		{"dual-pg", map[string]string{"STORAGE_MODE": "dual-pg", "POSTGRES_URL": unreachableURL()}, true},
+		{"postgres", map[string]string{"STORAGE_MODE": "postgres", "POSTGRES_URL": unreachableURL()}, true},
+		{"a mode that cannot be used is left to the mode check", map[string]string{"STORAGE_MODE": "dual"}, false},
+		{"a mode that is not recognized", map[string]string{"STORAGE_MODE": "dual-write"}, false},
+	} {
+		assert.Equal(t, tc.want, storageNeedsPostgres(env(tc.values)), tc.name)
+	}
+}
+
+// With the default mode the stores are the NATS KV stores, built without PostgreSQL: no pool exists, none is set up, and
+// nothing in the composite is involved.
+func TestBuildStores_KVNeedsNoPostgreSQL(t *testing.T) {
+	previous := postgresPool
+	postgresPool = nil
+	t.Cleanup(func() { postgresPool = previous })
+	client := natstest.NewClient(t)
+
+	built, committees := buildStores(context.Background(), composite.ModeKV, client)
+
+	require.NotNil(t, built)
+	assert.Equal(t, any(built.Committees), any(committees))
+	assert.Equal(t, any(committees), any(built.Links), "the links are served by the same KV storage")
+	assert.Equal(t, any(committees), any(built.Briefs))
+	assert.IsType(t, nats.NewStorage(client), committees)
+	assert.Nil(t, postgresPool, "PostgreSQL was not set up")
 }

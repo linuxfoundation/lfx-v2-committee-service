@@ -112,6 +112,13 @@ func NewDocumentBackend(t *testing.T) DocumentBackend {
 	}
 }
 
+// NewClient returns a client of an in-process NATS server with the committee buckets, for the tests of what is built over the
+// stores. The server is shut down when the test ends.
+func NewClient(t *testing.T) *nats.NATSClient {
+	t.Helper()
+	return newClient(t)
+}
+
 func newClient(t *testing.T) *nats.NATSClient {
 	t.Helper()
 	ns, err := natsserver.NewServer(&natsserver.Options{

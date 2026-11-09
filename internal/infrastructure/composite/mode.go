@@ -59,14 +59,10 @@ func (m Mode) HasSecondary() bool { return m == ModeDual || m == ModeDualPG }
 // PostgresIsPrimary reports whether PostgreSQL is the authoritative store, which is when its writes decide the result.
 func (m Mode) PostgresIsPrimary() bool { return m == ModeDualPG || m == ModePostgres }
 
-// available reports whether the service can run in the mode yet. The other modes are accepted by ParseMode and
-// refused here until the stores behind them exist, so that setting one cannot leave the service half switched over.
-func (m Mode) available() bool { return m == ModeKV }
-
 // ModeFromEnv reads the mode from the environment and checks that the service can run in it. With the variable unset
 // the result is ModeKV and nothing else is checked, so a deployment that does not set it is not affected. A mode that
-// is set on purpose must be usable: it must be recognized, a mode that uses PostgreSQL needs a connection string, and
-// the mode must be available. The error names the variable and never the connection string, which holds a password.
+// is set on purpose must be usable: it must be recognized, and a mode that uses PostgreSQL needs a connection string.
+// The error names the variable and never the connection string, which holds a password.
 func ModeFromEnv(getenv func(string) string) (Mode, error) {
 	mode, err := ParseMode(getenv(EnvStorageMode))
 	if err != nil {
@@ -74,9 +70,6 @@ func ModeFromEnv(getenv func(string) string) (Mode, error) {
 	}
 	if mode.UsesPostgres() && strings.TrimSpace(getenv(envPostgresURL)) == "" {
 		return "", fmt.Errorf("%s=%s needs PostgreSQL but %s is not set", EnvStorageMode, mode, envPostgresURL)
-	}
-	if !mode.available() {
-		return "", fmt.Errorf("%s=%s is not available yet: only %s is", EnvStorageMode, mode, ModeKV)
 	}
 	return mode, nil
 }
