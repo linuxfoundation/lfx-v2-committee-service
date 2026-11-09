@@ -791,7 +791,7 @@ var CommitteeMemberBulkCreateRow = dsl.Type("committee-member-bulk-create-row", 
 	dsl.Attribute("email", func() { dsl.Example("first.last@example.com") })
 	dsl.Attribute("first_name", func() { dsl.Example("First") })
 	dsl.Attribute("last_name", func() { dsl.Example("Last") })
-	dsl.Attribute("linkedin_profile", func() { dsl.Example("https://example.com/first-last") })
+	dsl.Attribute("linkedin_profile", func() { dsl.Example("https://www.linkedin.com/in/first-last") })
 
 	dsl.Required("email")
 })

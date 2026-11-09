@@ -146,6 +146,9 @@ operations before reconciling visible members. Username deletion keeps the exist
 email-reuse guard; email-change events match the affected address. Current intent
 is cleared through the fenced protocol, not an unsafe key purge. Pending resumes
 always revalidate current identity, even with `X-Skip-Enrichment`.
+A same-UID pending primary still acquires or reclaims its email reservation when
+refreshed parent or identity-index metadata differs from the stored bytes; a
+failed earlier reservation does not require the old metadata to remain unchanged.
 
 For a legacy reservation whose primary owner is absent, recovery first races a
 content-free aborted fence against the old writer's `Create` at that exact owner
@@ -163,6 +166,10 @@ create could otherwise resurrect a deleted member. Losing concurrent completion
 attempts cannot overwrite the winning primary revision and clean up projections
 that its current record no longer uses. Index readers treat the member record as
 authoritative; the existing multi-key index-cleanup limitations still apply.
+If a delete-fence write reports an error and its first read-back fails, a bounded
+detached read must confirm this invocation's exact fence before lookup cleanup
+and normal deletion publications proceed. A different fence or revision conflict
+does not confirm this invocation's deletion.
 
 Storage completion and external delivery are deliberately distinct. A process
 crash between the committed transition and best-effort publication can lose that
@@ -213,9 +220,13 @@ new ones are written; on delete, all of the member's index keys are removed. The
 - **"Member exists but is missing from a list or lookup":** the secondary index is probably absent.
   Check with `nats kv ls committee-members | grep committee-members-by-`, then run the matching `sync members-by-*-index` command with
   `--dry-run` first.
-- **Unexpected 409 on create:** a unique lookup key outlived its record (for example, a failed
-  rollback). Find the key from the table above, confirm its value UID no longer exists in the
-  primary bucket, then purge the key.
+- **Unexpected 409 on create:** a unique lookup key may outlive its record (for example,
+  a failed rollback), but an absent member primary can also belong to a delayed writer.
+  Identify the reservation's exact owner UID and revision. For member reservations,
+  use the fence-first recovery described above: confirm a content-free aborted fence
+  at that UID before purging only the exact old reservation revision. If the member
+  landed instead, preserve it and repair its indexes. Never purge the UID fence or
+  purge a member reservation based only on primary absence.
 - **Stale index after an email, org, or username change:** the update path deletes the old key
   after writing the new one, so a leftover key points at a member that no longer matches its
   segment. Confirm against the member record, then purge it.

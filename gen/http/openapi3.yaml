@@ -3780,7 +3780,7 @@ paths:
                                   first_name: First
                                   job_title: Chief Technology Officer
                                   last_name: Last
-                                  linkedin_profile: https://example.com/first-last
+                                  linkedin_profile: https://www.linkedin.com/in/first-last
                                   organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -3800,7 +3800,7 @@ paths:
                                   first_name: First
                                   job_title: Chief Technology Officer
                                   last_name: Last
-                                  linkedin_profile: https://example.com/first-last
+                                  linkedin_profile: https://www.linkedin.com/in/first-last
                                   organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -5010,7 +5010,7 @@ components:
                           first_name: First
                           job_title: Chief Technology Officer
                           last_name: Last
-                          linkedin_profile: https://example.com/first-last
+                          linkedin_profile: https://www.linkedin.com/in/first-last
                           organization:
                             id: org-123456
                             name: The Linux Foundation
@@ -5030,7 +5030,7 @@ components:
                           first_name: First
                           job_title: Chief Technology Officer
                           last_name: Last
-                          linkedin_profile: https://example.com/first-last
+                          linkedin_profile: https://www.linkedin.com/in/first-last
                           organization:
                             id: org-123456
                             name: The Linux Foundation
@@ -5054,7 +5054,7 @@ components:
                       first_name: First
                       job_title: Chief Technology Officer
                       last_name: Last
-                      linkedin_profile: https://example.com/first-last
+                      linkedin_profile: https://www.linkedin.com/in/first-last
                       organization:
                         id: org-123456
                         name: The Linux Foundation
@@ -5074,7 +5074,7 @@ components:
                       first_name: First
                       job_title: Chief Technology Officer
                       last_name: Last
-                      linkedin_profile: https://example.com/first-last
+                      linkedin_profile: https://www.linkedin.com/in/first-last
                       organization:
                         id: org-123456
                         name: The Linux Foundation
@@ -5094,7 +5094,7 @@ components:
                       first_name: First
                       job_title: Chief Technology Officer
                       last_name: Last
-                      linkedin_profile: https://example.com/first-last
+                      linkedin_profile: https://www.linkedin.com/in/first-last
                       organization:
                         id: org-123456
                         name: The Linux Foundation
@@ -6809,7 +6809,7 @@ components:
                 linkedin_profile:
                     type: string
                     description: LinkedIn profile URL
-                    example: https://example.com/first-last
+                    example: https://www.linkedin.com/in/first-last
                     format: uri
                     pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
                 organization:
@@ -6919,7 +6919,7 @@ components:
                 first_name: First
                 job_title: Chief Technology Officer
                 last_name: Last
-                linkedin_profile: https://example.com/first-last
+                linkedin_profile: https://www.linkedin.com/in/first-last
                 organization:
                     id: org-123456
                     name: The Linux Foundation

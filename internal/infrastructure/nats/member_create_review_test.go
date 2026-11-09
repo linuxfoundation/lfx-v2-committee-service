@@ -506,3 +506,111 @@ func TestStorage_MemberCreateIdentityEarlyEvent(t *testing.T) {
 		require.ErrorIs(t, err, jetstream.ErrKeyNotFound)
 	}
 }
+
+type ambiguousMemberDeleteFenceKV struct {
+	jetstream.KeyValue
+	uid          string
+	afterUpdate  bool
+	readFailures int
+	cancel       context.CancelFunc
+	different    bool
+	conflict     bool
+}
+
+func (k *ambiguousMemberDeleteFenceKV) Update(ctx context.Context, key string, data []byte, revision uint64) (uint64, error) {
+	if key != k.uid {
+		return k.KeyValue.Update(ctx, key, data, revision)
+	}
+	if k.different {
+		record, err := decodeMemberCreateRecord(data)
+		if err != nil {
+			return 0, err
+		}
+		record.Create.Token = "another-delete"
+		data, _ = json.Marshal(record)
+	}
+	if _, err := k.KeyValue.Update(ctx, key, data, revision); err != nil {
+		return 0, err
+	}
+	k.afterUpdate = true
+	if k.cancel != nil {
+		k.cancel()
+	}
+	if k.conflict {
+		return 0, jetstream.ErrKeyExists
+	}
+	return 0, errors.New("simulated timeout after delete fence landed")
+}
+
+func (k *ambiguousMemberDeleteFenceKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if key == k.uid && k.afterUpdate && k.readFailures > 0 {
+		k.readFailures--
+		return nil, errors.New("simulated first fence read-back failure")
+	}
+	return k.KeyValue.Get(ctx, key)
+}
+
+func testMemberDeleteFenceRecovery(t *testing.T) {
+	for _, scenario := range []string{"immediate confirmation", "first read-back fails", "request cancelled", "different fence", "revision conflict"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			client := newKVClient(t)
+			s := NewStorageBackend(client)
+			kv := client.kvStore[constants.KVBucketNameCommitteeMembers]
+			member := testMember("member-1", "committee-1", "first.last@example.com", "first-last", "")
+			outcome, err := s.CreateMemberRecoverable(ctx, member, port.MemberCreateIntent{})
+			require.NoError(t, err)
+			require.True(t, outcome.Added)
+			revision := mustMemberRevision(t, s, member.UID)
+			failing := &ambiguousMemberDeleteFenceKV{KeyValue: kv, uid: member.UID}
+			switch scenario {
+			case "first read-back fails":
+				failing.readFailures = 1
+			case "request cancelled":
+				failing.cancel = cancel
+			case "different fence":
+				failing.different = true
+				failing.readFailures = 1
+			case "revision conflict":
+				failing.conflict = true
+			}
+			client.kvStore[constants.KVBucketNameCommitteeMembers] = failing
+			publisher := &mock.MockCommitteePublisher{}
+			writer := service.NewCommitteeWriterOrchestrator(service.WithCommitteeWriter(s), service.WithCommitteeRetriever(s), service.WithCommitteePublisher(publisher))
+			if scenario == "request cancelled" {
+				// Storage recovery is detached; publication still uses the request
+				// context and has no post-cancellation delivery guarantee.
+				err = s.DeleteMember(ctx, member.UID, revision)
+			} else {
+				err = writer.DeleteMember(ctx, member.CommitteeUID, member.UID, revision, false, false)
+			}
+			if failing.different || failing.conflict {
+				require.Error(t, err, "only this invocation's non-conflicting fence confirms deletion")
+				if failing.conflict {
+					var conflict errs.Conflict
+					require.ErrorAs(t, err, &conflict)
+				}
+				require.Empty(t, publisher.IndexerMessages)
+				for _, key := range memberKeyList(context.Background(), member) {
+					_, err := kv.Get(context.Background(), key)
+					require.NoError(t, err, key)
+				}
+				return
+			}
+			require.NoError(t, err)
+			for _, key := range memberKeyList(context.Background(), member) {
+				_, err := kv.Get(context.Background(), key)
+				require.ErrorIs(t, err, jetstream.ErrKeyNotFound, key)
+			}
+			entry, err := kv.Get(context.Background(), member.UID)
+			require.NoError(t, err, "the content-free fence must be retained")
+			require.NotContains(t, string(entry.Value()), member.Email)
+			if scenario != "request cancelled" {
+				require.Len(t, publisher.IndexerMessages, 1)
+				require.Equal(t, 1, publisher.MemberRemoveCallCount)
+			}
+			require.Error(t, s.CreateMember(context.Background(), member), "a delayed create cannot resurrect the deleted UID")
+		})
+	}
+}

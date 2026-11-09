@@ -1634,6 +1634,7 @@ func TestStorage_UpdateMember(t *testing.T) {
 }
 
 func TestStorage_DeleteMember(t *testing.T) {
+	testMemberDeleteFenceRecovery(t)
 	ctx := context.Background()
 	seed := func(t *testing.T) (*storage, *lockKV, *model.CommitteeMember) {
 		t.Helper()

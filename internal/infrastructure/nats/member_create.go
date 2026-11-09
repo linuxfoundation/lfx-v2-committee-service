@@ -207,6 +207,7 @@ func (s *storage) CreateMemberRecoverable(ctx context.Context, member *model.Com
 		state, _ := readRecordState(ctx, kv, record.UID, data)
 		if state != recordMatches {
 			current, readErr := kv.Get(ctx, record.UID)
+			samePending := false
 			if readErr == nil {
 				prior, decodeErr := decodeMemberCreateRecord(current.Value())
 				if decodeErr == nil && prior.Create != nil && prior.Create.State == memberCreateAborted {
@@ -215,9 +216,14 @@ func (s *storage) CreateMemberRecoverable(ctx context.Context, member *model.Com
 					}
 					return nil, memberCreateTemporary(nil)
 				}
+				samePending = decodeErr == nil && prior.UID == record.UID && prior.Create != nil && prior.Create.State == memberCreatePending
 			}
-			// Another completion may already have won this same operation.
-			return s.finishMemberCreate(ctx, record.UID, buildMemberLookupKeys(ctx, record.member()).unique, opKey, record.member())
+			// Refreshed parent/identity metadata can differ from the pending primary.
+			// That same UID must still acquire its reservation before completion.
+			if !samePending {
+				// Another completion may already have won this same operation.
+				return s.finishMemberCreate(ctx, record.UID, buildMemberLookupKeys(ctx, record.member()).unique, opKey, record.member())
+			}
 		}
 	}
 	unique := buildMemberLookupKeys(ctx, record.member()).unique
@@ -648,6 +654,13 @@ func deleteMemberRecord(ctx context.Context, kv jetstream.KeyValue, uid string, 
 	data, _ := json.Marshal(fence)
 	if _, err := kv.Update(ctx, uid, data, revision); err != nil {
 		state, _ := readRecordState(ctx, kv, uid, data)
+		if state != recordMatches && !isJetStreamCASConflict(err) {
+			// A landed fence survives as a key, so only this exact token/record
+			// can confirm our delete after a failed or cancelled first read-back.
+			rctx, cancel := detachedCtx(ctx)
+			defer cancel()
+			state, _ = readRecordState(rctx, kv, uid, data)
+		}
 		if state != recordMatches || isJetStreamCASConflict(err) {
 			return err
 		}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 
 func TestMemberCreatePreparation(t *testing.T) {
 	ctx := context.Background()
-	for _, failure := range []string{"primary absent", "reservation absent", "ambiguous acquisition after reclaim"} {
+	for _, failure := range []string{"primary absent", "reservation absent", "reservation absent with changed parent metadata", "ambiguous acquisition after reclaim"} {
 		t.Run(failure, func(t *testing.T) {
 			s, kv := newMemberLockStorage()
 			member := testMember("original", "committee-1", "first.last@example.com", "first-last", "")
@@ -29,7 +30,7 @@ func TestMemberCreatePreparation(t *testing.T) {
 			switch failure {
 			case "primary absent":
 				kv.failCreateFor = member.UID
-			case "reservation absent":
+			case "reservation absent", "reservation absent with changed parent metadata":
 				kv.failCreateFor = unique
 			default:
 				fence, err := json.Marshal(abortedMemberCreate("legacy"))
@@ -50,11 +51,22 @@ func TestMemberCreatePreparation(t *testing.T) {
 			require.True(t, selected.Intent.SkipNotification)
 			kv.failCreateFor, kv.ambiguousFor = "", ""
 			retry := testMember("replacement", member.CommitteeUID, member.Email, "replacement-identity", "")
-			outcome, err := resumeMemberCreate(s, retry, port.MemberCreateIntent{})
+			var outcome *port.MemberCreateResult
+			if failure == "reservation absent with changed parent metadata" {
+				selected.Member.CommitteeName, selected.Member.CommitteeCategory = "Renamed Example Committee", "Board"
+				selected.Member.ProjectUID, selected.Member.ProjectSlug = "project-2", "example-project-new"
+				outcome, err = s.CreateMemberRecoverable(ctx, selected.Member, port.MemberCreateIntent{})
+			} else {
+				outcome, err = resumeMemberCreate(s, retry, port.MemberCreateIntent{})
+			}
 			require.NoError(t, err)
 			require.True(t, outcome.Added)
 			require.Equal(t, "original", outcome.Member.UID)
 			require.True(t, outcome.Intent.SkipNotification)
+			require.Equal(t, "first-last", outcome.Intent.CreatedBy)
+			if failure == "reservation absent with changed parent metadata" {
+				require.Equal(t, selected.Member.CommitteeMemberBase, outcome.Member.CommitteeMemberBase)
+			}
 			for key, data := range kv.values {
 				require.NotContains(t, string(data), "created_by", key)
 				require.NotContains(t, string(data), "skip_notification", key)
@@ -150,11 +162,19 @@ func (r *currentRecoveryUser) UsernameByEmail(context.Context, string) (string, 
 }
 
 func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
-	for _, scenario := range []string{"identity changed", "identity absent", "skip-enrichment identity changed", "voting enabled", "organization required", "irrelevant replacement fields", "parent metadata changed"} {
+	for _, scenario := range []string{"identity changed", "identity absent", "skip-enrichment identity changed", "voting enabled", "organization required", "irrelevant replacement fields", "parent metadata changed", "parent metadata changed without reservation"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			client := newKVClient(t)
-			client.kvStore[constants.KVBucketNameCommitteeMembers] = &failMemberIndexOnceKV{KeyValue: client.kvStore[constants.KVBucketNameCommitteeMembers]}
+			kv := client.kvStore[constants.KVBucketNameCommitteeMembers]
+			if scenario == "parent metadata changed without reservation" {
+				member := testMember("", "committee-1", "first.last@example.com", "first-last", "")
+				client.kvStore[constants.KVBucketNameCommitteeMembers] = &failingMemberKV{
+					KeyValue: kv, failKey: buildMemberLookupKeys(ctx, member).unique,
+				}
+			} else {
+				client.kvStore[constants.KVBucketNameCommitteeMembers] = &failMemberIndexOnceKV{KeyValue: kv}
+			}
 			s := NewStorageBackend(client)
 			base := &model.CommitteeBase{UID: "committee-1", Name: "Example Committee", Category: "Other"}
 			storeBase := func() {
@@ -180,6 +200,10 @@ func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
 			first, err := writer.CreateMembers(ctx, base.UID, []*model.CommitteeMember{original}, service.BulkMemberCreateOptions{})
 			require.NoError(t, err)
 			require.Equal(t, model.BulkReasonTemporary, first[0].Reason)
+			if scenario == "parent metadata changed without reservation" {
+				failing := client.kvStore[constants.KVBucketNameCommitteeMembers].(*failingMemberKV)
+				failing.failKey = ""
+			}
 			retry := row()
 			retry.Organization = model.CommitteeMemberOrganization{Name: "Example Organization", Website: "https://example.com"}
 			retry.Voting.Status = "Voting Rep"
@@ -191,7 +215,7 @@ func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
 			case "voting enabled", "irrelevant replacement fields":
 				base.EnableVoting = true
 				storeBase()
-			case "parent metadata changed":
+			case "parent metadata changed", "parent metadata changed without reservation":
 				base.Name, base.Category = "Renamed Example Committee", "Board"
 				base.ProjectUID, base.ProjectSlug = "project-2", "example-project-new"
 				storeBase()
@@ -207,7 +231,7 @@ func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
 			}
 			second, err := writer.CreateMembers(ctx, base.UID, []*model.CommitteeMember{retry}, service.BulkMemberCreateOptions{SkipEnrichment: scenario == "skip-enrichment identity changed"})
 			require.NoError(t, err)
-			if scenario == "parent metadata changed" {
+			if strings.HasPrefix(scenario, "parent metadata changed") {
 				require.Equal(t, model.BulkMemberAdded, second[0].Status)
 				stored, _, err := s.GetMember(ctx, second[0].MemberUID)
 				require.NoError(t, err)

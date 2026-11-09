@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -85,8 +86,12 @@ func TestBulkMemberExamples(t *testing.T) {
 			}
 			row := schemas["CommitteeMemberBulkCreateRow"].(map[string]any)
 			properties := row["properties"].(map[string]any)
-			for field, want := range map[string]string{"first_name": "First", "last_name": "Last", "username": "first-last", "email": "first.last@example.com", "linkedin_profile": "https://example.com/first-last"} {
-				require.Equal(t, want, properties[field].(map[string]any)["example"], field)
+			for field, want := range map[string]string{"first_name": "First", "last_name": "Last", "username": "first-last", "email": "first.last@example.com", "linkedin_profile": "https://www.linkedin.com/in/first-last"} {
+				property := properties[field].(map[string]any)
+				require.Equal(t, want, property["example"], field)
+				if pattern, ok := property["pattern"].(string); ok {
+					require.Regexp(t, regexp.MustCompile(pattern), property["example"], field)
+				}
 			}
 			example := schemas["CommitteeMemberBulkCreateResult"].(map[string]any)["example"]
 			encoded, err := json.Marshal(example)
