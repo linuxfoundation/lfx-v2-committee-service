@@ -138,8 +138,10 @@ it is the primary store and does.
 - What `/readyz` checks depends on the mode. In `dual-pg` and `postgres` the storage is ready only when PostgreSQL answers a
   ping and NATS is up, since the service needs both, and that check is always made, whatever `POSTGRES_READINESS_CHECK` says. In
   `kv` and `dual` the storage's readiness is NATS's, as it has always been, and a PostgreSQL outage does not take pods out of
-  rotation. `POSTGRES_READINESS_CHECK=true` adds a separate PostgreSQL check to every mode: in `kv` and `dual` it is the only way
-  PostgreSQL can affect the probe, so keep it off there; in `dual-pg` and `postgres` it repeats the ping the storage already makes.
+  rotation. `POSTGRES_READINESS_CHECK=true` adds a separate PostgreSQL check, which is only registered when the service connects to
+  PostgreSQL: in `kv` that needs `POSTGRES_ENABLED=true` as well, and the flag alone does nothing; in the PostgreSQL modes the
+  service always connects. In `kv` and `dual` it is the only way PostgreSQL can affect the probe, so keep it off there; in
+  `dual-pg` and `postgres` it repeats the ping the storage already makes.
   A failing check returns a generic 503 and logs the cause, and if PostgreSQL is enabled but could not be set up the check
   reports not ready.
 - Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the

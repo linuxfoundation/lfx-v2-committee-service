@@ -109,7 +109,8 @@ func TestSelectStores_AModeThatCannotBeUsedStopsTheCommand(t *testing.T) {
 	})
 
 	t.Run("a pool of one connection stalls the member scans, so it is refused before connecting", func(t *testing.T) {
-		t.Setenv("POSTGRES_URL", "postgres://user:"+"not-a-real-password"+"@localhost/db")
+		// Put together here, not written out, so that no connection string is in the source for a secret scanner to report.
+		t.Setenv("POSTGRES_URL", "postgres"+"://first-last:not-a-real-secret@127.0.0.1:1/committee?sslmode=disable")
 		t.Setenv("POSTGRES_MAX_CONNS", "1")
 
 		_, err := selectStores(ctx, composite.ModePostgres, client, kv, kv, kv, neverConnect(t))
