@@ -270,7 +270,7 @@ In `dual`, `dual-pg` and `postgres`, PostgreSQL is connected to and migrated at 
 | `POSTGRES_ENABLED` | `false` | no | Feature flag. Only the exact value `true` turns PostgreSQL on; otherwise the service never connects, even if `POSTGRES_URL` is set. When on in `kv` mode, a missing URL, bad settings, an unreachable database or a failed migration is logged as an error and the service keeps running without PostgreSQL, so the database cannot take the service down. (In the other storage modes the same failures stop the service.) |
 | `POSTGRES_URL` | — | when `POSTGRES_ENABLED=true` | PostgreSQL connection string. With the flag on, the service connects and applies the schema migrations at startup. The URL carries a password: it is logged and returned in errors with the password removed. |
 | `POSTGRES_MAX_CONNS` | `10` | no | Connection pool size per process; must be a positive integer |
-| `POSTGRES_READINESS_CHECK` | `false` | no | Set to `true` to make `/readyz` also ping PostgreSQL (opt-in, so a database outage does not remove pods from rotation in `kv`, where the service does not depend on it; worth setting in `dual-pg` and `postgres`). If PostgreSQL is enabled but could not be set up, the check reports not ready |
+| `POSTGRES_READINESS_CHECK` | `false` | no | Set to `true` to make `/readyz` also ping PostgreSQL (opt-in, so a database outage does not remove pods from rotation in `kv` and `dual`, where the service does not depend on it; in `dual-pg` and `postgres` the storage's own readiness already pings PostgreSQL and NATS, flag or not). If PostgreSQL is enabled but could not be set up, the check reports not ready |
 
 **Authentication**
 

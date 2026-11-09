@@ -652,9 +652,9 @@ app:
     POSTGRES_MAX_CONNS:
       value: ""
     # POSTGRES_READINESS_CHECK — set to "true" to make /readyz also ping
-    # PostgreSQL (and report not ready if it could not be set up). Leave off until
-    # the service depends on the database, so a database outage does not take pods
-    # out of rotation.
+    # PostgreSQL (and report not ready if it could not be set up). Leave off in kv
+    # and dual, where a database outage must not take pods out of rotation. In
+    # dual-pg and postgres /readyz already pings PostgreSQL through the storage.
     POSTGRES_READINESS_CHECK:
       value: "false"
 

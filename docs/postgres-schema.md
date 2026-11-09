@@ -135,11 +135,13 @@ it is the primary store and does.
 - The URL carries a password, so it is never logged and never appears in an error: `postgres.NewPool` removes the
   password (URL form, keyword form and `password=` query parameter) from everything it returns, and the startup log line
   uses `postgres.RedactURL`.
-- `/readyz` also pings PostgreSQL only when `POSTGRES_READINESS_CHECK=true`. Keep it off in `kv` and `dual`, where the service
-  does not depend on the database, so a database outage does not take pods out of rotation; turn it on in `dual-pg` and
-  `postgres`. A failing check returns a generic 503 and logs the cause, and if PostgreSQL is enabled but could not be set up
-  the check reports not ready. In `dual-pg` and `postgres` the readiness of the storage is PostgreSQL's ping and NATS's, since
-  the service needs both; in `kv` and `dual` it is NATS's, as it has always been.
+- What `/readyz` checks depends on the mode. In `dual-pg` and `postgres` the storage is ready only when PostgreSQL answers a
+  ping and NATS is up, since the service needs both, and that check is always made, whatever `POSTGRES_READINESS_CHECK` says. In
+  `kv` and `dual` the storage's readiness is NATS's, as it has always been, and a PostgreSQL outage does not take pods out of
+  rotation. `POSTGRES_READINESS_CHECK=true` adds a separate PostgreSQL check to every mode: in `kv` and `dual` it is the only way
+  PostgreSQL can affect the probe, so keep it off there; in `dual-pg` and `postgres` it repeats the ping the storage already makes.
+  A failing check returns a generic 503 and logs the cause, and if PostgreSQL is enabled but could not be set up the check
+  reports not ready.
 - Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
 - The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the
@@ -298,8 +300,9 @@ links and folders, weekly briefs, documents).
   to PostgreSQL and applies the migrations at startup in these modes without `POSTGRES_ENABLED`; the CLI needs the
   migrations applied already.
 - **PostgreSQL is a hard dependency in `postgres` and `dual-pg` and an optional follower in `dual`.** In `dual` a PostgreSQL
-  that fails after startup never fails a request: the failed copy is logged and counted. `POSTGRES_READINESS_CHECK=true` makes
-  `/readyz` ping PostgreSQL, and is worth setting in `postgres` and `dual-pg` so a pod that cannot reach it leaves rotation.
+  that fails after startup never fails a request: the failed copy is logged and counted. In `postgres` and `dual-pg`
+  `/readyz` already pings PostgreSQL (and NATS) through the storage, so a pod that cannot reach it leaves rotation without
+  `POSTGRES_READINESS_CHECK`; in `dual` it does not, by design.
 - **Tuning (`dual` and `dual-pg` only; not read in the other modes).** `STORAGE_READ_COMPARE_RATE` is the fraction of reads that
   are also made against the secondary store and compared (default `0.01`), `STORAGE_COMPARE_TIMEOUT` bounds that extra read
   (default `2s`) and `STORAGE_SECONDARY_WRITE_TIMEOUT` bounds the copy of a write (default `3s`). The copy is made on the
