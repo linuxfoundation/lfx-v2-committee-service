@@ -786,6 +786,12 @@ var CommitteeMemberBulkCreateRow = dsl.Type("committee-member-bulk-create-row", 
 	dsl.Description("A committee member to add as part of a bulk member create request.")
 
 	CommitteeMemberCreateAttributes()
+	// Override only the new bulk surface, leaving legacy single-create examples.
+	dsl.Attribute("username", func() { dsl.Example("first-last") })
+	dsl.Attribute("email", func() { dsl.Example("first.last@example.com") })
+	dsl.Attribute("first_name", func() { dsl.Example("First") })
+	dsl.Attribute("last_name", func() { dsl.Example("Last") })
+	dsl.Attribute("linkedin_profile", func() { dsl.Example("https://example.com/first-last") })
 
 	dsl.Required("email")
 })

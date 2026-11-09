@@ -3776,11 +3776,11 @@ paths:
                         example:
                             members:
                                 - appointed_by: Community
-                                  email: user@example.com
-                                  first_name: John
+                                  email: first.last@example.com
+                                  first_name: First
                                   job_title: Chief Technology Officer
-                                  last_name: Doe
-                                  linkedin_profile: https://www.linkedin.com/in/johndoe
+                                  last_name: Last
+                                  linkedin_profile: https://example.com/first-last
                                   organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -3790,17 +3790,17 @@ paths:
                                     name: Chair
                                     start_date: "2023-01-01"
                                   status: Active
-                                  username: user123
+                                  username: first-last
                                   voting:
                                     end_date: "2024-12-31"
                                     start_date: "2023-01-01"
                                     status: Voting Rep
                                 - appointed_by: Community
-                                  email: user@example.com
-                                  first_name: John
+                                  email: first.last@example.com
+                                  first_name: First
                                   job_title: Chief Technology Officer
-                                  last_name: Doe
-                                  linkedin_profile: https://www.linkedin.com/in/johndoe
+                                  last_name: Last
+                                  linkedin_profile: https://example.com/first-last
                                   organization:
                                     id: org-123456
                                     name: The Linux Foundation
@@ -3810,7 +3810,7 @@ paths:
                                     name: Chair
                                     start_date: "2023-01-01"
                                   status: Active
-                                  username: user123
+                                  username: first-last
                                   voting:
                                     end_date: "2024-12-31"
                                     start_date: "2023-01-01"
@@ -5006,11 +5006,11 @@ components:
                     description: The members to add, processed in submission order
                     example:
                         - appointed_by: Community
-                          email: user@example.com
-                          first_name: John
+                          email: first.last@example.com
+                          first_name: First
                           job_title: Chief Technology Officer
-                          last_name: Doe
-                          linkedin_profile: https://www.linkedin.com/in/johndoe
+                          last_name: Last
+                          linkedin_profile: https://example.com/first-last
                           organization:
                             id: org-123456
                             name: The Linux Foundation
@@ -5020,17 +5020,17 @@ components:
                             name: Chair
                             start_date: "2023-01-01"
                           status: Active
-                          username: user123
+                          username: first-last
                           voting:
                             end_date: "2024-12-31"
                             start_date: "2023-01-01"
                             status: Voting Rep
                         - appointed_by: Community
-                          email: user@example.com
-                          first_name: John
+                          email: first.last@example.com
+                          first_name: First
                           job_title: Chief Technology Officer
-                          last_name: Doe
-                          linkedin_profile: https://www.linkedin.com/in/johndoe
+                          last_name: Last
+                          linkedin_profile: https://example.com/first-last
                           organization:
                             id: org-123456
                             name: The Linux Foundation
@@ -5040,7 +5040,7 @@ components:
                             name: Chair
                             start_date: "2023-01-01"
                           status: Active
-                          username: user123
+                          username: first-last
                           voting:
                             end_date: "2024-12-31"
                             start_date: "2023-01-01"
@@ -5050,11 +5050,11 @@ components:
             example:
                 members:
                     - appointed_by: Community
-                      email: user@example.com
-                      first_name: John
+                      email: first.last@example.com
+                      first_name: First
                       job_title: Chief Technology Officer
-                      last_name: Doe
-                      linkedin_profile: https://www.linkedin.com/in/johndoe
+                      last_name: Last
+                      linkedin_profile: https://example.com/first-last
                       organization:
                         id: org-123456
                         name: The Linux Foundation
@@ -5064,17 +5064,17 @@ components:
                         name: Chair
                         start_date: "2023-01-01"
                       status: Active
-                      username: user123
+                      username: first-last
                       voting:
                         end_date: "2024-12-31"
                         start_date: "2023-01-01"
                         status: Voting Rep
                     - appointed_by: Community
-                      email: user@example.com
-                      first_name: John
+                      email: first.last@example.com
+                      first_name: First
                       job_title: Chief Technology Officer
-                      last_name: Doe
-                      linkedin_profile: https://www.linkedin.com/in/johndoe
+                      last_name: Last
+                      linkedin_profile: https://example.com/first-last
                       organization:
                         id: org-123456
                         name: The Linux Foundation
@@ -5084,17 +5084,17 @@ components:
                         name: Chair
                         start_date: "2023-01-01"
                       status: Active
-                      username: user123
+                      username: first-last
                       voting:
                         end_date: "2024-12-31"
                         start_date: "2023-01-01"
                         status: Voting Rep
                     - appointed_by: Community
-                      email: user@example.com
-                      first_name: John
+                      email: first.last@example.com
+                      first_name: First
                       job_title: Chief Technology Officer
-                      last_name: Doe
-                      linkedin_profile: https://www.linkedin.com/in/johndoe
+                      last_name: Last
+                      linkedin_profile: https://example.com/first-last
                       organization:
                         id: org-123456
                         name: The Linux Foundation
@@ -5104,7 +5104,7 @@ components:
                         name: Chair
                         start_date: "2023-01-01"
                       status: Active
-                      username: user123
+                      username: first-last
                       voting:
                         end_date: "2024-12-31"
                         start_date: "2023-01-01"
@@ -6789,12 +6789,12 @@ components:
                 email:
                     type: string
                     description: Primary email address
-                    example: user@example.com
+                    example: first.last@example.com
                     format: email
                 first_name:
                     type: string
                     description: First name
-                    example: John
+                    example: First
                     maxLength: 100
                 job_title:
                     type: string
@@ -6804,12 +6804,12 @@ components:
                 last_name:
                     type: string
                     description: Last name
-                    example: Doe
+                    example: Last
                     maxLength: 100
                 linkedin_profile:
                     type: string
                     description: LinkedIn profile URL
-                    example: https://www.linkedin.com/in/johndoe
+                    example: https://example.com/first-last
                     format: uri
                     pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
                 organization:
@@ -6881,7 +6881,7 @@ components:
                 username:
                     type: string
                     description: User's LF ID
-                    example: user123
+                    example: first-last
                     maxLength: 100
                 voting:
                     type: object
@@ -6915,11 +6915,11 @@ components:
             description: A committee member to add as part of a bulk member create request.
             example:
                 appointed_by: Community
-                email: user@example.com
-                first_name: John
+                email: first.last@example.com
+                first_name: First
                 job_title: Chief Technology Officer
-                last_name: Doe
-                linkedin_profile: https://www.linkedin.com/in/johndoe
+                last_name: Last
+                linkedin_profile: https://example.com/first-last
                 organization:
                     id: org-123456
                     name: The Linux Foundation
@@ -6929,7 +6929,7 @@ components:
                     name: Chair
                     start_date: "2023-01-01"
                 status: Active
-                username: user123
+                username: first-last
                 voting:
                     end_date: "2024-12-31"
                     start_date: "2023-01-01"

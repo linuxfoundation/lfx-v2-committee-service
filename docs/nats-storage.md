@@ -123,12 +123,15 @@ email reservation, its record contains the validated member snapshot and private
 is never proof that membership exists. Pending/aborted records are excluded from
 member reads, revision reads, lists, strict scans, exports and backfills.
 
-Retries resume the reservation owner's pending snapshot and complete the same
-secondary indexes without replacing it with retry-supplied fields. The revision-
-guarded transition to `committed` elects one normal publication attempt. Dependency
-errors retain pending state and report a retryable failure, rather than rolling
-back a record another attempt may be completing. Existing completed members are
-returned without publishing another create event.
+Retries resume the reservation owner's pending member inputs and complete the same
+secondary indexes without replacing them with retry-supplied fields. Only the current
+server-derived committee name/category and project UID/slug are refreshed during the
+revision-guarded transition to `committed`, which elects one normal publication attempt.
+Dependency errors before completion retain pending state and report a retryable failure.
+A preparation-retirement failure after a confirmed winning commit is logged and retried
+by later discovery; it does not discard that winner's publication outcome. Existing
+completed members are returned without publishing another create event. In dual mode,
+committed discovery also uses the guarded secondary-copy path to repair missing copies.
 
 Pending metadata retains only the original notification opt-out, creator principal,
 and confirmed-account-absence flag in addition to the member snapshot. It never
@@ -238,6 +241,28 @@ only the operation UID and terminal state. Legacy members are revision-fenced
 even if all their indexes exist, including when a bulk pre-list found them;
 an original creator can no longer roll back the reconciled member.
 
+Pending preparations have email- and username-keyed discovery indexes:
+`lookup/committee-member-creates-by-email/<email-hash>.<operation-uid>` and
+`lookup/committee-member-creates-by-username/<username-hash>.<operation-uid>`.
+The values contain only the operation UID/key and normalized identity hashes, not
+raw identities, snapshots or notification intent. Indexes are installed before the
+preparation. An identity event that reaches an index before its preparation can
+fence that UID, preventing a delayed writer from committing it. Cleanup validates
+the indexed identity and uses revision guards; retirement of an old UID never
+removes the indexes of a newer generation. Interrupted cleanup retains only its
+hashed descriptor in terminal preparation metadata until index removal succeeds.
+Orphan index entries are safely fenced/pruned when that identity is next processed.
+
+While the readiness key is absent, identity cleanup bootstraps older pending
+preparations and records `lookup/committee-member-create-identity-index-ready`
+only after indexing them successfully. Concurrent initial calls can each bootstrap.
+The original preparation keys contain no dot separator for prefix filtering, so
+bootstrap enumerates bucket metadata. After readiness, events use server-side
+identity filters and do not enumerate membership or import history. Both scans
+require the watcher's initial-snapshot completion sentinel; a truncated snapshot
+cannot mark readiness or acknowledge partial cleanup. Bootstrap/lookup errors
+remain retryable rather than silently skipping required identity cleanup.
+
 ### Lifecycle-aware rollout checklist
 
 Tracked with the implementation in [lfx-self-serve-ops#1293](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1293):
@@ -245,6 +270,10 @@ Tracked with the implementation in [lfx-self-serve-ops#1293](https://github.com/
 - Upgrade all service readers and committee CLI/repair tools to lifecycle-aware
   versions before enabling bulk traffic. Older readers do not hide pending or
   aborted lifecycle records and older repair tools do not preserve their fences.
+- Upgrade all preparation writers to maintain identity indexes before relying on
+  the bootstrap marker. Do not mix pre-index bulk writers with indexed writers:
+  an older writer could create an undiscoverable preparation after bootstrap.
+  Preserve the readiness marker and identity indexes along with lifecycle fences.
 - Do not downgrade readers/writers or purge lifecycle/fence keys after bulk
   operations have written them. Any downgrade needs a separately designed and
   approved compatibility/migration procedure; never erase fences as an ad-hoc fix.

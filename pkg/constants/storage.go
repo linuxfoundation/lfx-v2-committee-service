@@ -30,6 +30,15 @@ const (
 	// It uses the same committee/email hash as the uniqueness key, with no raw email.
 	KVLookupMemberCreatePrefix = "lookup/committee-member-creates/%s"
 
+	// Pending-create identity indexes use hashed identities and UID-owned entries.
+	KVLookupMemberCreatesByEmailPrefix    = "lookup/committee-member-creates-by-email/%s.%s"
+	KVLookupMemberCreatesByEmailFilter    = "lookup/committee-member-creates-by-email/%s.*"
+	KVLookupMemberCreatesByUsernamePrefix = "lookup/committee-member-creates-by-username/%s.%s"
+	KVLookupMemberCreatesByUsernameFilter = "lookup/committee-member-creates-by-username/%s.*"
+
+	// KVMemberCreateIdentityIndexReady records the one-time pre-index bootstrap.
+	KVMemberCreateIdentityIndexReady = "lookup/committee-member-create-identity-index-ready"
+
 	// KVLookupMembersByCommitteePrefix is the secondary index that maps a committee UID to each
 	// of its members. Key pattern: "lookup/committee-members-by-committee/<committee_uid>.<member_uid>",
 	// Value: <member_uid>. The dot-separated tokens allow server-side filtered scans via

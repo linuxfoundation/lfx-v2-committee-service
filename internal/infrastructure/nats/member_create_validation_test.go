@@ -150,7 +150,7 @@ func (r *currentRecoveryUser) UsernameByEmail(context.Context, string) (string, 
 }
 
 func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
-	for _, scenario := range []string{"identity changed", "identity absent", "skip-enrichment identity changed", "voting enabled", "organization required", "irrelevant replacement fields"} {
+	for _, scenario := range []string{"identity changed", "identity absent", "skip-enrichment identity changed", "voting enabled", "organization required", "irrelevant replacement fields", "parent metadata changed"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			client := newKVClient(t)
@@ -191,6 +191,10 @@ func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
 			case "voting enabled", "irrelevant replacement fields":
 				base.EnableVoting = true
 				storeBase()
+			case "parent metadata changed":
+				base.Name, base.Category = "Renamed Example Committee", "Board"
+				base.ProjectUID, base.ProjectSlug = "project-2", "example-project-new"
+				storeBase()
 			case "organization required":
 				data, err := json.Marshal(&model.CommitteeSettings{UID: base.UID, BusinessEmailRequired: true})
 				require.NoError(t, err)
@@ -203,6 +207,22 @@ func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
 			}
 			second, err := writer.CreateMembers(ctx, base.UID, []*model.CommitteeMember{retry}, service.BulkMemberCreateOptions{SkipEnrichment: scenario == "skip-enrichment identity changed"})
 			require.NoError(t, err)
+			if scenario == "parent metadata changed" {
+				require.Equal(t, model.BulkMemberAdded, second[0].Status)
+				stored, _, err := s.GetMember(ctx, second[0].MemberUID)
+				require.NoError(t, err)
+				require.Equal(t, base.Name, stored.CommitteeName)
+				require.Equal(t, base.Category, stored.CommitteeCategory)
+				require.Equal(t, base.ProjectUID, stored.ProjectUID)
+				require.Equal(t, base.ProjectSlug, stored.ProjectSlug)
+				require.Equal(t, "First", stored.FirstName)
+				event := publisher.LastEvent.(*model.CommitteeEvent)
+				created := event.Data.(*model.CommitteeMemberCreatedEventData)
+				require.Equal(t, base.Name, created.CommitteeName)
+				require.Equal(t, base.ProjectSlug, created.ProjectSlug)
+				require.Len(t, publisher.IndexerMessages, 1)
+				return
+			}
 			if scenario == "irrelevant replacement fields" {
 				require.Equal(t, model.BulkMemberAdded, second[0].Status)
 				require.Equal(t, "Voting Rep", second[0].Member.Voting.Status)

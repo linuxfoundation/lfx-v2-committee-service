@@ -58,6 +58,29 @@ func TestStore_RecoverableMembers(t *testing.T) {
 				_, _, err := secondary.GetMember(ctx, member.UID)
 				require.NoError(t, err, "an already-member outcome repairs a missing secondary")
 			}
+			// The normal bulk already-member path must also reach convergence,
+			// without enrichment, replacement validation, or publications.
+			if secondary != nil {
+				_, revision, err := secondary.GetMember(ctx, member.UID)
+				require.NoError(t, err)
+				require.NoError(t, secondary.DeleteMember(ctx, member.UID, revision))
+			}
+			base := model.CommitteeBase{UID: member.CommitteeUID, Name: "Example Committee", Category: "Other", EnableVoting: true}
+			require.NoError(t, store.Create(ctx, &model.Committee{CommitteeBase: base, CommitteeSettings: &model.CommitteeSettings{}}))
+			publisher := &mock.MockCommitteePublisher{}
+			writer := service.NewCommitteeWriterOrchestrator(service.WithCommitteeWriter(store), service.WithCommitteeRetriever(store), service.WithCommitteePublisher(publisher))
+			results, err := writer.CreateMembers(ctx, base.UID, []*model.CommitteeMember{{CommitteeMemberBase: model.CommitteeMemberBase{Email: member.Email}}},
+				service.BulkMemberCreateOptions{Enrich: func(context.Context, *model.CommitteeMember) { t.Error("already-member must skip enrichment") }})
+			require.NoError(t, err)
+			require.Equal(t, model.BulkReasonAlreadyMember, results[0].Reason)
+			require.Equal(t, member.UID, results[0].MemberUID)
+			require.Empty(t, publisher.IndexerMessages)
+			require.Zero(t, publisher.MemberPutCallCount)
+			require.Nil(t, publisher.LastEvent)
+			if secondary != nil {
+				_, _, err := secondary.GetMember(ctx, member.UID)
+				require.NoError(t, err, "bulk discovery repairs the secondary")
+			}
 			require.Error(t, store.AbortMemberCreate(ctx, member), "a committed membership cannot be aborted")
 			stored, _, err := store.GetMember(ctx, member.UID)
 			require.NoError(t, err)
@@ -120,4 +143,53 @@ func (s *transactionalPrimaryForBulk) CreateMember(ctx context.Context, member *
 		return errs.NewConflict("another create committed the membership")
 	}
 	return nil
+}
+
+// pendingMemberSelection isolates discovery: no pending row may be mirrored.
+type pendingMemberSelection struct {
+	port.CommitteeReaderWriter
+	port.RecoverableCommitteeMemberWriter
+	member *model.CommitteeMember
+}
+
+func (s *pendingMemberSelection) FindMemberCreate(context.Context, string, string) (*port.MemberCreatePreparation, error) {
+	return &port.MemberCreatePreparation{Member: s.member, Pending: true}, nil
+}
+
+func TestStore_FindMemberCreate(t *testing.T) {
+	for _, pending := range []bool{false, true} {
+		name := "legacy committed discovery"
+		if pending {
+			name = "pending discovery"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			primary, secondary := natstest.NewStore(t), natstest.NewStore(t)
+			member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: "member-1", CommitteeUID: "committee-1", Email: "first.last@example.com", FirstName: "First", LastName: "Last"}}
+			source := primary
+			var before uint64
+			if pending {
+				source = &pendingMemberSelection{CommitteeReaderWriter: primary, RecoverableCommitteeMemberWriter: primary.(port.RecoverableCommitteeMemberWriter), member: member}
+			} else {
+				require.NoError(t, primary.CreateMember(ctx, member))
+				_, before, _ = primary.GetMember(ctx, member.UID)
+			}
+			store, err := New(ModeDual, source, secondary)
+			require.NoError(t, err)
+			selected, err := store.FindMemberCreate(ctx, member.CommitteeUID, member.Email)
+			require.NoError(t, err)
+			require.Equal(t, pending, selected.Pending)
+			copied, _, err := secondary.GetMember(ctx, member.UID)
+			if pending {
+				var notFound errs.NotFound
+				require.ErrorAs(t, err, &notFound)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, member.Email, copied.Email)
+				_, after, err := primary.GetMember(ctx, member.UID)
+				require.NoError(t, err)
+				require.Greater(t, after, before, "discovery fences the legacy primary before copying")
+			}
+		})
+	}
 }

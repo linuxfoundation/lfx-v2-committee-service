@@ -166,21 +166,29 @@ func (s *Store) CreateMemberRecoverable(ctx context.Context, member *model.Commi
 	if err != nil {
 		return nil, err
 	}
-	if outcome != nil && outcome.Member != nil && s.mode.HasSecondary() {
-		uid := outcome.Member.UID
-		s.replicate(ctx, "create_member", uid, func(ctx context.Context) error {
-			if _, _, err := s.dst.GetMember(ctx, uid); !isNotFound(err) {
-				if err != nil {
-					return err
-				}
-				return s.copyMemberUpdate(ctx, uid)
-			}
-			return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
-				s.dst.CreateMember, func(ctx context.Context, revision uint64) error { return s.deleteMemberInSecondary(ctx, uid, revision) },
-				func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
-		})
+	if outcome != nil && outcome.Member != nil {
+		s.replicateCommittedMember(ctx, outcome.Member.UID)
 	}
 	return outcome, nil
+}
+
+// replicateCommittedMember shares the guarded create/update convergence path
+// between new completions and already-member discovery, without publications.
+func (s *Store) replicateCommittedMember(ctx context.Context, uid string) {
+	if !s.mode.HasSecondary() {
+		return
+	}
+	s.replicate(ctx, "create_member", uid, func(ctx context.Context) error {
+		if _, _, err := s.dst.GetMember(ctx, uid); !isNotFound(err) {
+			if err != nil {
+				return err
+			}
+			return s.copyMemberUpdate(ctx, uid)
+		}
+		return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
+			s.dst.CreateMember, func(ctx context.Context, revision uint64) error { return s.deleteMemberInSecondary(ctx, uid, revision) },
+			func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
+	})
 }
 
 // FindMemberCreate selects only from the authoritative store before validation.
@@ -189,7 +197,11 @@ func (s *Store) FindMemberCreate(ctx context.Context, committeeUID, email string
 	if !ok {
 		return nil, errs.NewServiceUnavailable("recoverable member creation is unavailable")
 	}
-	return writer.FindMemberCreate(ctx, committeeUID, email)
+	selected, err := writer.FindMemberCreate(ctx, committeeUID, email)
+	if err == nil && selected != nil && !selected.Pending && selected.Member != nil {
+		s.replicateCommittedMember(ctx, selected.Member.UID)
+	}
+	return selected, err
 }
 
 // AbortMemberCreate fences a rejected pending operation in the authoritative store.
