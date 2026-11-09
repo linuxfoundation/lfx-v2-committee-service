@@ -830,6 +830,12 @@ var CommitteeMemberBulkCreateRowResult = dsl.Type("committee-member-bulk-create-
 	dsl.Attribute("member", CommitteeMemberFullWithReadonlyAttributes, "The created member; present only for added rows")
 
 	dsl.Required("index", "email", "status", "retryable")
+	dsl.Example(map[string]any{
+		"index": 0, "email": "first.last@example.com", "status": "skipped",
+		"reason": "already_member", "retryable": false,
+		"message":    "member already exists in the committee",
+		"member_uid": "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+	})
 })
 
 // CommitteeMemberBulkCreateResult is the result of a bulk member create request: one entry per
@@ -849,6 +855,16 @@ var CommitteeMemberBulkCreateResult = dsl.Type("committee-member-bulk-create-res
 	})
 
 	dsl.Required("results", "added", "skipped", "failed")
+	dsl.Example(map[string]any{
+		"added": 1, "skipped": 1, "failed": 1,
+		"results": []map[string]any{
+			{"index": 0, "email": "first.last@example.com", "status": "added", "retryable": false,
+				"member_uid": "7cad5a8d-19d0-41a4-81a6-043453daf9ee",
+				"member":     map[string]any{"uid": "7cad5a8d-19d0-41a4-81a6-043453daf9ee", "email": "first.last@example.com", "first_name": "First", "last_name": "Last", "appointed_by": "None", "status": "Active"}},
+			{"index": 1, "email": "first.last+existing@example.com", "status": "skipped", "reason": "already_member", "retryable": false, "member_uid": "a1b2c3d4-e5f6-4890-abcd-ef1234567890"},
+			{"index": 2, "email": "first.last+retry@example.com", "status": "failed", "reason": "temporary", "retryable": true, "message": "temporary failure; retry later"},
+		},
+	})
 })
 
 // AcceptInviteOptionalBody is an optional HTTP body for accept-invite (organization only).

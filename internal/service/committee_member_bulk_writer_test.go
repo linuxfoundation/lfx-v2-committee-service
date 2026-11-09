@@ -258,17 +258,16 @@ func TestCommitteeWriterOrchestrator_CreateMembers(t *testing.T) {
 			},
 		},
 		{
-			name: "reports a storage conflict as already a member",
+			name: "keeps an unproven storage conflict retryable",
 			rows: func() []*model.CommitteeMember { return bulkTestMembers(2) },
 			setup: func(f *bulkFixture) {
 				f.writer.errFor[bulkTestEmail(1)] = errs.NewConflict("member with the same email already exists in the committee")
 			},
 			check: func(t *testing.T, _ *bulkFixture, _ []*model.CommitteeMember, results []*model.BulkMemberResult, err error) {
 				require.NoError(t, err)
-				assert.Equal(t, model.BulkMemberSkipped, results[0].Status)
-				assert.Equal(t, model.BulkReasonAlreadyMember, results[0].Reason)
-				assert.False(t, results[0].Retryable)
-				assert.Equal(t, model.BulkMemberAdded, results[1].Status)
+				assert.Equal(t, model.BulkMemberFailed, results[0].Status)
+				assert.Equal(t, model.BulkReasonTemporary, results[0].Reason)
+				assert.True(t, results[0].Retryable)
 			},
 		},
 		{
@@ -394,9 +393,9 @@ func TestCommitteeWriterOrchestrator_CreateMembers(t *testing.T) {
 			},
 			check: func(t *testing.T, _ *bulkFixture, _ []*model.CommitteeMember, results []*model.BulkMemberResult, err error) {
 				require.NoError(t, err)
-				assert.Equal(t, model.BulkReasonAlreadyMember, results[0].Reason, "storage uniqueness still catches the existing email")
+				assert.Equal(t, model.BulkReasonTemporary, results[0].Reason, "a reservation alone never proves membership")
+				assert.True(t, results[0].Retryable)
 				assert.Empty(t, results[0].MemberUID)
-				assert.Equal(t, model.BulkMemberAdded, results[1].Status)
 			},
 		},
 		{

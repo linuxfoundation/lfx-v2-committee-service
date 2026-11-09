@@ -345,10 +345,13 @@ When `X-Skip-Notification: true` is set:
 
 Each added row runs the same create path as a single member create:
 
-- Every added row publishes its own `committee_member.created` event, so each added member is notified (or invited) individually.
+- The winning completion of an added row attempts its own `committee_member.created` publication, so each added member follows the normal notification/invite path. Publication remains best-effort, not a delivery guarantee.
 - `X-Skip-Notification: true` applies to every row of the request.
 - Skipped rows (`already_member`, `duplicate_in_request`) and failed rows publish no event, so nobody is notified for them.
 - As with a single create, a direct bulk add does not change pending `CommitteeInvite` records.
+- A pending row's retry uses its original member snapshot, notification opt-out and creator, not replacement intent from the retry. Completed retries publish no second create event.
+- Legacy incomplete members lack retained notification intent; completing their indexes suppresses a new notification. An uncertain reservation is retryable, never enough for terminal `already_member`.
+- Durable storage completion is not durable notification delivery: a crash before the elected best-effort publish can lose it. Recovery does not replay create notifications. See [recoverable storage](nats-storage.md#recoverable-bulk-member-creation).
 
 ### Member deleted (`DELETE /committees/{uid}/members/{member_uid}`)
 

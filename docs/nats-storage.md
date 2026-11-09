@@ -114,6 +114,52 @@ context detached from the request, and a key is only released when its value is 
 Callers never see or build these keys. The only code that writes an index directly is the KV-only
 `MemberIndexBackfiller` used by the `committee-cli sync members-by-*-index` repair commands.
 
+### Recoverable bulk member creation
+
+Bulk creates use `CreateMemberRecoverable` in the same `committee-members` bucket.
+The primary member UID is allocated once per logical operation. Before taking the
+email reservation, its record contains the validated member snapshot and private
+`_create` metadata (`pending`, `committed`, or `aborted`). A reservation by itself
+is never proof that membership exists. Pending/aborted records are excluded from
+member reads, revision reads, lists, strict scans, exports and backfills.
+
+Retries resume the reservation owner's pending snapshot and complete the same
+secondary indexes without replacing it with retry-supplied fields. The revision-
+guarded transition to `committed` elects one normal publication attempt. Dependency
+errors retain pending state and report a retryable failure, rather than rolling
+back a record another attempt may be completing. Existing completed members are
+returned without publishing another create event.
+
+Pending metadata retains only the original notification opt-out, creator principal,
+and confirmed-account-absence flag in addition to the member snapshot. It never
+stores a token, request context, or `IdentityLookup`. Completion drops this intent
+from the current value; ordinary member JSON, API responses, events and exports
+never include `_create`. Historical KV revisions remain subject to the bucket's
+configured history/retention policy (by default 20 revisions), not immediate erasure.
+Pending operations retain their snapshot/intent until recovered; do not expire them
+while their reservation may still be owned.
+
+For a legacy reservation whose primary owner is absent, recovery first races a
+content-free aborted fence against the old writer's `Create` at that exact owner
+UID. Only after that fence exists may the exact old reservation revision be purged.
+If the old member landed instead, it is retained; missing indexes can be completed.
+Legacy incomplete records have no recoverable notification intent, so recovery
+suppresses an additional notification rather than replaying an invite.
+
+Updates preserve a committed record's fence. Deletion replaces it with a content-
+free aborted fence instead of removing the primary key, then releases its owned
+lookup keys. These fences must not be purged/expired by incident scripts: a paused
+create could otherwise resurrect a deleted member. Losing concurrent completion
+attempts cannot overwrite the winning primary revision and clean up projections
+that its current record no longer uses. Index readers treat the member record as
+authoritative; the existing multi-key index-cleanup limitations still apply.
+
+Storage completion and external delivery are deliberately distinct. A process
+crash between the committed transition and best-effort publication can lose that
+publication, just as a successful core publish does not guarantee delivery. A
+completed retry never replays create notifications; this is not an outbox or an
+exactly-once email-delivery protocol.
+
 Constants `KVLookupSettingsInvitePrefix` (`lookup/committee-settings-invite/<invite_uid>`) and
 `KVSlugPrefix` (`slug/`) are defined, but no current write path creates keys with them. The `slug/`
 prefix is only skipped when scanning for records.
@@ -169,3 +215,33 @@ new ones are written; on delete, all of the member's index keys are removed. The
 - **Do not hand-edit** primary records without going through the CLI or API; updates use optimistic
   concurrency (KV revision), and the indexer and FGA events are emitted by the service, not by the
   bucket.
+
+Bulk recovery also stores a deterministic preparation key
+`lookup/committee-member-creates/<committee-email-hash>` in the same bucket.
+This makes a validated operation discoverable even if its primary/reservation
+write never landed. Every retry selects that snapshot **before** shared current
+identity/group validation. An invalid/stale pending snapshot is CAS-aborted
+before its reservation is released; uncertain validation remains pending.
+Concurrent discovery of a different pending UID requires selection/revalidation
+on a retry, never silent substitution of unvalidated fields.
+
+Preparation payload/intent is removed from the current lookup value at commit
+or abort (history follows the approved bucket policy). The retained lookup holds
+only the operation UID and terminal state. Legacy members are revision-fenced
+even if all their indexes exist, including when a bulk pre-list found them;
+an original creator can no longer roll back the reconciled member.
+
+### Lifecycle-aware rollout checklist
+
+Tracked with the implementation in [lfx-self-serve-ops#1293](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1293):
+
+- Upgrade all service readers and committee CLI/repair tools to lifecycle-aware
+  versions before enabling bulk traffic. Older readers do not hide pending or
+  aborted lifecycle records and older repair tools do not preserve their fences.
+- Do not downgrade readers/writers or purge lifecycle/fence keys after bulk
+  operations have written them. Any downgrade needs a separately designed and
+  approved compatibility/migration procedure; never erase fences as an ad-hoc fix.
+- Verify deployed routing/auth, dependency recovery and downstream convergence
+  separately; local unit tests do not establish deployed behavior. Record the
+  representative bulk-versus-individual timing/failure/throttling comparison
+  required by #1293 before treating the feature's acceptance criteria as complete.

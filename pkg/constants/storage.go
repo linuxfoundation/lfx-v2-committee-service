@@ -26,6 +26,10 @@ const (
 	// KVLookupMemberPrefix is the prefix for member lookup keys in the KV store.
 	KVLookupMemberPrefix = "lookup/committee-members/%s"
 
+	// KVLookupMemberCreatePrefix makes pre-reservation bulk operations discoverable.
+	// It uses the same committee/email hash as the uniqueness key, with no raw email.
+	KVLookupMemberCreatePrefix = "lookup/committee-member-creates/%s"
+
 	// KVLookupMembersByCommitteePrefix is the secondary index that maps a committee UID to each
 	// of its members. Key pattern: "lookup/committee-members-by-committee/<committee_uid>.<member_uid>",
 	// Value: <member_uid>. The dot-separated tokens allow server-side filtered scans via

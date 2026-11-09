@@ -93,19 +93,16 @@ func (m *orgResolutionMemo) resolveSFID(ctx context.Context, resolver port.B2BOr
 	return sfid, found, nil
 }
 
-// classifyBulkMemberError maps a row's create error to its bulk result. Errors the caller must fix
-// are invalid and not retryable; a storage conflict means the email became a member concurrently;
-// everything else is temporary and retryable.
+// classifyBulkMemberError keeps unproven conflicts retryable: a reservation alone
+// is not evidence that a member exists. Verified existing outcomes are handled
+// separately using the member returned by recoverable persistence.
 func classifyBulkMemberError(err error) (model.BulkMemberStatus, model.BulkMemberReason, bool) {
 	var (
-		conflictErr   errs.Conflict
 		validationErr errs.Validation
 		notFoundErr   errs.NotFound
 		forbiddenErr  errs.Forbidden
 	)
 	switch {
-	case errors.As(err, &conflictErr):
-		return model.BulkMemberSkipped, model.BulkReasonAlreadyMember, false
 	case errors.As(err, &validationErr), errors.As(err, &notFoundErr), errors.As(err, &forbiddenErr):
 		return model.BulkMemberFailed, model.BulkReasonInvalid, false
 	default:
@@ -154,6 +151,7 @@ func (uc *committeeWriterOrchestrator) CreateMembers(ctx context.Context, commit
 	target.requireResolvedIdentity = true
 
 	existing := uc.existingMemberUIDsByEmail(ctx, committeeUID)
+	_, recoveryCapable := uc.committeeWriter.(port.RecoverableCommitteeMemberWriter)
 
 	results := make([]*model.BulkMemberResult, len(members))
 	firstRowByEmail := make(map[string]int, len(members))
@@ -177,7 +175,7 @@ func (uc *committeeWriterOrchestrator) CreateMembers(ctx context.Context, commit
 				continue
 			}
 			firstRowByEmail[email] = i
-			if memberUID, ok := existing[email]; ok {
+			if memberUID, ok := existing[email]; ok && !recoveryCapable {
 				result.Status, result.Reason = model.BulkMemberSkipped, model.BulkReasonAlreadyMember
 				result.Message = "member already exists in the committee"
 				result.MemberUID = memberUID
@@ -276,6 +274,13 @@ func (uc *committeeWriterOrchestrator) createBulkMemberRow(ctx context.Context, 
 
 	created, err := uc.createMemberIn(ctx, member, target, opts.Sync, opts.SkipEnrichment)
 	if err != nil {
+		var conflict errs.Conflict
+		if errors.As(err, &conflict) && created != nil {
+			result.Status, result.Reason = model.BulkMemberSkipped, model.BulkReasonAlreadyMember
+			result.Message = "member already exists in the committee"
+			result.MemberUID = created.UID
+			return
+		}
 		result.Status, result.Reason, result.Retryable = classifyBulkMemberError(err)
 		result.Message = bulkMemberErrorMessage(err)
 		if result.Reason == model.BulkReasonTemporary {

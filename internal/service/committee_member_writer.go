@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/concurrent"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -131,12 +132,32 @@ func (uc *committeeWriterOrchestrator) loadMemberCreateTarget(ctx context.Contex
 }
 
 // createMemberIn validates and persists one member against an already loaded committee, then
-// publishes its messages. A panic after the member was persisted rolls the member back.
+// publishes its messages. Single creates roll back on panic; recoverable bulk
+// operations keep their forward-only durable state.
 func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, member *model.CommitteeMember, target *memberCreateTarget, sync bool, skipEnrichment bool) (result *model.CommitteeMember, err error) {
-	now := time.Now()
-	member.UID = uuid.New().String()
-	member.CreatedAt = now
-	member.UpdatedAt = now
+	recoverable, canRecover := uc.committeeWriter.(port.RecoverableCommitteeMemberWriter)
+	canRecover = canRecover && target.requireResolvedIdentity
+	var pending *port.MemberCreatePreparation
+	if canRecover {
+		selected, err := recoverable.FindMemberCreate(ctx, member.CommitteeUID, member.Email)
+		if err != nil {
+			return nil, err
+		}
+		if selected != nil {
+			if !selected.Pending {
+				return selected.Member, errs.NewConflict("member already exists in the committee")
+			}
+			pending = selected
+			lookup := member.IdentityLookup
+			member = &model.CommitteeMember{CommitteeMemberBase: selected.Member.CommitteeMemberBase, SkipNotification: selected.Intent.SkipNotification, IdentityLookup: lookup}
+		}
+	}
+	if pending == nil {
+		now := time.Now()
+		member.UID = uuid.New().String()
+		member.CreatedAt, member.UpdatedAt = now, now
+	}
+	rejectPending := false
 
 	// created marks that the member was persisted, so an unexpected panic afterwards removes it again
 	var created bool
@@ -145,6 +166,16 @@ func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, membe
 			result, err = nil, handleCreatePanic(ctx, "committee member", r, created, func() {
 				uc.rollbackCreatedMember(ctx, member.UID)
 			})
+		}
+		if pending != nil && err != nil {
+			var invalid errs.Validation
+			if rejectPending || errors.As(err, &invalid) {
+				cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+				defer cancel()
+				if abortErr := recoverable.AbortMemberCreate(cleanupCtx, pending.Member); abortErr != nil {
+					result, err = nil, abortErr
+				}
+			}
 		}
 	}()
 
@@ -235,10 +266,39 @@ func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, membe
 		return nil, errOrganization
 	}
 
-	// Step 7: Create the member. Storage enforces that the email is unique within the committee and
-	// writes the member's lookup entries (by committee, organization, email, and username), removing
-	// everything again if any step fails.
-	if errCreate := uc.committeeWriter.CreateMember(ctx, member); errCreate != nil {
+	if pending != nil && ((!skipEnrichment && member.Username != pending.Member.Username) || member.Organization != pending.Member.Organization) {
+		rejectPending = true
+		return nil, errs.NewServiceUnavailable("pending member identity or organization changed; resubmit after revalidation")
+	}
+
+	// Bulk persistence is forward-only: storage elects the one completion that
+	// may publish and returns the original snapshot/intent when resuming a row.
+	var errCreate error
+	if canRecover {
+		principal, _ := ctx.Value(constants.PrincipalContextID).(string)
+		intent := port.MemberCreateIntent{SkipNotification: member.SkipNotification, CreatedBy: principal,
+			AccountAbsent: member.IdentityLookup.ResolvedFor(member.Email) && member.IdentityLookup.Status == model.IdentityLookupAbsent}
+		var outcome *port.MemberCreateResult
+		outcome, errCreate = recoverable.CreateMemberRecoverable(ctx, member, intent)
+		if errCreate == nil {
+			if outcome == nil || outcome.Member == nil {
+				return nil, errs.NewServiceUnavailable("member creation is not yet confirmed; retry later")
+			}
+			member = outcome.Member
+			if !outcome.Added {
+				return member, errs.NewConflict("member already exists in the committee")
+			}
+			member.SkipNotification = outcome.Intent.SkipNotification
+			if outcome.Intent.AccountAbsent {
+				member.IdentityLookup = model.NewIdentityLookup(member.Email, "", nil)
+			}
+			ctx = context.WithValue(ctx, constants.PrincipalContextID, outcome.Intent.CreatedBy)
+		}
+	} else {
+		errCreate = uc.committeeWriter.CreateMember(ctx, member)
+		created = errCreate == nil
+	}
+	if errCreate != nil {
 		var conflictErr errs.Conflict
 		if errors.As(errCreate, &conflictErr) {
 			slog.WarnContext(ctx, "member already exists in committee",
@@ -255,7 +315,6 @@ func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, membe
 		}
 		return nil, errCreate
 	}
-	created = true
 
 	slog.DebugContext(ctx, "committee member created successfully",
 		"committee_uid", member.CommitteeUID,

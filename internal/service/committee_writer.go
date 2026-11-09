@@ -142,7 +142,8 @@ type CommitteeMemberDataWriter interface {
 
 // BulkMemberCreateOptions configures a bulk member create.
 type BulkMemberCreateOptions struct {
-	// Sync publishes each row's indexer message synchronously, as X-Sync does for a single create.
+	// Sync forwards the legacy X-Sync flag. Indexer publication is fire-and-forget;
+	// it does not wait for downstream indexing or FGA convergence.
 	Sync bool
 	// SkipEnrichment stores each row's username and profile as submitted, without identity lookup.
 	SkipEnrichment bool
