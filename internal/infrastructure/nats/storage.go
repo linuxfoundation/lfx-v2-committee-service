@@ -1392,6 +1392,9 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 	}
 	memberBytes, errMarshal = preserveMemberCreateState(ctx, kv, member.UID, memberBytes)
 	if errMarshal != nil {
+		if errors.Is(errMarshal, jetstream.ErrKeyNotFound) {
+			return nil, errs.NewNotFound("committee member not found")
+		}
 		return nil, readError("failed to preserve member creation fence", errMarshal)
 	}
 	oldKeys := buildMemberLookupKeys(ctx, existing)
@@ -1444,6 +1447,11 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 			// The server rejected the revision, so this write did not land even though the stored bytes
 			// equal it: another writer stored the same value. Keys that version uses stay with it.
 			state = recordDiffers
+		}
+		if state == recordDiffers {
+			if visible, err := memberCreateVisible(stored.Value()); err == nil && !visible {
+				state = recordAbsent // A content-free delete fence is also logically absent.
+			}
 		}
 		switch state {
 		case recordMatches:

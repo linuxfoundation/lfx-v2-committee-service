@@ -38,6 +38,11 @@ type MemberCreatePreparation struct {
 // recovery must fence old writers before reclaiming a reservation. Completed
 // retries return Added=false and never elect another notification attempt.
 type RecoverableCommitteeMemberWriter interface {
+	// SupportsMemberCreateRecovery distinguishes KV-primary recovery from transactional stores.
+	SupportsMemberCreateRecovery() bool
+	// AbortMemberCreatesForIdentity clears matching pending snapshots, not committed members.
+	// An empty username matches by email; a supplied username and email must both match.
+	AbortMemberCreatesForIdentity(context.Context, string, string) error
 	FindMemberCreate(context.Context, string, string) (*MemberCreatePreparation, error)
 	AbortMemberCreate(context.Context, *model.CommitteeMember) error
 	CreateMemberRecoverable(context.Context, *model.CommitteeMember, MemberCreateIntent) (*MemberCreateResult, error)

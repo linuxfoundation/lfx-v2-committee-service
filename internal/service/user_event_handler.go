@@ -75,9 +75,10 @@ func (h *userEventHandler) HandleUserDeleted(ctx context.Context, msg port.Trans
 
 	slog.InfoContext(ctx, "scrubbing deleted user's username from committee data")
 
+	pendingErr := h.abortPendingMemberCreates(ctx, event.Username, event.Email)
 	h.scrubUsernameFromMembers(ctx, event.Username, event.Email)
 	h.scrubUsernameFromSettings(ctx, event.Username, event.Email)
-	return nil, nil
+	return nil, pendingErr
 }
 
 func (h *userEventHandler) scrubUsernameFromMembers(ctx context.Context, username, deletedEmail string) {
@@ -235,8 +236,8 @@ func (h *userEventHandler) scrubUsernameFromOneCommitteeSettings(ctx context.Con
 // HandleUserEmailChanged reacts to a user-email change event from the durable user-email-events
 // stream. For alternate_email_added events it promotes all email-only committee member seats
 // associated with the address to the resolved LFID username via reconcileUsernamesForEmail.
-// Other event types are logged and ACKed; the same helper can be wired to them as the
-// corresponding teardown semantics are defined. The caller (infrastructure layer) owns ACK/NAK.
+// Known email-change events also abort pending snapshots for the address, so stale
+// identity data cannot survive outside visible-member reconciliation. The caller owns ACK/NAK.
 func (h *userEventHandler) HandleUserEmailChanged(ctx context.Context, msg port.StreamMessenger) error {
 	subject := msg.Subject()
 
@@ -269,6 +270,14 @@ func (h *userEventHandler) HandleUserEmailChanged(ctx context.Context, msg port.
 		"email", redaction.RedactEmail(event.Email),
 		"timestamp", event.Timestamp,
 	)
+
+	switch event.Type {
+	case model.UserEmailEventAlternateEmailAdded, model.UserEmailEventAlternateEmailRemoved,
+		model.UserEmailEventLFIDUserCreated, model.UserEmailEventLFIDUserDeleted:
+		if err := h.abortPendingMemberCreates(ctx, "", event.Email); err != nil {
+			return err
+		}
+	}
 
 	switch event.Type {
 	case model.UserEmailEventAlternateEmailAdded:
@@ -422,5 +431,14 @@ func (h *userEventHandler) promoteEmailOnlyMemberUsername(writeCtx context.Conte
 
 	// Unreachable: the final iteration always returns (conflict on the last attempt falls through
 	// to return writeErr above). Required by the compiler for a bounded for loop.
+	return nil
+}
+
+func (h *userEventHandler) abortPendingMemberCreates(ctx context.Context, username, email string) error {
+	if writer, ok := h.committeeWriterOrchestrator.(interface {
+		AbortMemberCreatesForIdentity(context.Context, string, string) error
+	}); ok {
+		return writer.AbortMemberCreatesForIdentity(ctx, username, email)
+	}
 	return nil
 }

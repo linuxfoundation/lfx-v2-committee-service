@@ -150,7 +150,7 @@ func (r *currentRecoveryUser) UsernameByEmail(context.Context, string) (string, 
 }
 
 func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
-	for _, scenario := range []string{"identity changed", "identity absent", "voting enabled", "organization required", "irrelevant replacement fields"} {
+	for _, scenario := range []string{"identity changed", "identity absent", "skip-enrichment identity changed", "voting enabled", "organization required", "irrelevant replacement fields"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			client := newKVClient(t)
@@ -184,7 +184,7 @@ func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
 			retry.Organization = model.CommitteeMemberOrganization{Name: "Example Organization", Website: "https://example.com"}
 			retry.Voting.Status = "Voting Rep"
 			switch scenario {
-			case "identity changed":
+			case "identity changed", "skip-enrichment identity changed":
 				users.username = "first-last-new"
 			case "identity absent":
 				users.username = ""
@@ -201,7 +201,7 @@ func TestBulkMemberRecoveryCurrentValidation(t *testing.T) {
 				retry.Organization = model.CommitteeMemberOrganization{}
 				retry.Voting.Status = "None"
 			}
-			second, err := writer.CreateMembers(ctx, base.UID, []*model.CommitteeMember{retry}, service.BulkMemberCreateOptions{})
+			second, err := writer.CreateMembers(ctx, base.UID, []*model.CommitteeMember{retry}, service.BulkMemberCreateOptions{SkipEnrichment: scenario == "skip-enrichment identity changed"})
 			require.NoError(t, err)
 			if scenario == "irrelevant replacement fields" {
 				require.Equal(t, model.BulkMemberAdded, second[0].Status)

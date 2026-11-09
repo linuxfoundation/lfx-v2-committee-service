@@ -135,7 +135,7 @@ func (uc *committeeWriterOrchestrator) loadMemberCreateTarget(ctx context.Contex
 // publishes its messages. Single creates roll back on panic; recoverable bulk
 // operations keep their forward-only durable state.
 func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, member *model.CommitteeMember, target *memberCreateTarget, sync bool, skipEnrichment bool) (result *model.CommitteeMember, err error) {
-	recoverable, canRecover := uc.committeeWriter.(port.RecoverableCommitteeMemberWriter)
+	recoverable, canRecover := uc.memberCreateRecovery()
 	canRecover = canRecover && target.requireResolvedIdentity
 	var pending *port.MemberCreatePreparation
 	if canRecover {
@@ -150,6 +150,10 @@ func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, membe
 			pending = selected
 			lookup := member.IdentityLookup
 			member = &model.CommitteeMember{CommitteeMemberBase: selected.Member.CommitteeMemberBase, SkipNotification: selected.Intent.SkipNotification, IdentityLookup: lookup}
+			// Pending snapshots can outlive user deletion or an email reassignment.
+			// A retry flag must not bypass current verification of their retained identity.
+			skipEnrichment = false
+			member.IdentityLookup = uc.resolveMemberIdentity(ctx, member.Email)
 		}
 	}
 	if pending == nil {
@@ -1219,5 +1223,20 @@ func (uc *committeeWriterOrchestrator) publishMemberMessages(ctx context.Context
 		return errPublishingMessage
 	}
 
+	return nil
+}
+
+// memberCreateRecovery respects the authoritative adapter's runtime capability.
+func (uc *committeeWriterOrchestrator) memberCreateRecovery() (port.RecoverableCommitteeMemberWriter, bool) {
+	writer, ok := uc.committeeWriter.(port.RecoverableCommitteeMemberWriter)
+	return writer, ok && writer.SupportsMemberCreateRecovery()
+}
+
+// AbortMemberCreatesForIdentity clears pending identity snapshots through the storage protocol.
+// Transactional stores have no pending KV state; composites also visit a KV secondary.
+func (uc *committeeWriterOrchestrator) AbortMemberCreatesForIdentity(ctx context.Context, username, email string) error {
+	if writer, ok := uc.committeeWriter.(port.RecoverableCommitteeMemberWriter); ok {
+		return writer.AbortMemberCreatesForIdentity(ctx, username, email)
+	}
 	return nil
 }

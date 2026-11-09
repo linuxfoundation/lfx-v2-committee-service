@@ -116,7 +116,7 @@ Callers never see or build these keys. The only code that writes an index direct
 
 ### Recoverable bulk member creation
 
-Bulk creates use `CreateMemberRecoverable` in the same `committee-members` bucket.
+KV-primary bulk creates use `CreateMemberRecoverable` in the same `committee-members` bucket.
 The primary member UID is allocated once per logical operation. Before taking the
 email reservation, its record contains the validated member snapshot and private
 `_create` metadata (`pending`, `committed`, or `aborted`). A reservation by itself
@@ -136,14 +136,21 @@ stores a token, request context, or `IdentityLookup`. Completion drops this inte
 from the current value; ordinary member JSON, API responses, events and exports
 never include `_create`. Historical KV revisions remain subject to the bucket's
 configured history/retention policy (by default 20 revisions), not immediate erasure.
-Pending operations retain their snapshot/intent until recovered; do not expire them
-while their reservation may still be owned.
+Pending operations retain their snapshot/intent until recovered or safely aborted;
+do not expire them while their reservation may still be owned. User-deletion and
+known user-email change handlers reach preparations directly and abort matching
+operations before reconciling visible members. Username deletion keeps the existing
+email-reuse guard; email-change events match the affected address. Current intent
+is cleared through the fenced protocol, not an unsafe key purge. Pending resumes
+always revalidate current identity, even with `X-Skip-Enrichment`.
 
 For a legacy reservation whose primary owner is absent, recovery first races a
 content-free aborted fence against the old writer's `Create` at that exact owner
 UID. Only after that fence exists may the exact old reservation revision be purged.
-If the old member landed instead, it is retained; missing indexes can be completed.
-Legacy incomplete records have no recoverable notification intent, so recovery
+If the old member landed instead, it remains visible: its primary is revision-fenced
+as committed and missing owned indexes are repaired in place. It is never changed
+to a disposable pending operation or rejected by replacement import fields/current
+create policy. Legacy records have no recoverable notification intent, so recovery
 suppresses an additional notification rather than replaying an invite.
 
 Updates preserve a committed record's fence. Deletion replaces it with a content-
@@ -245,3 +252,10 @@ Tracked with the implementation in [lfx-self-serve-ops#1293](https://github.com/
   separately; local unit tests do not establish deployed behavior. Record the
   representative bulk-versus-individual timing/failure/throttling comparison
   required by #1293 before treating the feature's acceptance criteria as complete.
+
+Bulk creation is supported in all selectable storage modes. PostgreSQL-primary
+modes (`postgres`, `dual-pg`) use their existing transactional member writes and
+confirm concurrent duplicates with a primary read. They do not claim KV recovery
+capability or copy `_create`/preparation metadata into SQL. Identity cleanup also
+visits an available KV secondary to abort preparations left before a mode switch.
+See [the SQL mapping](postgres-schema.md#bulk-member-creation-and-kv-lifecycle-metadata).

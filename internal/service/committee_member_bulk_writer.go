@@ -121,9 +121,16 @@ func bulkMemberErrorMessage(err error) string {
 		unavailableErr errs.ServiceUnavailable
 	)
 	switch {
-	case errors.As(err, &conflictErr), errors.As(err, &validationErr), errors.As(err, &notFoundErr),
-		errors.As(err, &forbiddenErr), errors.As(err, &unavailableErr):
-		return err.Error()
+	case errors.As(err, &conflictErr):
+		return conflictErr.ClientMessage()
+	case errors.As(err, &validationErr):
+		return validationErr.ClientMessage()
+	case errors.As(err, &notFoundErr):
+		return notFoundErr.ClientMessage()
+	case errors.As(err, &forbiddenErr):
+		return forbiddenErr.ClientMessage()
+	case errors.As(err, &unavailableErr):
+		return unavailableErr.ClientMessage()
 	default:
 		return "temporary failure; retry later"
 	}
@@ -150,8 +157,11 @@ func (uc *committeeWriterOrchestrator) CreateMembers(ctx context.Context, commit
 	target.orgs = newOrgResolutionMemo()
 	target.requireResolvedIdentity = true
 
-	existing := uc.existingMemberUIDsByEmail(ctx, committeeUID)
-	_, recoveryCapable := uc.committeeWriter.(port.RecoverableCommitteeMemberWriter)
+	_, recoveryCapable := uc.memberCreateRecovery()
+	existing := map[string]string{}
+	if !recoveryCapable {
+		existing = uc.existingMemberUIDsByEmail(ctx, committeeUID)
+	}
 
 	results := make([]*model.BulkMemberResult, len(members))
 	firstRowByEmail := make(map[string]int, len(members))
@@ -268,6 +278,24 @@ func (uc *committeeWriterOrchestrator) createBulkMemberRow(ctx context.Context, 
 		}
 	}()
 
+	// Confirm and fence existing memberships before enrichment or replacement-row
+	// validation. Storage, not a possibly stale pre-list, establishes completion.
+	if recovery, ok := uc.memberCreateRecovery(); ok {
+		selected, err := recovery.FindMemberCreate(ctx, member.CommitteeUID, member.Email)
+		if err != nil {
+			result.Status, result.Reason, result.Retryable = classifyBulkMemberError(err)
+			result.Message = bulkMemberErrorMessage(err)
+			halted.Store(true)
+			return
+		}
+		if selected != nil && !selected.Pending {
+			result.Status, result.Reason = model.BulkMemberSkipped, model.BulkReasonAlreadyMember
+			result.MemberUID = selected.Member.UID
+			result.Message = "member already exists in the committee"
+			return
+		}
+	}
+
 	if opts.Enrich != nil {
 		opts.Enrich(ctx, member)
 	}
@@ -275,6 +303,13 @@ func (uc *committeeWriterOrchestrator) createBulkMemberRow(ctx context.Context, 
 	created, err := uc.createMemberIn(ctx, member, target, opts.Sync, opts.SkipEnrichment)
 	if err != nil {
 		var conflict errs.Conflict
+		if errors.As(err, &conflict) && created == nil {
+			// A transactional concurrent create may win after the pre-list.
+			// Only an authoritative read proves that this is already a membership.
+			if uid := uc.existingMemberUIDsByEmail(ctx, member.CommitteeUID)[normalizeBulkMemberEmail(member.Email)]; uid != "" {
+				created = &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{UID: uid}}
+			}
+		}
 		if errors.As(err, &conflict) && created != nil {
 			result.Status, result.Reason = model.BulkMemberSkipped, model.BulkReasonAlreadyMember
 			result.Message = "member already exists in the committee"

@@ -63,10 +63,9 @@ func TestStorage_CreateMemberRecoverable(t *testing.T) {
 			kv.getErrFor, kv.failCreateFor, kv.ambiguousFor = "", "", ""
 			outcome, err := resumeMemberCreate(s, member("retry"), intent)
 			require.NoError(t, err)
-			require.True(t, outcome.Added)
+			require.Equal(t, !landed, outcome.Added, "a visible legacy membership is not a new addition")
 			if landed {
 				require.Equal(t, "old", outcome.Member.UID)
-				require.True(t, outcome.Intent.SkipNotification, "unknown legacy intent must never replay a notification")
 			} else {
 				require.Equal(t, "retry", outcome.Member.UID)
 				require.Error(t, s.CreateMember(ctx, member("old")), "fenced old UID cannot write later")
@@ -268,7 +267,7 @@ func TestBulkMemberRecovery(t *testing.T) {
 	_, err = client.kvStore[constants.KVBucketNameCommittees].Create(ctx, base.UID, data)
 	require.NoError(t, err)
 	publisher := &mock.MockCommitteePublisher{}
-	writer := service.NewCommitteeWriterOrchestrator(service.WithCommitteeWriter(s), service.WithCommitteeRetriever(s), service.WithCommitteePublisher(publisher))
+	writer := service.NewCommitteeWriterOrchestrator(service.WithCommitteeWriter(s), service.WithCommitteeRetriever(s), service.WithCommitteePublisher(publisher), service.WithUserReader(&currentRecoveryUser{}))
 	row := func(skip bool) *model.CommitteeMember {
 		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{Email: "first.last@example.com", FirstName: "First", LastName: "Last", AppointedBy: "None", Status: "Active"}, SkipNotification: skip}
 	}

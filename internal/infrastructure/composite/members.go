@@ -200,3 +200,21 @@ func (s *Store) AbortMemberCreate(ctx context.Context, member *model.CommitteeMe
 	}
 	return writer.AbortMemberCreate(ctx, member)
 }
+
+// SupportsMemberCreateRecovery reports the authoritative store's capability.
+func (s *Store) SupportsMemberCreateRecovery() bool {
+	writer, ok := s.CommitteeReaderWriter.(port.RecoverableCommitteeMemberWriter)
+	return ok && writer.SupportsMemberCreateRecovery()
+}
+
+// AbortMemberCreatesForIdentity also clears old KV preparations when KV is secondary.
+func (s *Store) AbortMemberCreatesForIdentity(ctx context.Context, username, email string) error {
+	for _, store := range []port.CommitteeReaderWriter{s.src, s.dst} {
+		if writer, ok := store.(port.RecoverableCommitteeMemberWriter); ok {
+			if err := writer.AbortMemberCreatesForIdentity(ctx, username, email); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

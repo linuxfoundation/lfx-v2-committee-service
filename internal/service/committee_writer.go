@@ -145,7 +145,7 @@ type BulkMemberCreateOptions struct {
 	// Sync forwards the legacy X-Sync flag. Indexer publication is fire-and-forget;
 	// it does not wait for downstream indexing or FGA convergence.
 	Sync bool
-	// SkipEnrichment stores each row's username and profile as submitted, without identity lookup.
+	// SkipEnrichment stores new rows as submitted. Pending resumes always revalidate identity.
 	SkipEnrichment bool
 	// Enrich, when set, runs for each row inside the bounded worker pool before the row is created,
 	// so request-scoped lookups (such as the API handler's identity enrichment) share the same limit.

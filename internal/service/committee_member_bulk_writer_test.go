@@ -547,3 +547,20 @@ func TestOrgResolutionMemo(t *testing.T) {
 		assert.EqualValues(t, 2, resolver.calls.Load())
 	})
 }
+
+func TestBulkMemberErrorMessage(t *testing.T) {
+	for _, err := range []error{
+		errs.NewServiceUnavailable("identity lookup unavailable", fmt.Errorf("private-infrastructure-cause")),
+		errs.NewValidation("invalid voting_status", fmt.Errorf("private-infrastructure-cause")),
+		errs.NewConflict("member exists", fmt.Errorf("private-infrastructure-cause")),
+		errs.NewNotFound("member missing", fmt.Errorf("private-infrastructure-cause")),
+		errs.NewForbidden("operation forbidden", fmt.Errorf("private-infrastructure-cause")),
+		errs.NewUnexpected("private-infrastructure-cause"),
+	} {
+		t.Run(fmt.Sprintf("%T", err), func(t *testing.T) {
+			message := bulkMemberErrorMessage(err)
+			require.NotEmpty(t, message)
+			require.NotContains(t, message, "private-infrastructure-cause")
+		})
+	}
+}

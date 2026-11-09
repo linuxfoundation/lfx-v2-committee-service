@@ -373,3 +373,9 @@ When `X-Skip-Notification: true` is set:
 - Indexer messages (`lfx.index.*`) — those are always published.
 - FGA access-control messages — those are always published.
 - Settings-change emails (`HandleCommitteeSettingsUpdated`) — those are not gated by this flag.
+
+Bulk pending-state identity cleanup is separate from invitation state: user deletion
+and known user-email change events abort matching uncommitted operations without
+sending member-created/deleted notifications. Pending resumes perform current identity
+validation even with `X-Skip-Enrichment`. Already-visible legacy memberships remain
+visible while missing indexes are repaired and never replay create notifications.

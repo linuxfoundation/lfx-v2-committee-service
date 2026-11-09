@@ -42,6 +42,9 @@ type memberCreateState struct {
 
 var _ port.RecoverableCommitteeMemberWriter = (*storage)(nil)
 
+// SupportsMemberCreateRecovery reports the KV protocol's availability.
+func (s *storage) SupportsMemberCreateRecovery() bool { return true }
+
 func decodeMemberCreateRecord(data []byte) (*memberCreateRecord, error) {
 	var record memberCreateRecord
 	if err := json.Unmarshal(data, &record); err != nil {
@@ -79,7 +82,7 @@ func (s *storage) FindMemberCreate(ctx context.Context, committeeUID, email stri
 	key := memberCreateOperationKey(ctx, committeeUID, email)
 	op, err := kv.Get(ctx, key)
 	if errors.Is(err, jetstream.ErrKeyNotFound) {
-		return nil, nil
+		return s.findExistingMemberCreate(ctx, committeeUID, email)
 	}
 	if err != nil {
 		return nil, memberCreateTemporary(err)
@@ -123,7 +126,7 @@ func (s *storage) FindMemberCreate(ctx context.Context, committeeUID, email stri
 		if err := s.retireMemberCreate(ctx, key, record.UID, memberCreateCommitted); err != nil {
 			return nil, err
 		}
-		return &port.MemberCreatePreparation{Member: record.member()}, nil
+		return s.confirmExistingMemberCreate(ctx, record, entry)
 	}
 	if record.Create.Intent == nil {
 		return nil, memberCreateTemporary(nil)
@@ -139,6 +142,14 @@ func (s *storage) CreateMemberRecoverable(ctx context.Context, member *model.Com
 		return nil, errs.NewValidation("member UID, committee UID and email are required")
 	}
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
+	if entry, err := kv.Get(ctx, member.UID); err == nil {
+		prior, decodeErr := decodeMemberCreateRecord(entry.Value())
+		if decodeErr != nil || (prior.Create != nil && prior.Create.State == memberCreateAborted) {
+			return nil, memberCreateTemporary(decodeErr)
+		}
+	} else if !errors.Is(err, jetstream.ErrKeyNotFound) {
+		return nil, memberCreateTemporary(err)
+	}
 	opKey := memberCreateOperationKey(ctx, member.CommitteeUID, member.Email)
 	selected, err := s.FindMemberCreate(ctx, member.CommitteeUID, member.Email)
 	if err != nil {
@@ -161,7 +172,7 @@ func (s *storage) CreateMemberRecoverable(ctx context.Context, member *model.Com
 			_, err = kv.Create(ctx, opKey, data)
 		case err == nil:
 			prior, decodeErr := decodeMemberCreateRecord(previous.Value())
-			if decodeErr != nil || prior.Create == nil || prior.Create.State == memberCreatePending {
+			if decodeErr != nil || prior.Create == nil || prior.Create.State == memberCreatePending || prior.UID == record.UID {
 				return nil, memberCreateTemporary(decodeErr)
 			}
 			_, err = kv.Update(ctx, opKey, data, previous.Revision())
@@ -218,26 +229,9 @@ func (s *storage) CreateMemberRecoverable(ctx context.Context, member *model.Com
 		if stored.CommitteeUID != member.CommitteeUID || normalizeMemberCreateEmail(stored.Email) != normalizeMemberCreateEmail(member.Email) {
 			return nil, memberCreateTemporary(nil)
 		}
-		if stored.Create == nil {
-			complete := true
-			for _, idx := range buildMemberLookupKeys(ctx, stored.member()).indexes() {
-				index, err := kv.Get(ctx, idx.key)
-				if err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
-					return nil, memberCreateTemporary(err)
-				}
-				if err != nil || string(index.Value()) != owner {
-					complete = false
-				}
-			}
-			// Even a fully indexed legacy member needs a primary revision
-			// fence before its old creator can be allowed to roll back.
-			stored.Create = &memberCreateState{State: memberCreateCommitted, Token: uuid.NewString()}
-			if !complete {
-				stored.Create = &memberCreateState{State: memberCreatePending, Intent: &port.MemberCreateIntent{SkipNotification: true}}
-			}
-			value, _ := json.Marshal(stored)
-			if _, err := kv.Update(ctx, owner, value, entry.Revision()); err != nil {
-				return nil, memberCreateTemporary(err)
+		if stored.Create == nil || stored.Create.State == memberCreateCommitted {
+			if _, err := s.confirmExistingMemberCreate(ctx, stored, entry); err != nil {
+				return nil, err
 			}
 		}
 		// The conflicting owner is authoritative. Fence this uncommitted
@@ -268,6 +262,133 @@ func (s *storage) CreateMemberRecoverable(ctx context.Context, member *model.Com
 		return nil, memberCreateTemporary(nil)
 	}
 	return nil, memberCreateTemporary(nil)
+}
+
+// findExistingMemberCreate confirms a reservation owner without validating replacement
+// import fields or creating a throwaway operation. Legacy memberships stay visible.
+func (s *storage) findExistingMemberCreate(ctx context.Context, committeeUID, email string) (*port.MemberCreatePreparation, error) {
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
+	member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{CommitteeUID: committeeUID, Email: email}}
+	lock, err := kv.Get(ctx, buildMemberLookupKeys(ctx, member).unique)
+	if errors.Is(err, jetstream.ErrKeyNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, memberCreateTemporary(err)
+	}
+	entry, err := kv.Get(ctx, string(lock.Value()))
+	if errors.Is(err, jetstream.ErrKeyNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, memberCreateTemporary(err)
+	}
+	record, err := decodeMemberCreateRecord(entry.Value())
+	if err != nil || record.UID != string(lock.Value()) {
+		return nil, memberCreateTemporary(err)
+	}
+	if record.Create != nil && record.Create.State == memberCreateAborted {
+		return nil, nil
+	}
+	if record.CommitteeUID != committeeUID || normalizeMemberCreateEmail(record.Email) != normalizeMemberCreateEmail(email) {
+		return nil, memberCreateTemporary(nil)
+	}
+	return s.confirmExistingMemberCreate(ctx, record, entry)
+}
+
+// confirmExistingMemberCreate fences legacy rollback before repairing owned indexes.
+// A visible membership must never become a pending candidate that current policy can abort.
+func (s *storage) confirmExistingMemberCreate(ctx context.Context, record *memberCreateRecord, entry jetstream.KeyValueEntry) (*port.MemberCreatePreparation, error) {
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
+	data := entry.Value()
+	if record.Create == nil {
+		record.Create = &memberCreateState{State: memberCreateCommitted, Token: uuid.NewString()}
+		data, _ = json.Marshal(record)
+		if _, err := kv.Update(ctx, record.UID, data, entry.Revision()); err != nil {
+			return nil, memberCreateTemporary(err)
+		}
+	}
+	if record.Create.State != memberCreateCommitted {
+		return nil, memberCreateTemporary(nil)
+	}
+	keys := buildMemberLookupKeys(ctx, record.member())
+	var written []string
+	for _, key := range append([]string{keys.unique}, memberKeyStrings(keys.indexes())...) {
+		if _, err := reserveOwnedKey(ctx, kv, record.UID, key); err != nil {
+			s.releaseStaleMemberKeys(ctx, record.UID, written)
+			return nil, memberCreateTemporary(err)
+		}
+		written = append(written, key)
+	}
+	if state, _ := readRecordState(ctx, kv, record.UID, data); state != recordMatches {
+		s.releaseStaleMemberKeys(ctx, record.UID, written)
+		return nil, memberCreateTemporary(nil)
+	}
+	return &port.MemberCreatePreparation{Member: record.member()}, nil
+}
+
+func memberKeyStrings(indexes []memberIndexKey) []string {
+	keys := make([]string, 0, len(indexes))
+	for _, index := range indexes {
+		keys = append(keys, index.key)
+	}
+	return keys
+}
+
+// AbortMemberCreatesForIdentity reaches preparations even before their primary write.
+// It leaves content-free fences; historical revisions retain the bucket's existing policy.
+func (s *storage) AbortMemberCreatesForIdentity(ctx context.Context, username, email string) error {
+	username, email = strings.TrimSpace(username), normalizeMemberCreateEmail(email)
+	if username == "" && email == "" {
+		return nil
+	}
+	kv := s.client.kvStore[constants.KVBucketNameCommitteeMembers]
+	keys, err := kv.ListKeys(ctx)
+	if err != nil {
+		return memberCreateTemporary(err)
+	}
+	defer func() { _ = keys.Stop() }()
+	for key := range keys.Keys() {
+		if !strings.HasPrefix(key, fmt.Sprintf(constants.KVLookupMemberCreatePrefix, "")) {
+			continue
+		}
+		entry, err := kv.Get(ctx, key)
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			continue
+		}
+		if err != nil {
+			return memberCreateTemporary(err)
+		}
+		record, err := decodeMemberCreateRecord(entry.Value())
+		if err != nil {
+			return memberCreateTemporary(err)
+		}
+		if record.Create == nil || record.Create.State != memberCreatePending {
+			continue
+		}
+		if username != "" && !strings.EqualFold(username, strings.TrimSpace(record.Username)) {
+			continue
+		}
+		if email != "" && email != normalizeMemberCreateEmail(record.Email) {
+			continue
+		}
+		if err := s.AbortMemberCreate(ctx, record.member()); err != nil {
+			// A completion may win the abort CAS. Its indexes are already present,
+			// so the caller's ordinary visible-member scrub can now reach it.
+			current, readErr := kv.Get(ctx, record.UID)
+			if readErr != nil {
+				return err
+			}
+			committed, decodeErr := decodeMemberCreateRecord(current.Value())
+			if decodeErr != nil || committed.Create == nil || committed.Create.State != memberCreateCommitted {
+				return err
+			}
+			if err := s.retireMemberCreate(ctx, key, record.UID, memberCreateCommitted); err != nil {
+				return err
+			}
+		}
+	}
+	return ctx.Err()
 }
 
 func normalizeMemberCreateEmail(email string) string {

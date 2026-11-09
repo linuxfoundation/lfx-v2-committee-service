@@ -277,3 +277,12 @@ Pending bulk recovery snapshots are selected before shared current group and
 identity validation. A confirmed changed identity or invalid current group rule
 fences/rejects that pending operation instead of granting stale access. An
 unresolved identity lookup leaves it retryable without committing or publishing.
+
+Pending bulk resumes always revalidate their retained identity, including requests
+with `X-Skip-Enrichment`; a retry cannot re-grant a deleted or reassigned username
+from a stale snapshot. User-deletion and known user-email change events abort
+matching pending preparations before visible-member reconciliation. This removes
+current snapshot/intent data while retaining content-free fences and the bucket's
+existing historical-revision policy. Legacy visible memberships are revision-fenced
+and have missing indexes repaired in place; import validation never aborts them
+or publishes a second create event.

@@ -61,6 +61,26 @@ The four member secondary indexes (`lookup/committee-members-by-*`) become ordin
 `committee_members`: `committee_uid`, `organization_id`, the normalized email, and the normalized
 username.
 
+### Bulk member creation and KV lifecycle metadata
+
+Bulk creation uses the existing transactional member create and unique email index
+when PostgreSQL is primary (`postgres` or `dual-pg`). A concurrent unique conflict
+is reported as `already_member` only after a primary-store read confirms the seat;
+uncertain writes remain retryable. No bulk-specific SQL table or migration is added.
+
+The KV-only `lookup/committee-member-creates/<committee-email-hash>` preparation
+keys and primary-record `_create` metadata are recovery state, not memberships or
+SQL indexes. They are never copied to PostgreSQL. Only visible committed members
+are replicated/backfilled. `kv` and `dual` keep the KV recovery protocol described
+in [nats-storage.md](nats-storage.md#recoverable-bulk-member-creation); PostgreSQL-primary
+modes must not advertise that protocol solely because their composite has its methods.
+Identity cleanup also visits a KV secondary to abort preparations left before a mode switch.
+
+Local adapter tests verify capability selection, duplicate handling and missing-copy
+repair with in-process KV ports; they do not prove PostgreSQL transaction/revision
+parity without the existing database-backed tests. Mode-switch and rollout checks
+remain required before deployment.
+
 Emails and usernames are normalized with `committee_normalize_key()`, a function that reproduces Go's
 `strings.TrimSpace(strings.ToLower(x))`. PostgreSQL's own `btrim(x)` strips only ASCII spaces, whereas
 Go also strips tabs, newlines and no-break spaces, so the function lists the same characters as Go's
