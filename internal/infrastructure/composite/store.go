@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/copybudget"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
@@ -60,8 +61,8 @@ const (
 // The Store does not itself have the cascading delete of a committee, port.CommitteeCascadeDeleter, which the service uses
 // in place of Delete when its writer has it: a mode in which PostgreSQL is the primary store would otherwise leave the
 // children of a deleted committee behind there, and kv and dual keep the committee delete the service has always had. Where
-// PostgreSQL is the primary store, WithCascade returns a CascadingStore that has it. None of this is wired in yet, which is
-// why no mode but kv is available at startup.
+// PostgreSQL is the primary store, WithCascade returns a CascadingStore that has it. The API and the CLI build the stores of
+// the mode in package stores; in kv mode that is the KV storage itself, with no composite in between.
 type Store struct {
 	port.CommitteeReaderWriter
 
@@ -69,6 +70,12 @@ type Store struct {
 	// src is the primary store, which the copy to the secondary store reads from, and dst the secondary store it writes.
 	// In dual mode they are KV and PostgreSQL; in dual-pg mode, PostgreSQL and KV.
 	src, dst port.CommitteeReaderWriter
+	// alsoReady is the KV store where PostgreSQL is the primary store: its readiness is the primary store's, which is
+	// PostgreSQL's, and the service also needs NATS (the files of documents, the indexer and access messages), which only
+	// the KV store reports. Nil where KV is the primary store, whose readiness is NATS's.
+	alsoReady interface {
+		IsReady(ctx context.Context) error
+	}
 }
 
 // core is what the composites of every aggregate share: the mode, the metrics, the sampling and the timeouts, and what
@@ -151,7 +158,23 @@ func New(mode Mode, kv, pg port.CommitteeReaderWriter, opts ...Option) (*Store, 
 	default:
 		return nil, fmt.Errorf("storage mode %q is not available in the composite store yet", mode)
 	}
+	if mode.PostgresIsPrimary() && kv != nil {
+		s.alsoReady = kv
+	}
 	return s, nil
+}
+
+// IsReady reports whether the store the service depends on is ready: the primary store's readiness, and where that is
+// PostgreSQL, NATS's too, which the primary store does not report. In kv and dual mode it is the KV store's, as it has always
+// been, and a PostgreSQL that is down is not a reason to leave rotation while KV decides.
+func (s *Store) IsReady(ctx context.Context) error {
+	if err := s.CommitteeReaderWriter.IsReady(ctx); err != nil {
+		return err
+	}
+	if s.alsoReady != nil {
+		return s.alsoReady.IsReady(ctx)
+	}
+	return nil
 }
 
 // selectPrimary checks that the stores the mode needs are there and returns the primary one: KV for kv and dual,
@@ -197,6 +220,9 @@ func (s *core) sampled() bool {
 func (s *core) replicate(ctx context.Context, operation, uid string, write func(ctx context.Context) error) {
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.writeTimeout)
 	defer cancel()
+	// The NATS adapter detaches its rollback and cleanup from the deadline it is given; the budget tells it how much of
+	// this copy's deadline is left, so a stalled KV does not make the request wait for a second timeout.
+	wctx = copybudget.With(wctx, time.Now().Add(s.writeTimeout))
 	// A panic in the secondary store is a failure of the secondary store like any other: it must not take down a request
 	// whose result the primary store has already decided.
 	err := func() (err error) {

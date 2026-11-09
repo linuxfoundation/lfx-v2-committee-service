@@ -54,15 +54,7 @@ func (l *Links) CreateLink(ctx context.Context, link *model.CommitteeLink) error
 	}
 	if l.mode.HasSecondary() {
 		committeeUID, uid := link.CommitteeUID, link.UID
-		l.replicate(ctx, "create_link", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
-				return l.src.GetLink(ctx, committeeUID, uid)
-			},
-				l.dst.CreateLink, func(ctx context.Context, revision uint64) error {
-					return l.deleteLinkInSecondary(ctx, committeeUID, uid, revision)
-				},
-				func(ctx context.Context) error { return l.copyLinkUpdate(ctx, committeeUID, uid) })
-		})
+		l.replicate(ctx, "create_link", uid, func(ctx context.Context) error { return l.copyLinkCreate(ctx, committeeUID, uid) })
 	}
 	return nil
 }
@@ -79,6 +71,17 @@ func (l *Links) UpdateLink(ctx context.Context, link *model.CommitteeLink, revis
 	return nil
 }
 
+// copyLinkCreate copies the link the primary store holds to the secondary store; see copyCreated.
+func (l *Links) copyLinkCreate(ctx context.Context, committeeUID, uid string) error {
+	return copyCreated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
+		return l.src.GetLink(ctx, committeeUID, uid)
+	},
+		l.dst.CreateLink, func(ctx context.Context, revision uint64) error {
+			return l.deleteLinkInSecondary(ctx, committeeUID, uid, revision)
+		},
+		func(ctx context.Context) error { return l.copyLinkUpdate(ctx, committeeUID, uid) })
+}
+
 // copyLinkUpdate writes the link the primary store holds now to the secondary store; see copyUpdated.
 func (l *Links) copyLinkUpdate(ctx context.Context, committeeUID, uid string) error {
 	return copyUpdated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
@@ -87,7 +90,7 @@ func (l *Links) copyLinkUpdate(ctx context.Context, committeeUID, uid string) er
 		func(ctx context.Context) (*model.CommitteeLink, uint64, error) {
 			return l.dst.GetLink(ctx, committeeUID, uid)
 		},
-		l.dst.UpdateLink)
+		l.dst.UpdateLink, func(ctx context.Context) error { return l.copyLinkCreate(ctx, committeeUID, uid) })
 }
 
 // DeleteLink removes the link when the revision is still current.
@@ -120,13 +123,7 @@ func (l *Links) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	}
 	if l.mode.HasSecondary() {
 		committeeUID, uid := folder.CommitteeUID, folder.UID
-		l.replicate(ctx, "create_link_folder", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
-				return l.src.GetLinkFolder(ctx, committeeUID, uid)
-			}, l.dst.CreateLinkFolder, func(ctx context.Context, revision uint64) error {
-				return l.deleteFolderInSecondary(ctx, committeeUID, uid, revision)
-			}, func(ctx context.Context) error { return l.copyFolderUpdate(ctx, committeeUID, uid) })
-		})
+		l.replicate(ctx, "create_link_folder", uid, func(ctx context.Context) error { return l.copyFolderCreate(ctx, committeeUID, uid) })
 	}
 	return nil
 }
@@ -143,6 +140,15 @@ func (l *Links) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	return nil
 }
 
+// copyFolderCreate copies the folder the primary store holds to the secondary store; see copyCreated.
+func (l *Links) copyFolderCreate(ctx context.Context, committeeUID, uid string) error {
+	return copyCreated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
+		return l.src.GetLinkFolder(ctx, committeeUID, uid)
+	}, l.dst.CreateLinkFolder, func(ctx context.Context, revision uint64) error {
+		return l.deleteFolderInSecondary(ctx, committeeUID, uid, revision)
+	}, func(ctx context.Context) error { return l.copyFolderUpdate(ctx, committeeUID, uid) })
+}
+
 // copyFolderUpdate writes the folder the primary store holds now to the secondary store; see copyUpdated.
 func (l *Links) copyFolderUpdate(ctx context.Context, committeeUID, uid string) error {
 	return copyUpdated(ctx, &l.core, func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
@@ -150,7 +156,7 @@ func (l *Links) copyFolderUpdate(ctx context.Context, committeeUID, uid string) 
 	},
 		func(ctx context.Context) (*model.CommitteeLinkFolder, uint64, error) {
 			return l.dst.GetLinkFolder(ctx, committeeUID, uid)
-		}, l.dst.UpdateLinkFolder)
+		}, l.dst.UpdateLinkFolder, func(ctx context.Context) error { return l.copyFolderCreate(ctx, committeeUID, uid) })
 }
 
 // DeleteLinkFolder removes the folder when the revision is still current. The links in it are left alone.

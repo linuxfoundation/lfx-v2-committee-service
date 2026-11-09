@@ -90,3 +90,18 @@ func TestPrintUsage_ListsTheStorageMode(t *testing.T) {
 	assert.Contains(t, out.String(), "STORAGE_MODE")
 	assert.Contains(t, out.String(), "default: kv")
 }
+
+// The PostgreSQL variables matter to every command in the PostgreSQL modes, not only to storage migrate, and the pool there
+// has to hold at least two connections; the built-in help says so.
+func TestPrintUsage_SaysWhereThePostgreSQLVariablesApply(t *testing.T) {
+	var out strings.Builder
+
+	printUsage(&out, buildRegistry())
+
+	for _, line := range strings.Split(out.String(), "\n") {
+		if strings.HasPrefix(line, "  POSTGRES_URL") || strings.HasPrefix(line, "  POSTGRES_MAX_CONNS") {
+			assert.Contains(t, line, "every command in dual, dual-pg and postgres", line)
+		}
+	}
+	assert.Contains(t, out.String(), "at least 2")
+}

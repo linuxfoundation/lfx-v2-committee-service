@@ -19,13 +19,7 @@ func (s *Store) CreateInvite(ctx context.Context, invite *model.CommitteeInvite)
 	}
 	if s.mode.HasSecondary() {
 		uid := invite.UID
-		s.replicate(ctx, "create_invite", uid, func(ctx context.Context) error {
-			// An invite is never deleted on its own (port.CommitteeInviteWriter has no delete), so there is no delete to race
-			// with and nothing to take out again.
-			return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.src.GetInvite(ctx, uid) },
-				s.dst.CreateInvite, func(context.Context, uint64) error { return nil },
-				func(ctx context.Context) error { return s.copyInviteUpdate(ctx, uid) })
-		})
+		s.replicate(ctx, "create_invite", uid, func(ctx context.Context) error { return s.copyInviteCreate(ctx, uid) })
 	}
 	return nil
 }
@@ -42,11 +36,20 @@ func (s *Store) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite,
 	return nil
 }
 
+// copyInviteCreate copies the invite the primary store holds to the secondary store; see copyCreated. An invite is never
+// deleted on its own (port.CommitteeInviteWriter has no delete), so there is no delete to race with and nothing to take out
+// again.
+func (s *Store) copyInviteCreate(ctx context.Context, uid string) error {
+	return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.src.GetInvite(ctx, uid) },
+		s.dst.CreateInvite, func(context.Context, uint64) error { return nil },
+		func(ctx context.Context) error { return s.copyInviteUpdate(ctx, uid) })
+}
+
 // copyInviteUpdate writes the invite the primary store holds now to the secondary store; see copyUpdated.
 func (s *Store) copyInviteUpdate(ctx context.Context, uid string) error {
 	return copyUpdated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.src.GetInvite(ctx, uid) },
 		func(ctx context.Context) (*model.CommitteeInvite, uint64, error) { return s.dst.GetInvite(ctx, uid) },
-		s.dst.UpdateInvite)
+		s.dst.UpdateInvite, func(ctx context.Context) error { return s.copyInviteCreate(ctx, uid) })
 }
 
 // GetInvite returns the invite and its revision.

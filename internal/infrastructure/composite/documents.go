@@ -100,13 +100,7 @@ func (d *Documents) CreateDocumentMetadata(ctx context.Context, doc *model.Commi
 	}
 	if d.mode.HasSecondary() {
 		committeeUID, uid := doc.CommitteeUID, doc.UID
-		d.replicate(ctx, "create_document", uid, func(ctx context.Context) error {
-			return copyCreated(ctx, &d.core, func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
-				return d.src.GetDocumentMetadata(ctx, committeeUID, uid)
-			}, d.dst.CreateDocumentMetadata, func(ctx context.Context, revision uint64) error {
-				return d.deleteUnlessMoved(ctx, committeeUID, uid, revision)
-			}, func(ctx context.Context) error { return d.copyUpdate(ctx, committeeUID, uid) })
-		})
+		d.replicate(ctx, "create_document", uid, func(ctx context.Context) error { return d.copyCreate(ctx, committeeUID, uid) })
 	}
 	return nil
 }
@@ -123,6 +117,15 @@ func (d *Documents) UpdateDocumentMetadata(ctx context.Context, doc *model.Commi
 	return nil
 }
 
+// copyCreate copies the metadata the primary store holds to the secondary store; see copyCreated.
+func (d *Documents) copyCreate(ctx context.Context, committeeUID, uid string) error {
+	return copyCreated(ctx, &d.core, func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
+		return d.src.GetDocumentMetadata(ctx, committeeUID, uid)
+	}, d.dst.CreateDocumentMetadata, func(ctx context.Context, revision uint64) error {
+		return d.deleteUnlessMoved(ctx, committeeUID, uid, revision)
+	}, func(ctx context.Context) error { return d.copyUpdate(ctx, committeeUID, uid) })
+}
+
 // copyUpdate writes the metadata the primary store holds now to the secondary store; see copyUpdated.
 func (d *Documents) copyUpdate(ctx context.Context, committeeUID, uid string) error {
 	return copyUpdated(ctx, &d.core, func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
@@ -131,7 +134,7 @@ func (d *Documents) copyUpdate(ctx context.Context, committeeUID, uid string) er
 		func(ctx context.Context) (*model.CommitteeDocument, uint64, error) {
 			return d.dstDocument(ctx, committeeUID, uid)
 		},
-		d.dst.UpdateDocumentMetadata)
+		d.dst.UpdateDocumentMetadata, func(ctx context.Context) error { return d.copyCreate(ctx, committeeUID, uid) })
 }
 
 // dstDocument reads the document from the secondary store. An update replaces the metadata by uid and may change the

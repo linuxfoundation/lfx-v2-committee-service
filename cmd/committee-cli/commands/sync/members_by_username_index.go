@@ -46,7 +46,7 @@ func (s *membersByUsernameIndexSubcommand) Run(ctx context.Context, rc commands.
 
 	rc.DryRun = *dryRun
 
-	if rc.CommitteeReader == nil {
+	if rc.KVReader() == nil {
 		return errors.NewUnexpected("CommitteeReader is not wired in RunContext")
 	}
 	if rc.MemberIndexBackfiller == nil {
@@ -58,7 +58,7 @@ func (s *membersByUsernameIndexSubcommand) Run(ctx context.Context, rc commands.
 	stats := commands.NewStats()
 	stats.DryRun = rc.DryRun
 
-	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
+	errEach := rc.KVReader().EachMember(ctx, func(member *model.CommitteeMember) error {
 		stats.Total++
 
 		if member.BuildUsernameIndexKey(ctx) == "" {

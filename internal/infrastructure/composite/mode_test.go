@@ -83,15 +83,14 @@ func TestModeFromEnv(t *testing.T) {
 		}
 	})
 
-	t.Run("the other modes are refused until they are available", func(t *testing.T) {
-		// A distinctive password to look for in the error. The connection string is put together here, not written out,
-		// so that no connection string with a password is in the source for a secret scanner to report.
-		const password = "not-a-real-password"
-		connection := "postgres://user:" + password + "@localhost/db"
+	t.Run("every mode can be selected once PostgreSQL has a connection string", func(t *testing.T) {
+		// The connection string is put together here, not written out, so that no connection string with a password is in
+		// the source for a secret scanner to report.
+		connection := "postgres://user:" + "not-a-real-password" + "@localhost/db"
 		for _, mode := range []Mode{ModeDual, ModeDualPG, ModePostgres} {
-			_, err := ModeFromEnv(env(map[string]string{EnvStorageMode: string(mode), "POSTGRES_URL": connection}))
-			require.ErrorContains(t, err, "not available yet", mode)
-			assert.NotContains(t, err.Error(), password, "the connection string is never part of the error")
+			got, err := ModeFromEnv(env(map[string]string{EnvStorageMode: string(mode), "POSTGRES_URL": connection}))
+			require.NoError(t, err, mode)
+			assert.Equal(t, mode, got)
 		}
 	})
 }

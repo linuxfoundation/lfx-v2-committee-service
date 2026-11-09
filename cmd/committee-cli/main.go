@@ -125,13 +125,20 @@ func run() error {
 	defer func() { _ = client.Close() }()
 
 	storage := nats.NewStorageBackend(client)
+	// What the commands write committee data through: the KV storage in kv mode, the composite stores of the mode otherwise.
+	// The KV maintenance commands below (index backfillers, exports) keep using the KV storage itself.
+	selected, err := selectStores(ctx, storageMode, client, storage, storage, storage, connectPostgres)
+	if err != nil {
+		return err
+	}
+	defer selected.close()
 	publisher := nats.NewMessagePublisher(client)
 	userReader := nats.NewUserRequest(client)
 	b2bOrgFallbackResolver := nats.NewB2BOrgFallbackResolver(client)
 
 	writerOrchestrator := usecaseSvc.NewCommitteeWriterOrchestrator(
-		usecaseSvc.WithCommitteeRetriever(storage),
-		usecaseSvc.WithCommitteeWriter(storage),
+		usecaseSvc.WithCommitteeRetriever(selected.committees),
+		usecaseSvc.WithCommitteeWriter(selected.committees),
 		usecaseSvc.WithProjectRetriever(nats.NewMessageRequest(client)),
 		usecaseSvc.WithUserReader(userReader),
 		usecaseSvc.WithCommitteePublisher(publisher),
@@ -140,22 +147,23 @@ func run() error {
 	)
 
 	rc := commands.RunContext{
-		CommitteeReader:             storage,
+		CommitteeReader:             selected.committees,
+		KVCommitteeReader:           storage,
 		CommitteeWriterOrchestrator: writerOrchestrator,
-		CommitteeMemberWriter:       storage,
+		CommitteeMemberWriter:       selected.committees,
 		MemberIndexBackfiller:       storage,
-		CommitteeInviteWriter:       storage,
-		DocumentAuditSync:           storage,
+		CommitteeInviteWriter:       selected.committees,
+		DocumentAuditSync:           selected.documentAudit,
 		Publisher:                   publisher,
 		UserReader:                  userReader,
-		GroupWeeklyBriefReader:      storage,
-		CommitteeBaseWriter:         storage,
+		GroupWeeklyBriefReader:      selected.briefs,
+		CommitteeBaseWriter:         selected.committees,
 		KVStore:                     client.GetOrBindKVStore,
 		KVExport:                    storage,
 		KVRepair:                    nats.NewKVRepairStore(client),
-		PostgresStore:               connectPostgres,
-		CommitteeApplicationReader:  storage,
-		CommitteeApplicationWriter:  storage,
+		PostgresStore:               selected.postgres,
+		CommitteeApplicationReader:  selected.committees,
+		CommitteeApplicationWriter:  selected.committees,
 		B2BOrgFallbackResolver:      b2bOrgFallbackResolver,
 		Args:                        parsed.SubArgs,
 	}
@@ -180,9 +188,11 @@ func printUsage(w io.Writer, registry map[string]commands.Command) {
 	_, _ = fmt.Fprintln(w, "environment variables:")
 	_, _ = fmt.Fprintln(w, "  NATS_URL            NATS server address (default: nats://localhost:4222)")
 	_, _ = fmt.Fprintln(w, "  NATS_TIMEOUT        NATS connection dial/timeout (default: 120s); KV ops use caller context")
-	_, _ = fmt.Fprintln(w, "  POSTGRES_URL        PostgreSQL connection string (storage migrate)")
-	_, _ = fmt.Fprintln(w, "  POSTGRES_MAX_CONNS  PostgreSQL pool size (storage migrate; default 10)")
-	_, _ = fmt.Fprintln(w, "  STORAGE_MODE        Store mode: kv, dual, dual-pg, postgres (default: kv; only kv is available)")
+	_, _ = fmt.Fprintln(w, "  POSTGRES_URL        PostgreSQL connection string (storage subcommands, and every command in dual, dual-pg and postgres)")
+	_, _ = fmt.Fprintln(w, "  POSTGRES_MAX_CONNS  PostgreSQL pool size (storage subcommands, and every command in dual, dual-pg and postgres, where it must be at least 2; default 10)")
+	_, _ = fmt.Fprintln(w, "  STORAGE_MODE        Store mode: kv, dual, dual-pg, postgres (default: kv); the modes but kv need POSTGRES_URL")
+	_, _ = fmt.Fprintln(w, "  STORAGE_READ_COMPARE_RATE, STORAGE_COMPARE_TIMEOUT, STORAGE_SECONDARY_WRITE_TIMEOUT")
+	_, _ = fmt.Fprintln(w, "                      Tune dual and dual-pg: the fraction of reads compared (default 0.01) and the two timeouts (2s, 3s)")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_URL      OpenSearch base URL (default: http://localhost:9200)")
 	_, _ = fmt.Fprintln(w, "  OPENSEARCH_INDEX    OpenSearch resources index (default: resources)")
 	_, _ = fmt.Fprintln(w, "  LOG_LEVEL           Log verbosity, e.g. info (default: debug)")

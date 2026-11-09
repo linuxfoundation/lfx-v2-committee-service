@@ -22,60 +22,63 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 	}
 	if s.mode.HasSecondary() {
 		uid := committee.CommitteeBase.UID
-		s.replicate(ctx, "create_committee", uid, func(ctx context.Context) error {
-			base, baseRevision, err := s.src.GetBase(ctx, uid)
-			if isNotFound(err) {
-				return nil // deleted meanwhile, so there is nothing to copy
-			}
-			if err != nil {
-				return err
-			}
-			settings, settingsRevision, err := s.src.GetSettings(ctx, uid)
-			if err != nil && !isNotFound(err) {
-				return err
-			}
-			if err != nil {
-				settings = nil
-			}
-			wctx, err := s.carry(ctx, baseRevision)
-			if err == nil && settings != nil && s.secondaryIsPostgres() {
-				wctx, err = postgres.WithSettingsRevision(wctx, settingsRevision)
-			}
-			if err != nil {
-				return err
-			}
-			if err := s.dst.Create(wctx, &model.Committee{CommitteeBase: *base, CommitteeSettings: settings}); err != nil {
-				return err
-			}
-			// A delete that finished in KV while this was being copied found nothing in PostgreSQL to remove, and so
-			// left the insert above to bring the committee back; an update that finished meanwhile failed to copy for the
-			// same reason, and left the older version. So read KV again: if the committee is gone take it out, and if it
-			// has moved on copy what KV holds now. From either order the two stores end up the same.
-			_, current, err := s.src.GetBase(ctx, uid)
-			switch {
-			case isNotFound(err):
-				return s.deleteInSecondary(ctx, uid, baseRevision)
-			case err != nil:
-				return fmt.Errorf("reading the primary store again after the copy: %w", err)
-			}
-			if current != baseRevision {
-				if err := s.replicateBase(ctx, uid); err != nil {
-					return err
-				}
-			}
-			if settings != nil {
-				_, currentSettings, err := s.src.GetSettings(ctx, uid)
-				switch {
-				case isNotFound(err):
-					// Deleted with the committee meanwhile; the check of the base above covers it.
-				case err != nil:
-					return fmt.Errorf("reading the primary store settings again after the copy: %w", err)
-				case currentSettings != settingsRevision:
-					return s.replicateSettings(ctx, uid)
-				}
-			}
-			return nil
-		})
+		s.replicate(ctx, "create_committee", uid, func(ctx context.Context) error { return s.copyCommitteeCreate(ctx, uid) })
+	}
+	return nil
+}
+
+// copyCommitteeCreate copies the committee the primary store holds, with its settings, to the secondary store.
+func (s *Store) copyCommitteeCreate(ctx context.Context, uid string) error {
+	base, baseRevision, err := s.src.GetBase(ctx, uid)
+	if isNotFound(err) {
+		return nil // deleted meanwhile, so there is nothing to copy
+	}
+	if err != nil {
+		return err
+	}
+	settings, settingsRevision, err := s.src.GetSettings(ctx, uid)
+	if err != nil && !isNotFound(err) {
+		return err
+	}
+	if err != nil {
+		settings = nil
+	}
+	wctx, err := s.carry(ctx, baseRevision)
+	if err == nil && settings != nil && s.secondaryIsPostgres() {
+		wctx, err = postgres.WithSettingsRevision(wctx, settingsRevision)
+	}
+	if err != nil {
+		return err
+	}
+	if err := s.dst.Create(wctx, &model.Committee{CommitteeBase: *base, CommitteeSettings: settings}); err != nil {
+		return err
+	}
+	// A delete that finished in KV while this was being copied found nothing in PostgreSQL to remove, and so
+	// left the insert above to bring the committee back; an update that finished meanwhile failed to copy for the
+	// same reason, and left the older version. So read KV again: if the committee is gone take it out, and if it
+	// has moved on copy what KV holds now. From either order the two stores end up the same.
+	_, current, err := s.src.GetBase(ctx, uid)
+	switch {
+	case isNotFound(err):
+		return s.deleteInSecondary(ctx, uid, baseRevision)
+	case err != nil:
+		return fmt.Errorf("reading the primary store again after the copy: %w", err)
+	}
+	if current != baseRevision {
+		if err := s.replicateBase(ctx, uid); err != nil {
+			return err
+		}
+	}
+	if settings != nil {
+		_, currentSettings, err := s.src.GetSettings(ctx, uid)
+		switch {
+		case isNotFound(err):
+			// Deleted with the committee meanwhile; the check of the base above covers it.
+		case err != nil:
+			return fmt.Errorf("reading the primary store settings again after the copy: %w", err)
+		case currentSettings != settingsRevision:
+			return s.replicateSettings(ctx, uid)
+		}
 	}
 	return nil
 }
@@ -160,7 +163,7 @@ func (s *Store) replicateBase(ctx context.Context, uid string) error {
 		func(ctx context.Context) (*model.CommitteeBase, uint64, error) { return s.dst.GetBase(ctx, uid) },
 		func(ctx context.Context, base *model.CommitteeBase, guard uint64) error {
 			return s.dst.UpdateBase(ctx, &model.Committee{CommitteeBase: *base}, guard)
-		})
+		}, func(ctx context.Context) error { return s.copyCommitteeCreate(ctx, uid) })
 }
 
 // replicateSettings is replicateBase for the settings.
@@ -172,7 +175,7 @@ func (s *Store) replicateSettings(ctx context.Context, uid string) error {
 		func(ctx context.Context) (*model.CommitteeSettings, uint64, error) {
 			return s.dst.GetSettings(ctx, uid)
 		},
-		s.dst.UpdateSetting)
+		s.dst.UpdateSetting, func(ctx context.Context) error { return s.copyCommitteeCreate(ctx, uid) })
 }
 
 // The reads below return what the primary store returns. In dual mode a sampled fraction is also made against

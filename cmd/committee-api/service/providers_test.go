@@ -115,9 +115,8 @@ func TestInitStorageMode(t *testing.T) {
 
 	t.Run("a mode set on purpose that cannot be used is an error and never kv", func(t *testing.T) {
 		for name, values := range map[string]map[string]string{
-			"not recognized":    {"STORAGE_MODE": "dual-write"},
-			"no connection":     {"STORAGE_MODE": "dual"},
-			"not available yet": {"STORAGE_MODE": "postgres", "POSTGRES_URL": "postgres://user:password@localhost/db"},
+			"not recognized": {"STORAGE_MODE": "dual-write"},
+			"no connection":  {"STORAGE_MODE": "dual"},
 		} {
 			mode, err := initStorageMode(ctx, env(values))
 			require.Error(t, err, name)

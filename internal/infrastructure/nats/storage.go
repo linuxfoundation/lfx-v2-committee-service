@@ -16,6 +16,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/copybudget"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
@@ -42,12 +43,30 @@ func committeeLookupKeys(ctx context.Context, committee *model.Committee) (nameK
 // committeeRollbackTimeout bounds how long committee lock cleanup may take once detached from the request.
 const committeeRollbackTimeout = 5 * time.Second
 
+// minRecoveryTimeout is the least a rollback or cleanup is given when the write it follows was made as the copy of a
+// composite store (see copybudget) whose deadline has all but passed: enough to read the record and release the locks,
+// so a stalled KV does not leave locks reserved, and little enough that a copy still ends soon after its deadline.
+const minRecoveryTimeout = 2 * time.Second
+
 // detachedCtx returns a context that survives cancellation of the request, bounded by
 // committeeRollbackTimeout. The write errors that trigger a rollback are often caused by the request
 // context itself (a client disconnect or an expired deadline), and the rollback must still be able to
 // read the record and release the locks.
+//
+// When the write is the copy to KV that a composite store makes after PostgreSQL decided the request (dual-pg mode), the
+// recovery does not get a fresh committeeRollbackTimeout on top of the deadline the copy has run out of, which would make
+// the request wait for it: it gets what is left of the copy's deadline, but at least minRecoveryTimeout. A write that is not
+// such a copy, which is every write in kv mode, never carries a deadline and is bounded as before.
 func detachedCtx(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), committeeRollbackTimeout)
+	return recoveryCtx(ctx, committeeRollbackTimeout)
+}
+
+// recoveryCtx is the context of a rollback or cleanup, detached from the request's cancellation and bounded by usual, or by
+// what is left of the copy's deadline where the write is a copy (see copybudget.Recovery). The lookup-key helpers use it too,
+// so none of them gives a stalled copy another full timeout, and one recovery that calls another shares one deadline.
+func recoveryCtx(ctx context.Context, usual time.Duration) (context.Context, context.CancelFunc) {
+	ctx, timeout := copybudget.Recovery(ctx, usual, minRecoveryTimeout)
+	return context.WithTimeout(context.WithoutCancel(ctx), timeout)
 }
 
 // recordState is what a follow-up read says about a write that returned an error.
@@ -2332,7 +2351,7 @@ func (s *storage) DeleteApplication(ctx context.Context, application *model.Comm
 // committee and the email, so callers pass non-identifying attributes (record and committee UIDs).
 // createErr is the error the record write returned and is logged with the read error.
 func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lookupKey string, createErr error, attrs ...any) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
 	defer cancel()
 
 	if _, errGet := kv.Get(ctx, recordKey); !errors.Is(errGet, jetstream.ErrKeyNotFound) {
@@ -2353,7 +2372,7 @@ func rollbackLookupKey(ctx context.Context, kv jetstream.KeyValue, recordKey, lo
 // the request, like rollbackLookupKey. Unlike the rollback after an ambiguous write error, it does not
 // need to confirm the record is absent: the server refused the write on the existing key.
 func releaseLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string, reserved uint64, createErr error, attrs ...any) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
 	defer cancel()
 	purgeLookupKey(ctx, kv, lookupKey, createErr, attrs, jetstream.LastRevision(reserved))
 }
@@ -2380,7 +2399,7 @@ func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string
 // is left alone. A key already gone is fine; a failed purge is logged.
 func purgeOwnedLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey, ownerUID string) {
 	// The record is already deleted, so the release must not be cut short by the request ending.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
 	defer cancel()
 	entry, errGet := kv.Get(ctx, lookupKey)
 	if errGet != nil {

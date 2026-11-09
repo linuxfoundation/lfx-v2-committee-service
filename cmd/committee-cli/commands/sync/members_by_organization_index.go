@@ -49,7 +49,7 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 	rc.DryRun = *dryRun
 	normalizedFilterSFID := utils.NormalizeAccountSFID(*orgSFID)
 
-	if rc.CommitteeReader == nil {
+	if rc.KVReader() == nil {
 		return fmt.Errorf("CommitteeReader is not wired in RunContext")
 	}
 	if rc.MemberIndexBackfiller == nil {
@@ -63,7 +63,7 @@ func (s *membersByOrganizationIndexSubcommand) Run(ctx context.Context, rc comma
 
 	// Stream members one at a time (no full in-memory load) and index each as it is read, so the
 	// backfill scales to large buckets without holding the whole member set in memory.
-	errEach := rc.CommitteeReader.EachMember(ctx, func(member *model.CommitteeMember) error {
+	errEach := rc.KVReader().EachMember(ctx, func(member *model.CommitteeMember) error {
 		stats.Total++
 
 		normalizedOrgSFID := utils.NormalizeAccountSFID(member.Organization.ID)
