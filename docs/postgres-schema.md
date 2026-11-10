@@ -2,8 +2,9 @@
 
 This is the PostgreSQL schema the committee service is moving its state to (see the storage
 migration epic, [lfx-self-serve-ops#1133](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1133)).
-**The default, `kv`, never reads or writes it**: NATS KV is the store, and the service runs unchanged with no
-database configured. The `dual`, `dual-pg` and `postgres` storage modes, the backfill and the way back to KV are
+**The default, `kv`, reads and writes no committee data in it**: NATS KV is the store, and the service runs unchanged
+with no database configured (with `POSTGRES_ENABLED=true` it only connects and applies the schema). The `dual`,
+`dual-pg` and `postgres` storage modes, the backfill and the way back to KV are
 implemented; [Selecting a storage mode](#selecting-a-storage-mode) says what each one does and in what order to turn
 them on. For what is stored in NATS see [nats-storage.md](nats-storage.md).
 
@@ -150,9 +151,9 @@ it is the primary store and does.
   newsletter service does, so a deployment can read them from the keys of the RDS secret that `lfx-v2-opentofu` creates for the
   database (`host`, `port`, `username`, `password`, `dbname`, merged into the Secret by the ExternalSecret). The password rotates
   with that secret: the ExternalSecret refreshes the Secret and Reloader restarts the pods, which read the new value at start.
-  The variables change nothing by themselves: in `kv` they are never read, and `POSTGRES_ENABLED` and `STORAGE_MODE` decide
+  The variables change nothing by themselves: in `kv` with `POSTGRES_ENABLED` off they are never read, and `POSTGRES_ENABLED` and `STORAGE_MODE` decide
   whether the service connects. The URL it builds names no `sslmode`; the driver reads `PGSSLMODE` and `PGSSLROOTCERT`, which the chart defaults to `require` and empty. The driver also fills in from the `PG*` variables anything a `POSTGRES_URL` leaves out.
-- Use `sslmode=verify-full` (with `sslrootcert`; with the `PG*` variables, `PGSSLMODE=verify-full` and `PGSSLROOTCERT`) outside local development: `require` encrypts but does not verify the
+- Use `sslmode=verify-full` (with `sslrootcert`; with the `PG*` variables, `PGSSLMODE=verify-full` and `PGSSLROOTCERT`) outside local development, and before PostgreSQL is enabled in staging or prod (the chart does not mount the RDS CA bundle yet, so it defaults to `require`): `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
 - The service applies the migrations itself at startup, so the role in `POSTGRES_URL` (or `PGUSER`) needs DDL rights. Before the
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
@@ -333,8 +334,10 @@ links and folders, weekly briefs, documents).
 
 1. Apply the schema, in `kv`: set `POSTGRES_ENABLED=true` (with the connection set) and restart. The API connects and runs
    the migrations at startup, and in `kv` a failure is only logged, so the service stays up. Wait for the
-   `connected to PostgreSQL` log line. The CLI never applies the schema, and `storage migrate` and `storage verify` stop
-   with an error until it exists.
+   `connected to PostgreSQL` log line, which is logged at INFO (with `LOG_LEVEL=warn` or above it never appears). Or check
+   from the CLI: `storage migrate --dry-run` stops with "the PostgreSQL schema is not ready" until the schema exists, and
+   writes nothing once it does. The CLI never applies the schema itself, and `storage migrate` and `storage verify` stop
+   with the same error until the API has.
 2. In `kv`: `storage migrate --dry-run`, then `storage migrate`, until `written=0`, then `storage verify`; it must report no
    `extra` record, because `migrate` cannot delete.
 3. Set `STORAGE_MODE=dual`, restart. Watch the failure, mismatch and compare-error counters. Raise

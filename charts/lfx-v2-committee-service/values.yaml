@@ -657,7 +657,8 @@ app:
     # password, dbname), which the ExternalSecret merges into the Secret, so a rotated
     # password reaches the pods through Reloader. `optional: true` leaves a variable unset
     # when its key is absent. Nothing connects to PostgreSQL because these are set: in kv
-    # mode they are never read, and with POSTGRES_ENABLED they only replace POSTGRES_URL.
+    # mode with POSTGRES_ENABLED off they are never read, and with POSTGRES_ENABLED they only
+    # replace POSTGRES_URL.
     # The URL the service composes names no sslmode: the driver takes it from PGSSLMODE and
     # PGSSLROOTCERT (below), and also fills in from these variables anything a POSTGRES_URL
     # leaves out. The key names are generic, so do not put another secret with a key named
@@ -694,9 +695,11 @@ app:
           optional: true
     # PGSSLMODE — TLS for the connection. `require` encrypts and refuses a server that does
     # not offer TLS, but does not verify the certificate; the driver default (prefer) would
-    # fall back to plaintext. In staging and prod use verify-full with PGSSLROOTCERT pointing
-    # at the RDS CA bundle once it is mounted; use disable only for a local database without
-    # TLS. A sslmode inside POSTGRES_URL takes precedence.
+    # fall back to plaintext. verify-full needs the RDS CA bundle, which this chart does not
+    # mount yet, so it is not the default: with no root certificate it would refuse every
+    # connection. Before PostgreSQL is enabled in staging or prod, mount the bundle and set
+    # PGSSLMODE=verify-full with PGSSLROOTCERT pointing at it; use disable only for a local
+    # database without TLS. A sslmode inside POSTGRES_URL takes precedence.
     PGSSLMODE:
       value: "require"
     PGSSLROOTCERT:

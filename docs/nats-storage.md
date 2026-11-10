@@ -6,7 +6,7 @@ secondary indexes are maintained.
 
 > NATS KV is the default store, and in the default `kv` mode it is the only one. A PostgreSQL schema for this data can
 > be kept next to it or take over, depending on `STORAGE_MODE` (`kv`, `dual`, `dual-pg`, `postgres`); in `kv` the service
-> connects to PostgreSQL only when `POSTGRES_ENABLED=true`, and then reads and writes nothing. See
+> connects to PostgreSQL only when `POSTGRES_ENABLED=true`, and then it only applies the schema and reads and writes no committee data. See
 > [postgres-schema.md](postgres-schema.md) for how each table and unique index maps to the buckets and
 > lookup keys below, and how a storage mode is selected.
 
