@@ -199,7 +199,8 @@ func briefWindowConflict(message string, err error) error {
 }
 
 // PutGroupWeeklyBrief writes the brief and returns it with its new revision. Like KV it fills in a
-// missing UID and creation time, sets the update time, and writes unconditionally when the revision is
+// missing UID and creation time, sets the update time (unless the write carries an explicit revision, WithRevision,
+// and the brief its own update time), and writes unconditionally when the revision is
 // 0 (replacing a brief with the same uid) and only when the revision is current otherwise; a lost
 // compare-and-swap is a service-unavailable error to retry. Unlike KV, which lets a second brief with a
 // different uid take over a window's index entry, a window holds one brief: a second one is the same
@@ -222,7 +223,11 @@ func (s *Store) PutGroupWeeklyBrief(ctx context.Context, brief *model.GroupWeekl
 	if brief.CreatedAt.IsZero() {
 		brief.CreatedAt = now
 	}
-	brief.UpdatedAt = now
+	// A write with an explicit revision copies a KV record (the backfill), which already carries the update time KV
+	// stamped: keep it. Such a write must carry the update time its source of truth stamped.
+	if brief.UpdatedAt.IsZero() || explicitRevision(ctx, primaryRevision) == nil {
+		brief.UpdatedAt = now
+	}
 
 	values, err := briefValues(brief)
 	if err != nil {

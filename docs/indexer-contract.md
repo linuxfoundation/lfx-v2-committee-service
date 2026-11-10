@@ -21,6 +21,14 @@ stream: durable consumer, at-least-once delivery, exponential-backoff NAK on han
 `conn.Publish` returns after the NATS client buffers the message locally — it is not a broker
 acknowledgement and does not confirm that the JetStream stream has accepted the message.
 
+### Committee delete
+
+Deleting a committee publishes `ActionDeleted` for the committee and its settings. The applications get one too,
+and, when the store removes the committee's children itself (the PostgreSQL store's `DeleteCommitteeCascade`), so does
+every removed member, invite, link, link folder, document and group weekly brief, on its own subject with the uid as
+the data and no tags. They are published fire-and-forget, with at most 32 in flight. The KV store removes only the
+committee, its settings and its applications, so no other child gets one there.
+
 ---
 
 ## Resource Types
@@ -215,7 +223,9 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
 
-**Indexed on:** create, update, delete of a committee member.
+**Indexed on:** create, update, delete of a committee member. A bulk member create publishes one create message per added row and none for skipped or failed rows. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+
+Bulk member recovery resumes the original member inputs/UID and missing storage indexes, refreshing only the service-derived committee name/category and project UID/slug under the commit revision guard before electing one create publication attempt. A retirement-only cleanup error does not suppress the confirmed winner's publication outcome. Pending operations are not completed memberships, and completed retries do not replay publication. This preserves the best-effort delivery semantics above: a crash between storage completion and publication is not repaired by an automatic notification/event replay. See [recoverable bulk storage](nats-storage.md#recoverable-bulk-member-creation).
 
 ### Data Schema
 
@@ -301,7 +311,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_document.go` — `CommitteeDocument`
 
-**Indexed on:** upload/create and delete of a committee document. There is no document update endpoint today.
+**Indexed on:** upload/create and delete of a committee document. There is no document update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -367,7 +377,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_invite.go` — `CommitteeInvite`
 
-**Indexed on:** create and status updates of a committee invite (reinstate, revoke, accept, decline).
+**Indexed on:** create and status updates of a committee invite (reinstate, revoke, accept, decline). Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -499,7 +509,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLink`
 
-**Indexed on:** create and delete of a committee link. There is no link update endpoint today.
+**Indexed on:** create and delete of a committee link. There is no link update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -563,7 +573,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLinkFolder`
 
-**Indexed on:** create and delete of a committee link folder. There is no link-folder update endpoint today.
+**Indexed on:** create and delete of a committee link folder. There is no link-folder update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
@@ -622,7 +632,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/group_weekly_brief.go` — `GroupWeeklyBrief`
 
-**Indexed on:** successful terminal writes in the `generated`, `edited`, and `error` states — specifically the generator's `Fulfill` path and the writer's `Update` path. The initial `generating` write issued by `Request()` does **not** emit a live index event. The `backfill-weekly-brief-index` CLI command (re-)indexes stored briefs in **all** states including `generating`; a `generating` entry will be overwritten automatically when the brief reaches a terminal state via live emission.
+**Indexed on:** successful terminal writes in the `generated`, `edited`, and `error` states — specifically the generator's `Fulfill` path and the writer's `Update` path. The initial `generating` write issued by `Request()` does **not** emit a live index event. The `backfill-weekly-brief-index` CLI command (re-)indexes stored briefs in **all** states including `generating`; a `generating` entry will be overwritten automatically when the brief reaches a terminal state via live emission. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 

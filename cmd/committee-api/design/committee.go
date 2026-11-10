@@ -341,6 +341,48 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// POST - Bulk create committee members (one result per submitted row)
+	dsl.Method("bulk-create-committee-members", func() {
+		dsl.Description("Add up to 100 members to a committee in one request. Every submitted row gets an added, skipped, or failed result; the request succeeds with 200 even when some rows are skipped or fail.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			XSyncAttribute()
+			SkipNotificationAttribute()
+			SkipEnrichmentAttribute()
+			CommitteeUIDAttribute()
+
+			BulkMembersAttribute()
+
+			dsl.Required("version", "uid", "members")
+		})
+
+		dsl.Result(CommitteeMemberBulkCreateResult)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Committee not found")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/members/bulk")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Header("skip_notification:X-Skip-Notification")
+			dsl.Header("skip_enrichment:X-Skip-Enrichment")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// GET - Get single committee member
 	dsl.Method("get-committee-member", func() {
 		dsl.Description("Get a specific committee member by UID")

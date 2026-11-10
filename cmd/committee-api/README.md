@@ -26,6 +26,7 @@ This service contains the following API endpoints:
 
 - `/committees/{uid}/members`
   - `POST`: add a new member to a committee (requires email and other member details)
+  - `POST /bulk`: add up to 100 members in one request; every submitted row gets an added, skipped, or failed result
   - `GET /{member_uid}`: retrieve a specific committee member by member UID
   - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
   - `DELETE /{member_uid}`: remove a member from a committee
@@ -247,14 +248,30 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 | `REPOSITORY_SOURCE` | `nats` | no | Storage backend: `nats` or `mock` (mock is for local dev/testing only) |
 | `MESSAGING_SOURCE` | `nats` | no | Messaging backend for the committee publisher (indexer, FGA/access, member and domain events) and the email/invite senders: `nats` or `mock`. `mock` captures publishes in memory and skips notifications, so events never reach NATS; use it for local/test only. |
 
-**PostgreSQL** (off by default; nothing reads or writes the database yet)
+**Storage mode** (the default, `kv`, is what the service has always done)
 
 | Environment Variable | Default | Required | Description |
 |---|---|---|---|
-| `POSTGRES_ENABLED` | `false` | no | Feature flag. Only the exact value `true` turns PostgreSQL on; otherwise the service never connects, even if `POSTGRES_URL` is set. When on, a missing URL, bad settings, an unreachable database or a failed migration is logged as an error and the service keeps running without PostgreSQL, so the database cannot take the service down. |
+| `STORAGE_MODE` | `kv` | no | Which store reads and writes: `kv` (NATS KV only), `dual` (reads KV; writes KV, then PostgreSQL), `dual-pg` (reads PostgreSQL; writes PostgreSQL, then KV) or `postgres` (PostgreSQL only); see [lfx-self-serve-ops#1197](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1197). Unset or blank is `kv`: the service reads and writes NATS KV exactly as it does without the setting. A value that is not one of the four, a mode that uses PostgreSQL without `POSTGRES_URL`, or a PostgreSQL that cannot be reached or migrated in such a mode, stops the service at startup with an error naming the cause. A mode is never replaced by `kv` silently. The effective mode is logged at startup (`storage mode`) and exported as the `committee.storage.mode` metric. |
+
+These tune the modes that write both stores (`dual` and `dual-pg`); they are not read in `kv` or `postgres`, and a value that is set and cannot be used stops the service at startup.
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `STORAGE_READ_COMPARE_RATE` | `0.01` | no | The fraction of reads, from `0` to `1`, that are also made against the secondary store and compared; the primary store's result is always the one returned. |
+| `STORAGE_COMPARE_TIMEOUT` | `2s` | no | Bounds the extra read of a compared request (a Go duration). |
+| `STORAGE_SECONDARY_WRITE_TIMEOUT` | `3s` | no | Bounds the copy of a write to the secondary store, which is made on the request's path: the most a degraded secondary store adds to a write. A failed or timed-out copy never fails the request; it is logged and counted (`committee.storage.secondary_write_failures`). |
+
+In `dual`, `dual-pg` and `postgres`, PostgreSQL is connected to and migrated at startup whether or not `POSTGRES_ENABLED` is set, and unlike the flag's fail-open behavior below, a failure stops the service: those modes cannot run without it. With `kv`, the default, `POSTGRES_ENABLED` is the only thing that connects to PostgreSQL and nothing reads or writes the database. See [docs/postgres-schema.md](../../docs/postgres-schema.md#selecting-a-storage-mode) for what each mode does, what to watch, and the rollout order.
+
+**PostgreSQL** (off by default in `kv`; in the other modes it is the store, see above)
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `POSTGRES_ENABLED` | `false` | no | Feature flag. Only the exact value `true` turns PostgreSQL on; otherwise the service never connects, even if `POSTGRES_URL` is set. When on in `kv` mode, a missing URL, bad settings, an unreachable database or a failed migration is logged as an error and the service keeps running without PostgreSQL, so the database cannot take the service down. (In the other storage modes the same failures stop the service.) |
 | `POSTGRES_URL` | — | when `POSTGRES_ENABLED=true` | PostgreSQL connection string. With the flag on, the service connects and applies the schema migrations at startup. The URL carries a password: it is logged and returned in errors with the password removed. |
 | `POSTGRES_MAX_CONNS` | `10` | no | Connection pool size per process; must be a positive integer |
-| `POSTGRES_READINESS_CHECK` | `false` | no | Set to `true` to make `/readyz` also ping PostgreSQL (opt-in, so a database outage does not remove pods from rotation before the service depends on it). If PostgreSQL is enabled but could not be set up, the check reports not ready |
+| `POSTGRES_READINESS_CHECK` | `false` | no | Set to `true` to make `/readyz` also ping PostgreSQL; in `kv` it needs `POSTGRES_ENABLED=true` too, since the service does not otherwise connect (opt-in, so a database outage does not remove pods from rotation in `kv` and `dual`, where the service does not depend on it; in `dual-pg` and `postgres` the storage's own readiness already pings PostgreSQL and NATS, flag or not). If PostgreSQL is enabled but could not be set up, the check reports not ready |
 
 **Authentication**
 

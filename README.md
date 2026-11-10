@@ -30,7 +30,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 │   ├── infrastructure/             # Infrastructure layer
 │   │   ├── auth/                   # Authentication implementations
 │   │   ├── nats/                   # NATS storage implementation
-│   │   ├── postgres/               # PostgreSQL schema migrations and runner (connection pool and startup migrations; nothing reads or writes the data yet)
+│   │   ├── postgres/               # PostgreSQL schema migrations and runner (connection pool and startup migrations)
 │   │   └── mock/                   # Mock implementations for testing
 │   └── middleware/                 # HTTP middleware components
 └── pkg/                            # Shared packages
@@ -60,7 +60,7 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 - [NATS Request-Reply Subjects](docs/nats-request-reply.md) — synchronous request/reply subjects served by this service for inter-service queries
 - [Weekly Brief](docs/weekly-brief.md) — end-to-end generation pipeline, AI adapter and prompts, API access model, release gate, and how to add an activity source
 - [NATS Storage Reference](docs/nats-storage.md) — KV buckets, Object Store, lookup/secondary-index key formats, streams, and incident tips
-- [PostgreSQL Schema](docs/postgres-schema.md) — the schema the service will move its storage to, how each table and unique index maps to its NATS KV source, the migration rules, and how to run the schema tests (nothing reads or writes it yet; the service only connects and migrates when `POSTGRES_ENABLED=true`)
+- [PostgreSQL Schema](docs/postgres-schema.md) — the schema the service can move its storage to, how each table and unique index maps to its NATS KV source, the migration rules, how to select a storage mode (`STORAGE_MODE`, default `kv`: NATS KV only, nothing reads or writes PostgreSQL) and roll it out or back, and how to run the schema tests
 - [Committee CLI](cmd/committee-cli/README.md) — operational tool for running data repair and sync tasks against the service
 
 ## Releases
@@ -69,19 +69,14 @@ The LFX v2 Committee Service is a RESTful API service that manages committees an
 
 To create a new release of the committee service:
 
-1. **Update the chart version** in `charts/lfx-v2-committee-service/Chart.yaml` prior to any project releases, or if any
-   change is made to the chart manifests or configuration:
-
-   ```yaml
-   version: 0.2.0  # Increment this version
-   appVersion: "latest"  # Keep this as "latest"
-   ```
+1. Keep the committed chart placeholders in `charts/lfx-v2-committee-service/Chart.yaml`
+   unchanged: `version: 0.0.1` and `appVersion: "latest"`. Do not bump them for
+   template or configuration changes.
 
 2. **After the pull request is merged**, create a GitHub release and choose the
    option for GitHub to also tag the repository. The tag must follow the format
-   `v{version}` (e.g., `v0.2.0`). This tag does _not_ have to match the chart
-   version: it is the version for the project release, which will dynamically
-   update the `appVersion` in the released chart.
+   `v{version}` (e.g., `v0.2.0`). The `ko-build-tag.yaml` workflow derives both
+   the published chart version and app version from that tag (`0.2.0`).
 
 3. **The GitHub Actions workflow will automatically**:
    - Gate the release on the weekly-brief live LLM eval — see [Release gate](#release-gate-weekly-brief-live-llm-eval) below
@@ -129,8 +124,7 @@ specific endpoint before cutting a release, run the workflow on demand via
 ### Important Notes
 
 - The `appVersion` in `Chart.yaml` should always remain `"latest"` in the committed code.
-- During the release process, the `ko-build-tag.yaml` workflow automatically overrides the `appVersion` with the actual tag version (e.g., `v0.2.0` becomes `0.2.0`).
-- Only update the chart `version` field when making releases - this represents the Helm chart version.
+- During release, `ko-build-tag.yaml` supplies both chart `version` and `appVersion` from the git tag; the committed chart version remains `0.0.1`.
 - The container image tags are automatically managed by the consolidated CI/CD pipeline using the git tag.
 - Both container images (committee-api) and the Helm chart are published together in a single workflow.
 
@@ -143,8 +137,7 @@ To contribute to this repository:
    are signed with the [Developer Certificate of Origin
    (DCO)](https://developercertificate.org/).
    You can use the `git commit -s` command to sign your commits.
-3. Ensure the chart version in `charts/lfx-v2-committee-service/Chart.yaml` has been
-   updated following semantic version conventions if you are making changes to the chart.
+3. Keep the committed chart version placeholders unchanged when modifying chart templates or configuration; release automation supplies the published versions.
 4. Submit your pull request
 
 For detailed development instructions, including local setup, testing, and API development guidelines, see the [Committee API README](cmd/committee-api/README.md).

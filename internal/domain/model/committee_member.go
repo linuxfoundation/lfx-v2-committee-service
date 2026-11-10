@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -28,6 +29,61 @@ type CommitteeMember struct {
 	// persisted to the member KV record nor included in the default event marshal;
 	// it is carried into the create event via CommitteeMemberCreatedEventData.
 	SkipNotification bool `json:"-"`
+	// IdentityLookup is the request-scoped outcome of the server's email-to-username
+	// lookup for this member, so later steps of the same addition or update reuse it instead of
+	// asking auth-service again. It is tagged json:"-" and absent from the API payload,
+	// so it is never persisted, published, or supplied by a caller.
+	IdentityLookup *IdentityLookup `json:"-"`
+}
+
+// IdentityLookupStatus classifies the outcome of an email-to-username lookup.
+type IdentityLookupStatus int
+
+const (
+	// IdentityLookupUnresolved means no lookup was made or the lookup failed.
+	IdentityLookupUnresolved IdentityLookupStatus = iota
+	// IdentityLookupFound means the email resolved to an LFID username.
+	IdentityLookupFound
+	// IdentityLookupAbsent means auth-service confirmed no account owns the email.
+	IdentityLookupAbsent
+)
+
+// IdentityLookup records a completed email-to-username lookup, bound to the
+// normalized email it was made for.
+type IdentityLookup struct {
+	Email    string
+	Status   IdentityLookupStatus
+	Username string
+}
+
+// NewIdentityLookup classifies a UsernameByEmail result. A NotFound error or an
+// empty username is a confirmed absence; any other error stays unresolved so it
+// is never mistaken for a missing account.
+func NewIdentityLookup(email, username string, err error) *IdentityLookup {
+	lookup := &IdentityLookup{Email: normalizeLookupEmail(email)}
+	switch {
+	case err != nil:
+		var notFound errs.NotFound
+		if errors.As(err, &notFound) {
+			lookup.Status = IdentityLookupAbsent
+		}
+	case username != "":
+		lookup.Status = IdentityLookupFound
+		lookup.Username = username
+	default:
+		lookup.Status = IdentityLookupAbsent
+	}
+	return lookup
+}
+
+// ResolvedFor reports whether the lookup is a confirmed result (found or absent)
+// for the given email, compared case- and whitespace-insensitively.
+func (l *IdentityLookup) ResolvedFor(email string) bool {
+	return l != nil && l.Status != IdentityLookupUnresolved && l.Email == normalizeLookupEmail(email)
+}
+
+func normalizeLookupEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 // CommitteeMemberBase represents the base committee member attributes

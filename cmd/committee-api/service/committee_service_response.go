@@ -619,6 +619,72 @@ func (s *committeeServicesrvc) convertMemberPayloadToDomain(p *committeeservice.
 	return member
 }
 
+// convertBulkMemberRowToDomain converts one bulk create row through the single create converter,
+// so a bulk row maps to the domain exactly as the same body sent to create-committee-member would.
+func (s *committeeServicesrvc) convertBulkMemberRowToDomain(uid string, skipNotification bool, row *committeeservice.CommitteeMemberBulkCreateRow) *model.CommitteeMember {
+	if row == nil {
+		return nil
+	}
+	return s.convertMemberPayloadToDomain(&committeeservice.CreateCommitteeMemberPayload{
+		SkipNotification: skipNotification,
+		UID:              uid,
+		Username:         row.Username,
+		Email:            row.Email,
+		FirstName:        row.FirstName,
+		LastName:         row.LastName,
+		JobTitle:         row.JobTitle,
+		LinkedinProfile:  row.LinkedinProfile,
+		Role:             row.Role,
+		AppointedBy:      row.AppointedBy,
+		Status:           row.Status,
+		Voting:           row.Voting,
+		Organization:     row.Organization,
+	})
+}
+
+// convertBulkMemberResultsToResponse converts bulk row outcomes to the GOA result and counts them.
+func (s *committeeServicesrvc) convertBulkMemberResultsToResponse(results []*model.BulkMemberResult) *committeeservice.CommitteeMemberBulkCreateResult {
+	res := &committeeservice.CommitteeMemberBulkCreateResult{
+		Results: make([]*committeeservice.CommitteeMemberBulkCreateRowResult, 0, len(results)),
+	}
+	for _, r := range results {
+		if r == nil {
+			continue
+		}
+		row := &committeeservice.CommitteeMemberBulkCreateRowResult{
+			Index:     r.Index,
+			Email:     r.Email,
+			Status:    string(r.Status),
+			Retryable: r.Retryable,
+		}
+		if r.Reason != "" {
+			reason := string(r.Reason)
+			row.Reason = &reason
+		}
+		if r.Message != "" {
+			message := r.Message
+			row.Message = &message
+		}
+		if r.MemberUID != "" {
+			memberUID := r.MemberUID
+			row.MemberUID = &memberUID
+		}
+		switch r.Status {
+		case model.BulkMemberAdded:
+			res.Added++
+			if r.Member != nil {
+				row.Member = s.convertMemberDomainToFullResponse(r.Member)
+			}
+		case model.BulkMemberSkipped:
+			res.Skipped++
+		default:
+			res.Failed++
+		}
+		res.Results = append(res.Results, row)
+	}
+	return res
+}
+
 // convertPayloadToUpdateMember converts GOA UpdateCommitteeMemberPayload to domain model
 func (s *committeeServicesrvc) convertPayloadToUpdateMember(p *committeeservice.UpdateCommitteeMemberPayload) *model.CommitteeMember {
 	// Check for nil payload to avoid panic

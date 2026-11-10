@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 )
 
@@ -39,7 +40,11 @@ type OfflineSubcommand interface {
 
 // RunContext carries the wired infrastructure and global flags into a subcommand.
 type RunContext struct {
-	CommitteeReader             port.CommitteeReader
+	CommitteeReader port.CommitteeReader
+	// KVCommitteeReader reads the committees and members from the NATS KV store whatever the storage mode, for the commands
+	// that repair what KV holds (the member index backfillers): they must enumerate the records they write indexes for.
+	// Where it is not set they read CommitteeReader.
+	KVCommitteeReader           port.CommitteeReader
 	CommitteeWriterOrchestrator service.CommitteeWriter
 	// CommitteeMemberWriter provides direct storage-layer access to member write operations
 	// (create, update, delete). This is used by data-repair subcommands that bypass the
@@ -76,8 +81,15 @@ type RunContext struct {
 	// service (e.g. committee-fields reading the v1 sync helper's mirror) use it, so that
 	// knowledge stays in the subcommand and out of the storage ports.
 	KVStore func(ctx context.Context, bucket string) (jetstream.KeyValue, error)
-	DryRun  bool
-	Args    []string // remaining args after command + subcommand, for subcommand flag parsing
+	// KVExport streams the KV records with their revisions, for the storage subcommands that copy or compare data.
+	KVExport port.KVExportReader
+	// KVRepair reads and writes the KV records, for the storage subcommand that copies the data back from PostgreSQL.
+	KVRepair port.KVRepairStore
+	// PostgresStore connects to PostgreSQL for the subcommands that need it and returns the store and a
+	// function that releases the connection. The other subcommands never connect.
+	PostgresStore func(ctx context.Context) (store *postgres.Store, closeStore func(), err error)
+	DryRun        bool
+	Args          []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.
@@ -111,4 +123,13 @@ func (s *Stats) Log(ctx context.Context, commandName string) {
 		"duration_ms", duration.Milliseconds(),
 		"rate_per_sec", rate,
 	)
+}
+
+// KVReader is the reader of the commands that repair what the KV store holds: the KV store's own when it is wired,
+// otherwise CommitteeReader.
+func (rc RunContext) KVReader() port.CommitteeReader {
+	if rc.KVCommitteeReader != nil {
+		return rc.KVCommitteeReader
+	}
+	return rc.CommitteeReader
 }

@@ -152,3 +152,37 @@ func TestRedactError(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigFromEnv(t *testing.T) {
+	env := func(values map[string]string) func(string) string {
+		return func(key string) string { return values[key] }
+	}
+
+	t.Run("the URL is required", func(t *testing.T) {
+		_, err := ConfigFromEnv(env(nil))
+		require.Error(t, err)
+		_, err = ConfigFromEnv(env(map[string]string{"POSTGRES_URL": "  "}))
+		require.Error(t, err)
+	})
+
+	t.Run("the pool size is optional and must be a positive integer", func(t *testing.T) {
+		cfg, err := ConfigFromEnv(env(map[string]string{"POSTGRES_URL": "postgres://example.com/db"}))
+		require.NoError(t, err)
+		assert.Equal(t, Config{URL: "postgres://example.com/db"}, cfg)
+
+		cfg, err = ConfigFromEnv(env(map[string]string{"POSTGRES_URL": "postgres://example.com/db", "POSTGRES_MAX_CONNS": "25"}))
+		require.NoError(t, err)
+		assert.EqualValues(t, 25, cfg.MaxConns)
+
+		for _, bad := range []string{"0", "-1", "many"} {
+			_, err = ConfigFromEnv(env(map[string]string{"POSTGRES_URL": "postgres://example.com/db", "POSTGRES_MAX_CONNS": bad}))
+			require.Error(t, err, bad)
+		}
+	})
+
+	t.Run("an error carries no credential", func(t *testing.T) {
+		_, err := ConfigFromEnv(env(map[string]string{"POSTGRES_URL": urlWithPassword("example.com"), "POSTGRES_MAX_CONNS": "many"}))
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "example.com")
+	})
+}

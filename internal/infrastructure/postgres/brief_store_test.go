@@ -131,6 +131,34 @@ func TestStore_PutGroupWeeklyBrief(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("a write with an explicit revision keeps the update time it carries, a plain write stamps it", func(t *testing.T) {
+		// The backfill copies a KV record, whose update time KV already stamped.
+		explicit, err := WithRevision(ctx, 9000)
+		require.NoError(t, err)
+		kept := testBrief("b-kept", "committee-kept", testWindow)
+		put, err := store.PutGroupWeeklyBrief(explicit, kept)
+		require.NoError(t, err)
+		assert.EqualValues(t, 9000, put.Revision)
+		got, _, err := store.GetGroupWeeklyBriefForWindow(ctx, "committee-kept", model.GroupWeeklyBrief{WindowStart: testWindow})
+		require.NoError(t, err)
+		assert.True(t, testWindow.Add(2*time.Hour).Equal(got.UpdatedAt), "kept: %s", got.UpdatedAt)
+
+		explicit, err = WithRevision(ctx, 9001)
+		require.NoError(t, err)
+		unstamped := testBrief("b-kept", "committee-kept", testWindow)
+		unstamped.UpdatedAt = time.Time{}
+		unstamped.Revision = 9000
+		put, err = store.PutGroupWeeklyBrief(explicit, unstamped)
+		require.NoError(t, err)
+		assert.WithinDuration(t, time.Now(), put.UpdatedAt, time.Minute, "a brief with no update time still gets one")
+
+		before := time.Now().Add(-time.Second)
+		plain := testBrief("b-plain", "committee-plain", testWindow)
+		put, err = store.PutGroupWeeklyBrief(ctx, plain)
+		require.NoError(t, err)
+		assert.True(t, put.UpdatedAt.After(before), "without an explicit revision the update time is stamped, as KV does")
+	})
+
 	t.Run("a nil brief or missing committee and window are invalid", func(t *testing.T) {
 		var validation errs.Validation
 		_, err := store.PutGroupWeeklyBrief(ctx, nil)

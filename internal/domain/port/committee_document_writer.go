@@ -29,6 +29,14 @@ type CommitteeDocumentWriter interface {
 	DeleteDocumentFile(ctx context.Context, documentUID string) error
 }
 
+// CommitteeDocumentFileDeleter removes the stored file of a document, which is all a committee delete
+// needs of the document storage once the store has removed the metadata.
+type CommitteeDocumentFileDeleter interface {
+	// DeleteDocumentFile removes the stored file for a document. Deleting a file that does not
+	// exist is not an error.
+	DeleteDocumentFile(ctx context.Context, documentUID string) error
+}
+
 // CommitteeDocumentReaderWriter combines read and write interfaces for document storage.
 type CommitteeDocumentReaderWriter interface {
 	CommitteeDocumentReader

@@ -1026,6 +1026,141 @@ func BuildCreateCommitteeMemberPayload(committeeServiceCreateCommitteeMemberBody
 	return v, nil
 }
 
+// BuildBulkCreateCommitteeMembersPayload builds the payload for the
+// committee-service bulk-create-committee-members endpoint from CLI flags.
+func BuildBulkCreateCommitteeMembersPayload(committeeServiceBulkCreateCommitteeMembersBody string, committeeServiceBulkCreateCommitteeMembersUID string, committeeServiceBulkCreateCommitteeMembersVersion string, committeeServiceBulkCreateCommitteeMembersBearerToken string, committeeServiceBulkCreateCommitteeMembersXSync string, committeeServiceBulkCreateCommitteeMembersSkipNotification string, committeeServiceBulkCreateCommitteeMembersSkipEnrichment string) (*committeeservice.BulkCreateCommitteeMembersPayload, error) {
+	var err error
+	var body BulkCreateCommitteeMembersRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceBulkCreateCommitteeMembersBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"members\": [\n         {\n            \"appointed_by\": \"Community\",\n            \"email\": \"first.last@example.com\",\n            \"first_name\": \"First\",\n            \"job_title\": \"Chief Technology Officer\",\n            \"last_name\": \"Last\",\n            \"linkedin_profile\": \"https://www.linkedin.com/in/first-last\",\n            \"organization\": {\n               \"id\": \"org-123456\",\n               \"name\": \"The Linux Foundation\",\n               \"website\": \"https://linuxfoundation.org\"\n            },\n            \"role\": {\n               \"end_date\": \"2024-12-31\",\n               \"name\": \"Chair\",\n               \"start_date\": \"2023-01-01\"\n            },\n            \"status\": \"Active\",\n            \"username\": \"first-last\",\n            \"voting\": {\n               \"end_date\": \"2024-12-31\",\n               \"start_date\": \"2023-01-01\",\n               \"status\": \"Voting Rep\"\n            }\n         },\n         {\n            \"appointed_by\": \"Community\",\n            \"email\": \"first.last@example.com\",\n            \"first_name\": \"First\",\n            \"job_title\": \"Chief Technology Officer\",\n            \"last_name\": \"Last\",\n            \"linkedin_profile\": \"https://www.linkedin.com/in/first-last\",\n            \"organization\": {\n               \"id\": \"org-123456\",\n               \"name\": \"The Linux Foundation\",\n               \"website\": \"https://linuxfoundation.org\"\n            },\n            \"role\": {\n               \"end_date\": \"2024-12-31\",\n               \"name\": \"Chair\",\n               \"start_date\": \"2023-01-01\"\n            },\n            \"status\": \"Active\",\n            \"username\": \"first-last\",\n            \"voting\": {\n               \"end_date\": \"2024-12-31\",\n               \"start_date\": \"2023-01-01\",\n               \"status\": \"Voting Rep\"\n            }\n         }\n      ]\n   }'")
+		}
+
+		// Preserve omission separately from explicit empty/invalid enum values.
+		var input struct {
+			Members []*struct {
+				AppointedBy *string "json:\"appointed_by\""
+				Status      *string "json:\"status\""
+				Role        *struct {
+					Name *string "json:\"name\""
+				} "json:\"role\""
+				Voting *struct {
+					Status *string "json:\"status\""
+				} "json:\"voting\""
+			} "json:\"members\""
+		}
+		if err := json.Unmarshal([]byte(committeeServiceBulkCreateCommitteeMembersBody), &input); err != nil {
+			return nil, err
+		}
+		for i, row := range body.Members {
+			if row == nil {
+				return nil, fmt.Errorf("members[%d] must be an object", i)
+			}
+			fields := input.Members[i]
+			if fields.AppointedBy == nil {
+				row.AppointedBy = "None"
+			}
+			if fields.Status == nil {
+				row.Status = "Active"
+			}
+			if row.Role != nil && (fields.Role == nil || fields.Role.Name == nil) {
+				row.Role.Name = "None"
+			}
+			if row.Voting != nil && (fields.Voting == nil || fields.Voting.Status == nil) {
+				row.Voting.Status = "None"
+			}
+		}
+		if body.Members == nil {
+			err = goa.MergeErrors(err, goa.MissingFieldError("members", "body"))
+		}
+		if len(body.Members) < 1 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.members", body.Members, len(body.Members), 1, true))
+		}
+		if len(body.Members) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.members", body.Members, len(body.Members), 100, false))
+		}
+		for _, e := range body.Members {
+			if e != nil {
+				if err2 := ValidateCommitteeMemberBulkCreateRowRequestBody(e); err2 != nil {
+					err = goa.MergeErrors(err, err2)
+				}
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceBulkCreateCommitteeMembersUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceBulkCreateCommitteeMembersVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceBulkCreateCommitteeMembersBearerToken != "" {
+			bearerToken = &committeeServiceBulkCreateCommitteeMembersBearerToken
+		}
+	}
+	var xSync bool
+	{
+		if committeeServiceBulkCreateCommitteeMembersXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceBulkCreateCommitteeMembersXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
+	var skipNotification bool
+	{
+		if committeeServiceBulkCreateCommitteeMembersSkipNotification != "" {
+			skipNotification, err = strconv.ParseBool(committeeServiceBulkCreateCommitteeMembersSkipNotification)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipNotification, must be BOOL")
+			}
+		}
+	}
+	var skipEnrichment bool
+	{
+		if committeeServiceBulkCreateCommitteeMembersSkipEnrichment != "" {
+			skipEnrichment, err = strconv.ParseBool(committeeServiceBulkCreateCommitteeMembersSkipEnrichment)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for skipEnrichment, must be BOOL")
+			}
+		}
+	}
+	v := &committeeservice.BulkCreateCommitteeMembersPayload{}
+	if body.Members != nil {
+		v.Members = make([]*committeeservice.CommitteeMemberBulkCreateRow, len(body.Members))
+		for i, val := range body.Members {
+			v.Members[i] = marshalCommitteeMemberBulkCreateRowRequestBodyToCommitteeserviceCommitteeMemberBulkCreateRow(val)
+		}
+	} else {
+		v.Members = []*committeeservice.CommitteeMemberBulkCreateRow{}
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.XSync = xSync
+	v.SkipNotification = skipNotification
+	v.SkipEnrichment = skipEnrichment
+
+	return v, nil
+}
+
 // BuildGetCommitteeMemberPayload builds the payload for the committee-service
 // get-committee-member endpoint from CLI flags.
 func BuildGetCommitteeMemberPayload(committeeServiceGetCommitteeMemberUID string, committeeServiceGetCommitteeMemberMemberUID string, committeeServiceGetCommitteeMemberVersion string, committeeServiceGetCommitteeMemberBearerToken string) (*committeeservice.GetCommitteeMemberPayload, error) {
@@ -2302,7 +2437,7 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 	{
 		err = json.Unmarshal([]byte(committeeServiceCreateCommitteeLinkBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"ez6\",\n      \"folder_uid\": \"13681fa2-642f-49eb-af9a-7890baff5d32\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"description\": \"z6g\",\n      \"folder_uid\": \"63ef9a78-90ba-4f5d-b26e-578ed311a303\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }'")
 		}
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
@@ -2655,7 +2790,7 @@ func BuildUploadCommitteeDocumentPayload(committeeServiceUploadCommitteeDocument
 	{
 		err = json.Unmarshal([]byte(committeeServiceUploadCommitteeDocumentBody), &body)
 		if err != nil {
-			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Quo consequatur natus omnis.\",\n      \"description\": \"hfi\",\n      \"file\": \"T21uaXMgYWNjdXNhbXVzLg==\",\n      \"file_name\": \"Omnis quae velit voluptate ut ullam.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"content_type\": \"Ullam totam quo consequatur.\",\n      \"description\": \"fiq\",\n      \"file\": \"T21uaXMgZXQgb21uaXMgYWNjdXNhbXVzIGxhYm9yZSBxdWlkZW0u\",\n      \"file_name\": \"Quae velit voluptate.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }'")
 		}
 		if body.File == nil {
 			err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))

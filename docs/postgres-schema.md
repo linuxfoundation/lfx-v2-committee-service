@@ -36,8 +36,8 @@ match.
 Design choices made so a backfill from KV cannot fail on existing data: ids are `TEXT`, there are no
 `CHECK` constraints on enum-like columns, dates the Go models keep as strings stay `TEXT`, and there
 are no foreign keys (KV has no referential integrity). Foreign keys are added later as `NOT VALID`
-and validated once the planned `verify` command ([#1198](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1198))
-reports no orphans. Deletes are hard deletes.
+and validated once `committee-cli storage verify` ([#1198](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1198))
+reports no PostgreSQL orphans. Deletes are hard deletes.
 
 ## Unique indexes: the KV lookup keys
 
@@ -60,6 +60,26 @@ here and a duplicate KV rejects is rejected here.
 The four member secondary indexes (`lookup/committee-members-by-*`) become ordinary indexes on
 `committee_members`: `committee_uid`, `organization_id`, the normalized email, and the normalized
 username.
+
+### Bulk member creation and KV lifecycle metadata
+
+Bulk creation uses the existing transactional member create and unique email index
+when PostgreSQL is primary (`postgres` or `dual-pg`). A concurrent unique conflict
+is reported as `already_member` only after a primary-store read confirms the seat;
+uncertain writes remain retryable. No bulk-specific SQL table or migration is added.
+
+The KV-only `lookup/committee-member-creates/<committee-email-hash>` preparation
+keys and primary-record `_create` metadata are recovery state, not memberships or
+SQL indexes. They are never copied to PostgreSQL. Only visible committed members
+are replicated/backfilled. `kv` and `dual` keep the KV recovery protocol described
+in [nats-storage.md](nats-storage.md#recoverable-bulk-member-creation); PostgreSQL-primary
+modes must not advertise that protocol solely because their composite has its methods.
+Identity cleanup also visits a KV secondary to abort preparations left before a mode switch.
+
+Local adapter tests verify capability selection, duplicate handling and missing-copy
+repair with in-process KV ports; they do not prove PostgreSQL transaction/revision
+parity without the existing database-backed tests. Mode-switch and rollout checks
+remain required before deployment.
 
 Emails and usernames are normalized with `committee_normalize_key()`, a function that reproduces Go's
 `strings.TrimSpace(strings.ToLower(x))`. PostgreSQL's own `btrim(x)` strips only ASCII spaces, whereas
@@ -117,22 +137,33 @@ Rules for adding a migration:
 
 ## Connecting
 
-PostgreSQL is behind a feature flag, `POSTGRES_ENABLED` (default off; only the exact value `true` enables it). With the
-flag off the service never connects, even if `POSTGRES_URL` is set, so deployments are unchanged until it is turned on
-(see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)).
+What the service does with PostgreSQL depends on the storage mode (see [Selecting a storage mode](#selecting-a-storage-mode)).
 
-With the flag on, at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate`
-(a session advisory lock keeps replicas starting together from racing). Nothing reads or writes the data yet, so
-PostgreSQL must not be able to take the service down: a missing URL, bad `POSTGRES_MAX_CONNS`, an unreachable
-database or a failed migration is logged as an error and the service keeps running without it. Once the service
-depends on the database (the dual-write and PostgreSQL modes), that choice has to be revisited per mode.
+**In `kv`, the default,** PostgreSQL is behind a feature flag, `POSTGRES_ENABLED` (default off; only the exact value `true`
+enables it). With the flag off the service never connects, even if `POSTGRES_URL` is set, so deployments are unchanged until
+it is turned on (see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)). With the flag on,
+at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate` (a session advisory lock keeps
+replicas starting together from racing). In `kv` nothing reads or writes the data, so PostgreSQL must not be able to take the
+service down: a missing URL, bad `POSTGRES_MAX_CONNS`, an unreachable database or a failed migration is logged as an error
+and the service keeps running without it.
+
+**In `dual`, `dual-pg` and `postgres`** the service uses the database, so it connects and migrates at startup whether or not
+`POSTGRES_ENABLED` is set, and the same failures stop startup instead of being logged: the service never runs in another
+mode than the one it was asked for. In `dual` a PostgreSQL that fails later never fails a request; in `dual-pg` and `postgres`
+it is the primary store and does.
 
 - The URL carries a password, so it is never logged and never appears in an error: `postgres.NewPool` removes the
   password (URL form, keyword form and `password=` query parameter) from everything it returns, and the startup log line
   uses `postgres.RedactURL`.
-- `/readyz` also pings PostgreSQL only when `POSTGRES_READINESS_CHECK=true`. Keep it off until the service depends on the
-  database, so a database outage does not take pods out of rotation. A failing check returns a generic 503 and logs the
-  cause, and if PostgreSQL is enabled but could not be set up the check reports not ready.
+- What `/readyz` checks depends on the mode. In `dual-pg` and `postgres` the storage is ready only when PostgreSQL answers a
+  ping and NATS is up, since the service needs both, and that check is always made, whatever `POSTGRES_READINESS_CHECK` says. In
+  `kv` and `dual` the storage's readiness is NATS's, as it has always been, and a PostgreSQL outage does not take pods out of
+  rotation. `POSTGRES_READINESS_CHECK=true` adds a separate PostgreSQL check, which is only registered when the service connects to
+  PostgreSQL: in `kv` that needs `POSTGRES_ENABLED=true` as well, and the flag alone does nothing; in the PostgreSQL modes the
+  service always connects. In `kv` and `dual` it is the only way PostgreSQL can affect the probe, so keep it off there; in
+  `dual-pg` and `postgres` it repeats the ping the storage already makes.
+  A failing check returns a generic 503 and logs the cause, and if PostgreSQL is enabled but could not be set up the check
+  reports not ready.
 - Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
 - The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the
@@ -142,7 +173,7 @@ depends on the database (the dual-write and PostgreSQL modes), that choice has t
 ## Store
 
 `postgres.Store` (`internal/infrastructure/postgres`) is the PostgreSQL implementation of the committee storage ports,
-added one port at a time. It is not selected by the service yet; the composite store (#1197) does that. It covers the
+added one port at a time. The composite store selects it with `STORAGE_MODE` (see [Selecting a storage mode](#selecting-a-storage-mode)). It covers the
 committee base and settings (create, get, list, find by project and name, update, update settings, delete, and the
 `has_mailing_list` and `total_members` counters) and members (create, get, update, delete, and the by-committee,
 by-organization, by-email and by-username listings).
@@ -222,12 +253,107 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   change is reported as an error, never as an unchanged value; replacing a brief by uid follows the same rule. A revision of 0 or above the range of
   the column is an error. In `dual` mode every write must carry its revision: a write without one takes a sequence
   value that can equal a KV revision a stale client still holds, unless the sequence was also advanced before `dual`
-  started. At the flip from KV to PostgreSQL, call `Store.AdvanceRevisionSequence(ctx, highest)` with the highest
+  started. At the flip from KV to PostgreSQL, call `Store.AdvanceRevisionSequence(ctx, highest)` (`committee-cli storage flip --confirm` does, after `verify` finds the stores equal) with the highest
   revision over **every** KV bucket the tables mirror (KV revisions are stream sequences counted per bucket, while
   all tables share this one sequence): the sequence then issues only values above it, so a token from before the flip
   can never match a revision issued after it, and a lower value never lowers the sequence. Call it while no writes
   are in flight, because the read and the set are not one atomic step. Rolling back from PostgreSQL to KV, and
   invalidating the tokens issued in between, is the composite store's to define: it needs no primitive here.
+- **`dual-pg` mode and the way back.** In `dual-pg` PostgreSQL decides and each write is then copied to KV, which cannot be
+  given a revision: it assigns its own, so a record is at one revision in PostgreSQL, the one a client holds, and at
+  another in KV. A copy to KV is guarded by the revision KV has, is skipped when KV already holds the same content, and a
+  delete is guarded by the revision KV has. KV stamps the update time of a weekly brief itself, so a brief in KV carries the
+  time of its copy. A failed copy is counted and left for the next update of the record, and a record whose create was
+  not copied stays missing in KV until `storage migrate --direction pg-to-kv` brings it over: that copy creates what KV
+  lacks and replaces what KV holds with other content, through the KV store's own writers so that KV assigns the
+  revisions, and never deletes. Switching back to `kv` needs two things: the switch is made with no writes in flight, and
+  KV is known to hold what PostgreSQL holds, because it would otherwise serve what it last received. `storage verify` reports a record at another revision as a mismatch, which in `dual-pg` is every
+  record that was copied, so for that check it is run with `--by-content`: the content of each record is compared, a weekly
+  brief without the update time KV stamps itself, and what only PostgreSQL has is still reported as `extra`. A client that holds a token from `dual-pg` when `kv` takes over gets a revision mismatch,
+  or, when the number happens to be the one KV has for that record, writes over what it did not read.
+
+  **Rollback checklist** (`dual-pg` or `postgres` back to `kv`):
+
+  1. Stop the writes: no request may write while the copy runs and until the mode is switched, because a write after the
+     last copy is in PostgreSQL only and KV would not serve it.
+  2. `storage migrate --direction pg-to-kv --dry-run`, then without `--dry-run`. Rerun it until it exits `0` and reports
+     `written=0` for every entity: a lost swap or a name KV holds for another record is listed with its uid and settles on a rerun
+     or by hand.
+  3. `storage verify --by-content` must report no difference. A `missing` record is one only KV holds, a record deleted in
+     PostgreSQL whose delete did not reach KV; the copy never deletes, so remove it by hand, or KV serves a record that was deleted.
+     An `extra` record is one the copy could not bring over: look at the problem it listed.
+  4. Switch the mode to `kv` and restart.
+  5. Clients that hold a revision token issued by `dual-pg` or `postgres` must read the record again before they write it.
+
+- **Cascade delete.** `Store.DeleteCommitteeCascade` removes the committee, its settings and every member, invite,
+  application, link, link folder, document metadata row, weekly brief and throttle entry of the committee in one
+  transaction, so a failure part way removes nothing. The revision guards the committee as in `Delete`. It returns the
+  uids it removed (the applications whole, for their tags), and the service publishes an index delete for each and
+  an access delete for each application and each invite; see `fga-contract.md` and `indexer-contract.md`. The tables have no foreign
+  keys, so a row another writer commits for the committee after the statement that clears its table is left behind,
+  as an orphan would be in KV. The stored files of the removed documents are not touched by the store: the service deletes the
+  Object Store file of each returned document uid, when it is built with a document file deleter (the API is). In KV, `Delete` still removes only the
+  committee and its settings, and the service removes only the applications, so a committee's members, invites, links,
+  folders, documents and briefs stay behind as orphans there; this difference lasts until KV mode is retired. The composite
+  store gives the service this cascade only where PostgreSQL is the primary store (`composite.WithCascade`, which returns a
+  `CascadingStore` for `dual-pg` and `postgres`); in `kv` and `dual` the writer has no cascade, so the committee delete is the
+  one KV has always had. In `dual-pg` the committee, its settings and the removed applications are then removed from KV too,
+  under the revisions KV has, and the other children are left in KV as a delete in KV mode leaves them.
+
+## Selecting a storage mode
+
+`STORAGE_MODE` chooses which store the API and the CLI read and write; the composite store (`internal/infrastructure/composite`) runs
+the two side by side, and `internal/infrastructure/stores` builds it for each aggregate (committees and their children,
+links and folders, weekly briefs, documents).
+
+| Mode | Reads | Writes |
+|---|---|---|
+| `kv` (default, unset or blank) | KV | KV only |
+| `dual` | KV | KV, then a copy to PostgreSQL carrying the KV revision |
+| `dual-pg` | PostgreSQL | PostgreSQL, then a copy to KV (KV assigns its own revisions) |
+| `postgres` | PostgreSQL | PostgreSQL only (the files of documents stay in the Object Store) |
+
+- **`kv` is today's behavior, unchanged.** No composite is built, PostgreSQL is never connected to (a `POSTGRES_URL`
+  alone does nothing, and `POSTGRES_ENABLED` keeps its own opt-in meaning), and the service uses the same KV storage
+  objects it always has.
+- **A mode that was set must be usable, or startup stops.** An unrecognized value, a PostgreSQL mode without `POSTGRES_URL`, a
+  PostgreSQL that cannot be reached or migrated, and a tuning variable that cannot be parsed all stop the API (and the CLI
+  command) with an error naming the cause. The service never runs in another mode than the one asked for. The API connects
+  to PostgreSQL and applies the migrations at startup in these modes without `POSTGRES_ENABLED`; the CLI needs the
+  migrations applied already.
+- **PostgreSQL is a hard dependency in `postgres` and `dual-pg` and an optional follower in `dual`.** In `dual` a PostgreSQL
+  that fails after startup never fails a request: the failed copy is logged and counted. In `postgres` and `dual-pg`
+  `/readyz` already pings PostgreSQL (and NATS) through the storage, so a pod that cannot reach it leaves rotation without
+  `POSTGRES_READINESS_CHECK`; in `dual` it does not, by design.
+- **Tuning (`dual` and `dual-pg` only; not read in the other modes).** `STORAGE_READ_COMPARE_RATE` is the fraction of reads that
+  are also made against the secondary store and compared (default `0.01`), `STORAGE_COMPARE_TIMEOUT` bounds that extra read
+  (default `2s`) and `STORAGE_SECONDARY_WRITE_TIMEOUT` bounds the copy of a write (default `3s`). The copy is made on the
+  request's path, so the write timeout is the most a degraded secondary store adds to a write. In `dual-pg` the copy to KV also
+  carries its deadline to the KV adapter, whose rollback and cleanup after a failed write get what is left of it, but at
+  least two seconds, so a stalled KV makes a request wait at most about two seconds more (before, it could wait the adapter's
+  full five seconds on top of the copy's own deadline) while the cleanup still gets a chance to release what it reserved.
+- **What to watch.** `committee.storage.secondary_write_failures` (copies that failed, by store and operation, with the uid in
+  the log), `committee.storage.read_compare_mismatches` and `committee.storage.read_compare_errors`, and the
+  `committee.storage.mode` gauge. A copy that failed is made up for by the next update of the same record, which now also creates
+  a record the secondary store never got; `storage verify` finds the rest and `storage migrate` brings it over.
+- **Only the KV maintenance commands stay on KV.** The CLI's index backfillers and exports (and `storage migrate`, `verify`
+  and `flip`, which name both stores themselves) use the KV storage in every mode. The commands that write committee data
+  (`sync committee-fields`, member and invite writes, and so on) and the audit syncs write through the composite, so a
+  change reaches both stores the mode names.
+
+**Rollout order** (each step is reversible by the rollback checklist above, and `kv` stays the default until you change it):
+
+1. In `kv`: `storage migrate --dry-run`, then `storage migrate`, until `written=0`, then `storage verify`; it must report no
+   `extra` record, because `migrate` cannot delete.
+2. Set `STORAGE_MODE=dual`, restart. Watch the failure, mismatch and compare-error counters. Raise
+   `STORAGE_READ_COMPARE_RATE` for a while if the traffic is low. Run `storage verify` again.
+3. With no writes in flight: `storage verify` clean, `storage flip --confirm` (advances the revision sequence above every KV
+   revision), then `STORAGE_MODE=dual-pg`. Check with `storage verify --by-content`, because the revisions now differ.
+4. When PostgreSQL has been the primary store long enough, `STORAGE_MODE=postgres`.
+
+Going back is the rollback checklist above: from `dual-pg` or `postgres`, `storage migrate --direction pg-to-kv`, verify, switch to
+`kv`. A committee delete in `dual-pg` and `postgres` removes the committee's children too (the cascade); in `kv` and `dual` it
+is the delete the service has always had.
 
 ## Running the tests
 

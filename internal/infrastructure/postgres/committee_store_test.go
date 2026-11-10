@@ -387,6 +387,183 @@ func TestStore_Delete(t *testing.T) {
 	})
 }
 
+// seedCommitteeWithChildren creates committee uid with one child of every kind, each named after the uid so a
+// cascade of one committee can be told from another's.
+func seedCommitteeWithChildren(t *testing.T, store *Store, uid string) {
+	t.Helper()
+	ctx := context.Background()
+	window := time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, store.Create(ctx, testCommittee(uid, "project-"+uid, "Committee "+uid)))
+	require.NoError(t, store.CreateMember(ctx, testMember("m-"+uid, uid, uid+".first.last@example.com")))
+	require.NoError(t, store.CreateInvite(ctx, testInvite("i-"+uid, uid, uid+".first.last@example.com")))
+	require.NoError(t, store.CreateApplication(ctx, testApplication("a-"+uid, uid, uid+".first.last@example.com")))
+	require.NoError(t, store.CreateLinkFolder(ctx, testFolder("f-"+uid, uid, "Folder "+uid)))
+	require.NoError(t, store.CreateLink(ctx, testLink("l-"+uid, uid)))
+	require.NoError(t, store.CreateDocumentMetadata(ctx, testDocument("d-"+uid, uid, "Document "+uid)))
+	_, err := store.PutGroupWeeklyBrief(ctx, testBrief("b-"+uid, uid, window))
+	require.NoError(t, err)
+	_, err = store.PutGroupWeeklyBriefThrottle(ctx, testThrottle(uid, window))
+	require.NoError(t, err)
+}
+
+// committeeRows counts the rows that belong to the committee in every table that holds some.
+func committeeRows(t *testing.T, store *Store, uid string) map[string]int {
+	t.Helper()
+	rows := map[string]int{}
+	for _, table := range []string{"committees", "committee_settings", "committee_members", "committee_invites",
+		"committee_applications", "committee_links", "committee_link_folders", "committee_documents",
+		"group_weekly_briefs", "group_weekly_brief_throttle"} {
+		column := "committee_uid"
+		if table == "committees" {
+			column = "uid"
+		}
+		var n int
+		require.NoError(t, store.pool.QueryRow(context.Background(), "SELECT count(*) FROM "+table+" WHERE "+column+" = $1", uid).Scan(&n))
+		rows[table] = n
+	}
+	return rows
+}
+
+func TestStore_DeleteCommitteeCascade(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("removes the committee and everything that belongs to it, and nothing else", func(t *testing.T) {
+		store := newTestStore(t)
+		seedCommitteeWithChildren(t, store, "uid-1")
+		seedCommitteeWithChildren(t, store, "uid-2")
+		_, revision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		before := committeeRows(t, store, "uid-2")
+
+		removed, err := store.DeleteCommitteeCascade(ctx, "uid-1", revision)
+		require.NoError(t, err)
+
+		for table, n := range committeeRows(t, store, "uid-1") {
+			assert.Zero(t, n, table)
+		}
+		assert.Equal(t, before, committeeRows(t, store, "uid-2"), "another committee is untouched")
+		assert.Equal(t, []string{"m-uid-1"}, removed.MemberUIDs)
+		assert.Equal(t, []string{"i-uid-1"}, removed.InviteUIDs)
+		assert.Equal(t, []string{"l-uid-1"}, removed.LinkUIDs)
+		assert.Equal(t, []string{"f-uid-1"}, removed.FolderUIDs)
+		assert.Equal(t, []string{"d-uid-1"}, removed.DocumentUIDs)
+		assert.Equal(t, []string{"b-uid-1"}, removed.BriefUIDs)
+		require.Len(t, removed.Applications, 1)
+		assert.Equal(t, testApplication("a-uid-1", "uid-1", "uid-1.first.last@example.com"), removed.Applications[0])
+
+		// Every lookup is free again: the committee, member, invite, application, folder and document names.
+		seedCommitteeWithChildren(t, store, "uid-1")
+	})
+
+	t.Run("a committee with no children removes only itself", func(t *testing.T) {
+		store := newTestStore(t)
+		require.NoError(t, store.Create(ctx, testCommittee("uid-1", "project-1", "Committee One")))
+		_, revision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		removed, err := store.DeleteCommitteeCascade(ctx, "uid-1", revision)
+		require.NoError(t, err)
+		assert.Empty(t, removed.MemberUIDs)
+		assert.Empty(t, removed.InviteUIDs)
+		assert.Empty(t, removed.LinkUIDs)
+		assert.Empty(t, removed.FolderUIDs)
+		assert.Empty(t, removed.DocumentUIDs)
+		assert.Empty(t, removed.BriefUIDs)
+		assert.Empty(t, removed.Applications)
+	})
+
+	t.Run("several children of a kind are all removed, in uid order", func(t *testing.T) {
+		store := newTestStore(t)
+		require.NoError(t, store.Create(ctx, testCommittee("uid-1", "project-1", "Committee One")))
+		for _, uid := range []string{"m-3", "m-1", "m-2"} {
+			require.NoError(t, store.CreateMember(ctx, testMember(uid, "uid-1", uid+"@example.com")))
+		}
+		_, revision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		removed, err := store.DeleteCommitteeCascade(ctx, "uid-1", revision)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"m-1", "m-2", "m-3"}, removed.MemberUIDs)
+		assert.Zero(t, committeeRows(t, store, "uid-1")["committee_members"])
+	})
+
+	t.Run("a stale revision is a conflict and removes nothing", func(t *testing.T) {
+		store := newTestStore(t)
+		seedCommitteeWithChildren(t, store, "uid-1")
+		before := committeeRows(t, store, "uid-1")
+		_, revision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+		_, err = store.DeleteCommitteeCascade(ctx, "uid-1", revision+1)
+		requireConflict(t, err)
+		assert.Equal(t, before, committeeRows(t, store, "uid-1"))
+	})
+
+	t.Run("a missing committee is not found, and its children are left", func(t *testing.T) {
+		store := newTestStore(t)
+		require.NoError(t, store.CreateMember(ctx, testMember("m-1", "ghost", "first.last@example.com")))
+		_, err := store.DeleteCommitteeCascade(ctx, "ghost", 1)
+		requireNotFound(t, err)
+		assert.Equal(t, 1, committeeRows(t, store, "ghost")["committee_members"])
+	})
+
+	t.Run("an empty uid is a validation error", func(t *testing.T) {
+		_, err := newTestStore(t).DeleteCommitteeCascade(ctx, "", 1)
+		var validation errs.Validation
+		require.ErrorAs(t, err, &validation)
+	})
+
+	t.Run("a failure part way rolls everything back", func(t *testing.T) {
+		store := newTestStore(t)
+		seedCommitteeWithChildren(t, store, "uid-1")
+		before := committeeRows(t, store, "uid-1")
+		// The documents are deleted after the members, invites, links and folders, so their delete failing
+		// leaves those already deleted inside the transaction.
+		for _, statement := range []string{
+			"CREATE FUNCTION refuse_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'refused'; END $$",
+			"CREATE TRIGGER refuse BEFORE DELETE ON committee_documents FOR EACH ROW EXECUTE FUNCTION refuse_delete()",
+		} {
+			_, err := store.pool.Exec(ctx, statement)
+			require.NoError(t, err)
+		}
+		_, revision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+
+		_, err = store.DeleteCommitteeCascade(ctx, "uid-1", revision)
+		var unexpected errs.Unexpected
+		require.ErrorAs(t, err, &unexpected)
+		assert.Equal(t, before, committeeRows(t, store, "uid-1"), "nothing was removed")
+	})
+
+	t.Run("concurrent deletes of the same revision: one wins", func(t *testing.T) {
+		store := newTestStore(t)
+		seedCommitteeWithChildren(t, store, "uid-1")
+		_, revision, err := store.GetBase(ctx, "uid-1")
+		require.NoError(t, err)
+
+		var wg sync.WaitGroup
+		results := make([]error, 8)
+		for i := range results {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, results[i] = store.DeleteCommitteeCascade(ctx, "uid-1", revision)
+			}()
+		}
+		wg.Wait()
+		wins := 0
+		for _, err := range results {
+			if err == nil {
+				wins++
+				continue
+			}
+			var notFound errs.NotFound
+			require.ErrorAs(t, err, &notFound)
+		}
+		assert.Equal(t, 1, wins)
+		for table, n := range committeeRows(t, store, "uid-1") {
+			assert.Zero(t, n, table)
+		}
+	})
+}
+
 func TestStore_IsReady(t *testing.T) {
 	store := newTestStore(t)
 	require.NoError(t, store.IsReady(context.Background()))

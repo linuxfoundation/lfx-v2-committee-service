@@ -7,7 +7,9 @@ import (
 	"context"
 	stderrors "errors"
 	"log/slog"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -43,6 +45,8 @@ type mockUserReader struct {
 	metadataMap map[string]*model.UserMetadata // username → metadata (for UserMetadataByPrincipal)
 	metadataErr error                          // if set, returned by UserMetadataByPrincipal for all usernames
 	emailsErr   error                          // if set, returned by EmailsByAuthToken for all calls
+
+	usernameByEmailCalls atomic.Int32 // number of UsernameByEmail calls
 }
 
 func newMockUserReader(pairs ...string) *mockUserReader {
@@ -78,6 +82,7 @@ func (m *mockUserReader) withMetadataErr(err error) *mockUserReader {
 }
 
 func (m *mockUserReader) UsernameByEmail(ctx context.Context, email string) (string, error) {
+	m.usernameByEmailCalls.Add(1)
 	if username, ok := m.usernames[email]; ok {
 		return username, nil
 	}
@@ -122,11 +127,22 @@ type mockCommitteeWriterOrchestrator struct {
 	// createMemberValidator optionally applies domain validation to the member,
 	// mirroring the real orchestrator's member.Validate gate in CreateMember.
 	createMemberValidator func(*model.CommitteeMember) error
+	createMembersCalls    []createMembersCall
+	createMembersResults  []*model.BulkMemberResult
+	createMembersErr      error
+}
+
+type createMembersCall struct {
+	committeeUID string
+	members      []*model.CommitteeMember
+	opts         internalservice.BulkMemberCreateOptions
 }
 
 type updateMemberCall struct {
-	member   *model.CommitteeMember
-	revision uint64
+	member         *model.CommitteeMember
+	revision       uint64
+	sync           bool
+	skipEnrichment bool
 }
 
 type deleteCall struct {
@@ -169,7 +185,7 @@ func (m *mockCommitteeWriterOrchestrator) CreateMember(ctx context.Context, memb
 }
 
 func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, revision uint64, sync bool, skipEnrichment bool) (*model.CommitteeMember, error) {
-	m.updateMemberCalls = append(m.updateMemberCalls, updateMemberCall{member: member, revision: revision})
+	m.updateMemberCalls = append(m.updateMemberCalls, updateMemberCall{member: member, revision: revision, sync: sync, skipEnrichment: skipEnrichment})
 	if m.updateMemberErr != nil {
 		return nil, m.updateMemberErr
 	}
@@ -179,6 +195,21 @@ func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, memb
 func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, committeeUID, uid string, revision uint64, sync bool, skipNotification bool) error {
 	m.deleteCalls = append(m.deleteCalls, deleteCall{committeeUID: committeeUID, uid: uid, revision: revision})
 	return m.deleteError
+}
+
+// CreateMembers records the call, runs opts.Enrich on every row as the real orchestrator does for
+// the rows it creates, and returns the configured results.
+func (m *mockCommitteeWriterOrchestrator) CreateMembers(ctx context.Context, committeeUID string, members []*model.CommitteeMember, opts internalservice.BulkMemberCreateOptions) ([]*model.BulkMemberResult, error) {
+	m.createMembersCalls = append(m.createMembersCalls, createMembersCall{committeeUID: committeeUID, members: members, opts: opts})
+	if m.createMembersErr != nil {
+		return nil, m.createMembersErr
+	}
+	if opts.Enrich != nil {
+		for _, member := range members {
+			opts.Enrich(ctx, member)
+		}
+	}
+	return m.createMembersResults, nil
 }
 
 // ReassignMember mirrors the real orchestrator: create the new holder, delete the old, and roll back
@@ -258,6 +289,8 @@ func TestPublishInviteAccessControlMessage(t *testing.T) {
 		action            model.MessageAction
 		sync              bool
 		userReader        *mockUserReader
+		identity          *model.IdentityLookup // member addition's lookup handed to the publisher
+		wantLookupCalls   int32                 // checked only when identity is set
 		wantRelation      map[string][]string
 		wantExclusions    []string
 		wantUpdateAccess  int
@@ -283,6 +316,42 @@ func TestPublishInviteAccessControlMessage(t *testing.T) {
 			action:           model.ActionCreated,
 			userReader:       newMockUserReader(),
 			wantExclusions:   []string{constants.RelationInvitee},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "reuses a found identity for the invitee email",
+			action:           model.ActionUpdated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, "invitee-live"),
+			identity:         model.NewIdentityLookup(invite.InviteeEmail, "invitee", nil),
+			wantLookupCalls:  0,
+			wantRelation:     map[string][]string{constants.RelationInvitee: {"invitee"}},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "reuses a confirmed absence for the invitee email",
+			action:           model.ActionUpdated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, "invitee-live"),
+			identity:         model.NewIdentityLookup(invite.InviteeEmail, "", errs.NewNotFound("user not found")),
+			wantLookupCalls:  0,
+			wantExclusions:   []string{constants.RelationInvitee},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "unresolved identity looks up again",
+			action:           model.ActionUpdated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, "invitee"),
+			identity:         model.NewIdentityLookup(invite.InviteeEmail, "", errs.NewServiceUnavailable("auth service down")),
+			wantLookupCalls:  1,
+			wantRelation:     map[string][]string{constants.RelationInvitee: {"invitee"}},
+			wantUpdateAccess: 1,
+		},
+		{
+			name:             "identity for another email looks up again",
+			action:           model.ActionUpdated,
+			userReader:       newMockUserReader().withUsernames(invite.InviteeEmail, "invitee"),
+			identity:         model.NewIdentityLookup("other.last@example.com", "other-last", nil),
+			wantLookupCalls:  1,
+			wantRelation:     map[string][]string{constants.RelationInvitee: {"invitee"}},
 			wantUpdateAccess: 1,
 		},
 		{
@@ -319,8 +388,11 @@ func TestPublishInviteAccessControlMessage(t *testing.T) {
 				userReader: tt.userReader,
 			}
 
-			svc.publishInviteAccessControlMessage(context.Background(), tt.action, invite, tt.sync)
+			svc.publishInviteAccessControlMessage(context.Background(), tt.action, invite, tt.sync, tt.identity)
 
+			if tt.identity != nil {
+				assert.Equal(t, tt.wantLookupCalls, tt.userReader.usernameByEmailCalls.Load(), "UsernameByEmail calls")
+			}
 			assert.Equal(t, tt.wantUpdateAccess, publisher.UpdateAccessCallCount)
 			assert.Equal(t, tt.wantDeleteAccess, publisher.DeleteAccessCallCount)
 			assert.Zero(t, publisher.MemberPutCallCount)
@@ -403,7 +475,7 @@ func TestPublishApplicationAccessControlMessage(t *testing.T) {
 				userReader: userReaderForTest,
 			}
 
-			svc.publishApplicationAccessControlMessage(context.Background(), application)
+			svc.publishApplicationAccessControlMessage(context.Background(), application, nil)
 
 			assert.Equal(t, tt.wantUpdateAccess, publisher.UpdateAccessCallCount)
 			assert.Zero(t, publisher.DeleteAccessCallCount)
@@ -801,6 +873,280 @@ func TestUpdateCommitteeMember(t *testing.T) {
 			}
 		})
 	}
+}
+
+// identityTestUserReader is a UserReader whose UsernameByEmail calls can be counted.
+type identityTestUserReader interface {
+	port.UserReader
+	lookupCalls() int32
+}
+
+func (m *mockUserReader) lookupCalls() int32 { return m.usernameByEmailCalls.Load() }
+
+func (e *errUserReader) lookupCalls() int32 { return e.usernameByEmailCalls.Load() }
+
+func TestUpdateCommitteeMember_IdentityLookup(t *testing.T) {
+	tests := []struct {
+		name           string
+		reader         identityTestUserReader
+		skipEnrichment bool
+		sync           bool
+		wantCalls      int32
+		wantStatus     model.IdentityLookupStatus
+		wantUsername   string
+	}{
+		{
+			name:         "existing account is resolved once and handed to the orchestrator",
+			reader:       newMockUserReader().withUsernames("first.last@example.com", "first-last"),
+			sync:         true,
+			wantCalls:    1,
+			wantStatus:   model.IdentityLookupFound,
+			wantUsername: "first-last",
+		},
+		{
+			name:       "missing account is confirmed absent once",
+			reader:     newMockUserReader(),
+			wantCalls:  1,
+			wantStatus: model.IdentityLookupAbsent,
+		},
+		{
+			name:       "lookup failure is handed over unresolved",
+			reader:     &errUserReader{},
+			wantCalls:  1,
+			wantStatus: model.IdentityLookupUnresolved,
+		},
+		{
+			name:           "skip enrichment makes no lookup and keeps the caller username",
+			reader:         newMockUserReader().withUsernames("first.last@example.com", "first-last"),
+			skipEnrichment: true,
+			wantCalls:      0,
+			wantUsername:   "first-last-accepted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch := setupServiceTest()
+			svc.userReader = tt.reader
+			mockOrch.updateMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-identity-lookup",
+					CommitteeUID: "committee-1",
+					Email:        "first.last@example.com",
+				},
+			}
+
+			_, err := svc.UpdateCommitteeMember(context.Background(), &committeeservice.UpdateCommitteeMemberPayload{
+				UID:            "committee-1",
+				MemberUID:      "member-identity-lookup",
+				Email:          "First.Last@example.com",
+				Username:       stringPtr("first-last-accepted"),
+				FirstName:      stringPtr("First"),
+				LastName:       stringPtr("Last"),
+				IfMatch:        stringPtr("3"),
+				XSync:          tt.sync,
+				SkipEnrichment: tt.skipEnrichment,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantCalls, tt.reader.lookupCalls(), "UsernameByEmail calls")
+			require.Len(t, mockOrch.updateMemberCalls, 1)
+			call := mockOrch.updateMemberCalls[0]
+			assert.Equal(t, uint64(3), call.revision)
+			assert.Equal(t, tt.sync, call.sync)
+			assert.Equal(t, tt.skipEnrichment, call.skipEnrichment)
+			assert.Equal(t, tt.wantUsername, call.member.Username)
+			assert.Equal(t, "First", call.member.FirstName)
+			assert.Equal(t, "Last", call.member.LastName)
+			if tt.skipEnrichment {
+				assert.Nil(t, call.member.IdentityLookup)
+				return
+			}
+			require.NotNil(t, call.member.IdentityLookup)
+			assert.Equal(t, tt.wantStatus, call.member.IdentityLookup.Status)
+			assert.Equal(t, "first.last@example.com", call.member.IdentityLookup.Email)
+		})
+	}
+}
+
+// setupRealWriterUpdateTest wires the API handler to the real committee writer orchestrator over
+// the shared mock repository, with the same counting UserReader on both layers, and seeds one
+// committee and member that are removed when the test ends.
+func setupRealWriterUpdateTest(t *testing.T, reader port.UserReader, storedEmail, storedUsername string) (*committeeServicesrvc, port.CommitteeReader) {
+	t.Helper()
+	const committeeUID, memberUID = "committee-1391-real-writer", "member-1391-real-writer"
+	repo := mock.NewMockRepository()
+	repo.AddCommittee(&model.Committee{
+		CommitteeBase:     model.CommitteeBase{UID: committeeUID, Name: "Committee 1391", Category: "TC"},
+		CommitteeSettings: &model.CommitteeSettings{UID: committeeUID},
+	})
+	repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: memberUID, CommitteeUID: committeeUID, Email: storedEmail, Username: storedUsername,
+			FirstName: "First", LastName: "Last", AppointedBy: "Community", Status: "Active",
+			Organization: model.CommitteeMemberOrganization{Name: "Org"},
+		},
+	})
+	committeeReader := mock.NewMockCommitteeReader(repo)
+	t.Cleanup(func() {
+		repoWriter := mock.NewMockCommitteeWriter(repo)
+		require.NoError(t, repoWriter.DeleteMember(context.Background(), memberUID, 0))
+		require.NoError(t, repoWriter.Delete(context.Background(), committeeUID, 0))
+	})
+
+	svc, _ := setupServiceTest()
+	svc.userReader = reader
+	svc.committeeWriterOrchestrator = internalservice.NewCommitteeWriterOrchestrator(
+		internalservice.WithCommitteeWriter(mock.NewMockCommitteeWriter(repo)),
+		internalservice.WithCommitteeRetriever(committeeReader),
+		internalservice.WithProjectRetriever(mock.NewMockProjectRetriever(repo)),
+		internalservice.WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+		internalservice.WithUserReader(reader),
+	)
+	return svc, committeeReader
+}
+
+// realWriterUpdatePayload builds an update for the member seeded by setupRealWriterUpdateTest.
+func realWriterUpdatePayload(email, username, revision string, skipEnrichment bool) *committeeservice.UpdateCommitteeMemberPayload {
+	payload := &committeeservice.UpdateCommitteeMemberPayload{
+		UID:            "committee-1391-real-writer",
+		MemberUID:      "member-1391-real-writer",
+		Email:          email,
+		FirstName:      stringPtr("First"),
+		LastName:       stringPtr("Last"),
+		AppointedBy:    "Community",
+		Status:         "Active",
+		IfMatch:        stringPtr(revision),
+		SkipEnrichment: skipEnrichment,
+	}
+	payload.Organization = &struct {
+		ID      *string
+		Name    *string
+		Website *string
+	}{Name: stringPtr("Org")}
+	if username != "" {
+		payload.Username = stringPtr(username)
+	}
+	return payload
+}
+
+// TestUpdateCommitteeMember_RealWriterIdentityLookup drives the API handler through the real writer
+// orchestrator so the account-check count covers the whole edit, not just the handler.
+func TestUpdateCommitteeMember_RealWriterIdentityLookup(t *testing.T) {
+	const (
+		storedEmail  = "first.last@example.com"
+		changedEmail = "first.last2@example.com"
+	)
+	tests := []struct {
+		name              string
+		reader            identityTestUserReader
+		storedUsername    string
+		email             string
+		submittedUsername string
+		skipEnrichment    bool
+		wantCalls         int32
+		wantUsername      string
+	}{
+		{
+			name:              "existing account with the same email is checked once",
+			reader:            newMockUserReader().withUsernames(storedEmail, "first-last"),
+			storedUsername:    "first-last",
+			email:             storedEmail,
+			submittedUsername: "first-last-forged",
+			wantCalls:         1,
+			wantUsername:      "first-last",
+		},
+		{
+			name:           "existing account with a new verified email is checked once",
+			reader:         newMockUserReader().withUsernames(changedEmail, "first-last2"),
+			storedUsername: "first-last",
+			email:          changedEmail,
+			wantCalls:      1,
+			wantUsername:   "first-last2",
+		},
+		{
+			name:           "email-only member with no account is checked once and stays email-only",
+			reader:         newMockUserReader(),
+			storedUsername: "",
+			email:          storedEmail,
+			wantCalls:      1,
+			wantUsername:   "",
+		},
+		{
+			name:           "persistent lookup failure is retried once and keeps the stored username",
+			reader:         &errUserReader{},
+			storedUsername: "first-last",
+			email:          storedEmail,
+			wantCalls:      2,
+			wantUsername:   "first-last",
+		},
+		{
+			name:           "persistent lookup failure after an email change clears the username",
+			reader:         &errUserReader{},
+			storedUsername: "first-last",
+			email:          changedEmail,
+			wantCalls:      2,
+			wantUsername:   "",
+		},
+		{
+			name:              "skip enrichment makes no lookup and persists the caller username",
+			reader:            newMockUserReader().withUsernames(changedEmail, "first-last2"),
+			storedUsername:    "first-last",
+			email:             changedEmail,
+			submittedUsername: "first-last-accepted",
+			skipEnrichment:    true,
+			wantCalls:         0,
+			wantUsername:      "first-last-accepted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, committeeReader := setupRealWriterUpdateTest(t, tt.reader, storedEmail, tt.storedUsername)
+
+			result, err := svc.UpdateCommitteeMember(context.Background(),
+				realWriterUpdatePayload(tt.email, tt.submittedUsername, "1", tt.skipEnrichment))
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			assert.Equal(t, tt.wantCalls, tt.reader.lookupCalls(), "UsernameByEmail calls across handler and writer")
+			assert.Equal(t, tt.wantUsername, stringValue(result.Username))
+			stored, _, err := committeeReader.GetMember(context.Background(), "member-1391-real-writer")
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantUsername, stored.Username, "stored username")
+			assert.Equal(t, tt.email, stored.Email)
+			assert.Equal(t, "First", stored.FirstName)
+			assert.Equal(t, "Last", stored.LastName)
+			assert.Equal(t, "Community", stored.AppointedBy)
+			assert.Equal(t, "Active", stored.Status)
+			assert.Equal(t, "Org", stored.Organization.Name)
+		})
+	}
+
+	t.Run("a later edit never reuses an earlier edit's lookup", func(t *testing.T) {
+		reader := newMockUserReader().withUsernames(storedEmail, "first-last", changedEmail, "first-last2")
+		svc, committeeReader := setupRealWriterUpdateTest(t, reader, storedEmail, "first-last")
+
+		_, err := svc.UpdateCommitteeMember(context.Background(), realWriterUpdatePayload(storedEmail, "", "1", false))
+		require.NoError(t, err)
+		assert.Equal(t, int32(1), reader.lookupCalls(), "first edit")
+		_, revision, err := committeeReader.GetMember(context.Background(), "member-1391-real-writer")
+		require.NoError(t, err)
+
+		result, err := svc.UpdateCommitteeMember(context.Background(),
+			realWriterUpdatePayload(changedEmail, "", strconv.FormatUint(revision, 10), false))
+		require.NoError(t, err)
+		assert.Equal(t, int32(2), reader.lookupCalls(), "second edit makes its own single check")
+		assert.Equal(t, "first-last2", stringValue(result.Username))
+	})
+}
+
+// stringValue dereferences an optional response string, treating nil as empty.
+func stringValue(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // ==================== Invite Endpoint Tests ====================
@@ -1573,6 +1919,42 @@ func TestAcceptInvite(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("identity lookup is resolved once and handed to the orchestrator", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		reader := mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+			withUsernames("first.last@example.com", "first-last")
+		svc.userReader = reader
+		repo.AddCommitteeInvite(&model.CommitteeInvite{
+			UID:          "invite-identity-lookup",
+			CommitteeUID: "committee-1",
+			InviteeEmail: "first.last@example.com",
+			Status:       "pending",
+			CreatedAt:    time.Now(),
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-identity-lookup",
+				CommitteeUID: "committee-1",
+				Email:        "first.last@example.com",
+				Status:       "Active",
+			},
+		}
+
+		_, err := svc.AcceptInvite(testCtx("first-last"), &committeeservice.AcceptInvitePayload{
+			UID:       "committee-1",
+			InviteUID: "invite-identity-lookup",
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, int32(1), reader.usernameByEmailCalls.Load(), "UsernameByEmail calls")
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		require.NotNil(t, member.IdentityLookup)
+		assert.True(t, member.IdentityLookup.ResolvedFor(member.Email))
+		assert.Equal(t, model.IdentityLookupFound, member.IdentityLookup.Status)
+		assert.Equal(t, "first-last", member.Username)
+	})
 }
 
 func TestAcceptInvite_OwnershipCheck(t *testing.T) {
@@ -2144,6 +2526,44 @@ func TestApproveApplication(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("identity lookup is resolved once and handed to the orchestrator", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		reader := newMockUserReader()
+		svc.userReader = reader
+		application := &model.CommitteeApplication{
+			UID:            "app-identity-lookup",
+			CommitteeUID:   "committee-1",
+			ApplicantEmail: "first.last@example.com",
+			Status:         "pending",
+			CreatedAt:      time.Now(),
+		}
+		repo.AddCommitteeApplication(application)
+		t.Cleanup(func() {
+			require.NoError(t, svc.storage.DeleteApplication(context.Background(), application))
+		})
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				CommitteeUID: "committee-1",
+				Email:        "first.last@example.com",
+				Status:       "Active",
+			},
+		}
+
+		_, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+			UID:            "committee-1",
+			ApplicationUID: "app-identity-lookup",
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, int32(1), reader.usernameByEmailCalls.Load(), "UsernameByEmail calls")
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		require.NotNil(t, member.IdentityLookup)
+		assert.True(t, member.IdentityLookup.ResolvedFor(member.Email))
+		assert.Equal(t, model.IdentityLookupAbsent, member.IdentityLookup.Status)
+		assert.Empty(t, member.Username)
+	})
 }
 
 func TestApproveApplication_WrongCommittee(t *testing.T) {
@@ -2525,6 +2945,33 @@ func TestJoinCommittee(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("identity lookup is resolved once and handed to the orchestrator", func(t *testing.T) {
+		svc, mockOrch, repo := setupServiceTestWithRepo()
+		reader := mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+			withUsernames("first.last@example.com", "first-last")
+		svc.userReader = reader
+		repo.SetJoinMode("committee-1", "open")
+		mockOrch.createMember = &model.CommitteeMember{
+			CommitteeMemberBase: model.CommitteeMemberBase{
+				UID:          "member-identity-lookup",
+				CommitteeUID: "committee-1",
+				Email:        "first.last@example.com",
+				Status:       "Active",
+			},
+		}
+
+		_, err := svc.JoinCommittee(testCtx("first-last"), &committeeservice.JoinCommitteePayload{UID: "committee-1"})
+		require.NoError(t, err)
+
+		assert.Equal(t, int32(1), reader.usernameByEmailCalls.Load(), "UsernameByEmail calls")
+		require.Len(t, mockOrch.createMemberCalls, 1)
+		member := mockOrch.createMemberCalls[0]
+		require.NotNil(t, member.IdentityLookup)
+		assert.True(t, member.IdentityLookup.ResolvedFor(member.Email))
+		assert.Equal(t, model.IdentityLookupFound, member.IdentityLookup.Status)
+		assert.Equal(t, "first-last", member.Username)
+	})
 }
 
 func TestJoinCommittee_Organization(t *testing.T) {
@@ -3033,9 +3480,12 @@ func TestEnrichAllRoleFields_UpdateCommitteeSettings(t *testing.T) {
 }
 
 // errUserReader always returns a transport error from UsernameByEmail (not a NotFound).
-type errUserReader struct{}
+type errUserReader struct {
+	usernameByEmailCalls atomic.Int32 // number of UsernameByEmail calls
+}
 
 func (e *errUserReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
+	e.usernameByEmailCalls.Add(1)
 	return "", errs.NewUnexpected("nats: connection timeout")
 }
 
@@ -3094,6 +3544,222 @@ func TestEnrichAllRoleFields_M2MClientUsernamePreserved(t *testing.T) {
 
 	err = validateIdentityFields(writers, nil)
 	require.NoError(t, err, "M2M username-only entry must pass validateIdentityFields")
+}
+
+func TestCreateCommitteeMember_IdentityLookup(t *testing.T) {
+	tests := []struct {
+		name           string
+		usernames      []string
+		skipEnrichment bool
+		wantCalls      int32
+		wantStatus     model.IdentityLookupStatus
+		wantUsername   string
+	}{
+		{
+			name:         "existing account is resolved once and handed to the orchestrator",
+			usernames:    []string{"first.last@example.com", "first-last"},
+			wantCalls:    1,
+			wantStatus:   model.IdentityLookupFound,
+			wantUsername: "first-last",
+		},
+		{
+			name:       "missing account is confirmed absent once",
+			wantCalls:  1,
+			wantStatus: model.IdentityLookupAbsent,
+		},
+		{
+			name:           "skip enrichment makes no lookup and records none",
+			usernames:      []string{"first.last@example.com", "first-last"},
+			skipEnrichment: true,
+			wantCalls:      0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch := setupServiceTest()
+			reader := newMockUserReader().withUsernames(tt.usernames...)
+			svc.userReader = reader
+			mockOrch.createMember = &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-identity-lookup",
+					CommitteeUID: "committee-1",
+					Email:        "first.last@example.com",
+				},
+			}
+			firstName, lastName := "First", "Last"
+
+			_, err := svc.CreateCommitteeMember(context.Background(), &committeeservice.CreateCommitteeMemberPayload{
+				UID:            "committee-1",
+				Email:          "first.last@example.com",
+				FirstName:      &firstName,
+				LastName:       &lastName,
+				SkipEnrichment: tt.skipEnrichment,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantCalls, reader.usernameByEmailCalls.Load(), "UsernameByEmail calls")
+			require.Len(t, mockOrch.createMemberCalls, 1)
+			member := mockOrch.createMemberCalls[0]
+			if tt.skipEnrichment {
+				assert.Nil(t, member.IdentityLookup)
+				return
+			}
+			require.NotNil(t, member.IdentityLookup)
+			assert.True(t, member.IdentityLookup.ResolvedFor(member.Email))
+			assert.Equal(t, tt.wantStatus, member.IdentityLookup.Status)
+			assert.Equal(t, tt.wantUsername, member.Username)
+		})
+	}
+}
+
+func TestBulkCreateCommitteeMembers(t *testing.T) {
+	username, firstName, lastName, orgName, website := "first-last", "First", "Last", "Example", "https://example.com"
+	fullRow := &committeeservice.CommitteeMemberBulkCreateRow{
+		Username:    &username,
+		Email:       "first.last+1@example.com",
+		FirstName:   &firstName,
+		LastName:    &lastName,
+		AppointedBy: "Community",
+		Status:      "Active",
+		Role: &struct {
+			Name      string
+			StartDate *string
+			EndDate   *string
+		}{Name: "Chair"},
+		Voting: &struct {
+			Status    string
+			StartDate *string
+			EndDate   *string
+		}{Status: "Voting Rep"},
+		Organization: &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{Name: &orgName, Website: &website},
+	}
+	twoRows := func() []*committeeservice.CommitteeMemberBulkCreateRow {
+		second := *fullRow
+		second.Email = "first.last+2@example.com"
+		first := *fullRow
+		return []*committeeservice.CommitteeMemberBulkCreateRow{&first, &second}
+	}
+	added := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-added", CommitteeUID: "committee-1", Email: "first.last+1@example.com",
+	}}
+
+	tests := []struct {
+		name    string
+		payload *committeeservice.BulkCreateCommitteeMembersPayload
+		setup   func(*mockCommitteeWriterOrchestrator)
+		check   func(t *testing.T, svc *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, reader *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error)
+	}{
+		{
+			name:    "converts each row exactly like a single create and enriches every row",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", XSync: true, SkipNotification: true, Members: twoRows()},
+			setup: func(orch *mockCommitteeWriterOrchestrator) {
+				orch.createMembersResults = []*model.BulkMemberResult{}
+			},
+			check: func(t *testing.T, svc *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, reader *mockUserReader, _ *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				require.NoError(t, err)
+				require.Len(t, orch.createMembersCalls, 1)
+				call := orch.createMembersCalls[0]
+				assert.Equal(t, "committee-1", call.committeeUID)
+				assert.True(t, call.opts.Sync)
+				assert.False(t, call.opts.SkipEnrichment)
+				require.NotNil(t, call.opts.Enrich)
+				assert.EqualValues(t, 2, reader.usernameByEmailCalls.Load(), "one identity lookup per row")
+
+				single := svc.convertMemberPayloadToDomain(&committeeservice.CreateCommitteeMemberPayload{
+					UID: "committee-1", SkipNotification: true, Username: fullRow.Username, Email: fullRow.Email,
+					FirstName: fullRow.FirstName, LastName: fullRow.LastName, AppointedBy: fullRow.AppointedBy,
+					Status: fullRow.Status, Role: fullRow.Role, Voting: fullRow.Voting, Organization: fullRow.Organization,
+				})
+				assert.Equal(t, single, svc.convertBulkMemberRowToDomain("committee-1", true, fullRow))
+			},
+		},
+		{
+			name:    "skip enrichment makes no identity lookup",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", SkipEnrichment: true, Members: twoRows()},
+			check: func(t *testing.T, _ *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, reader *mockUserReader, _ *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				require.NoError(t, err)
+				require.Len(t, orch.createMembersCalls, 1)
+				assert.True(t, orch.createMembersCalls[0].opts.SkipEnrichment)
+				assert.Nil(t, orch.createMembersCalls[0].opts.Enrich)
+				assert.Zero(t, reader.usernameByEmailCalls.Load())
+				assert.Equal(t, "first-last", orch.createMembersCalls[0].members[0].Username, "the submitted username is kept")
+			},
+		},
+		{
+			name:    "maps row outcomes and counts, with the member only on added rows",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", SkipEnrichment: true, Members: append(twoRows(), fullRow)},
+			setup: func(orch *mockCommitteeWriterOrchestrator) {
+				orch.createMembersResults = []*model.BulkMemberResult{
+					{Index: 0, Email: added.Email, Status: model.BulkMemberAdded, MemberUID: added.UID, Member: added},
+					{Index: 1, Email: "first.last+2@example.com", Status: model.BulkMemberSkipped, Reason: model.BulkReasonAlreadyMember, MemberUID: "member-existing", Message: "member already exists in the committee"},
+					{Index: 2, Email: added.Email, Status: model.BulkMemberFailed, Reason: model.BulkReasonTemporary, Retryable: true, Message: "temporary failure; retry later"},
+				}
+			},
+			check: func(t *testing.T, _ *committeeServicesrvc, _ *mockCommitteeWriterOrchestrator, _ *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, 1, res.Added)
+				assert.Equal(t, 1, res.Skipped)
+				assert.Equal(t, 1, res.Failed)
+				require.Len(t, res.Results, 3)
+
+				assert.Equal(t, "added", res.Results[0].Status)
+				assert.Nil(t, res.Results[0].Reason)
+				require.NotNil(t, res.Results[0].Member)
+				assert.Equal(t, "member-added", *res.Results[0].Member.UID)
+
+				assert.Equal(t, "skipped", res.Results[1].Status)
+				assert.Equal(t, "already_member", *res.Results[1].Reason)
+				assert.Equal(t, "member-existing", *res.Results[1].MemberUID)
+				assert.Nil(t, res.Results[1].Member)
+
+				assert.Equal(t, 2, res.Results[2].Index)
+				assert.Equal(t, "temporary", *res.Results[2].Reason)
+				assert.True(t, res.Results[2].Retryable)
+				assert.Nil(t, res.Results[2].Member)
+			},
+		},
+		{
+			name:    "maps a missing committee to not found",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", Members: twoRows()},
+			setup: func(orch *mockCommitteeWriterOrchestrator) {
+				orch.createMembersErr = errs.NewNotFound("committee not found")
+			},
+			check: func(t *testing.T, _ *committeeServicesrvc, _ *mockCommitteeWriterOrchestrator, _ *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				var notFound *committeeservice.NotFoundError
+				require.ErrorAs(t, err, &notFound)
+				assert.Nil(t, res)
+			},
+		},
+		{
+			name: "rejects a nil payload",
+			check: func(t *testing.T, _ *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, _ *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				var badRequest *committeeservice.BadRequestError
+				require.ErrorAs(t, err, &badRequest)
+				assert.Nil(t, res)
+				assert.Empty(t, orch.createMembersCalls)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, orch := setupServiceTest()
+			reader := newMockUserReader()
+			svc.userReader = reader
+			if tt.setup != nil {
+				tt.setup(orch)
+			}
+
+			res, err := svc.BulkCreateCommitteeMembers(context.Background(), tt.payload)
+
+			tt.check(t, svc, orch, reader, res, err)
+		})
+	}
 }
 
 func TestEnrichMember(t *testing.T) {
@@ -3261,6 +3927,57 @@ func TestEnrichMember(t *testing.T) {
 			m := tt.member()
 			svc.enrichMember(context.Background(), m)
 			tt.validate(t, m)
+		})
+	}
+
+	identityTests := []struct {
+		name         string
+		reader       func() (port.UserReader, func() int32)
+		wantStatus   model.IdentityLookupStatus
+		wantUsername string
+	}{
+		{
+			name: "found account records a found lookup",
+			reader: func() (port.UserReader, func() int32) {
+				r := newMockUserReader().withUsernames("first.last@example.com", "first-last")
+				return r, r.usernameByEmailCalls.Load
+			},
+			wantStatus:   model.IdentityLookupFound,
+			wantUsername: "first-last",
+		},
+		{
+			name: "NotFound reply records a confirmed absence",
+			reader: func() (port.UserReader, func() int32) {
+				r := newMockUserReader()
+				return r, r.usernameByEmailCalls.Load
+			},
+			wantStatus: model.IdentityLookupAbsent,
+		},
+		{
+			name: "transport error records an unresolved lookup",
+			reader: func() (port.UserReader, func() int32) {
+				r := &errUserReader{}
+				return r, r.usernameByEmailCalls.Load
+			},
+			wantStatus: model.IdentityLookupUnresolved,
+		},
+	}
+	for _, tt := range identityTests {
+		t.Run("identity lookup — "+tt.name, func(t *testing.T) {
+			svc, _ := setupServiceTest()
+			reader, calls := tt.reader()
+			svc.userReader = reader
+			m := &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{Email: " First.Last@example.com "},
+			}
+
+			svc.enrichMember(context.Background(), m)
+
+			assert.Equal(t, int32(1), calls(), "UsernameByEmail calls")
+			require.NotNil(t, m.IdentityLookup)
+			assert.Equal(t, tt.wantStatus, m.IdentityLookup.Status)
+			assert.Equal(t, tt.wantUsername, m.IdentityLookup.Username)
+			assert.Equal(t, tt.wantStatus != model.IdentityLookupUnresolved, m.IdentityLookup.ResolvedFor(m.Email))
 		})
 	}
 }

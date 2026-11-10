@@ -94,6 +94,10 @@ Published to `lfx.fga-sync.member_put` when a committee member is created or upd
 
 The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UID.
 
+When enrichment runs, caller-supplied usernames are not trusted: the service uses its email-to-username lookup and the stored-identity fallback described below. Within one create or update request, a confirmed lookup result (account found or confirmed absent) for the member's current email is reused instead of asking auth-service again; a failed lookup is retried once in the writer and is never treated as a confirmed absence. On update, when no account is found or the lookup fails, the stored username is kept if the email did not change and cleared if it did, so a confirmed absence leaves an email-only member email-only and publishes no `member_put`. Requests that skip enrichment (NATS LFID invite-accepted reconciliation via `lfx.invite-service.invite_accepted`, user events, sync tooling, `X-Skip-Enrichment`) make no identity lookup in the writer and publish the supplied identity unchanged; user-event and sync-tooling callers may perform their own lookup before invoking the writer. HTTP `AcceptInvite` uses normal server-side enrichment and reuses the confirmed lookup result. Bulk member create (`POST /committees/{uid}/members/bulk`) reuses a lookup only within its own row, never across rows. It is also stricter than a single create: a row whose lookup is still unresolved after the writer retry is not written and publishes no `member_put`, and the row is reported as a temporary failure.
+
+Bulk recovery completes one stable member UID from its original validated member inputs; it never grants access from replacement retry fields. Server-derived committee name/category and project UID/slug are refreshed under the commit revision guard. Pending operations and uncertain reservations publish no `member_put`. Only the winning storage completion attempts the normal best-effort create publications, even if preparation retirement subsequently fails; completed retries publish nothing. Storage completion does not close the existing crash gap before publication or guarantee downstream convergence. See [recoverable bulk storage](nats-storage.md#recoverable-bulk-member-creation).
+
 #### Message Envelope
 
 | Field | Value |
@@ -180,6 +184,16 @@ When a committee is deleted, `committeeWriterOrchestrator.Delete` lists all `com
 
 Both messages are published fire-and-forget (`X-Sync: false`) as part of the same concurrent worker pool as the committee's own deletion messages. The application's KV record is also removed from storage in the same pool call. If `ListApplications` fails the cascade is skipped with a critical-priority warning; the committee delete itself still succeeds. There is no explicit withdraw or delete endpoint — cascade on committee delete is the only current callsite for `delete_access` on `committee_application`.
 
+When the store removes a committee's children itself (the PostgreSQL store's `DeleteCommitteeCascade`), the applications
+are the ones it reports as removed, `ListApplications` is not called and no per-application record delete is made; the
+`delete_access` message per application is unchanged. Members are tuples on the committee, so the committee's
+`delete_access` covers them and no `member_remove` is sent for the members a cascade removes. Invites do have an object
+of their own (`committee_invite`), so each removed invite also gets a `delete_access` with `object_type: committee_invite`:
+the defensive branch described under [delete_access (Delete)](#delete_access-delete), of which a cascade is the first
+caller. A plain invite delete keeps the object so history queries work; after a cascade the invite and its index entry
+are gone, so nothing could read those tuples. The application and invite messages are published after the committee's own, on a
+context detached from the request, at most 32 at a time, and a failure of one does not skip the rest.
+
 ### Event Summary
 
 | Event | Object Type | Subject | Notes |
@@ -188,7 +202,7 @@ Both messages are published fire-and-forget (`X-Sync: false`) as part of the sam
 | Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their rejected application |
-| Delete parent committee (cascade) | `committee_application` | `lfx.fga-sync.delete_access` + `lfx.index.committee_application` | One pair per application, plus KV record deletion; fire-and-forget |
+| Delete parent committee (cascade) | `committee_application` | `lfx.fga-sync.delete_access` + `lfx.index.committee_application` | One pair per application, plus KV record deletion (none when the store cascades); fire-and-forget |
 
 ---
 
@@ -231,7 +245,8 @@ Published to `lfx.fga-sync.update_access` whenever a `committee_invite` object i
 
 ### delete_access (Delete)
 
-The invite access helper retains a defensive `delete_access` branch that publishes to `lfx.fga-sync.delete_access` and removes all FGA tuples for the `committee_invite:{uid}` object. No current production callsite invokes this branch.
+The invite access helper retains a defensive `delete_access` branch that publishes to `lfx.fga-sync.delete_access` and removes all FGA tuples for the `committee_invite:{uid}` object. Only the committee cascade of a store that removes the committee's children itself (the PostgreSQL store) invokes
+this branch; on a plain invite delete, and with the KV store, it has no callsite.
 
 ---
 
@@ -249,10 +264,25 @@ The invite access helper retains a defensive `delete_access` branch that publish
 | Create committee invite | `committee_invite` | `lfx.fga-sync.update_access` | `invitee` relation omitted when invitee has no LFID yet |
 | Update committee invite | `committee_invite` | `lfx.fga-sync.update_access` | Same invitee-resolution logic as create |
 | Accept committee invite (HTTP) | `committee_invite` | `lfx.fga-sync.update_access` | Re-publishes to ensure `invitee` tuple is present after acceptance |
-| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Defensive branch only; no current production callsite invokes it (see [delete_access](#delete_access-delete)) |
+| Delete committee invite | `committee_invite` | `lfx.fga-sync.delete_access` | Defensive branch only; no callsite on a plain invite delete (see [delete_access](#delete_access-delete)) |
+| Delete parent committee (cascade to invites) | `committee_invite` | `lfx.fga-sync.delete_access` | One message per invite, only when the store removes the committee's children itself (PostgreSQL); fire-and-forget |
 | LFID registered (`lfx.invite-service.invite_accepted`) | `committee_invite` | `lfx.fga-sync.update_access` | Publishes `invitee` relation for every `committee_invite` (any status) whose `InviteeEmail` matches the accepted email — grants visibility to all invites, including already-accepted ones |
 | Submit committee application | `committee_application` | `lfx.fga-sync.update_access` | `applicant` relation omitted when applicant has no LFID yet |
 | Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic as submit |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their rejected application |
-| Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application plus KV record deletion; fire-and-forget; skipped if `ListApplications` fails |
+| Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application plus KV record deletion; fire-and-forget; skipped if `ListApplications` fails. With a store that cascades, the applications come from the store and there is no `ListApplications` or KV record deletion |
+
+Pending bulk recovery snapshots are selected before shared current group and
+identity validation. A confirmed changed identity or invalid current group rule
+fences/rejects that pending operation instead of granting stale access. An
+unresolved identity lookup leaves it retryable without committing or publishing.
+
+Pending bulk resumes always revalidate their retained identity, including requests
+with `X-Skip-Enrichment`; a retry cannot re-grant a deleted or reassigned username
+from a stale snapshot. User-deletion and known user-email change events abort
+matching pending preparations before visible-member reconciliation. This removes
+current snapshot/intent data while retaining content-free fences and the bucket's
+existing historical-revision policy. Legacy visible memberships are revision-fenced
+and have missing indexes repaired in place; import validation never aborts them
+or publishes a second create event.

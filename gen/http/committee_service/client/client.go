@@ -54,6 +54,10 @@ type Client struct {
 	// create-committee-member endpoint.
 	CreateCommitteeMemberDoer goahttp.Doer
 
+	// BulkCreateCommitteeMembers Doer is the HTTP client used to make requests to
+	// the bulk-create-committee-members endpoint.
+	BulkCreateCommitteeMembersDoer goahttp.Doer
+
 	// GetCommitteeMember Doer is the HTTP client used to make requests to the
 	// get-committee-member endpoint.
 	GetCommitteeMemberDoer goahttp.Doer
@@ -221,6 +225,7 @@ func NewClient(
 		ReadyzDoer:                     doer,
 		LivezDoer:                      doer,
 		CreateCommitteeMemberDoer:      doer,
+		BulkCreateCommitteeMembersDoer: doer,
 		GetCommitteeMemberDoer:         doer,
 		GetOrgCommitteeSeatsDoer:       doer,
 		ReassignOrgCommitteeSeatDoer:   doer,
@@ -463,6 +468,30 @@ func (c *Client) CreateCommitteeMember() goa.Endpoint {
 		resp, err := c.CreateCommitteeMemberDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "create-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// BulkCreateCommitteeMembers returns an endpoint that makes HTTP requests to
+// the committee-service service bulk-create-committee-members server.
+func (c *Client) BulkCreateCommitteeMembers() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeBulkCreateCommitteeMembersRequest(c.encoder)
+		decodeResponse = DecodeBulkCreateCommitteeMembersResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildBulkCreateCommitteeMembersRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.BulkCreateCommitteeMembersDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "bulk-create-committee-members", err)
 		}
 		return decodeResponse(resp)
 	}

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	pkgerrors "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -87,53 +88,63 @@ func assertNoRespondError(t *testing.T, respondErrCh <-chan error) {
 
 func TestMessageRequest_UsernameByEmail(t *testing.T) {
 	tests := []struct {
-		name       string
-		responder  func(email string) []byte
-		setup      func(t *testing.T) *messageRequest
-		wantUser   string
-		wantErrStr string
+		name             string
+		responder        func(email string) []byte
+		setup            func(t *testing.T) *messageRequest
+		wantUser         string
+		wantErrStr       string
+		wantUnexpected   bool
+		wantLookupStatus model.IdentityLookupStatus
 	}{
 		{
 			name: "plain-text username returned on success",
 			responder: func(email string) []byte {
-				return []byte("alice")
+				return []byte("first-last")
 			},
-			wantUser: "alice",
+			wantUser:         "first-last",
+			wantLookupStatus: model.IdentityLookupFound,
 		},
 		{
 			name: "trailing newline trimmed from username",
 			responder: func(email string) []byte {
-				return []byte("alice\n")
+				return []byte("first-last\n")
 			},
-			wantUser: "alice",
+			wantUser:         "first-last",
+			wantLookupStatus: model.IdentityLookupFound,
 		},
 		{
 			name: "leading and trailing whitespace trimmed",
 			responder: func(email string) []byte {
-				return []byte("  alice  ")
+				return []byte("  first-last  ")
 			},
-			wantUser: "alice",
+			wantUser:         "first-last",
+			wantLookupStatus: model.IdentityLookupFound,
 		},
 		{
-			name: "empty body returns NotFound",
+			name: "empty body remains unresolved",
 			responder: func(email string) []byte {
 				return []byte("")
 			},
-			wantErrStr: "user not found for email",
+			wantErrStr:       "empty email_to_username response",
+			wantUnexpected:   true,
+			wantLookupStatus: model.IdentityLookupUnresolved,
 		},
 		{
-			name: "whitespace-only body returns NotFound",
+			name: "whitespace-only body remains unresolved",
 			responder: func(email string) []byte {
 				return []byte("   \n  ")
 			},
-			wantErrStr: "user not found for email",
+			wantErrStr:       "empty email_to_username response",
+			wantUnexpected:   true,
+			wantLookupStatus: model.IdentityLookupUnresolved,
 		},
 		{
 			name: "JSON error envelope returns NotFound",
 			responder: func(email string) []byte {
 				return []byte(`{"success":false,"error":"user not found"}`)
 			},
-			wantErrStr: "user not found",
+			wantErrStr:       "user not found",
+			wantLookupStatus: model.IdentityLookupAbsent,
 		},
 		{
 			name: "JSON envelope missing success field returns Unexpected",
@@ -145,7 +156,7 @@ func TestMessageRequest_UsernameByEmail(t *testing.T) {
 		{
 			name: "JSON success envelope returns error instead of leaking JSON as username",
 			responder: func(email string) []byte {
-				return []byte(`{"success":true,"username":"alice"}`)
+				return []byte(`{"success":true,"username":"first-last"}`)
 			},
 			wantErrStr: "unexpected email_to_username success envelope",
 		},
@@ -187,15 +198,26 @@ func TestMessageRequest_UsernameByEmail(t *testing.T) {
 				respondErrCh = env.respondErrCh
 			}
 
-			got, err := reader.UsernameByEmail(context.Background(), "test@example.com")
+			const email = "first.last@example.com"
+			got, err := reader.UsernameByEmail(context.Background(), email)
 			if respondErrCh != nil {
 				assertNoRespondError(t, respondErrCh)
 			}
+
+			lookup := model.NewIdentityLookup(email, got, err)
+			assert.Equal(t, tt.wantLookupStatus, lookup.Status)
+			assert.Equal(t, tt.wantLookupStatus != model.IdentityLookupUnresolved, lookup.ResolvedFor(email))
 
 			if tt.wantErrStr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErrStr)
 				assert.Empty(t, got)
+				var notFound pkgerrors.NotFound
+				assert.Equal(t, tt.wantLookupStatus == model.IdentityLookupAbsent, errors.As(err, &notFound))
+				if tt.wantUnexpected {
+					var unexpected pkgerrors.Unexpected
+					assert.True(t, errors.As(err, &unexpected))
+				}
 				return
 			}
 			require.NoError(t, err)

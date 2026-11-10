@@ -1314,6 +1314,7 @@ func TestStorage_CreateMember(t *testing.T) {
 
 func TestStorage_UpdateMember(t *testing.T) {
 	ctx := context.Background()
+	t.Run("delete races preserve not-found mapping", testMemberUpdateDeleteRaces)
 
 	seed := func(t *testing.T) (*storage, *lockKV, *model.CommitteeMember) {
 		t.Helper()
@@ -1633,6 +1634,7 @@ func TestStorage_UpdateMember(t *testing.T) {
 }
 
 func TestStorage_DeleteMember(t *testing.T) {
+	testMemberDeleteFenceRecovery(t)
 	ctx := context.Background()
 	seed := func(t *testing.T) (*storage, *lockKV, *model.CommitteeMember) {
 		t.Helper()
@@ -2237,6 +2239,123 @@ func TestStorage_TakenUIDRefusedWithEitherWrongLastSequenceCode(t *testing.T) {
 			require.NoError(t, c.create(c.key+"-retry"))
 		})
 	}
+}
+
+// On a clustered stream the server can answer a refused expected-sequence check with error 10164 instead of
+// 10071, and nats.go maps only 10071 to jetstream.ErrKeyExists. Every place that reads a refused create or
+// swap as "the key is taken" must see both, or a taken name is a 500 where it is a 409, a retried index
+// write fails where it is idempotent, and a lost swap on a member update goes unnoticed.
+func TestStorage_ClusteredWrongLastSequenceReadsAsTaken(t *testing.T) {
+	ctx := context.Background()
+	inflight := &jetstream.APIError{Code: 400, ErrorCode: 10164, Description: "wrong last sequence"}
+	require.NotErrorIs(t, inflight, jetstream.ErrKeyExists, "nats.go does not map 10164 to ErrKeyExists")
+
+	t.Run("committee name and SSO group locks are a conflict", func(t *testing.T) {
+		client := newKVClient(t)
+		s := NewStorage(client)
+		committee := storetest.NewCommittee("uid-1", "project-1", "Committee One")
+		committee.SSOGroupName = "sso-group-1"
+		nameKey, ssoKey := committeeLookupKeys(ctx, committee)
+		real := client.kvStore[constants.KVBucketNameCommittees]
+		for name, key := range map[string]string{"name": nameKey, "sso": ssoKey} {
+			client.kvStore[constants.KVBucketNameCommittees] = &failingCreateKV{KeyValue: real, key: key, err: inflight}
+			requireOuterConflict(t, s.Create(ctx, committee))
+			client.kvStore[constants.KVBucketNameCommittees] = real
+			_, errGet := real.Get(ctx, nameKey)
+			require.ErrorIs(t, errGet, jetstream.ErrKeyNotFound, "%s: a refused create reserves nothing", name)
+		}
+		require.NoError(t, s.Create(ctx, committee))
+	})
+
+	t.Run("a lock the owner already holds counts as held, and another owner's is taken", func(t *testing.T) {
+		kv := newKVClient(t).kvStore[constants.KVBucketNameCommitteeMembers]
+		_, err := kv.Create(ctx, "lookup/held", []byte("m-1"))
+		require.NoError(t, err)
+		wrapped := &failingCreateKV{KeyValue: kv, key: "lookup/held", err: inflight}
+
+		newlyReserved, err := reserveOwnedKey(ctx, wrapped, "m-1", "lookup/held")
+		require.NoError(t, err)
+		assert.False(t, newlyReserved)
+		_, err = reserveOwnedKey(ctx, wrapped, "m-2", "lookup/held")
+		require.Error(t, err)
+		assert.True(t, isJetStreamCASConflict(err))
+	})
+
+	t.Run("a member email lock is a conflict", func(t *testing.T) {
+		client := newKVClient(t)
+		s := NewStorageBackend(client)
+		client.kvStore[constants.KVBucketNameCommitteeMembers] = &failingCreateKV{KeyValue: client.kvStore[constants.KVBucketNameCommitteeMembers], key: "lookup/unique", err: inflight}
+		reserved, err := s.reserveMemberKeys(ctx, "m-1", "lookup/unique", nil)
+		requireOuterConflict(t, err)
+		assert.Empty(t, reserved)
+	})
+
+	t.Run("an invite or application lock is a conflict", func(t *testing.T) {
+		client := newKVClient(t)
+		s := NewStorage(client)
+		invite := storetest.NewInvite("i-1", "committee-9", "first.last9@example.com")
+		application := storetest.NewApplication("a-1", "committee-9", "first.last9@example.com")
+		for _, c := range []struct {
+			bucket, key string
+			create      func() error
+		}{
+			{constants.KVBucketNameCommitteeInvites, fmt.Sprintf(constants.KVLookupInvitePrefix, invite.BuildIndexKey(ctx)), func() error { return s.CreateInvite(ctx, invite) }},
+			{constants.KVBucketNameCommitteeApplications, fmt.Sprintf(constants.KVLookupApplicationPrefix, application.BuildIndexKey(ctx)), func() error { return s.CreateApplication(ctx, application) }},
+		} {
+			real := client.kvStore[c.bucket]
+			client.kvStore[c.bucket] = &failingCreateKV{KeyValue: real, key: c.key, err: inflight}
+			requireOuterConflict(t, c.create())
+			client.kvStore[c.bucket] = real
+			require.NoError(t, c.create(), "a refused create reserves nothing")
+		}
+	})
+
+	t.Run("an index write that already exists is idempotent", func(t *testing.T) {
+		client := newKVClient(t)
+		s := NewStorageBackend(client)
+		member := newConflictTestMember("m-1", "first.last@example.com")
+		member.Organization.ID = storetest.SFID15
+		for name, index := range map[string]func(context.Context, *model.CommitteeMember) (string, error){
+			"committee": s.IndexMemberByCommittee, "organization": s.IndexMemberByOrganization,
+			"email": s.IndexMemberByEmail, "username": s.IndexMemberByUsername,
+		} {
+			key, err := index(ctx, member)
+			require.NoError(t, err, name)
+			require.NotEmpty(t, key, name)
+
+			real := client.kvStore[constants.KVBucketNameCommitteeMembers]
+			client.kvStore[constants.KVBucketNameCommitteeMembers] = &failingCreateKV{KeyValue: real, key: key, err: inflight}
+			again, err := index(ctx, member)
+			client.kvStore[constants.KVBucketNameCommitteeMembers] = real
+			require.NoError(t, err, name)
+			assert.Equal(t, key, again, name)
+		}
+	})
+
+	t.Run("a member update that loses the swap is a conflict", func(t *testing.T) {
+		assert.IsType(t, errs.Conflict{}, mapMemberUpdateError(inflight))
+
+		// The same member stored by another writer must not make the lost swap look like it landed.
+		client := newKVClient(t)
+		s := NewStorage(client)
+		require.NoError(t, s.CreateMember(ctx, newConflictTestMember("m-1", "first.last@example.com")))
+		member, revision, err := s.GetMember(ctx, "m-1")
+		require.NoError(t, err)
+		real := client.kvStore[constants.KVBucketNameCommitteeMembers]
+		client.kvStore[constants.KVBucketNameCommitteeMembers] = &failingUpdateKV{KeyValue: real, err: inflight}
+		_, err = s.UpdateMember(ctx, member, revision)
+		requireOuterConflict(t, err)
+	})
+
+	t.Run("a lost swap on a counter update is a conflict", func(t *testing.T) {
+		client := newKVClient(t)
+		s := NewStorage(client)
+		require.NoError(t, s.Create(ctx, storetest.NewCommittee("uid-1", "project-1", "Committee One")))
+		real := client.kvStore[constants.KVBucketNameCommittees]
+		client.kvStore[constants.KVBucketNameCommittees] = &failingUpdateKV{KeyValue: real, err: inflight}
+		_, _, err := s.UpdateTotalMembers(ctx, "uid-1", 9)
+		requireOuterConflict(t, err)
+	})
 }
 
 func TestContract_Links(t *testing.T) {

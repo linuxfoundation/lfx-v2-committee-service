@@ -6,6 +6,7 @@ package main
 import (
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,4 +48,60 @@ func TestRun_CommitteeFieldsStillNeedsNATSToDoRealWork(t *testing.T) {
 	_, err := runWithArgs(t, "sync", "committee-fields", "--committee-uid=committee-1", "--field=public", "--from=v1")
 
 	require.Error(t, err)
+}
+
+func TestRun_StorageMode(t *testing.T) {
+	args := []string{"sync", "committee-fields", "--committee-uid=committee-1", "--field=public", "--from=v1"}
+
+	t.Run("a mode set on purpose that cannot be used stops the command before it connects", func(t *testing.T) {
+		t.Setenv("STORAGE_MODE", "dual-write")
+
+		_, err := runWithArgs(t, args...)
+
+		require.ErrorContains(t, err, "invalid storage mode")
+		assert.NotContains(t, err.Error(), "NATS", "nothing was connected")
+	})
+
+	t.Run("with it unset or kv the command goes on to connect, as it always did", func(t *testing.T) {
+		for _, mode := range []string{"", "kv"} {
+			t.Setenv("STORAGE_MODE", mode)
+
+			_, err := runWithArgs(t, args...)
+
+			require.ErrorContains(t, err, "failed to connect to NATS", "mode %q", mode)
+		}
+	})
+
+	t.Run("a command that needs no infrastructure is not affected", func(t *testing.T) {
+		t.Setenv("STORAGE_MODE", "dual-write")
+
+		out, err := runWithArgs(t, "sync", "committee-fields", "--list-fields")
+
+		require.NoError(t, err)
+		assert.Contains(t, out, "Fields supported by committee-fields")
+	})
+}
+
+func TestPrintUsage_ListsTheStorageMode(t *testing.T) {
+	var out strings.Builder
+
+	printUsage(&out, buildRegistry())
+
+	assert.Contains(t, out.String(), "STORAGE_MODE")
+	assert.Contains(t, out.String(), "default: kv")
+}
+
+// The PostgreSQL variables matter to every command in the PostgreSQL modes, not only to storage migrate, and the pool there
+// has to hold at least two connections; the built-in help says so.
+func TestPrintUsage_SaysWhereThePostgreSQLVariablesApply(t *testing.T) {
+	var out strings.Builder
+
+	printUsage(&out, buildRegistry())
+
+	for _, line := range strings.Split(out.String(), "\n") {
+		if strings.HasPrefix(line, "  POSTGRES_URL") || strings.HasPrefix(line, "  POSTGRES_MAX_CONNS") {
+			assert.Contains(t, line, "every command in dual, dual-pg and postgres", line)
+		}
+	}
+	assert.Contains(t, out.String(), "at least 2")
 }

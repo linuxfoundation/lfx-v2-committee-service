@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -795,6 +796,9 @@ func (s *spyCommitteeWriterOrchestrator) DeleteMember(_ context.Context, _, _ st
 func (s *spyCommitteeWriterOrchestrator) ReassignMember(_ context.Context, _ string, _ uint64, m *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
 	return m, nil
 }
+func (s *spyCommitteeWriterOrchestrator) CreateMembers(_ context.Context, _ string, _ []*model.CommitteeMember, _ BulkMemberCreateOptions) ([]*model.BulkMemberResult, error) {
+	return nil, nil
+}
 
 func buildCommitteeUpdatedMsg(committeeUID string, old, updated *model.CommitteeBase) []byte {
 	data := model.CommitteeUpdateEventData{
@@ -1361,9 +1365,12 @@ type mockUserReader struct {
 	primaryEmail       string // returned by EmailsByAuthToken
 	username           string // returned by UsernameByEmail; empty means "no account found"
 	usernameByEmailErr error  // returned by UsernameByEmail instead of err
+
+	usernameByEmailCalls atomic.Int32 // number of UsernameByEmail calls
 }
 
 func (m *mockUserReader) UsernameByEmail(_ context.Context, _ string) (string, error) {
+	m.usernameByEmailCalls.Add(1)
 	if m.usernameByEmailErr != nil {
 		return "", m.usernameByEmailErr
 	}
@@ -1383,8 +1390,9 @@ func (m *mockUserReader) UserMetadataByPrincipal(_ context.Context, _ string) (*
 
 // buildMemberCreatedPayloadOpts holds optional overrides for buildMemberCreatedPayload.
 type buildMemberCreatedPayloadOpts struct {
-	skipNotification bool
-	createdBy        string
+	skipNotification       bool
+	createdBy              string
+	recipientAccountAbsent bool
 }
 
 func buildMemberCreatedPayload(t *testing.T, member *model.CommitteeMember, skipNotification ...bool) []byte {
@@ -1401,9 +1409,10 @@ func buildMemberCreatedPayloadWithOpts(t *testing.T, member *model.CommitteeMemb
 	event := model.CommitteeEvent{}
 	built, err := event.Build(context.Background(), model.ResourceCommitteeMember, model.ActionCreated,
 		&model.CommitteeMemberCreatedEventData{
-			CommitteeMember:  member,
-			SkipNotification: opts.skipNotification,
-			CreatedBy:        opts.createdBy,
+			CommitteeMember:        member,
+			SkipNotification:       opts.skipNotification,
+			CreatedBy:              opts.createdBy,
+			RecipientAccountAbsent: opts.recipientAccountAbsent,
 		})
 	require.NoError(t, err)
 	data, err := json.Marshal(built)
@@ -1472,6 +1481,19 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 		},
 	}
 
+	// Email-only member whose missing account may already be confirmed by the addition
+	emailOnlyMember := &model.CommitteeMember{
+		CommitteeMemberBase: model.CommitteeMemberBase{
+			UID:           "member-uid-5",
+			Email:         "first.last@example.com",
+			FirstName:     "First",
+			LastName:      "Last",
+			CommitteeUID:  "committee-1",
+			CommitteeName: "TSC Committee",
+			Role:          model.CommitteeMemberRole{Name: "Member"},
+		},
+	}
+
 	tests := []struct {
 		name                    string
 		msgData                 []byte
@@ -1486,6 +1508,7 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 		wantInviterName         string // asserted on Inviter.Name in the first invite call
 		wantEmailInviterName    string // asserted on InviterName in the LFID direct-email HTML
 		wantRecipientHasAccount bool   // asserted on RecipientHasAccount in the first invite call
+		wantUsernameLookups     *int32 // when set, asserted on UsernameByEmail calls
 	}{
 		{
 			name:            "LFID member — email notification sent",
@@ -1698,6 +1721,30 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 			wantInviteCount:         1,
 			wantRecipientHasAccount: false,
 		},
+		{
+			name: "non-LFID member — absence confirmed during addition — no account lookup",
+			msgData: buildMemberCreatedPayloadWithOpts(t, emailOnlyMember, buildMemberCreatedPayloadOpts{
+				recipientAccountAbsent: true,
+			}),
+			emailSender:             &mockEmailSender{},
+			inviteSender:            &mockInviteSender{},
+			userReader:              &mockUserReader{username: "first-last"},
+			wantEmailCount:          0,
+			wantInviteCount:         1,
+			wantRecipientHasAccount: false,
+			wantUsernameLookups:     new(int32),
+		},
+		{
+			name:                    "non-LFID member — absence not confirmed — account looked up",
+			msgData:                 buildMemberCreatedPayload(t, emailOnlyMember),
+			emailSender:             &mockEmailSender{},
+			inviteSender:            &mockInviteSender{},
+			userReader:              &mockUserReader{username: "first-last"},
+			wantEmailCount:          0,
+			wantInviteCount:         1,
+			wantRecipientHasAccount: true,
+			wantUsernameLookups:     new(int32(1)),
+		},
 	}
 
 	for _, tt := range tests {
@@ -1756,6 +1803,9 @@ func TestHandleCommitteeMemberCreated(t *testing.T) {
 					}
 					assert.Equal(t, tt.wantRecipientHasAccount, req.RecipientHasAccount, "RecipientHasAccount")
 				}
+			}
+			if tt.wantUsernameLookups != nil {
+				assert.Equal(t, *tt.wantUsernameLookups, tt.userReader.usernameByEmailCalls.Load(), "UsernameByEmail calls")
 			}
 		})
 	}

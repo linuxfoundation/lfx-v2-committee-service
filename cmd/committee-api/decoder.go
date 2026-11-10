@@ -15,15 +15,27 @@ import (
 	goahttp "goa.design/goa/v3/http"
 )
 
-// requestDecoder preserves Goa decoding except for committee creation, whose
-// project_uid must have the same interpretation as Heimdall's case-sensitive
-// body lookup. DisallowUnknownFields alone does not prevent case-insensitive
-// struct field binding or duplicate keys in encoding/json.
+// requestDecoder preserves Goa decoding while rejecting null bulk member rows before
+// payload conversion. Committee creation also requires project_uid to match Heimdall's
+// case-sensitive body lookup: DisallowUnknownFields alone does not prevent
+// case-insensitive struct field binding or duplicate keys in encoding/json.
 func requestDecoder(r *http.Request) goahttp.Decoder {
 	decoder := goahttp.RequestDecoder(r)
 	return goahttp.EncodingFunc(func(v any) error {
 		if _, ok := v.(*committeeservicesvr.CreateCommitteeRequestBody); !ok {
-			return decoder.Decode(v)
+			if err := decoder.Decode(v); err != nil {
+				return err
+			}
+			// Goa validates non-nil rows but its payload converter dereferences every
+			// entry. Reject null rows here, before that converter can run.
+			if body, ok := v.(*committeeservicesvr.BulkCreateCommitteeMembersRequestBody); ok {
+				for i, member := range body.Members {
+					if member == nil {
+						return fmt.Errorf("members[%d] must be an object", i)
+					}
+				}
+			}
+			return nil
 		}
 		// Creation is authorized using Heimdall's JSON body, so do not allow
 		// an alternate encoding to bypass the JSON key validation.

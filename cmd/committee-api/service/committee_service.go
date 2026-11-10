@@ -303,6 +303,38 @@ func (s *committeeServicesrvc) CreateCommitteeMember(ctx context.Context, p *com
 	return result, nil
 }
 
+// BulkCreateCommitteeMembers adds up to 100 members to a committee and reports an added, skipped,
+// or failed result for every submitted row. Each row is enriched and created exactly as a single
+// create-committee-member request would be, inside the orchestrator's bounded worker pool.
+func (s *committeeServicesrvc) BulkCreateCommitteeMembers(ctx context.Context, p *committeeservice.BulkCreateCommitteeMembersPayload) (res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+	if p == nil {
+		return nil, &committeeservice.BadRequestError{Message: "request payload is required"}
+	}
+
+	slog.DebugContext(ctx, "committeeMemberService.bulk-create-committee-members",
+		"committee_uid", p.UID,
+		"rows", len(p.Members),
+		"x_sync", p.XSync,
+	)
+
+	members := make([]*model.CommitteeMember, len(p.Members))
+	for i, row := range p.Members {
+		members[i] = s.convertBulkMemberRowToDomain(p.UID, p.SkipNotification, row)
+	}
+
+	opts := service.BulkMemberCreateOptions{Sync: p.XSync, SkipEnrichment: p.SkipEnrichment}
+	if !p.SkipEnrichment {
+		opts.Enrich = s.enrichMember
+	}
+
+	results, err := s.committeeWriterOrchestrator.CreateMembers(ctx, p.UID, members, opts)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	return s.convertBulkMemberResultsToResponse(results), nil
+}
+
 // GetCommitteeMember retrieves a specific committee member by UID
 func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *committeeservice.GetCommitteeMemberPayload) (res *committeeservice.GetCommitteeMemberResult, err error) {
 
@@ -786,14 +818,14 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		}
 
 		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
-		s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
+		s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync, nil)
 		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
 
 		return s.convertInviteDomainToResponse(revokedInvite), nil
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
-	s.publishInviteAccessControlMessage(ctx, model.ActionCreated, invite, p.XSync)
+	s.publishInviteAccessControlMessage(ctx, model.ActionCreated, invite, p.XSync, nil)
 	s.dispatchInviteEmail(ctx, committeeBase, invite)
 
 	return s.convertInviteDomainToResponse(invite), nil
@@ -1053,7 +1085,7 @@ func (s *committeeServicesrvc) RevokeInvite(ctx context.Context, p *committeeser
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
-	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false)
+	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false, nil)
 
 	return nil
 }
@@ -1155,8 +1187,9 @@ func (s *committeeServicesrvc) AcceptInvite(ctx context.Context, p *committeeser
 	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
 	// Re-publish the access control message on accept: the invitee may now have an LFID
 	// account (e.g. they registered via the LFID invite flow), so this resolves and writes
-	// the invitee tuple if it wasn't written at invite creation time.
-	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false)
+	// the invitee tuple if it wasn't written at invite creation time. The member addition's
+	// confirmed identity result is reused for the invitee email.
+	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false, member.IdentityLookup)
 
 	return s.convertMemberDomainToFullResponse(response), nil
 }
@@ -1197,7 +1230,7 @@ func (s *committeeServicesrvc) DeclineInvite(ctx context.Context, p *committeese
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionUpdated, invite, false)
-	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false)
+	s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, invite, false, nil)
 
 	return s.convertInviteDomainToResponse(invite), nil
 }
@@ -1322,7 +1355,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 
 		s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, current, p.XSync)
-		s.publishApplicationAccessControlMessage(ctx, current)
+		s.publishApplicationAccessControlMessage(ctx, current, nil)
 		if p.Notify {
 			s.publishApplicationEvent(ctx, model.ActionCreated, current)
 		}
@@ -1331,7 +1364,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionCreated, application, p.XSync)
-	s.publishApplicationAccessControlMessage(ctx, application)
+	s.publishApplicationAccessControlMessage(ctx, application, nil)
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionCreated, application)
 	}
@@ -1404,7 +1437,8 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
-	s.publishApplicationAccessControlMessage(ctx, application)
+	// Reuse the member addition's confirmed identity result for the applicant email.
+	s.publishApplicationAccessControlMessage(ctx, application, member.IdentityLookup)
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
@@ -1442,7 +1476,7 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	}
 
 	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
-	s.publishApplicationAccessControlMessage(ctx, application)
+	s.publishApplicationAccessControlMessage(ctx, application, nil)
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
@@ -1699,7 +1733,7 @@ func (s *committeeServicesrvc) publishInviteIndexerMessage(ctx context.Context, 
 //
 // For delete it writes a delete_access message to clean up all tuples for the invite object.
 // Publishing is best-effort: failures are logged but do not fail the request.
-func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, _ bool) {
+func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Context, action model.MessageAction, invite *model.CommitteeInvite, _ bool, identity *model.IdentityLookup) {
 	var msg fgatypes.GenericFGAMessage
 
 	if action == model.ActionDeleted {
@@ -1721,7 +1755,7 @@ func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Con
 		// invitee relation tuple. Mirrors the committee member path: unresolved emails
 		// (no LFID account yet) skip the tuple; it will be written on invite acceptance.
 		if s.userReader != nil {
-			if username, err := s.userReader.UsernameByEmail(ctx, invite.InviteeEmail); err == nil && username != "" {
+			if username, err := s.accessTupleUsername(ctx, invite.InviteeEmail, identity); err == nil && username != "" {
 				data.Relations = map[string][]string{
 					constants.RelationInvitee: {username},
 				}
@@ -1764,13 +1798,23 @@ func (s *committeeServicesrvc) publishInviteAccessControlMessage(ctx context.Con
 	}
 }
 
+// accessTupleUsername resolves an email to an LFID username for an access tuple. A confirmed
+// identity result from this request's member addition is reused when it was made for the same
+// email (absent resolves to no username); otherwise auth-service is asked as before.
+func (s *committeeServicesrvc) accessTupleUsername(ctx context.Context, email string, identity *model.IdentityLookup) (string, error) {
+	if identity.ResolvedFor(email) {
+		return identity.Username, nil
+	}
+	return s.userReader.UsernameByEmail(ctx, email)
+}
+
 // publishApplicationAccessControlMessage publishes an FGA access control message for a committee
 // application. For create/update it writes update_access tuples so that:
 //   - the parent committee relation is set (enables auditor from committee visibility), and
 //   - the applicant relation is set when the email resolves to an LFID username.
 //
 // Publishing is best-effort: failures are logged but do not fail the request.
-func (s *committeeServicesrvc) publishApplicationAccessControlMessage(ctx context.Context, application *model.CommitteeApplication) {
+func (s *committeeServicesrvc) publishApplicationAccessControlMessage(ctx context.Context, application *model.CommitteeApplication, identity *model.IdentityLookup) {
 	data := fgatypes.GenericAccessData{
 		UID: application.UID,
 		// References the parent committee so that auditor from committee resolves.
@@ -1783,7 +1827,7 @@ func (s *committeeServicesrvc) publishApplicationAccessControlMessage(ctx contex
 	// applicant relation tuple. Mirrors the invite pattern: unresolved emails
 	// (no LFID account yet) skip the tuple; it will be written on next reindex.
 	if s.userReader != nil {
-		if username, err := s.userReader.UsernameByEmail(ctx, application.ApplicantEmail); err == nil && username != "" {
+		if username, err := s.accessTupleUsername(ctx, application.ApplicantEmail, identity); err == nil && username != "" {
 			data.Relations = map[string][]string{
 				constants.RelationApplicant: {username},
 			}
@@ -2042,6 +2086,8 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 	// failing the request. Individual member writes (create/update/approve) should not be blocked
 	// by a transient auth-service outage — the member is stored without an enriched LFID.
 	username, err := s.userReader.UsernameByEmail(ctx, email)
+	// Record the outcome so the orchestrator reuses a confirmed result instead of asking again.
+	member.IdentityLookup = model.NewIdentityLookup(email, username, err)
 	if err != nil {
 		var notFound errors.NotFound
 		if !stderrors.As(err, &notFound) {

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -133,6 +134,22 @@ type CommitteeMemberDataWriter interface {
 	// newly-created member if the delete fails so no duplicate seat is left. It returns the created
 	// member. Used by the Org Lens reassign flow (LFXV2-1865).
 	ReassignMember(ctx context.Context, oldMemberUID string, oldRevision uint64, newMember *model.CommitteeMember, sync bool) (*model.CommitteeMember, error)
+	// CreateMembers adds up to model.MaxBulkMembers members to one committee and returns one result
+	// per submitted row, in submission order. Rows are skipped, failed, or added independently; an
+	// error is returned only when the request as a whole cannot run (invalid size, committee lookup).
+	CreateMembers(ctx context.Context, committeeUID string, members []*model.CommitteeMember, opts BulkMemberCreateOptions) ([]*model.BulkMemberResult, error)
+}
+
+// BulkMemberCreateOptions configures a bulk member create.
+type BulkMemberCreateOptions struct {
+	// Sync forwards the legacy X-Sync flag. Indexer publication is fire-and-forget;
+	// it does not wait for downstream indexing or FGA convergence.
+	Sync bool
+	// SkipEnrichment stores new rows as submitted. Pending resumes always revalidate identity.
+	SkipEnrichment bool
+	// Enrich, when set, runs for each row inside the bounded worker pool before the row is created,
+	// so request-scoped lookups (such as the API handler's identity enrichment) share the same limit.
+	Enrich func(context.Context, *model.CommitteeMember)
 }
 
 // committeeWriterOrchestratorOption defines a function type for setting options
@@ -189,6 +206,15 @@ func WithB2BOrgFallbackResolver(resolver port.B2BOrgFallbackResolver) committeeW
 	}
 }
 
+// WithDocumentFileDeleter sets the storage that holds the files of committee documents. A committee delete
+// whose store cascades removes the document metadata only, so the files of the documents it removed are
+// deleted through this; without it they are left in place and the delete says so in the log.
+func WithDocumentFileDeleter(deleter port.CommitteeDocumentFileDeleter) committeeWriterOrchestratorOption {
+	return func(u *committeeWriterOrchestrator) {
+		u.documentFileDeleter = deleter
+	}
+}
+
 // committeeWriterOrchestrator orchestrates the committee creation process
 type committeeWriterOrchestrator struct {
 	projectRetriever       port.ProjectReader
@@ -198,6 +224,7 @@ type committeeWriterOrchestrator struct {
 	userReader             port.UserReader
 	b2bOrgResolver         port.B2BOrgResolver
 	b2bOrgFallbackResolver port.B2BOrgFallbackResolver
+	documentFileDeleter    port.CommitteeDocumentFileDeleter
 }
 
 // maxSSOGroupNameAttempts bounds how many generated SSO group names are tried before giving up.
@@ -958,8 +985,20 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	)
 
 	// Step 2: Delete the main committee record and settings; storage also releases the committee's
-	// name and SSO group reservations
-	errDelete := uc.committeeWriter.Delete(ctx, uid, revision)
+	// name and SSO group reservations. A store that cascades removes the committee's children in the
+	// same operation and reports them, so their search index entries and access tuples are cleaned up
+	// below; the others leave them, and only the applications are cleaned up one by one.
+	var (
+		errDelete    error
+		removed      *model.CommitteeRemovedChildren
+		applications []*model.CommitteeApplication
+	)
+	cascader, cascades := uc.committeeWriter.(port.CommitteeCascadeDeleter)
+	if cascades {
+		removed, errDelete = cascader.DeleteCommitteeCascade(ctx, uid, revision)
+	} else {
+		errDelete = uc.committeeWriter.Delete(ctx, uid, revision)
+	}
 	if errDelete != nil {
 		slog.ErrorContext(ctx, "failed to delete committee",
 			"error", errDelete,
@@ -972,15 +1011,23 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 		"committee_uid", uid,
 	)
 
-	// List applications for cascade cleanup; best-effort — proceed even if listing fails.
-	applications, errListApps := uc.committeeReader.ListApplications(ctx, uid)
-	if errListApps != nil {
-		slog.WarnContext(ctx, "failed to list applications for cascade delete — skipping cascade",
-			"error", errListApps,
-			"committee_uid", uid,
-			log.PriorityCritical(),
-		)
-		applications = nil
+	if cascades {
+		if removed == nil {
+			removed = &model.CommitteeRemovedChildren{}
+		}
+		// The applications are cleaned up with the other children, below, not with the committee's messages.
+	} else {
+		// List applications for cascade cleanup; best-effort — proceed even if listing fails.
+		var errListApps error
+		applications, errListApps = uc.committeeReader.ListApplications(ctx, uid)
+		if errListApps != nil {
+			slog.WarnContext(ctx, "failed to list applications for cascade delete — skipping cascade",
+				"error", errListApps,
+				"committee_uid", uid,
+				log.PriorityCritical(),
+			)
+			applications = nil
+		}
 	}
 
 	// Prepare messages for publishing
@@ -1069,6 +1116,15 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 
 	// Execute all messages concurrently
 	errPublishingMessage := concurrent.NewWorkerPool(len(messages)).Run(ctx, messages...)
+
+	// The children a cascade removed are cleaned up apart from the committee's own messages, whether or not
+	// those succeeded: the store has already committed, so nothing could send these again, and a failure of
+	// one must not skip the rest, which is what the pool does with work still queued after an error.
+	if cascades {
+		if errCleanup := uc.cleanUpRemovedChildren(ctx, removed); errCleanup != nil && errPublishingMessage == nil {
+			errPublishingMessage = errCleanup
+		}
+	}
 	if errPublishingMessage != nil {
 		slog.ErrorContext(ctx, "failed to publish deletion messages",
 			"error", errPublishingMessage,
@@ -1082,6 +1138,127 @@ func (uc *committeeWriterOrchestrator) Delete(ctx context.Context, uid string, r
 	)
 
 	return nil
+}
+
+// maxCascadePublishers bounds the messages published at once when a committee delete removes children: a
+// committee can hold thousands of them.
+const maxCascadePublishers = 32
+
+// cleanUpRemovedChildren publishes the index delete of every child that a cascading committee delete
+// removed (an application's carries its tags), and the access delete of each application and invite, which
+// have an FGA object of their own. The committee's own delete_access removes the tuples on the committee,
+// which covers members. It also deletes the stored file of each removed document, which the store, holding
+// metadata only, leaves in place. It publishes on a context detached from the
+// request, because the delete has committed, runs every message even when one fails, and returns an error
+// when any did. A message that cannot be built is logged and counted as a failure.
+func (uc *committeeWriterOrchestrator) cleanUpRemovedChildren(ctx context.Context, removed *model.CommitteeRemovedChildren) error {
+	ctx = context.WithoutCancel(ctx)
+	var failures atomic.Int64
+	fail := func(err error, attrs ...any) {
+		failures.Add(1)
+		slog.ErrorContext(ctx, "failed to clean up a child of a deleted committee",
+			append([]any{"error", err, log.PriorityCritical()}, attrs...)...,
+		)
+	}
+
+	var messages []func() error
+	for _, children := range []struct {
+		subject string
+		uids    []string
+	}{
+		{constants.IndexCommitteeMemberSubject, removed.MemberUIDs},
+		{constants.IndexCommitteeInviteSubject, removed.InviteUIDs},
+		{constants.IndexCommitteeLinkSubject, removed.LinkUIDs},
+		{constants.IndexCommitteeLinkFolderSubject, removed.FolderUIDs},
+		{constants.IndexCommitteeDocumentSubject, removed.DocumentUIDs},
+		{constants.IndexGroupWeeklyBriefSubject, removed.BriefUIDs},
+	} {
+		for _, childUID := range children.uids {
+			indexerMessage := model.CommitteeIndexerMessage{Action: model.ActionDeleted}
+			built, errBuild := indexerMessage.Build(ctx, childUID)
+			if errBuild != nil {
+				fail(errBuild, "subject", children.subject, "child_uid", childUID)
+				continue
+			}
+			subject := children.subject
+			messages = append(messages, func() error {
+				if err := uc.committeePublisher.Indexer(ctx, subject, built, false); err != nil {
+					fail(err, "subject", subject, "child_uid", childUID)
+				}
+				return nil
+			})
+		}
+	}
+	for _, application := range removed.Applications {
+		indexerMessage := model.CommitteeIndexerMessage{Action: model.ActionDeleted, Tags: application.Tags()}
+		built, errBuild := indexerMessage.Build(ctx, application.UID)
+		if errBuild != nil {
+			fail(errBuild, "subject", constants.IndexCommitteeApplicationSubject, "child_uid", application.UID)
+		} else {
+			messages = append(messages, func() error {
+				if err := uc.committeePublisher.Indexer(ctx, constants.IndexCommitteeApplicationSubject, built, false); err != nil {
+					fail(err, "subject", constants.IndexCommitteeApplicationSubject, "child_uid", application.UID)
+				}
+				return nil
+			})
+		}
+	}
+	for _, access := range []struct {
+		objectType string
+		uids       []string
+	}{
+		{"committee_application", applicationUIDs(removed.Applications)},
+		{"committee_invite", removed.InviteUIDs},
+	} {
+		for _, childUID := range access.uids {
+			deleteMsg := fgatypes.GenericFGAMessage{
+				ObjectType: access.objectType,
+				Operation:  "delete_access",
+				Data:       fgatypes.GenericDeleteData{UID: childUID},
+			}
+			objectType := access.objectType
+			messages = append(messages, func() error {
+				if err := uc.committeePublisher.DeleteAccess(ctx, deleteMsg); err != nil {
+					fail(err, "object_type", objectType, "child_uid", childUID)
+				}
+				return nil
+			})
+		}
+	}
+
+	// The store removed the document metadata only; the file of each document is deleted here.
+	if len(removed.DocumentUIDs) > 0 && uc.documentFileDeleter == nil {
+		slog.WarnContext(ctx, "the files of the documents removed with the committee are left in place: no document file deleter is configured",
+			"documents", len(removed.DocumentUIDs),
+			log.PriorityCritical(),
+		)
+	}
+	if uc.documentFileDeleter != nil {
+		for _, documentUID := range removed.DocumentUIDs {
+			messages = append(messages, func() error {
+				if err := uc.documentFileDeleter.DeleteDocumentFile(ctx, documentUID); err != nil {
+					fail(err, "document_uid", documentUID)
+				}
+				return nil
+			})
+		}
+	}
+
+	// The functions report their own failures and return nil, so none cancels the rest.
+	_ = concurrent.NewWorkerPool(min(max(len(messages), 1), maxCascadePublishers)).Run(ctx, messages...)
+	if n := failures.Load(); n > 0 {
+		return errs.NewUnexpected(fmt.Sprintf("failed to clean up %d children of the deleted committee", n))
+	}
+	return nil
+}
+
+// applicationUIDs returns the uids of the applications.
+func applicationUIDs(applications []*model.CommitteeApplication) []string {
+	uids := make([]string, 0, len(applications))
+	for _, application := range applications {
+		uids = append(uids, application.UID)
+	}
+	return uids
 }
 
 // NewcommitteeWriterOrchestrator creates a new create committee use case using the option pattern

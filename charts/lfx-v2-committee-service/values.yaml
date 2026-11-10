@@ -602,6 +602,28 @@ app:
           name: lfx-v2-committee-service-secrets
           key: org_seat_page_token_hmac_key
           optional: true
+    # STORAGE_MODE — which store the service reads and writes: kv, dual, dual-pg or
+    # postgres. Empty (the default) means kv, which is what the service has always
+    # done. A value that is not recognized, a mode that uses PostgreSQL without
+    # POSTGRES_URL, or a PostgreSQL that cannot be reached or migrated in such a
+    # mode, stops the pod at startup instead of falling back to kv. The dual and
+    # dual-pg modes can be tuned with the three variables below (see
+    # docs/postgres-schema.md, "Selecting a storage mode").
+    STORAGE_MODE:
+      value: ""
+    # STORAGE_READ_COMPARE_RATE — the fraction of reads, from 0 to 1, that dual and
+    # dual-pg also make against the secondary store and compare. Empty keeps the
+    # default (0.01). Not read in kv or postgres mode.
+    STORAGE_READ_COMPARE_RATE:
+      value: ""
+    # STORAGE_COMPARE_TIMEOUT — bounds that extra read, as a Go duration. Empty
+    # keeps the default (2s).
+    STORAGE_COMPARE_TIMEOUT:
+      value: ""
+    # STORAGE_SECONDARY_WRITE_TIMEOUT — bounds the copy of a write to the secondary
+    # store, which is made on the request's path. Empty keeps the default (3s).
+    STORAGE_SECONDARY_WRITE_TIMEOUT:
+      value: ""
     # POSTGRES_ENABLED — feature flag for PostgreSQL. Only the exact value
     # "true" turns it on; anything else (the default) means the service never
     # connects to PostgreSQL, even if POSTGRES_URL is set. When enabled, a
@@ -630,9 +652,10 @@ app:
     POSTGRES_MAX_CONNS:
       value: ""
     # POSTGRES_READINESS_CHECK — set to "true" to make /readyz also ping
-    # PostgreSQL (and report not ready if it could not be set up). Leave off until
-    # the service depends on the database, so a database outage does not take pods
-    # out of rotation.
+    # PostgreSQL (and report not ready if it could not be set up). In kv it only
+    # takes effect together with POSTGRES_ENABLED=true. Leave off in kv
+    # and dual, where a database outage must not take pods out of rotation. In
+    # dual-pg and postgres /readyz already pings PostgreSQL through the storage.
     POSTGRES_READINESS_CHECK:
       value: "false"
 

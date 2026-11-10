@@ -23,6 +23,10 @@ committee-cli <command> <subcommand> [subcommand flags]
 | `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
 | `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
+| `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate`, `storage verify` and `storage flip`, and by every command in `dual`, `dual-pg` and `postgres`. Holds a credential and is never logged |
+| `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`, `storage verify`, `storage flip`, and every command in `dual`, `dual-pg` and `postgres`). Those modes refuse a pool of one connection, because a member scan holds a connection while the command reads the store again |
+| `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or a mode that needs PostgreSQL without `POSTGRES_URL` (or with a PostgreSQL that cannot be reached or is not migrated), stops a command that connects before it runs; commands that need no infrastructure ignore it. In `dual`, `dual-pg` and `postgres` the commands that write committee data write through the composite store, so a change reaches both stores; the audit syncs go through the composite too, and only the KV maintenance commands (the index backfillers, the exports, and `storage migrate`, `verify` and `flip`) use KV in every mode |
+| `STORAGE_READ_COMPARE_RATE`, `STORAGE_COMPARE_TIMEOUT`, `STORAGE_SECONDARY_WRITE_TIMEOUT` | `0.01`, `2s`, `3s` | Tune `dual` and `dual-pg`, as for the API; not read in the other modes |
 
 ### Commands
 
@@ -615,6 +619,121 @@ Report Board seats for a single project:
 ```sh
 NATS_URL=nats://localhost:4222 LOG_LEVEL=warn \
   committee-cli report board-seats --project-uid=abc-123
+```
+
+#### `storage migrate`
+
+Copies committee data from the NATS KV store into PostgreSQL, or with `--direction pg-to-kv` back from PostgreSQL into KV (see *The way back* below): committees with their settings, members, invites, applications, links, link folders, document metadata, weekly briefs and weekly-brief throttle entries. By default (`kv-to-pg`) it reads each record with the revision it has in KV and writes the same revision into the row, so a token a client holds from before the move stays valid. It never deletes anything, and it can be run again: a record whose revision already matches is left alone, one that KV has moved past is updated, and one PostgreSQL is ahead of is reported.
+
+The schema must already be applied: start the API once with `POSTGRES_ENABLED=true`, which runs the migrations. The command checks and says so if it is not.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--direction` | `kv-to-pg` | `kv-to-pg` copies KV into PostgreSQL, keeping the revisions; `pg-to-kv` copies PostgreSQL into KV, which gives each record a revision of its own. Neither deletes |
+| `--entity` | all | Comma-separated entities to copy: `committees` (with settings), `members`, `invites`, `applications`, `links`, `folders`, `documents`, `briefs`, `throttles` |
+| `--dry-run` | `false` | Read and classify everything, write nothing (to PostgreSQL, or with `pg-to-kv` to KV); `written` is what a run would write |
+| `--include-orphans` | `false` | Also copy children whose committee does not exist in the source store: KV, or with `pg-to-kv` PostgreSQL |
+| `--workers` | `4` | Records written concurrently (to PostgreSQL, or with `pg-to-kv` to KV) |
+| `--batch-size` | `100` | Records read ahead of the workers. The buckets are streamed and never loaded whole, so this bounds the memory the records use; the uid of every committee (one string each), and of every served brief, is also held, for the orphan check and the brief order. With `pg-to-kv` the settings of every committee are held too, read before the committees are streamed, so that the scan never needs a second connection |
+
+**Orphans.** KV never removed a deleted committee's members, invites, links, folders, documents or briefs, so a run usually finds some. They are skipped and listed with their uids, and are not an error, unless `--include-orphans` copies them. The same goes for settings: KV deletes a committee's base before its settings, so a failed delete leaves the settings behind. They are counted in the `settings` line's `orphans` and listed, and their revisions count for the highest revision seen, but they are never copied, even with `--include-orphans`, because PostgreSQL creates settings only along with their committee.
+
+**Documents.** Only the metadata moves; the files stay in the Object Store, which the move does not touch.
+
+**Weekly briefs.** PostgreSQL holds one brief per committee and window, and a brief is found by that window. KV can hold two briefs for one window, when two first generations raced; only the one the window index names was ever served. The served briefs are copied first, and the briefs by one worker whatever `--workers` says, so the one a reader saw is the one that is kept, and the other is reported as `constraint`. A brief keeps the update time KV stamped.
+
+**Timestamps.** Invites and applications have no update time of their own in KV: PostgreSQL's is set to the creation time when the row is created, and to the time of the copy when a later run updates it.
+
+**Problems** are listed with the uid and a kind: `constraint` (a unique index PostgreSQL enforces and KV did not, such as two emails that differ only in case), `invalid`, `write`, `read`, `ahead` (PostgreSQL has a newer revision than KV: a migration cannot reconcile it, so do not run it against a database that is already primary), `missing` (a committee that exists in PostgreSQL without its settings) and `source` (a KV scan that could not read every record). A problem is never dropped silently, and every one is in the log; the summary lists up to 100.
+
+**Exit code:** `0` if every record was copied, left alone or reported as an orphan; `1` if any record could not be copied or read.
+
+**Output:** a line per entity with `scanned`, `written`, `unchanged`, `orphans` and `errors`, the problems, and the highest KV revision seen. At the flip to PostgreSQL the revision sequence has to be advanced past the highest revision over every KV bucket, so note it from each run; the same summary is logged as `backfill summary`.
+
+**The way back: `storage migrate --direction pg-to-kv`.** For rolling back from `dual-pg` or `postgres` mode to `kv`, and for the records whose create copy to KV failed in `dual-pg`, which nothing else brings over. PostgreSQL decides: a record KV lacks is created, one KV holds with other content is replaced, and one with the same content is left alone, whatever revision each store holds it at. KV assigns the revisions itself, through its own create and update, so its secondary indexes are written as they always are. The flags and the exit code are as above, with these differences:
+
+- It **never deletes**. A record only KV holds stays, and `storage verify --by-content` reports it as `missing`; remove it by hand if KV must not serve it.
+- A record KV holds with other content is **replaced** by PostgreSQL's, guarded by the revision KV has now; a replace that loses to another writer is reported as `constraint`, and a rerun settles it. The create of a weekly brief is not guarded, because KV has no guarded create for it: a brief another writer stores for the window meanwhile is overwritten. Run it with no writes in flight.
+- A weekly brief is compared without its update time, which KV stamps itself, and a window KV already holds for another brief is a `constraint`. Documents move as metadata only.
+- **Known limitation: moves and renames.** The copy finds a document, link or folder in KV under its committee. One that was moved to another committee in PostgreSQL, which only the audit-sync tooling does, is not found there and its create conflicts on the uid; it is reported as `constraint` with its uid on every run, and `verify --by-content` shows it as a difference. The name lookup keys of documents and folders are not reconciled either, since KV's own update of them never did. Put such a record right by hand in KV before the switch.
+- Settings are created in KV only along with their committee: settings missing next to a committee KV already holds are reported as `missing`.
+- Orphans are the PostgreSQL children whose committee has no row there.
+- The output ends with a reminder that nothing was deleted, instead of the highest revision. See the rollback checklist in `docs/postgres-schema.md`.
+
+**Examples**
+
+Dry run first (safe):
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage migrate --dry-run
+```
+
+Only the members and invites, with more workers:
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage migrate --entity=members,invites --workers=16
+```
+
+#### `storage verify`
+
+Compares the committee data in the NATS KV store with the data in PostgreSQL, entity by entity, and exits non-zero on any difference, so it can run as a soak check after a `storage migrate` and as a gate in the cutover runbook. It only reads: it never writes to either store, and it is safe to run against production.
+
+For each entity it streams both stores and compares them by uid:
+
+- **`missing`**: the record is in KV and not in PostgreSQL.
+- **`extra`**: the record is in PostgreSQL and not in KV. `migrate` never deletes, so a record removed from KV after a copy is reported here.
+- **`mismatch`**: the record is in both and differs in its **content** (a SHA-256 over the record normalized as below) or its **revision**, or both; the finding says which. It does not print the values, which can be personal data.
+- **`source`**: a scan could not be completed (a record that cannot be read, or a store that cannot be listed or reached). The comparison of that entity is incomplete, so this is a difference too. When the KV scan is the one that failed, the PostgreSQL rows it did not reach are not reported `extra`, since they may well be in KV; the finding says how many could not be checked.
+
+The content hash is over the model as JSON without its revision (which is compared on its own), with every `time.Time` of the model in UTC and to the microsecond PostgreSQL keeps. Nothing else is changed: a text field that looks like a time, such as the dates the models keep as strings, is compared as the text it is, and an empty list and a missing one differ, as the PostgreSQL store keeps them. Anything that differs is a mismatch.
+
+The schema must already be applied, as for `migrate`.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--entity` | all | Comma-separated entities to compare: `committees` (with settings), `members`, `invites`, `applications`, `links`, `folders`, `documents`, `briefs`, `throttles` |
+| `--include-orphans` | `false` | Expect the children whose committee does not exist in KV to have been copied (`migrate --include-orphans`), so one that is missing from PostgreSQL is a difference. By default they are only counted |
+| `--by-content` | `false` | Compare the content of each record and not its revision, for `dual-pg` mode, where KV holds each record at a revision of its own and not the one PostgreSQL gave it. A weekly brief is compared without its update time too, which KV stamps with the time of the copy. What only PostgreSQL has is still reported `extra` |
+
+**Orphans** are reported and are not a difference by themselves. `orphans(kv)` are KV children of a committee KV no longer has, which `migrate` skips unless asked; `orphans(postgresql)` are rows whose committee has no row in PostgreSQL, the rows that would stop a foreign key being added, so a run with none is the evidence that the keys can be added. Both are listed with their uids (`kv-orphan`, `pg-orphan`), after the differences, so that they cannot push the differences out of the lines that are listed. The settings of a committee KV no longer has (see `storage migrate`) are `kv-orphan` too, and are never reported `missing`, since `migrate` cannot copy them.
+
+**Weekly briefs.** A brief that `migrate` reported as `constraint`, the second brief KV holds for a window, is not in PostgreSQL and is reported here as `missing`.
+
+**Memory.** Entities are compared one at a time. For the entity being compared the command holds a digest and a revision for each row PostgreSQL has, and the uid of every committee in each store; the records themselves are streamed.
+
+**Exit code:** `0` when there is no `missing`, `extra`, `mismatch` or `source` finding; `1` otherwise. Orphans do not change it.
+
+**Output:** a line per entity with the records read from each store, `matched`, the counts of each kind of difference, `errors` and the orphans, then the findings with their uids (up to 100; every one is in the log as `verify finding`), and `no differences between KV and PostgreSQL` when there are none. The same counts are logged as `verify summary`.
+
+A write that lands in KV while the command runs can show as a difference. Run it with writes stopped, or run it again: a difference that goes away on the next run was a write in flight.
+
+**Examples**
+
+After a migrate:
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage verify
+```
+
+Only the members, expecting the orphans to have been copied:
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage verify --entity=members --include-orphans
+```
+
+#### `storage flip`
+
+Makes PostgreSQL ready to issue the revisions: it advances the revision sequence of PostgreSQL above the highest revision of any record in the NATS KV store, so that a token a client holds from before the cutover can never equal a revision issued after it. KV counts the revisions of each bucket on its own while every table in PostgreSQL shares one sequence, so the highest revision is taken over every record of every bucket the tables mirror, the orphans included.
+
+It first runs `storage verify` over everything and **refuses** unless KV and PostgreSQL hold the same records at the same revisions (no `missing`, `extra`, `mismatch` or `source` finding), and it refuses if a scan of KV cannot be completed, since the highest revision of the records it did not reach is not known. Without `--confirm` it is a dry run: it changes nothing and says what it would do. The read of the highest revision and the advance are not one atomic step, so run it with no writes in flight.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--confirm` | `false` | Advance the sequence. Without it nothing is changed |
+
+```sh
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage flip
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage flip --confirm
 ```
 
 ## Building

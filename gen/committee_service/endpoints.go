@@ -27,6 +27,7 @@ type Endpoints struct {
 	Readyz                     goa.Endpoint
 	Livez                      goa.Endpoint
 	CreateCommitteeMember      goa.Endpoint
+	BulkCreateCommitteeMembers goa.Endpoint
 	GetCommitteeMember         goa.Endpoint
 	GetOrgCommitteeSeats       goa.Endpoint
 	ReassignOrgCommitteeSeat   goa.Endpoint
@@ -84,6 +85,7 @@ func NewEndpoints(s Service) *Endpoints {
 		Readyz:                     NewReadyzEndpoint(s),
 		Livez:                      NewLivezEndpoint(s),
 		CreateCommitteeMember:      NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
+		BulkCreateCommitteeMembers: NewBulkCreateCommitteeMembersEndpoint(s, a.JWTAuth),
 		GetCommitteeMember:         NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
 		GetOrgCommitteeSeats:       NewGetOrgCommitteeSeatsEndpoint(s, a.JWTAuth),
 		ReassignOrgCommitteeSeat:   NewReassignOrgCommitteeSeatEndpoint(s, a.JWTAuth),
@@ -132,6 +134,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.Readyz = m(e.Readyz)
 	e.Livez = m(e.Livez)
 	e.CreateCommitteeMember = m(e.CreateCommitteeMember)
+	e.BulkCreateCommitteeMembers = m(e.BulkCreateCommitteeMembers)
 	e.GetCommitteeMember = m(e.GetCommitteeMember)
 	e.GetOrgCommitteeSeats = m(e.GetOrgCommitteeSeats)
 	e.ReassignOrgCommitteeSeat = m(e.ReassignOrgCommitteeSeat)
@@ -341,6 +344,30 @@ func NewCreateCommitteeMemberEndpoint(s Service, authJWTFn security.AuthJWTFunc)
 			return nil, err
 		}
 		return s.CreateCommitteeMember(ctx, p)
+	}
+}
+
+// NewBulkCreateCommitteeMembersEndpoint returns an endpoint function that
+// calls the method "bulk-create-committee-members" of service
+// "committee-service".
+func NewBulkCreateCommitteeMembersEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*BulkCreateCommitteeMembersPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.BulkCreateCommitteeMembers(ctx, p)
 	}
 }
 

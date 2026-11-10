@@ -1140,6 +1140,179 @@ func EncodeCreateCommitteeMemberError(encoder func(context.Context, http.Respons
 	}
 }
 
+// EncodeBulkCreateCommitteeMembersResponse returns an encoder for responses
+// returned by the committee-service bulk-create-committee-members endpoint.
+func EncodeBulkCreateCommitteeMembersResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.CommitteeMemberBulkCreateResult)
+		enc := encoder(ctx, w)
+		body := NewBulkCreateCommitteeMembersResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeBulkCreateCommitteeMembersRequest returns a decoder for requests sent
+// to the committee-service bulk-create-committee-members endpoint.
+func DecodeBulkCreateCommitteeMembersRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.BulkCreateCommitteeMembersPayload, error) {
+	return func(r *http.Request) (*committeeservice.BulkCreateCommitteeMembersPayload, error) {
+		var (
+			body BulkCreateCommitteeMembersRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateBulkCreateCommitteeMembersRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			uid              string
+			version          string
+			bearerToken      *string
+			xSync            bool
+			skipNotification bool
+			skipEnrichment   bool
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		version = r.URL.Query().Get("v")
+		if version == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("version", "query string"))
+		}
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
+		{
+			skipNotificationRaw := r.Header.Get("X-Skip-Notification")
+			if skipNotificationRaw != "" {
+				v, err2 := strconv.ParseBool(skipNotificationRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_notification", skipNotificationRaw, "boolean"))
+				}
+				skipNotification = v
+			}
+		}
+		{
+			skipEnrichmentRaw := r.Header.Get("X-Skip-Enrichment")
+			if skipEnrichmentRaw != "" {
+				v, err2 := strconv.ParseBool(skipEnrichmentRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("skip_enrichment", skipEnrichmentRaw, "boolean"))
+				}
+				skipEnrichment = v
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewBulkCreateCommitteeMembersPayload(&body, uid, version, bearerToken, xSync, skipNotification, skipEnrichment)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeBulkCreateCommitteeMembersError returns an encoder for errors returned
+// by the bulk-create-committee-members committee-service endpoint.
+func EncodeBulkCreateCommitteeMembersError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewBulkCreateCommitteeMembersBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewBulkCreateCommitteeMembersInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewBulkCreateCommitteeMembersNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewBulkCreateCommitteeMembersServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // EncodeGetCommitteeMemberResponse returns an encoder for responses returned
 // by the committee-service get-committee-member endpoint.
 func EncodeGetCommitteeMemberResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -6148,6 +6321,200 @@ func marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(v *comm
 		Avatar:   v.Avatar,
 		Name:     v.Name,
 		Username: v.Username,
+	}
+
+	return res
+}
+
+// unmarshalCommitteeMemberBulkCreateRowRequestBodyToCommitteeserviceCommitteeMemberBulkCreateRow
+// builds a value of type *committeeservice.CommitteeMemberBulkCreateRow from a
+// value of type *CommitteeMemberBulkCreateRowRequestBody.
+func unmarshalCommitteeMemberBulkCreateRowRequestBodyToCommitteeserviceCommitteeMemberBulkCreateRow(v *CommitteeMemberBulkCreateRowRequestBody) *committeeservice.CommitteeMemberBulkCreateRow {
+	res := &committeeservice.CommitteeMemberBulkCreateRow{
+		Username:        v.Username,
+		Email:           *v.Email,
+		FirstName:       v.FirstName,
+		LastName:        v.LastName,
+		JobTitle:        v.JobTitle,
+		LinkedinProfile: v.LinkedinProfile,
+	}
+	if v.AppointedBy != nil {
+		res.AppointedBy = *v.AppointedBy
+	}
+	if v.Status != nil {
+		res.Status = *v.Status
+	}
+	if v.Role != nil {
+		res.Role = &struct {
+			// Committee role name
+			Name string
+			// Role start date
+			StartDate *string
+			// Role end date
+			EndDate *string
+		}{
+			StartDate: v.Role.StartDate,
+			EndDate:   v.Role.EndDate,
+		}
+		if v.Role.Name != nil {
+			res.Role.Name = *v.Role.Name
+		}
+		if v.Role.Name == nil {
+			res.Role.Name = "None"
+		}
+	}
+	if v.AppointedBy == nil {
+		res.AppointedBy = "None"
+	}
+	if v.Status == nil {
+		res.Status = "Active"
+	}
+	if v.Voting != nil {
+		res.Voting = &struct {
+			// Voting status
+			Status string
+			// Voting start date
+			StartDate *string
+			// Voting end date
+			EndDate *string
+		}{
+			StartDate: v.Voting.StartDate,
+			EndDate:   v.Voting.EndDate,
+		}
+		if v.Voting.Status != nil {
+			res.Voting.Status = *v.Voting.Status
+		}
+		if v.Voting.Status == nil {
+			res.Voting.Status = "None"
+		}
+	}
+	if v.Organization != nil {
+		res.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      v.Organization.ID,
+			Name:    v.Organization.Name,
+			Website: v.Organization.Website,
+		}
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceCommitteeMemberBulkCreateRowResultToCommitteeMemberBulkCreateRowResultResponseBody
+// builds a value of type *CommitteeMemberBulkCreateRowResultResponseBody from
+// a value of type *committeeservice.CommitteeMemberBulkCreateRowResult.
+func marshalCommitteeserviceCommitteeMemberBulkCreateRowResultToCommitteeMemberBulkCreateRowResultResponseBody(v *committeeservice.CommitteeMemberBulkCreateRowResult) *CommitteeMemberBulkCreateRowResultResponseBody {
+	res := &CommitteeMemberBulkCreateRowResultResponseBody{
+		Index:     v.Index,
+		Email:     v.Email,
+		Status:    v.Status,
+		Reason:    v.Reason,
+		Retryable: v.Retryable,
+		Message:   v.Message,
+		MemberUID: v.MemberUID,
+	}
+	if v.Member != nil {
+		res.Member = marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommitteeMemberFullWithReadonlyAttributesResponseBody(v.Member)
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommitteeMemberFullWithReadonlyAttributesResponseBody
+// builds a value of type
+// *CommitteeMemberFullWithReadonlyAttributesResponseBody from a value of type
+// *committeeservice.CommitteeMemberFullWithReadonlyAttributes.
+func marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommitteeMemberFullWithReadonlyAttributesResponseBody(v *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *CommitteeMemberFullWithReadonlyAttributesResponseBody {
+	if v == nil {
+		return nil
+	}
+	res := &CommitteeMemberFullWithReadonlyAttributesResponseBody{
+		UID:               v.UID,
+		CommitteeUID:      v.CommitteeUID,
+		CommitteeName:     v.CommitteeName,
+		CommitteeCategory: v.CommitteeCategory,
+		Username:          v.Username,
+		Email:             v.Email,
+		FirstName:         v.FirstName,
+		LastName:          v.LastName,
+		JobTitle:          v.JobTitle,
+		LinkedinProfile:   v.LinkedinProfile,
+		AppointedBy:       v.AppointedBy,
+		Status:            v.Status,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
+	}
+	if v.Role != nil {
+		res.Role = &struct {
+			// Committee role name
+			Name string `form:"name" json:"name" xml:"name"`
+			// Role start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Role end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Name:      v.Role.Name,
+			StartDate: v.Role.StartDate,
+			EndDate:   v.Role.EndDate,
+		}
+		{
+			var zero string
+			if res.Role.Name == zero {
+				res.Role.Name = "None"
+			}
+		}
+	}
+	{
+		var zero string
+		if res.AppointedBy == zero {
+			res.AppointedBy = "None"
+		}
+	}
+	{
+		var zero string
+		if res.Status == zero {
+			res.Status = "Active"
+		}
+	}
+	if v.Voting != nil {
+		res.Voting = &struct {
+			// Voting status
+			Status string `form:"status" json:"status" xml:"status"`
+			// Voting start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Voting end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Status:    v.Voting.Status,
+			StartDate: v.Voting.StartDate,
+			EndDate:   v.Voting.EndDate,
+		}
+		{
+			var zero string
+			if res.Voting.Status == zero {
+				res.Voting.Status = "None"
+			}
+		}
+	}
+	if v.Organization != nil {
+		res.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      v.Organization.ID,
+			Name:    v.Organization.Name,
+			Website: v.Organization.Website,
+		}
 	}
 
 	return res
