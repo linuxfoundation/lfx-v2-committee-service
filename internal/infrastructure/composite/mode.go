@@ -9,6 +9,8 @@ package composite
 import (
 	"fmt"
 	"strings"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 )
 
 // Mode says which store is authoritative for reads and writes and which one, if any, follows it.
@@ -28,9 +30,6 @@ const (
 
 // EnvStorageMode is the environment variable the API and the CLI read the mode from.
 const EnvStorageMode = "STORAGE_MODE"
-
-// envPostgresURL is the variable the PostgreSQL connection string is read from.
-const envPostgresURL = "POSTGRES_URL"
 
 var allModes = []Mode{ModeKV, ModeDual, ModeDualPG, ModePostgres}
 
@@ -68,8 +67,8 @@ func ModeFromEnv(getenv func(string) string) (Mode, error) {
 	if err != nil {
 		return "", err
 	}
-	if mode.UsesPostgres() && strings.TrimSpace(getenv(envPostgresURL)) == "" {
-		return "", fmt.Errorf("%s=%s needs PostgreSQL but %s is not set", EnvStorageMode, mode, envPostgresURL)
+	if _, ok := postgres.ConnectionURL(getenv); mode.UsesPostgres() && !ok {
+		return "", fmt.Errorf("%s=%s needs PostgreSQL but POSTGRES_URL is not set (nor are PGHOST, PGUSER, PGPASSWORD and PGDATABASE)", EnvStorageMode, mode)
 	}
 	return mode, nil
 }

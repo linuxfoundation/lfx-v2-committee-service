@@ -188,7 +188,7 @@ func storageNeedsPostgres(getenv func(string) string) bool {
 
 // initPostgres connects to PostgreSQL and applies the schema migrations, when POSTGRES_ENABLED is "true" or the storage
 // mode needs PostgreSQL. In kv mode PostgreSQL is never read or written, so it must never take the service down: with the
-// flag off it is not touched at all (a POSTGRES_URL alone does nothing), and with the flag on any failure (missing URL, bad
+// flag off it is not touched at all (a POSTGRES_URL or a set of PG* variables alone does nothing), and with the flag on any failure (missing connection settings, bad
 // settings, unreachable database, failed migration) is logged and the service carries on without it. The caller gets no
 // pool in that case. A mode that needs PostgreSQL cannot carry on without it: the failure is logged the same way, and the
 // caller (buildStores) stops the service when it gets no pool.

@@ -648,6 +648,50 @@ app:
           name: lfx-v2-committee-service-secrets
           key: postgres_url
           optional: true
+    # PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE — the same connection given as the
+    # standard libpq variables, which the service uses when POSTGRES_URL is not set (the
+    # way the newsletter service reads its database). They come from the keys of the RDS
+    # secret that lfx-v2-opentofu creates for the database (host, port, username,
+    # password, dbname), which the ExternalSecret merges into the Secret, so a rotated
+    # password reaches the pods through Reloader. `optional: true` leaves a variable unset
+    # when its key is absent. Nothing connects to PostgreSQL because these are set: in kv
+    # mode they are never read, and with POSTGRES_ENABLED they only replace POSTGRES_URL.
+    # The URL the service composes names no sslmode; set PGSSLMODE (and PGSSLROOTCERT) to
+    # choose one, as pgx otherwise prefers TLS but falls back to plaintext.
+    PGHOST:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: host
+          optional: true
+    PGPORT:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: port
+          optional: true
+    PGUSER:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: username
+          optional: true
+    PGPASSWORD:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: password
+          optional: true
+    PGDATABASE:
+      valueFrom:
+        secretKeyRef:
+          name: lfx-v2-committee-service-secrets
+          key: dbname
+          optional: true
+    PGSSLMODE:
+      value: ""
+    PGSSLROOTCERT:
+      value: ""
     # POSTGRES_MAX_CONNS — connection pool size per pod (default 10 when empty).
     POSTGRES_MAX_CONNS:
       value: ""

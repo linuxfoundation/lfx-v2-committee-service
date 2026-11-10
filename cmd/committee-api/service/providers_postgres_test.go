@@ -32,6 +32,18 @@ func unreachableURL() string {
 	return "postgres" + "://first-last:not-a-real-secret@127.0.0.1:1/committee?sslmode=disable"
 }
 
+// unreachableParts is the same unreachable database given as PG* variables.
+func unreachableParts() map[string]string {
+	return map[string]string{
+		"PGHOST":     "127.0.0.1",
+		"PGPORT":     "1",
+		"PGUSER":     "first-last",
+		"PGPASSWORD": "not-a-real-secret",
+		"PGDATABASE": "committee",
+		"PGSSLMODE":  "disable",
+	}
+}
+
 func TestInitPostgres(t *testing.T) {
 	ctx := context.Background()
 
@@ -81,6 +93,27 @@ func TestInitPostgres(t *testing.T) {
 			assert.Nil(t, pool, mode)
 			assert.Empty(t, checks, "nothing was attempted: %q", mode)
 		}
+	})
+
+	t.Run("kv mode never connects without the flag, with the PG* variables set as the chart sets them", func(t *testing.T) {
+		for _, mode := range []string{"", "kv"} {
+			values := unreachableParts()
+			values["STORAGE_MODE"] = mode
+			values["POSTGRES_READINESS_CHECK"] = "true"
+			pool, checks := initPostgres(ctx, env(values))
+			assert.Nil(t, pool, mode)
+			assert.Empty(t, checks, "nothing was attempted: %q", mode)
+		}
+	})
+
+	t.Run("a storage mode that needs PostgreSQL connects with the PG* variables alone", func(t *testing.T) {
+		values := unreachableParts()
+		values["STORAGE_MODE"] = "dual"
+		values["POSTGRES_READINESS_CHECK"] = "true"
+		pool, checks := initPostgres(ctx, env(values))
+		assert.Nil(t, pool)
+		require.Len(t, checks, 1, "the connection was attempted, so the readiness opt-in reports its failure")
+		assert.Error(t, checks[0].IsReady(ctx))
 	})
 
 	t.Run("enabled without a URL does not take the service down", func(t *testing.T) {

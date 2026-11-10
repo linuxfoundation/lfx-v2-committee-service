@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -41,14 +42,42 @@ type Config struct {
 	MaxConns int32
 }
 
-// ConfigFromEnv reads the connection settings from POSTGRES_URL and, when set, POSTGRES_MAX_CONNS. The
-// URL is required; neither value appears in the errors.
-func ConfigFromEnv(getenv func(string) string) (Config, error) {
-	url := getenv("POSTGRES_URL")
-	if strings.TrimSpace(url) == "" {
-		return Config{}, errors.New("POSTGRES_URL is empty")
+// ConnectionURL returns the connection string: POSTGRES_URL when it is set, otherwise one composed from PGHOST,
+// PGPORT (5432 when empty), PGUSER, PGPASSWORD and PGDATABASE, as the newsletter service does, so the credentials can
+// come straight from the keys of the RDS secret and follow its rotation. It reports false when neither is complete.
+// The composed string names no sslmode: pgx takes it from PGSSLMODE and PGSSLROOTCERT, and defaults to prefer.
+func ConnectionURL(getenv func(string) string) (string, bool) {
+	if raw := getenv("POSTGRES_URL"); strings.TrimSpace(raw) != "" {
+		return raw, true
 	}
-	cfg := Config{URL: url}
+	host := strings.TrimSpace(getenv("PGHOST"))
+	user := strings.TrimSpace(getenv("PGUSER"))
+	password := getenv("PGPASSWORD")
+	database := strings.TrimSpace(getenv("PGDATABASE"))
+	if host == "" || user == "" || password == "" || database == "" {
+		return "", false
+	}
+	port := strings.TrimSpace(getenv("PGPORT"))
+	if port == "" {
+		port = "5432"
+	}
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, password),
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/" + database,
+	}
+	return u.String(), true
+}
+
+// ConfigFromEnv reads the connection settings from ConnectionURL and, when set, POSTGRES_MAX_CONNS. A connection
+// string is required; no value appears in the errors.
+func ConfigFromEnv(getenv func(string) string) (Config, error) {
+	connection, ok := ConnectionURL(getenv)
+	if !ok {
+		return Config{}, errors.New("POSTGRES_URL is empty and PGHOST, PGUSER, PGPASSWORD and PGDATABASE are not all set")
+	}
+	cfg := Config{URL: connection}
 	if raw := getenv("POSTGRES_MAX_CONNS"); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 32)
 		if err != nil || n <= 0 {

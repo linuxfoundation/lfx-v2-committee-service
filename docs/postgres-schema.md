@@ -120,7 +120,7 @@ Rules for adding a migration:
 What the service does with PostgreSQL depends on the storage mode (see [Selecting a storage mode](#selecting-a-storage-mode)).
 
 **In `kv`, the default,** PostgreSQL is behind a feature flag, `POSTGRES_ENABLED` (default off; only the exact value `true`
-enables it). With the flag off the service never connects, even if `POSTGRES_URL` is set, so deployments are unchanged until
+enables it). With the flag off the service never connects, even if `POSTGRES_URL` (or the `PG*` variables) is set, so deployments are unchanged until
 it is turned on (see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)). With the flag on,
 at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate` (a session advisory lock keeps
 replicas starting together from racing). In `kv` nothing reads or writes the data, so PostgreSQL must not be able to take the
@@ -144,7 +144,14 @@ it is the primary store and does.
   `dual-pg` and `postgres` it repeats the ping the storage already makes.
   A failing check returns a generic 503 and logs the cause, and if PostgreSQL is enabled but could not be set up the check
   reports not ready.
-- Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the
+- **The connection can be given as `POSTGRES_URL` or as `PGHOST`, `PGPORT` (default `5432`), `PGUSER`, `PGPASSWORD` and
+  `PGDATABASE`.** `POSTGRES_URL` wins when both are set. The service builds the URL from the variables in-process, the way the
+  newsletter service does, so a deployment can read them from the keys of the RDS secret that `lfx-v2-opentofu` creates for the
+  database (`host`, `port`, `username`, `password`, `dbname`, merged into the Secret by the ExternalSecret). The password rotates
+  with that secret: the ExternalSecret refreshes the Secret and Reloader restarts the pods, which read the new value at start.
+  The variables change nothing by themselves: in `kv` they are never read, and `POSTGRES_ENABLED` and `STORAGE_MODE` decide
+  whether the service connects. The URL it builds names no `sslmode`; set `PGSSLMODE` (and `PGSSLROOTCERT`), which the driver reads.
+- Use `sslmode=verify-full` (with `sslrootcert`; with the `PG*` variables, `PGSSLMODE=verify-full` and `PGSSLROOTCERT`) outside local development: `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
 - The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
