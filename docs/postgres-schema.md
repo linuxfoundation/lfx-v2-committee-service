@@ -150,10 +150,10 @@ it is the primary store and does.
   database (`host`, `port`, `username`, `password`, `dbname`, merged into the Secret by the ExternalSecret). The password rotates
   with that secret: the ExternalSecret refreshes the Secret and Reloader restarts the pods, which read the new value at start.
   The variables change nothing by themselves: in `kv` they are never read, and `POSTGRES_ENABLED` and `STORAGE_MODE` decide
-  whether the service connects. The URL it builds names no `sslmode`; set `PGSSLMODE` (and `PGSSLROOTCERT`), which the driver reads.
+  whether the service connects. The URL it builds names no `sslmode`; the driver reads `PGSSLMODE` and `PGSSLROOTCERT`, which the chart defaults to `require` and empty. The driver also fills in from the `PG*` variables anything a `POSTGRES_URL` leaves out.
 - Use `sslmode=verify-full` (with `sslrootcert`; with the `PG*` variables, `PGSSLMODE=verify-full` and `PGSSLROOTCERT`) outside local development: `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
-- The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the
+- The service applies the migrations itself at startup, so the role in `POSTGRES_URL` (or `PGUSER`) needs DDL rights. Before the
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
   give the runtime role DML only.
 
@@ -303,7 +303,7 @@ links and folders, weekly briefs, documents).
 - **`kv` is today's behavior, unchanged.** No composite is built, PostgreSQL is never connected to (a `POSTGRES_URL`
   alone does nothing, and `POSTGRES_ENABLED` keeps its own opt-in meaning), and the service uses the same KV storage
   objects it always has.
-- **A mode that was set must be usable, or startup stops.** An unrecognized value, a PostgreSQL mode without `POSTGRES_URL`, a
+- **A mode that was set must be usable, or startup stops.** An unrecognized value, a PostgreSQL mode without `POSTGRES_URL` or the `PG*` variables, a
   PostgreSQL that cannot be reached or migrated, and a tuning variable that cannot be parsed all stop the API (and the CLI
   command) with an error naming the cause. The service never runs in another mode than the one asked for. The API connects
   to PostgreSQL and applies the migrations at startup in these modes without `POSTGRES_ENABLED`; the CLI needs the

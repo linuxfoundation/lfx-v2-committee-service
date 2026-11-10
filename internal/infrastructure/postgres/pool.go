@@ -45,7 +45,9 @@ type Config struct {
 // ConnectionURL returns the connection string: POSTGRES_URL when it is set, otherwise one composed from PGHOST,
 // PGPORT (5432 when empty), PGUSER, PGPASSWORD and PGDATABASE, as the newsletter service does, so the credentials can
 // come straight from the keys of the RDS secret and follow its rotation. It reports false when neither is complete.
-// The composed string names no sslmode: pgx takes it from PGSSLMODE and PGSSLROOTCERT, and defaults to prefer.
+// The composed string names no sslmode: pgx takes it from PGSSLMODE and PGSSLROOTCERT, and defaults to prefer. The
+// variables follow the newsletter service, not all of libpq: PGHOST must be a single host name or address, not a Unix
+// socket directory or a list. pgx also fills in from the environment whatever a POSTGRES_URL leaves out.
 func ConnectionURL(getenv func(string) string) (string, bool) {
 	if raw := getenv("POSTGRES_URL"); strings.TrimSpace(raw) != "" {
 		return raw, true

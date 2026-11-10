@@ -40,7 +40,6 @@ func unreachableParts() map[string]string {
 		"PGUSER":     "first-last",
 		"PGPASSWORD": "not-a-real-secret",
 		"PGDATABASE": "committee",
-		"PGSSLMODE":  "disable",
 	}
 }
 

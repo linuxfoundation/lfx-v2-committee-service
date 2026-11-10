@@ -605,7 +605,7 @@ app:
     # STORAGE_MODE — which store the service reads and writes: kv, dual, dual-pg or
     # postgres. Empty (the default) means kv, which is what the service has always
     # done. A value that is not recognized, a mode that uses PostgreSQL without
-    # POSTGRES_URL, or a PostgreSQL that cannot be reached or migrated in such a
+    # POSTGRES_URL or the PG* variables, or a PostgreSQL that cannot be reached or migrated in such a
     # mode, stops the pod at startup instead of falling back to kv. The dual and
     # dual-pg modes can be tuned with the three variables below (see
     # docs/postgres-schema.md, "Selecting a storage mode").
@@ -656,8 +656,10 @@ app:
     # password reaches the pods through Reloader. `optional: true` leaves a variable unset
     # when its key is absent. Nothing connects to PostgreSQL because these are set: in kv
     # mode they are never read, and with POSTGRES_ENABLED they only replace POSTGRES_URL.
-    # The URL the service composes names no sslmode; set PGSSLMODE (and PGSSLROOTCERT) to
-    # choose one, as pgx otherwise prefers TLS but falls back to plaintext.
+    # The URL the service composes names no sslmode: the driver takes it from PGSSLMODE and
+    # PGSSLROOTCERT (below), and also fills in from these variables anything a POSTGRES_URL
+    # leaves out. The key names are generic, so do not put another secret with a key named
+    # host, port, username, password or dbname under this service's tag.
     PGHOST:
       valueFrom:
         secretKeyRef:
@@ -688,8 +690,13 @@ app:
           name: lfx-v2-committee-service-secrets
           key: dbname
           optional: true
+    # PGSSLMODE — TLS for the connection. `require` encrypts and refuses a server that does
+    # not offer TLS, but does not verify the certificate; the driver default (prefer) would
+    # fall back to plaintext. In staging and prod use verify-full with PGSSLROOTCERT pointing
+    # at the RDS CA bundle once it is mounted; use disable only for a local database without
+    # TLS. A sslmode inside POSTGRES_URL takes precedence.
     PGSSLMODE:
-      value: ""
+      value: "require"
     PGSSLROOTCERT:
       value: ""
     # POSTGRES_MAX_CONNS — connection pool size per pod (default 10 when empty).
