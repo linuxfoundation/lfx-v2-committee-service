@@ -127,6 +127,15 @@ type mockCommitteeWriterOrchestrator struct {
 	// createMemberValidator optionally applies domain validation to the member,
 	// mirroring the real orchestrator's member.Validate gate in CreateMember.
 	createMemberValidator func(*model.CommitteeMember) error
+	createMembersCalls    []createMembersCall
+	createMembersResults  []*model.BulkMemberResult
+	createMembersErr      error
+}
+
+type createMembersCall struct {
+	committeeUID string
+	members      []*model.CommitteeMember
+	opts         internalservice.BulkMemberCreateOptions
 }
 
 type updateMemberCall struct {
@@ -186,6 +195,21 @@ func (m *mockCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, memb
 func (m *mockCommitteeWriterOrchestrator) DeleteMember(ctx context.Context, committeeUID, uid string, revision uint64, sync bool, skipNotification bool) error {
 	m.deleteCalls = append(m.deleteCalls, deleteCall{committeeUID: committeeUID, uid: uid, revision: revision})
 	return m.deleteError
+}
+
+// CreateMembers records the call, runs opts.Enrich on every row as the real orchestrator does for
+// the rows it creates, and returns the configured results.
+func (m *mockCommitteeWriterOrchestrator) CreateMembers(ctx context.Context, committeeUID string, members []*model.CommitteeMember, opts internalservice.BulkMemberCreateOptions) ([]*model.BulkMemberResult, error) {
+	m.createMembersCalls = append(m.createMembersCalls, createMembersCall{committeeUID: committeeUID, members: members, opts: opts})
+	if m.createMembersErr != nil {
+		return nil, m.createMembersErr
+	}
+	if opts.Enrich != nil {
+		for _, member := range members {
+			opts.Enrich(ctx, member)
+		}
+	}
+	return m.createMembersResults, nil
 }
 
 // ReassignMember mirrors the real orchestrator: create the new holder, delete the old, and roll back
@@ -3585,6 +3609,155 @@ func TestCreateCommitteeMember_IdentityLookup(t *testing.T) {
 			assert.True(t, member.IdentityLookup.ResolvedFor(member.Email))
 			assert.Equal(t, tt.wantStatus, member.IdentityLookup.Status)
 			assert.Equal(t, tt.wantUsername, member.Username)
+		})
+	}
+}
+
+func TestBulkCreateCommitteeMembers(t *testing.T) {
+	username, firstName, lastName, orgName, website := "first-last", "First", "Last", "Example", "https://example.com"
+	fullRow := &committeeservice.CommitteeMemberBulkCreateRow{
+		Username:    &username,
+		Email:       "first.last+1@example.com",
+		FirstName:   &firstName,
+		LastName:    &lastName,
+		AppointedBy: "Community",
+		Status:      "Active",
+		Role: &struct {
+			Name      string
+			StartDate *string
+			EndDate   *string
+		}{Name: "Chair"},
+		Voting: &struct {
+			Status    string
+			StartDate *string
+			EndDate   *string
+		}{Status: "Voting Rep"},
+		Organization: &struct {
+			ID      *string
+			Name    *string
+			Website *string
+		}{Name: &orgName, Website: &website},
+	}
+	twoRows := func() []*committeeservice.CommitteeMemberBulkCreateRow {
+		second := *fullRow
+		second.Email = "first.last+2@example.com"
+		first := *fullRow
+		return []*committeeservice.CommitteeMemberBulkCreateRow{&first, &second}
+	}
+	added := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "member-added", CommitteeUID: "committee-1", Email: "first.last+1@example.com",
+	}}
+
+	tests := []struct {
+		name    string
+		payload *committeeservice.BulkCreateCommitteeMembersPayload
+		setup   func(*mockCommitteeWriterOrchestrator)
+		check   func(t *testing.T, svc *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, reader *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error)
+	}{
+		{
+			name:    "converts each row exactly like a single create and enriches every row",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", XSync: true, SkipNotification: true, Members: twoRows()},
+			setup: func(orch *mockCommitteeWriterOrchestrator) {
+				orch.createMembersResults = []*model.BulkMemberResult{}
+			},
+			check: func(t *testing.T, svc *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, reader *mockUserReader, _ *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				require.NoError(t, err)
+				require.Len(t, orch.createMembersCalls, 1)
+				call := orch.createMembersCalls[0]
+				assert.Equal(t, "committee-1", call.committeeUID)
+				assert.True(t, call.opts.Sync)
+				assert.False(t, call.opts.SkipEnrichment)
+				require.NotNil(t, call.opts.Enrich)
+				assert.EqualValues(t, 2, reader.usernameByEmailCalls.Load(), "one identity lookup per row")
+
+				single := svc.convertMemberPayloadToDomain(&committeeservice.CreateCommitteeMemberPayload{
+					UID: "committee-1", SkipNotification: true, Username: fullRow.Username, Email: fullRow.Email,
+					FirstName: fullRow.FirstName, LastName: fullRow.LastName, AppointedBy: fullRow.AppointedBy,
+					Status: fullRow.Status, Role: fullRow.Role, Voting: fullRow.Voting, Organization: fullRow.Organization,
+				})
+				assert.Equal(t, single, svc.convertBulkMemberRowToDomain("committee-1", true, fullRow))
+			},
+		},
+		{
+			name:    "skip enrichment makes no identity lookup",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", SkipEnrichment: true, Members: twoRows()},
+			check: func(t *testing.T, _ *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, reader *mockUserReader, _ *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				require.NoError(t, err)
+				require.Len(t, orch.createMembersCalls, 1)
+				assert.True(t, orch.createMembersCalls[0].opts.SkipEnrichment)
+				assert.Nil(t, orch.createMembersCalls[0].opts.Enrich)
+				assert.Zero(t, reader.usernameByEmailCalls.Load())
+				assert.Equal(t, "first-last", orch.createMembersCalls[0].members[0].Username, "the submitted username is kept")
+			},
+		},
+		{
+			name:    "maps row outcomes and counts, with the member only on added rows",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", SkipEnrichment: true, Members: append(twoRows(), fullRow)},
+			setup: func(orch *mockCommitteeWriterOrchestrator) {
+				orch.createMembersResults = []*model.BulkMemberResult{
+					{Index: 0, Email: added.Email, Status: model.BulkMemberAdded, MemberUID: added.UID, Member: added},
+					{Index: 1, Email: "first.last+2@example.com", Status: model.BulkMemberSkipped, Reason: model.BulkReasonAlreadyMember, MemberUID: "member-existing", Message: "member already exists in the committee"},
+					{Index: 2, Email: added.Email, Status: model.BulkMemberFailed, Reason: model.BulkReasonTemporary, Retryable: true, Message: "temporary failure; retry later"},
+				}
+			},
+			check: func(t *testing.T, _ *committeeServicesrvc, _ *mockCommitteeWriterOrchestrator, _ *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, 1, res.Added)
+				assert.Equal(t, 1, res.Skipped)
+				assert.Equal(t, 1, res.Failed)
+				require.Len(t, res.Results, 3)
+
+				assert.Equal(t, "added", res.Results[0].Status)
+				assert.Nil(t, res.Results[0].Reason)
+				require.NotNil(t, res.Results[0].Member)
+				assert.Equal(t, "member-added", *res.Results[0].Member.UID)
+
+				assert.Equal(t, "skipped", res.Results[1].Status)
+				assert.Equal(t, "already_member", *res.Results[1].Reason)
+				assert.Equal(t, "member-existing", *res.Results[1].MemberUID)
+				assert.Nil(t, res.Results[1].Member)
+
+				assert.Equal(t, 2, res.Results[2].Index)
+				assert.Equal(t, "temporary", *res.Results[2].Reason)
+				assert.True(t, res.Results[2].Retryable)
+				assert.Nil(t, res.Results[2].Member)
+			},
+		},
+		{
+			name:    "maps a missing committee to not found",
+			payload: &committeeservice.BulkCreateCommitteeMembersPayload{UID: "committee-1", Members: twoRows()},
+			setup: func(orch *mockCommitteeWriterOrchestrator) {
+				orch.createMembersErr = errs.NewNotFound("committee not found")
+			},
+			check: func(t *testing.T, _ *committeeServicesrvc, _ *mockCommitteeWriterOrchestrator, _ *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				var notFound *committeeservice.NotFoundError
+				require.ErrorAs(t, err, &notFound)
+				assert.Nil(t, res)
+			},
+		},
+		{
+			name: "rejects a nil payload",
+			check: func(t *testing.T, _ *committeeServicesrvc, orch *mockCommitteeWriterOrchestrator, _ *mockUserReader, res *committeeservice.CommitteeMemberBulkCreateResult, err error) {
+				var badRequest *committeeservice.BadRequestError
+				require.ErrorAs(t, err, &badRequest)
+				assert.Nil(t, res)
+				assert.Empty(t, orch.createMembersCalls)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, orch := setupServiceTest()
+			reader := newMockUserReader()
+			svc.userReader = reader
+			if tt.setup != nil {
+				tt.setup(orch)
+			}
+
+			res, err := svc.BulkCreateCommitteeMembers(context.Background(), tt.payload)
+
+			tt.check(t, svc, orch, reader, res, err)
 		})
 	}
 }

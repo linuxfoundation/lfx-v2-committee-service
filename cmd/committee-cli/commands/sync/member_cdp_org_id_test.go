@@ -56,6 +56,9 @@ func (s *stubCommitteeWriter) DeleteMember(_ context.Context, _, _ string, _ uin
 func (s *stubCommitteeWriter) ReassignMember(_ context.Context, _ string, _ uint64, _ *model.CommitteeMember, _ bool) (*model.CommitteeMember, error) {
 	return nil, nil
 }
+func (s *stubCommitteeWriter) CreateMembers(_ context.Context, _ string, _ []*model.CommitteeMember, _ service.BulkMemberCreateOptions) ([]*model.BulkMemberResult, error) {
+	return nil, nil
+}
 
 var _ service.CommitteeWriter = (*stubCommitteeWriter)(nil)
 

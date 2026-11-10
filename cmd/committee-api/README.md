@@ -26,6 +26,7 @@ This service contains the following API endpoints:
 
 - `/committees/{uid}/members`
   - `POST`: add a new member to a committee (requires email and other member details)
+  - `POST /bulk`: add up to 100 members in one request; every submitted row gets an added, skipped, or failed result
   - `GET /{member_uid}`: retrieve a specific committee member by member UID
   - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
   - `DELETE /{member_uid}`: remove a member from a committee

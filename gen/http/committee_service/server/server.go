@@ -33,6 +33,7 @@ type Server struct {
 	Readyz                     http.Handler
 	Livez                      http.Handler
 	CreateCommitteeMember      http.Handler
+	BulkCreateCommitteeMembers http.Handler
 	GetCommitteeMember         http.Handler
 	GetOrgCommitteeSeats       http.Handler
 	ReassignOrgCommitteeSeat   http.Handler
@@ -134,6 +135,7 @@ func New(
 			{"Readyz", "GET", "/readyz"},
 			{"Livez", "GET", "/livez"},
 			{"CreateCommitteeMember", "POST", "/committees/{uid}/members"},
+			{"BulkCreateCommitteeMembers", "POST", "/committees/{uid}/members/bulk"},
 			{"GetCommitteeMember", "GET", "/committees/{uid}/members/{member_uid}"},
 			{"GetOrgCommitteeSeats", "GET", "/committees/b2b-org/{uid}/seats"},
 			{"ReassignOrgCommitteeSeat", "PUT", "/committees/b2b-org/{uid}/seats/{member_uid}/reassign"},
@@ -181,6 +183,7 @@ func New(
 		Readyz:                     NewReadyzHandler(e.Readyz, mux, decoder, encoder, errhandler, formatter),
 		Livez:                      NewLivezHandler(e.Livez, mux, decoder, encoder, errhandler, formatter),
 		CreateCommitteeMember:      NewCreateCommitteeMemberHandler(e.CreateCommitteeMember, mux, decoder, encoder, errhandler, formatter),
+		BulkCreateCommitteeMembers: NewBulkCreateCommitteeMembersHandler(e.BulkCreateCommitteeMembers, mux, decoder, encoder, errhandler, formatter),
 		GetCommitteeMember:         NewGetCommitteeMemberHandler(e.GetCommitteeMember, mux, decoder, encoder, errhandler, formatter),
 		GetOrgCommitteeSeats:       NewGetOrgCommitteeSeatsHandler(e.GetOrgCommitteeSeats, mux, decoder, encoder, errhandler, formatter),
 		ReassignOrgCommitteeSeat:   NewReassignOrgCommitteeSeatHandler(e.ReassignOrgCommitteeSeat, mux, decoder, encoder, errhandler, formatter),
@@ -235,6 +238,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.Readyz = m(s.Readyz)
 	s.Livez = m(s.Livez)
 	s.CreateCommitteeMember = m(s.CreateCommitteeMember)
+	s.BulkCreateCommitteeMembers = m(s.BulkCreateCommitteeMembers)
 	s.GetCommitteeMember = m(s.GetCommitteeMember)
 	s.GetOrgCommitteeSeats = m(s.GetOrgCommitteeSeats)
 	s.ReassignOrgCommitteeSeat = m(s.ReassignOrgCommitteeSeat)
@@ -284,6 +288,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountReadyzHandler(mux, h.Readyz)
 	MountLivezHandler(mux, h.Livez)
 	MountCreateCommitteeMemberHandler(mux, h.CreateCommitteeMember)
+	MountBulkCreateCommitteeMembersHandler(mux, h.BulkCreateCommitteeMembers)
 	MountGetCommitteeMemberHandler(mux, h.GetCommitteeMember)
 	MountGetOrgCommitteeSeatsHandler(mux, h.GetOrgCommitteeSeats)
 	MountReassignOrgCommitteeSeatHandler(mux, h.ReassignOrgCommitteeSeat)
@@ -775,6 +780,60 @@ func NewCreateCommitteeMemberHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "create-committee-member")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountBulkCreateCommitteeMembersHandler configures the mux to serve the
+// "committee-service" service "bulk-create-committee-members" endpoint.
+func MountBulkCreateCommitteeMembersHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/members/bulk", f)
+}
+
+// NewBulkCreateCommitteeMembersHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "bulk-create-committee-members" endpoint.
+func NewBulkCreateCommitteeMembersHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeBulkCreateCommitteeMembersRequest(mux, decoder)
+		encodeResponse = EncodeBulkCreateCommitteeMembersResponse(encoder)
+		encodeError    = EncodeBulkCreateCommitteeMembersError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "bulk-create-committee-members")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

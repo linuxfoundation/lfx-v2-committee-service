@@ -222,7 +222,9 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
 
-**Indexed on:** create, update, delete of a committee member. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+**Indexed on:** create, update, delete of a committee member. A bulk member create publishes one create message per added row and none for skipped or failed rows. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+
+Bulk member recovery resumes the original member inputs/UID and missing storage indexes, refreshing only the service-derived committee name/category and project UID/slug under the commit revision guard before electing one create publication attempt. A retirement-only cleanup error does not suppress the confirmed winner's publication outcome. Pending operations are not completed memberships, and completed retries do not replay publication. This preserves the best-effort delivery semantics above: a crash between storage completion and publication is not repaired by an automatic notification/event replay. See [recoverable bulk storage](nats-storage.md#recoverable-bulk-member-creation).
 
 ### Data Schema
 

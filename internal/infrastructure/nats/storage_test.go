@@ -1314,6 +1314,7 @@ func TestStorage_CreateMember(t *testing.T) {
 
 func TestStorage_UpdateMember(t *testing.T) {
 	ctx := context.Background()
+	t.Run("delete races preserve not-found mapping", testMemberUpdateDeleteRaces)
 
 	seed := func(t *testing.T) (*storage, *lockKV, *model.CommitteeMember) {
 		t.Helper()
@@ -1633,6 +1634,7 @@ func TestStorage_UpdateMember(t *testing.T) {
 }
 
 func TestStorage_DeleteMember(t *testing.T) {
+	testMemberDeleteFenceRecovery(t)
 	ctx := context.Background()
 	seed := func(t *testing.T) (*storage, *lockKV, *model.CommitteeMember) {
 		t.Helper()

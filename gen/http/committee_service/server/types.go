@@ -218,6 +218,13 @@ type CreateCommitteeMemberRequestBody struct {
 	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
+// BulkCreateCommitteeMembersRequestBody is the type of the "committee-service"
+// service "bulk-create-committee-members" endpoint HTTP request body.
+type BulkCreateCommitteeMembersRequestBody struct {
+	// The members to add, processed in submission order
+	Members []*CommitteeMemberBulkCreateRowRequestBody `form:"members,omitempty" json:"members,omitempty" xml:"members,omitempty"`
+}
+
 // ReassignOrgCommitteeSeatRequestBody is the type of the "committee-service"
 // service "reassign-org-committee-seat" endpoint HTTP request body.
 type ReassignOrgCommitteeSeatRequestBody struct {
@@ -663,6 +670,20 @@ type CreateCommitteeMemberResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 	// The timestamp when the resource was last updated (read-only)
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// BulkCreateCommitteeMembersResponseBody is the type of the
+// "committee-service" service "bulk-create-committee-members" endpoint HTTP
+// response body.
+type BulkCreateCommitteeMembersResponseBody struct {
+	// One result per submitted row, in submission order
+	Results []*CommitteeMemberBulkCreateRowResultResponseBody `form:"results" json:"results" xml:"results"`
+	// Number of rows added
+	Added int `form:"added" json:"added" xml:"added"`
+	// Number of rows skipped
+	Skipped int `form:"skipped" json:"skipped" xml:"skipped"`
+	// Number of rows that failed
+	Failed int `form:"failed" json:"failed" xml:"failed"`
 }
 
 // GetCommitteeMemberResponseBody is the type of the "committee-service"
@@ -1577,6 +1598,38 @@ type CreateCommitteeMemberNotFoundResponseBody struct {
 // "committee-service" service "create-committee-member" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type CreateCommitteeMemberServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// BulkCreateCommitteeMembersBadRequestResponseBody is the type of the
+// "committee-service" service "bulk-create-committee-members" endpoint HTTP
+// response body for the "BadRequest" error.
+type BulkCreateCommitteeMembersBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// BulkCreateCommitteeMembersInternalServerErrorResponseBody is the type of the
+// "committee-service" service "bulk-create-committee-members" endpoint HTTP
+// response body for the "InternalServerError" error.
+type BulkCreateCommitteeMembersInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// BulkCreateCommitteeMembersNotFoundResponseBody is the type of the
+// "committee-service" service "bulk-create-committee-members" endpoint HTTP
+// response body for the "NotFound" error.
+type BulkCreateCommitteeMembersNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// BulkCreateCommitteeMembersServiceUnavailableResponseBody is the type of the
+// "committee-service" service "bulk-create-committee-members" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type BulkCreateCommitteeMembersServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -2992,6 +3045,27 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// CommitteeMemberBulkCreateRowResultResponseBody is used to define fields on
+// response body types.
+type CommitteeMemberBulkCreateRowResultResponseBody struct {
+	// Zero-based position of the row in the submitted members list
+	Index int `form:"index" json:"index" xml:"index"`
+	// Email address of the submitted row
+	Email string `form:"email" json:"email" xml:"email"`
+	// Outcome of the row
+	Status string `form:"status" json:"status" xml:"status"`
+	// Why the row was skipped or failed; omitted for added rows
+	Reason *string `form:"reason,omitempty" json:"reason,omitempty" xml:"reason,omitempty"`
+	// Whether resubmitting the row later may succeed
+	Retryable bool `form:"retryable" json:"retryable" xml:"retryable"`
+	// Human-readable detail for a skipped or failed row
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// UID of the added member, or of the existing member for an already_member row
+	MemberUID *string `form:"member_uid,omitempty" json:"member_uid,omitempty" xml:"member_uid,omitempty"`
+	// The created member; present only for added rows
+	Member *CommitteeMemberFullWithReadonlyAttributesResponseBody `form:"member,omitempty" json:"member,omitempty" xml:"member,omitempty"`
+}
+
 // CommitteeMemberFullWithReadonlyAttributesResponseBody is used to define
 // fields on response body types.
 type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
@@ -3338,6 +3412,54 @@ type CommitteeUserRequestBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 	// User identifier (LF ID / sub)
 	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+}
+
+// CommitteeMemberBulkCreateRowRequestBody is used to define fields on request
+// body types.
+type CommitteeMemberBulkCreateRowRequestBody struct {
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy *string `form:"appointed_by,omitempty" json:"appointed_by,omitempty" xml:"appointed_by,omitempty"`
+	// Member status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status *string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
 }
 
 // NewCreateCommitteeResponseBody builds the HTTP response body from the result
@@ -3887,6 +4009,26 @@ func NewCreateCommitteeMemberResponseBody(res *committeeservice.CommitteeMemberF
 			Name:    res.Organization.Name,
 			Website: res.Organization.Website,
 		}
+	}
+	return body
+}
+
+// NewBulkCreateCommitteeMembersResponseBody builds the HTTP response body from
+// the result of the "bulk-create-committee-members" endpoint of the
+// "committee-service" service.
+func NewBulkCreateCommitteeMembersResponseBody(res *committeeservice.CommitteeMemberBulkCreateResult) *BulkCreateCommitteeMembersResponseBody {
+	body := &BulkCreateCommitteeMembersResponseBody{
+		Added:   res.Added,
+		Skipped: res.Skipped,
+		Failed:  res.Failed,
+	}
+	if res.Results != nil {
+		body.Results = make([]*CommitteeMemberBulkCreateRowResultResponseBody, len(res.Results))
+		for i, val := range res.Results {
+			body.Results[i] = marshalCommitteeserviceCommitteeMemberBulkCreateRowResultToCommitteeMemberBulkCreateRowResultResponseBody(val)
+		}
+	} else {
+		body.Results = []*CommitteeMemberBulkCreateRowResultResponseBody{}
 	}
 	return body
 }
@@ -5158,6 +5300,46 @@ func NewCreateCommitteeMemberNotFoundResponseBody(res *committeeservice.NotFound
 // the "committee-service" service.
 func NewCreateCommitteeMemberServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *CreateCommitteeMemberServiceUnavailableResponseBody {
 	body := &CreateCommitteeMemberServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewBulkCreateCommitteeMembersBadRequestResponseBody builds the HTTP response
+// body from the result of the "bulk-create-committee-members" endpoint of the
+// "committee-service" service.
+func NewBulkCreateCommitteeMembersBadRequestResponseBody(res *committeeservice.BadRequestError) *BulkCreateCommitteeMembersBadRequestResponseBody {
+	body := &BulkCreateCommitteeMembersBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewBulkCreateCommitteeMembersInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "bulk-create-committee-members"
+// endpoint of the "committee-service" service.
+func NewBulkCreateCommitteeMembersInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *BulkCreateCommitteeMembersInternalServerErrorResponseBody {
+	body := &BulkCreateCommitteeMembersInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewBulkCreateCommitteeMembersNotFoundResponseBody builds the HTTP response
+// body from the result of the "bulk-create-committee-members" endpoint of the
+// "committee-service" service.
+func NewBulkCreateCommitteeMembersNotFoundResponseBody(res *committeeservice.NotFoundError) *BulkCreateCommitteeMembersNotFoundResponseBody {
+	body := &BulkCreateCommitteeMembersNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewBulkCreateCommitteeMembersServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "bulk-create-committee-members"
+// endpoint of the "committee-service" service.
+func NewBulkCreateCommitteeMembersServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *BulkCreateCommitteeMembersServiceUnavailableResponseBody {
+	body := &BulkCreateCommitteeMembersServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -7081,6 +7263,24 @@ func NewCreateCommitteeMemberPayload(body *CreateCommitteeMemberRequestBody, uid
 	return v
 }
 
+// NewBulkCreateCommitteeMembersPayload builds a committee-service service
+// bulk-create-committee-members endpoint payload.
+func NewBulkCreateCommitteeMembersPayload(body *BulkCreateCommitteeMembersRequestBody, uid string, version string, bearerToken *string, xSync bool, skipNotification bool, skipEnrichment bool) *committeeservice.BulkCreateCommitteeMembersPayload {
+	v := &committeeservice.BulkCreateCommitteeMembersPayload{}
+	v.Members = make([]*committeeservice.CommitteeMemberBulkCreateRow, len(body.Members))
+	for i, val := range body.Members {
+		v.Members[i] = unmarshalCommitteeMemberBulkCreateRowRequestBodyToCommitteeserviceCommitteeMemberBulkCreateRow(val)
+	}
+	v.UID = uid
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.XSync = xSync
+	v.SkipNotification = skipNotification
+	v.SkipEnrichment = skipEnrichment
+
+	return v
+}
+
 // NewGetCommitteeMemberPayload builds a committee-service service
 // get-committee-member endpoint payload.
 func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, bearerToken *string) *committeeservice.GetCommitteeMemberPayload {
@@ -8045,6 +8245,28 @@ func ValidateCreateCommitteeMemberRequestBody(body *CreateCommitteeMemberRequest
 	return
 }
 
+// ValidateBulkCreateCommitteeMembersRequestBody runs the validations defined
+// on Bulk-Create-Committee-MembersRequestBody
+func ValidateBulkCreateCommitteeMembersRequestBody(body *BulkCreateCommitteeMembersRequestBody) (err error) {
+	if body.Members == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("members", "body"))
+	}
+	if len(body.Members) < 1 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.members", body.Members, len(body.Members), 1, true))
+	}
+	if len(body.Members) > 100 {
+		err = goa.MergeErrors(err, goa.InvalidLengthError("body.members", body.Members, len(body.Members), 100, false))
+	}
+	for _, e := range body.Members {
+		if e != nil {
+			if err2 := ValidateCommitteeMemberBulkCreateRowRequestBody(e); err2 != nil {
+				err = goa.MergeErrors(err, err2)
+			}
+		}
+	}
+	return
+}
+
 // ValidateReassignOrgCommitteeSeatRequestBody runs the validations defined on
 // Reassign-Org-Committee-SeatRequestBody
 func ValidateReassignOrgCommitteeSeatRequestBody(body *ReassignOrgCommitteeSeatRequestBody) (err error) {
@@ -8492,6 +8714,93 @@ func ValidateCharterWriteRequestBody(body *CharterWriteRequestBody) (err error) 
 func ValidateCommitteeUserRequestBody(body *CommitteeUserRequestBody) (err error) {
 	if body.Avatar != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.avatar", *body.Avatar, goa.FormatURI))
+	}
+	return
+}
+
+// ValidateCommitteeMemberBulkCreateRowRequestBody runs the validations defined
+// on committee-member-bulk-create-rowRequestBody
+func ValidateCommitteeMemberBulkCreateRowRequestBody(body *CommitteeMemberBulkCreateRowRequestBody) (err error) {
+	if body.Email == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("email", "body"))
+	}
+	if body.Username != nil {
+		if utf8.RuneCountInString(*body.Username) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
+		}
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
+	if body.FirstName != nil {
+		if utf8.RuneCountInString(*body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+		}
+	}
+	if body.LastName != nil {
+		if utf8.RuneCountInString(*body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+		}
+	}
+	if body.JobTitle != nil {
+		if utf8.RuneCountInString(*body.JobTitle) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+		}
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
+	}
+	if body.Role != nil {
+		if body.Role.Name != nil {
+			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Technical Lead" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+			}
+		}
+		if body.Role.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
+		}
+		if body.Role.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.end_date", *body.Role.EndDate, goa.FormatDate))
+		}
+	}
+	if body.AppointedBy != nil {
+		if !(*body.AppointedBy == "Community" || *body.AppointedBy == "Membership Entitlement" || *body.AppointedBy == "Vote of End User Member Class" || *body.AppointedBy == "Vote of TSC Committee" || *body.AppointedBy == "Vote of TAC Committee" || *body.AppointedBy == "Vote of Academic Member Class" || *body.AppointedBy == "Vote of Lab Member Class" || *body.AppointedBy == "Vote of Marketing Committee" || *body.AppointedBy == "Vote of Governing Board" || *body.AppointedBy == "Vote of General Member Class" || *body.AppointedBy == "Vote of End User Committee" || *body.AppointedBy == "Vote of TOC Committee" || *body.AppointedBy == "Vote of Gold Member Class" || *body.AppointedBy == "Vote of Silver Member Class" || *body.AppointedBy == "Vote of Strategic Membership Class" || *body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", *body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
+		}
+	}
+	if body.Status != nil {
+		if !(*body.Status == "Active" || *body.Status == "Inactive") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"Active", "Inactive"}))
+		}
+	}
+	if body.Voting != nil {
+		if body.Voting.Status != nil {
+			if !(*body.Voting.Status == "Alternate Voting Rep" || *body.Voting.Status == "Observer" || *body.Voting.Status == "Voting Rep" || *body.Voting.Status == "Emeritus" || *body.Voting.Status == "None") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting.status", *body.Voting.Status, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+			}
+		}
+		if body.Voting.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.start_date", *body.Voting.StartDate, goa.FormatDate))
+		}
+		if body.Voting.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
 	}
 	return
 }

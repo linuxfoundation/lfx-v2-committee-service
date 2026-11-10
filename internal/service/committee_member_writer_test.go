@@ -862,13 +862,13 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization(t *testing.T) {
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{sfid: "0014100000Te2ovAAB", ok: true}
 
 	org := model.CommitteeMemberOrganization{ID: "0014100000Te2ovAAB", Name: "LF"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "0014100000Te2ovAAB", org.ID)
 
 	orchestrator.b2bOrgResolver = stubB2BOrgResolver{}
 	org = model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
-	err = orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	err = orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 	require.NoError(t, err)
 	assert.Empty(t, org.ID)
 	assert.Equal(t, "Acme", org.Name)
@@ -892,7 +892,7 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDCleared(t
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			org := model.CommitteeMemberOrganization{ID: tc.id, Name: "Acme"}
-			err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+			err := orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 			require.NoError(t, err)
 			assert.Empty(t, org.ID, "non-SFID id %q must be cleared before lookup", tc.id)
 		})
@@ -910,7 +910,7 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackR
 	}
 
 	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Acme", gotName, "fallback must be called with the org's actual name")
 	assert.Equal(t, "https://acme.com", gotWebsite, "fallback must be called with the org's actual website")
@@ -923,7 +923,7 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackM
 	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{ok: false}
 
 	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 	require.NoError(t, err, "a fallback miss must fail open, not return an error")
 	assert.Empty(t, org.ID)
 	assert.Equal(t, "Acme", org.Name, "org name/website must be preserved when only the id is cleared")
@@ -935,7 +935,7 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nonSFIDFallbackE
 	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{err: fmt.Errorf("nats request failed")}
 
 	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 	require.NoError(t, err, "a fallback resolver error must fail open, not propagate")
 	assert.Empty(t, org.ID)
 	assert.Equal(t, "Acme", org.Name, "org name/website must be preserved when only the id is cleared")
@@ -950,7 +950,7 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_SFIDShapedMissCl
 	orchestrator.b2bOrgFallbackResolver = stubB2BOrgFallbackResolver{sfid: "0014100000Te2ovAAB", ok: true}
 
 	org := model.CommitteeMemberOrganization{ID: "001B000000IqhSLIAZ", Name: "Acme", Website: "https://acme.com"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 	require.NoError(t, err)
 	assert.Empty(t, org.ID, "SFID-shaped id that misses primary lookup must be cleared, not fallback-resolved")
 }
@@ -964,7 +964,7 @@ func TestCommitteeWriterOrchestrator_sanitizeMemberOrganization_nilFallbackClear
 	// exercises the nil-fallback branch. A SFID-shaped id never reaches fallback
 	// at all, regardless of whether it's nil.
 	org := model.CommitteeMemberOrganization{ID: "51fde723-67df-4e0e-91c6-936d01d59559", Name: "Acme", Website: "https://acme.com"}
-	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org)
+	err := orchestrator.sanitizeMemberOrganization(context.Background(), &org, nil)
 	require.NoError(t, err)
 	assert.Empty(t, org.ID)
 }

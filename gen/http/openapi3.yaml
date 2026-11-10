@@ -1078,10 +1078,19 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Quo consequatur natus omnis.
-                            description: hfi
+                            content_type: Ullam totam quo consequatur.
+                            description: fiq
                             file:
                                 - 79
+                                - 109
+                                - 110
+                                - 105
+                                - 115
+                                - 32
+                                - 101
+                                - 116
+                                - 32
+                                - 111
                                 - 109
                                 - 110
                                 - 105
@@ -1096,8 +1105,22 @@ paths:
                                 - 109
                                 - 117
                                 - 115
+                                - 32
+                                - 108
+                                - 97
+                                - 98
+                                - 111
+                                - 114
+                                - 101
+                                - 32
+                                - 113
+                                - 117
+                                - 105
+                                - 100
+                                - 101
+                                - 109
                                 - 46
-                            file_name: Omnis quae velit voluptate ut ullam.
+                            file_name: Quae velit voluptate.
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -1521,7 +1544,33 @@ paths:
                                         avatar: https://example.com/avatar.png
                                         name: First Last
                                         username: first-last
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by:
+                                        avatar: https://example.com/avatar.png
+                                        name: First Last
+                                        username: first-last
+                                      name: Meeting Notes
+                                      uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      updated_by:
+                                        avatar: https://example.com/avatar.png
+                                        name: First Last
+                                        username: first-last
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by:
+                                    avatar: https://example.com/avatar.png
+                                    name: First Last
+                                    username: first-last
+                                  name: Meeting Notes
+                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  updated_by:
+                                    avatar: https://example.com/avatar.png
+                                    name: First Last
+                                    username: first-last
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
@@ -2685,9 +2734,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 6ae7f7fd-3199-405a-9cb6-610c963eca96
+                    example: 8a0f4079-9818-40e2-bb50-44cf5a69bdbe
                     format: uuid
-                  example: 6595812e-faaf-4dc9-857f-9b4ac4554d1b
+                  example: 6d82c867-a621-40cd-93cc-11c544981ad6
             responses:
                 "200":
                     description: OK response.
@@ -2698,22 +2747,6 @@ paths:
                                 items:
                                     $ref: '#/components/schemas/CommitteeLinkWithReadonlyAttributes'
                                 example:
-                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      created_at: "2023-01-15T10:30:00Z"
-                                      created_by:
-                                        avatar: https://example.com/avatar.png
-                                        name: First Last
-                                        username: first-last
-                                      description: Confluence wiki — architecture decisions log
-                                      folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                      name: Technical Architecture Decision Records
-                                      uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                      updated_at: "2023-06-20T14:45:30Z"
-                                      updated_by:
-                                        avatar: https://example.com/avatar.png
-                                        name: First Last
-                                        username: first-last
-                                      url: https://confluence.example.com/architecture-decisions
                                     - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                       created_at: "2023-01-15T10:30:00Z"
                                       created_by:
@@ -2850,8 +2883,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: ez6
-                            folder_uid: 13681fa2-642f-49eb-af9a-7890baff5d32
+                            description: z6g
+                            folder_uid: 63ef9a78-90ba-4f5d-b26e-578ed311a303
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3176,7 +3209,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/CreateCommitteeMemberRequestBody'
+                            $ref: '#/components/schemas/CommitteeMemberBulkCreateRow'
                         example:
                             appointed_by: Community
                             email: user@example.com
@@ -3576,7 +3609,7 @@ paths:
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/CreateCommitteeMemberRequestBody'
+                            $ref: '#/components/schemas/CommitteeMemberBulkCreateRow'
                         example:
                             appointed_by: Community
                             email: user@example.com
@@ -3656,6 +3689,184 @@ paths:
                                 $ref: '#/components/schemas/ConflictError'
                             example:
                                 message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
+    /committees/{uid}/members/bulk:
+        post:
+            tags:
+                - committee-service
+            summary: bulk-create-committee-members committee-service
+            description: Add up to 100 members to a committee in one request. Every submitted row gets an added, skipped, or failed result; the request succeeds with 200 even when some rows are skipped or fail.
+            operationId: committee-service#bulk-create-committee-members
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: X-Sync
+                  in: header
+                  description: Requests synchronous processing for applicable downstream operations. Indexer messages are always published fire-and-forget regardless of this flag (see indexer-contract.md); this header no longer affects indexer delivery. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: Requests synchronous processing for applicable downstream operations. Indexer messages are always published fire-and-forget regardless of this flag (see indexer-contract.md); this header no longer affects indexer delivery. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                    default: false
+                    example: true
+                  example: true
+                - name: X-Skip-Notification
+                  in: header
+                  description: When true, suppress the notification email sent to the committee member (whether added or removed)
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: When true, suppress the notification email sent to the committee member (whether added or removed)
+                    default: false
+                    example: true
+                  example: true
+                - name: X-Skip-Enrichment
+                  in: header
+                  description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
+                  allowEmptyValue: true
+                  schema:
+                    type: boolean
+                    description: 'When true, skip auth-service enrichment: the username, name, and avatar from the request body are stored as-is without email→username lookup or profile metadata backfill. Intended for trusted sync callers.'
+                    default: false
+                    example: true
+                  example: true
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BulkCreateCommitteeMembersRequestBody'
+                        example:
+                            members:
+                                - appointed_by: Community
+                                  email: first.last@example.com
+                                  first_name: First
+                                  job_title: Chief Technology Officer
+                                  last_name: Last
+                                  linkedin_profile: https://www.linkedin.com/in/first-last
+                                  organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                  role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                  status: Active
+                                  username: first-last
+                                  voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                                - appointed_by: Community
+                                  email: first.last@example.com
+                                  first_name: First
+                                  job_title: Chief Technology Officer
+                                  last_name: Last
+                                  linkedin_profile: https://www.linkedin.com/in/first-last
+                                  organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                  role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                  status: Active
+                                  username: first-last
+                                  voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeMemberBulkCreateResult'
+                            example:
+                                added: 1
+                                failed: 1
+                                results:
+                                    - email: first.last@example.com
+                                      index: 0
+                                      member:
+                                        appointed_by: None
+                                        email: first.last@example.com
+                                        first_name: First
+                                        last_name: Last
+                                        status: Active
+                                        uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      retryable: false
+                                      status: added
+                                    - email: first.last+existing@example.com
+                                      index: 1
+                                      member_uid: a1b2c3d4-e5f6-4890-abcd-ef1234567890
+                                      reason: already_member
+                                      retryable: false
+                                      status: skipped
+                                    - email: first.last+retry@example.com
+                                      index: 2
+                                      message: temporary failure; retry later
+                                      reason: temporary
+                                      retryable: true
+                                      status: failed
+                                skipped: 1
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Committee not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -4405,7 +4616,7 @@ paths:
                                 $ref: '#/components/schemas/NoChatWebhookError'
                             example:
                                 code: no_chat_webhook
-                                message: Nisi harum quam magnam nihil.
+                                message: Officia et veritatis.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -4462,7 +4673,7 @@ paths:
                     type: array
                     items:
                         type: string
-                        example: Unde dolor eos ullam maiores saepe.
+                        example: Et magni nemo ullam.
                     description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
                     example:
                         - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4499,6 +4710,24 @@ paths:
                             example:
                                 page_token: eyJvIjoxMDB9
                                 seats:
+                                    - appointed_by: Community
+                                      avatar: https://example.com/avatar.png
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      email: user@example.com
+                                      first_name: John
+                                      is_org_editable: true
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      organization_id: 001B000000IqhSLIAZ
+                                      project_slug: example-foundation
+                                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      reason: This seat is foundation-controlled.
+                                      role_name: Chair
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      username: user123
+                                      voting_status: Voting Rep
                                     - appointed_by: Community
                                       avatar: https://example.com/avatar.png
                                       committee_category: Board
@@ -4767,6 +4996,121 @@ components:
                 message: The request was invalid.
             required:
                 - message
+        BulkCreateCommitteeMembersRequestBody:
+            type: object
+            properties:
+                members:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CommitteeMemberBulkCreateRow'
+                    description: The members to add, processed in submission order
+                    example:
+                        - appointed_by: Community
+                          email: first.last@example.com
+                          first_name: First
+                          job_title: Chief Technology Officer
+                          last_name: Last
+                          linkedin_profile: https://www.linkedin.com/in/first-last
+                          organization:
+                            id: org-123456
+                            name: The Linux Foundation
+                            website: https://linuxfoundation.org
+                          role:
+                            end_date: "2024-12-31"
+                            name: Chair
+                            start_date: "2023-01-01"
+                          status: Active
+                          username: first-last
+                          voting:
+                            end_date: "2024-12-31"
+                            start_date: "2023-01-01"
+                            status: Voting Rep
+                        - appointed_by: Community
+                          email: first.last@example.com
+                          first_name: First
+                          job_title: Chief Technology Officer
+                          last_name: Last
+                          linkedin_profile: https://www.linkedin.com/in/first-last
+                          organization:
+                            id: org-123456
+                            name: The Linux Foundation
+                            website: https://linuxfoundation.org
+                          role:
+                            end_date: "2024-12-31"
+                            name: Chair
+                            start_date: "2023-01-01"
+                          status: Active
+                          username: first-last
+                          voting:
+                            end_date: "2024-12-31"
+                            start_date: "2023-01-01"
+                            status: Voting Rep
+                    minItems: 1
+                    maxItems: 100
+            example:
+                members:
+                    - appointed_by: Community
+                      email: first.last@example.com
+                      first_name: First
+                      job_title: Chief Technology Officer
+                      last_name: Last
+                      linkedin_profile: https://www.linkedin.com/in/first-last
+                      organization:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                      role:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                      status: Active
+                      username: first-last
+                      voting:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+                    - appointed_by: Community
+                      email: first.last@example.com
+                      first_name: First
+                      job_title: Chief Technology Officer
+                      last_name: Last
+                      linkedin_profile: https://www.linkedin.com/in/first-last
+                      organization:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                      role:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                      status: Active
+                      username: first-last
+                      voting:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+                    - appointed_by: Community
+                      email: first.last@example.com
+                      first_name: First
+                      job_title: Chief Technology Officer
+                      last_name: Last
+                      linkedin_profile: https://www.linkedin.com/in/first-last
+                      organization:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                      role:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                      status: Active
+                      username: first-last
+                      voting:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+            required:
+                - members
         Charter:
             type: object
             properties:
@@ -6330,6 +6674,327 @@ components:
                     end_date: "2024-12-31"
                     start_date: "2023-01-01"
                     status: Voting Rep
+        CommitteeMemberBulkCreateResult:
+            type: object
+            properties:
+                added:
+                    type: integer
+                    description: Number of rows added
+                    example: 2
+                    format: int64
+                failed:
+                    type: integer
+                    description: Number of rows that failed
+                    example: 0
+                    format: int64
+                results:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CommitteeMemberBulkCreateRowResult'
+                    description: One result per submitted row, in submission order
+                    example:
+                        - email: first.last@example.com
+                          index: 0
+                          member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          message: member already exists in the committee
+                          reason: already_member
+                          retryable: false
+                          status: skipped
+                        - email: first.last@example.com
+                          index: 0
+                          member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          message: member already exists in the committee
+                          reason: already_member
+                          retryable: false
+                          status: skipped
+                        - email: first.last@example.com
+                          index: 0
+                          member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          message: member already exists in the committee
+                          reason: already_member
+                          retryable: false
+                          status: skipped
+                        - email: first.last@example.com
+                          index: 0
+                          member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          message: member already exists in the committee
+                          reason: already_member
+                          retryable: false
+                          status: skipped
+                skipped:
+                    type: integer
+                    description: Number of rows skipped
+                    example: 1
+                    format: int64
+            description: Per-row outcomes and counts for a bulk member create request.
+            example:
+                added: 1
+                failed: 1
+                results:
+                    - email: first.last@example.com
+                      index: 0
+                      member:
+                        appointed_by: None
+                        email: first.last@example.com
+                        first_name: First
+                        last_name: Last
+                        status: Active
+                        uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      retryable: false
+                      status: added
+                    - email: first.last+existing@example.com
+                      index: 1
+                      member_uid: a1b2c3d4-e5f6-4890-abcd-ef1234567890
+                      reason: already_member
+                      retryable: false
+                      status: skipped
+                    - email: first.last+retry@example.com
+                      index: 2
+                      message: temporary failure; retry later
+                      reason: temporary
+                      retryable: true
+                      status: failed
+                skipped: 1
+            required:
+                - results
+                - added
+                - skipped
+                - failed
+        CommitteeMemberBulkCreateRow:
+            type: object
+            properties:
+                appointed_by:
+                    type: string
+                    description: How the member was appointed
+                    default: None
+                    example: Community
+                    enum:
+                        - Community
+                        - Membership Entitlement
+                        - Vote of End User Member Class
+                        - Vote of TSC Committee
+                        - Vote of TAC Committee
+                        - Vote of Academic Member Class
+                        - Vote of Lab Member Class
+                        - Vote of Marketing Committee
+                        - Vote of Governing Board
+                        - Vote of General Member Class
+                        - Vote of End User Committee
+                        - Vote of TOC Committee
+                        - Vote of Gold Member Class
+                        - Vote of Silver Member Class
+                        - Vote of Strategic Membership Class
+                        - None
+                email:
+                    type: string
+                    description: Primary email address
+                    example: first.last@example.com
+                    format: email
+                first_name:
+                    type: string
+                    description: First name
+                    example: First
+                    maxLength: 100
+                job_title:
+                    type: string
+                    description: Job title at organization
+                    example: Chief Technology Officer
+                    maxLength: 200
+                last_name:
+                    type: string
+                    description: Last name
+                    example: Last
+                    maxLength: 100
+                linkedin_profile:
+                    type: string
+                    description: LinkedIn profile URL
+                    example: https://www.linkedin.com/in/first-last
+                    format: uri
+                    pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
+                organization:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Organization ID
+                            example: org-123456
+                        name:
+                            type: string
+                            description: Organization name
+                            example: The Linux Foundation
+                            maxLength: 200
+                        website:
+                            type: string
+                            description: Organization website URL
+                            example: https://linuxfoundation.org
+                            format: uri
+                            pattern: ^https?://[^\s/$.?#][^\s]*$
+                    description: Organization information for the committee member
+                    example:
+                        id: org-123456
+                        name: The Linux Foundation
+                        website: https://linuxfoundation.org
+                role:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Role end date
+                            example: "2024-12-31"
+                            format: date
+                        name:
+                            type: string
+                            description: Committee role name
+                            default: None
+                            example: Chair
+                            enum:
+                                - Chair
+                                - Developer Seat
+                                - TAC/TOC Representative
+                                - Director
+                                - Lead
+                                - None
+                                - Secretary
+                                - Technical Lead
+                                - Treasurer
+                                - Vice Chair
+                                - LF Staff
+                        start_date:
+                            type: string
+                            description: Role start date
+                            example: "2023-01-01"
+                            format: date
+                    description: Committee role information
+                    example:
+                        end_date: "2024-12-31"
+                        name: Chair
+                        start_date: "2023-01-01"
+                status:
+                    type: string
+                    description: Member status
+                    default: Active
+                    example: Active
+                    enum:
+                        - Active
+                        - Inactive
+                username:
+                    type: string
+                    description: User's LF ID
+                    example: first-last
+                    maxLength: 100
+                voting:
+                    type: object
+                    properties:
+                        end_date:
+                            type: string
+                            description: Voting end date
+                            example: "2024-12-31"
+                            format: date
+                        start_date:
+                            type: string
+                            description: Voting start date
+                            example: "2023-01-01"
+                            format: date
+                        status:
+                            type: string
+                            description: Voting status
+                            default: None
+                            example: Voting Rep
+                            enum:
+                                - Alternate Voting Rep
+                                - Observer
+                                - Voting Rep
+                                - Emeritus
+                                - None
+                    description: Voting information for the committee member
+                    example:
+                        end_date: "2024-12-31"
+                        start_date: "2023-01-01"
+                        status: Voting Rep
+            description: A committee member to add as part of a bulk member create request.
+            example:
+                appointed_by: Community
+                email: first.last@example.com
+                first_name: First
+                job_title: Chief Technology Officer
+                last_name: Last
+                linkedin_profile: https://www.linkedin.com/in/first-last
+                organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+                role:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+                status: Active
+                username: first-last
+                voting:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
+            required:
+                - email
+        CommitteeMemberBulkCreateRowResult:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Email address of the submitted row
+                    example: first.last@example.com
+                index:
+                    type: integer
+                    description: Zero-based position of the row in the submitted members list
+                    example: 0
+                    format: int64
+                member:
+                    $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
+                member_uid:
+                    type: string
+                    description: UID of the added member, or of the existing member for an already_member row
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                message:
+                    type: string
+                    description: Human-readable detail for a skipped or failed row
+                    example: member already exists in the committee
+                reason:
+                    type: string
+                    description: Why the row was skipped or failed; omitted for added rows
+                    example: already_member
+                    enum:
+                        - already_member
+                        - duplicate_in_request
+                        - invalid
+                        - temporary
+                        - not_attempted
+                retryable:
+                    type: boolean
+                    description: Whether resubmitting the row later may succeed
+                    example: false
+                status:
+                    type: string
+                    description: Outcome of the row
+                    example: added
+                    enum:
+                        - added
+                        - skipped
+                        - failed
+            description: The outcome of one submitted row of a bulk member create request.
+            example:
+                email: first.last@example.com
+                index: 0
+                member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                message: member already exists in the committee
+                reason: already_member
+                retryable: false
+                status: skipped
+            required:
+                - index
+                - email
+                - status
+                - retryable
         CommitteeMemberFull:
             type: object
             properties:
@@ -6895,12 +7560,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: "6e5"
+                    example: 5fu
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 9ec0eeea-3feb-439f-b9b5-35bbe27a00f6
+                    example: 0bfc84ad-9e7d-4621-9d9f-021ab0aad725
                     format: uuid
                 name:
                     type: string
@@ -6913,187 +7578,13 @@ components:
                     example: https://confluence.example.com/architecture-decisions
                     maxLength: 2048
             example:
-                description: 3fu
-                folder_uid: de5c7099-b33d-4f11-8892-0583dbf63b96
+                description: u52
+                folder_uid: 3b966ae7-f7fd-41e6-b38b-4280bdee161c
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
                 - name
                 - url
-        CreateCommitteeMemberRequestBody:
-            type: object
-            properties:
-                appointed_by:
-                    type: string
-                    description: How the member was appointed
-                    default: None
-                    example: Community
-                    enum:
-                        - Community
-                        - Membership Entitlement
-                        - Vote of End User Member Class
-                        - Vote of TSC Committee
-                        - Vote of TAC Committee
-                        - Vote of Academic Member Class
-                        - Vote of Lab Member Class
-                        - Vote of Marketing Committee
-                        - Vote of Governing Board
-                        - Vote of General Member Class
-                        - Vote of End User Committee
-                        - Vote of TOC Committee
-                        - Vote of Gold Member Class
-                        - Vote of Silver Member Class
-                        - Vote of Strategic Membership Class
-                        - None
-                email:
-                    type: string
-                    description: Primary email address
-                    example: user@example.com
-                    format: email
-                first_name:
-                    type: string
-                    description: First name
-                    example: John
-                    maxLength: 100
-                job_title:
-                    type: string
-                    description: Job title at organization
-                    example: Chief Technology Officer
-                    maxLength: 200
-                last_name:
-                    type: string
-                    description: Last name
-                    example: Doe
-                    maxLength: 100
-                linkedin_profile:
-                    type: string
-                    description: LinkedIn profile URL
-                    example: https://www.linkedin.com/in/johndoe
-                    format: uri
-                    pattern: ^(https?://)?([a-z]{2,3}\.)?linkedin\.com/.*$
-                organization:
-                    type: object
-                    properties:
-                        id:
-                            type: string
-                            description: Organization ID
-                            example: org-123456
-                        name:
-                            type: string
-                            description: Organization name
-                            example: The Linux Foundation
-                            maxLength: 200
-                        website:
-                            type: string
-                            description: Organization website URL
-                            example: https://linuxfoundation.org
-                            format: uri
-                            pattern: ^https?://[^\s/$.?#][^\s]*$
-                    description: Organization information for the committee member
-                    example:
-                        id: org-123456
-                        name: The Linux Foundation
-                        website: https://linuxfoundation.org
-                role:
-                    type: object
-                    properties:
-                        end_date:
-                            type: string
-                            description: Role end date
-                            example: "2024-12-31"
-                            format: date
-                        name:
-                            type: string
-                            description: Committee role name
-                            default: None
-                            example: Chair
-                            enum:
-                                - Chair
-                                - Developer Seat
-                                - TAC/TOC Representative
-                                - Director
-                                - Lead
-                                - None
-                                - Secretary
-                                - Technical Lead
-                                - Treasurer
-                                - Vice Chair
-                                - LF Staff
-                        start_date:
-                            type: string
-                            description: Role start date
-                            example: "2023-01-01"
-                            format: date
-                    description: Committee role information
-                    example:
-                        end_date: "2024-12-31"
-                        name: Chair
-                        start_date: "2023-01-01"
-                status:
-                    type: string
-                    description: Member status
-                    default: Active
-                    example: Active
-                    enum:
-                        - Active
-                        - Inactive
-                username:
-                    type: string
-                    description: User's LF ID
-                    example: user123
-                    maxLength: 100
-                voting:
-                    type: object
-                    properties:
-                        end_date:
-                            type: string
-                            description: Voting end date
-                            example: "2024-12-31"
-                            format: date
-                        start_date:
-                            type: string
-                            description: Voting start date
-                            example: "2023-01-01"
-                            format: date
-                        status:
-                            type: string
-                            description: Voting status
-                            default: None
-                            example: Voting Rep
-                            enum:
-                                - Alternate Voting Rep
-                                - Observer
-                                - Voting Rep
-                                - Emeritus
-                                - None
-                    description: Voting information for the committee member
-                    example:
-                        end_date: "2024-12-31"
-                        start_date: "2023-01-01"
-                        status: Voting Rep
-            example:
-                appointed_by: Community
-                email: user@example.com
-                first_name: John
-                job_title: Chief Technology Officer
-                last_name: Doe
-                linkedin_profile: https://www.linkedin.com/in/johndoe
-                organization:
-                    id: org-123456
-                    name: The Linux Foundation
-                    website: https://linuxfoundation.org
-                role:
-                    end_date: "2024-12-31"
-                    name: Chair
-                    start_date: "2023-01-01"
-                status: Active
-                username: user123
-                voting:
-                    end_date: "2024-12-31"
-                    start_date: "2023-01-01"
-                    status: Voting Rep
-            required:
-                - email
         CreateCommitteeRequestBody:
             type: object
             properties:
@@ -7588,19 +8079,19 @@ components:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -7649,7 +8140,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: zoi
+                    example: oi6
                     maxLength: 5000
                 id:
                     type: string
@@ -7665,7 +8156,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: t74
+                excerpt: 74c
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -7767,7 +8258,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: hjt
+                    example: jtk
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -7822,19 +8313,19 @@ components:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: kf0
+                        - excerpt: f0w
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -7954,11 +8445,11 @@ components:
                 message:
                     type: string
                     description: Human-readable description
-                    example: Itaque ut et sint nesciunt.
+                    example: Ut et sint nesciunt minima velit labore.
             description: Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.
             example:
                 code: no_chat_webhook
-                message: Velit labore atque vel ea.
+                message: Vel ea.
             required:
                 - code
                 - message
@@ -8702,47 +9193,53 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Ex dolores.
+                    example: Maiores nemo nam sed.
                 description:
                     type: string
                     description: Optional description
-                    example: zjd
+                    example: dfk
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 83
-                        - 97
-                        - 112
-                        - 105
-                        - 101
-                        - 110
-                        - 116
-                        - 101
-                        - 32
+                        - 79
                         - 109
-                        - 97
+                        - 110
                         - 105
-                        - 111
-                        - 114
-                        - 101
                         - 115
                         - 32
-                        - 110
-                        - 101
-                        - 109
-                        - 111
-                        - 32
-                        - 110
                         - 97
+                        - 108
+                        - 105
+                        - 113
+                        - 117
+                        - 97
+                        - 109
+                        - 32
+                        - 118
+                        - 111
+                        - 108
+                        - 117
+                        - 112
+                        - 116
+                        - 97
+                        - 116
+                        - 105
+                        - 98
+                        - 117
+                        - 115
+                        - 32
+                        - 101
+                        - 110
+                        - 105
                         - 109
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Deserunt sed autem ut voluptatum.
+                    example: Autem ut voluptatum dicta ex dolores explicabo.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -8754,25 +9251,45 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Consequatur perferendis autem expedita culpa inventore consequuntur.
-                description: 2wo
+                content_type: Quidem officia.
+                description: p7a
                 file:
-                    - 81
-                    - 117
-                    - 105
+                    - 85
+                    - 110
                     - 100
                     - 101
+                    - 32
+                    - 100
+                    - 111
+                    - 108
+                    - 111
+                    - 114
+                    - 32
+                    - 101
+                    - 111
+                    - 115
+                    - 32
+                    - 117
+                    - 108
+                    - 108
+                    - 97
                     - 109
                     - 32
-                    - 111
-                    - 102
-                    - 102
-                    - 105
-                    - 99
-                    - 105
+                    - 109
                     - 97
+                    - 105
+                    - 111
+                    - 114
+                    - 101
+                    - 115
+                    - 32
+                    - 115
+                    - 97
+                    - 101
+                    - 112
+                    - 101
                     - 46
-                file_name: Enim vel voluptatem.
+                file_name: Autem expedita culpa inventore consequuntur.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

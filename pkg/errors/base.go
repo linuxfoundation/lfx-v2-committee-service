@@ -26,3 +26,6 @@ func (b base) error() string {
 func (b base) Unwrap() error {
 	return b.err
 }
+
+// ClientMessage returns the domain message without exposing its infrastructure cause.
+func (b base) ClientMessage() string { return b.message }

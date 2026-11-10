@@ -94,7 +94,9 @@ Published to `lfx.fga-sync.member_put` when a committee member is created or upd
 
 The object UID is the **committee UID** (`CommitteeBase.UID`), not the member UID.
 
-When enrichment runs, caller-supplied usernames are not trusted: the service uses its email-to-username lookup and the stored-identity fallback described below. Within one create or update request, a confirmed lookup result (account found or confirmed absent) for the member's current email is reused instead of asking auth-service again; a failed lookup is retried once in the writer and is never treated as a confirmed absence. On update, when no account is found or the lookup fails, the stored username is kept if the email did not change and cleared if it did, so a confirmed absence leaves an email-only member email-only and publishes no `member_put`. Requests that skip enrichment (NATS LFID invite-accepted reconciliation via `lfx.invite-service.invite_accepted`, user events, sync tooling, `X-Skip-Enrichment`) make no identity lookup in the writer and publish the supplied identity unchanged; user-event and sync-tooling callers may perform their own lookup before invoking the writer. HTTP `AcceptInvite` uses normal server-side enrichment and reuses the confirmed lookup result.
+When enrichment runs, caller-supplied usernames are not trusted: the service uses its email-to-username lookup and the stored-identity fallback described below. Within one create or update request, a confirmed lookup result (account found or confirmed absent) for the member's current email is reused instead of asking auth-service again; a failed lookup is retried once in the writer and is never treated as a confirmed absence. On update, when no account is found or the lookup fails, the stored username is kept if the email did not change and cleared if it did, so a confirmed absence leaves an email-only member email-only and publishes no `member_put`. Requests that skip enrichment (NATS LFID invite-accepted reconciliation via `lfx.invite-service.invite_accepted`, user events, sync tooling, `X-Skip-Enrichment`) make no identity lookup in the writer and publish the supplied identity unchanged; user-event and sync-tooling callers may perform their own lookup before invoking the writer. HTTP `AcceptInvite` uses normal server-side enrichment and reuses the confirmed lookup result. Bulk member create (`POST /committees/{uid}/members/bulk`) reuses a lookup only within its own row, never across rows. It is also stricter than a single create: a row whose lookup is still unresolved after the writer retry is not written and publishes no `member_put`, and the row is reported as a temporary failure.
+
+Bulk recovery completes one stable member UID from its original validated member inputs; it never grants access from replacement retry fields. Server-derived committee name/category and project UID/slug are refreshed under the commit revision guard. Pending operations and uncertain reservations publish no `member_put`. Only the winning storage completion attempts the normal best-effort create publications, even if preparation retirement subsequently fails; completed retries publish nothing. Storage completion does not close the existing crash gap before publication or guarantee downstream convergence. See [recoverable bulk storage](nats-storage.md#recoverable-bulk-member-creation).
 
 #### Message Envelope
 
@@ -270,3 +272,17 @@ this branch; on a plain invite delete, and with the KV store, it has no callsite
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their rejected application |
 | Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application plus KV record deletion; fire-and-forget; skipped if `ListApplications` fails. With a store that cascades, the applications come from the store and there is no `ListApplications` or KV record deletion |
+
+Pending bulk recovery snapshots are selected before shared current group and
+identity validation. A confirmed changed identity or invalid current group rule
+fences/rejects that pending operation instead of granting stale access. An
+unresolved identity lookup leaves it retryable without committing or publishing.
+
+Pending bulk resumes always revalidate their retained identity, including requests
+with `X-Skip-Enrichment`; a retry cannot re-grant a deleted or reassigned username
+from a stale snapshot. User-deletion and known user-email change events abort
+matching pending preparations before visible-member reconciliation. This removes
+current snapshot/intent data while retaining content-free fences and the bucket's
+existing historical-revision policy. Legacy visible memberships are revision-fenced
+and have missing indexes repaired in place; import validation never aborts them
+or publishes a second create event.

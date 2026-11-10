@@ -7,6 +7,8 @@ import (
 	"context"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // The writes of the members return what the primary store returns. In dual mode each is followed by the same change in
@@ -151,4 +153,80 @@ func (s *Store) ListMembersByUsername(ctx context.Context, username string) ([]*
 // EachMember does: a comparison of the whole set is what storage verify is for.
 func (s *Store) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, error) {
 	return s.CommitteeReaderWriter.ListAllMembers(ctx)
+}
+
+// CreateMemberRecoverable forwards bulk completion to the authoritative store.
+// Only a committed member may be copied; pending recovery state is never replicated.
+func (s *Store) CreateMemberRecoverable(ctx context.Context, member *model.CommitteeMember, intent port.MemberCreateIntent) (*port.MemberCreateResult, error) {
+	writer, ok := s.CommitteeReaderWriter.(port.RecoverableCommitteeMemberWriter)
+	if !ok {
+		return nil, errs.NewServiceUnavailable("recoverable member creation is unavailable")
+	}
+	outcome, err := writer.CreateMemberRecoverable(ctx, member, intent)
+	if err != nil {
+		return nil, err
+	}
+	if outcome != nil && outcome.Member != nil {
+		s.replicateCommittedMember(ctx, outcome.Member.UID)
+	}
+	return outcome, nil
+}
+
+// replicateCommittedMember shares the guarded create/update convergence path
+// between new completions and already-member discovery, without publications.
+func (s *Store) replicateCommittedMember(ctx context.Context, uid string) {
+	if !s.mode.HasSecondary() {
+		return
+	}
+	s.replicate(ctx, "create_member", uid, func(ctx context.Context) error {
+		if _, _, err := s.dst.GetMember(ctx, uid); !isNotFound(err) {
+			if err != nil {
+				return err
+			}
+			return s.copyMemberUpdate(ctx, uid)
+		}
+		return copyCreated(ctx, &s.core, func(ctx context.Context) (*model.CommitteeMember, uint64, error) { return s.src.GetMember(ctx, uid) },
+			s.dst.CreateMember, func(ctx context.Context, revision uint64) error { return s.deleteMemberInSecondary(ctx, uid, revision) },
+			func(ctx context.Context) error { return s.copyMemberUpdate(ctx, uid) })
+	})
+}
+
+// FindMemberCreate selects only from the authoritative store before validation.
+func (s *Store) FindMemberCreate(ctx context.Context, committeeUID, email string) (*port.MemberCreatePreparation, error) {
+	writer, ok := s.CommitteeReaderWriter.(port.RecoverableCommitteeMemberWriter)
+	if !ok {
+		return nil, errs.NewServiceUnavailable("recoverable member creation is unavailable")
+	}
+	selected, err := writer.FindMemberCreate(ctx, committeeUID, email)
+	if err == nil && selected != nil && !selected.Pending && selected.Member != nil {
+		s.replicateCommittedMember(ctx, selected.Member.UID)
+	}
+	return selected, err
+}
+
+// AbortMemberCreate fences a rejected pending operation in the authoritative store.
+func (s *Store) AbortMemberCreate(ctx context.Context, member *model.CommitteeMember) error {
+	writer, ok := s.CommitteeReaderWriter.(port.RecoverableCommitteeMemberWriter)
+	if !ok {
+		return errs.NewServiceUnavailable("recoverable member creation is unavailable")
+	}
+	return writer.AbortMemberCreate(ctx, member)
+}
+
+// SupportsMemberCreateRecovery reports the authoritative store's capability.
+func (s *Store) SupportsMemberCreateRecovery() bool {
+	writer, ok := s.CommitteeReaderWriter.(port.RecoverableCommitteeMemberWriter)
+	return ok && writer.SupportsMemberCreateRecovery()
+}
+
+// AbortMemberCreatesForIdentity also clears old KV preparations when KV is secondary.
+func (s *Store) AbortMemberCreatesForIdentity(ctx context.Context, username, email string) error {
+	for _, store := range []port.CommitteeReaderWriter{s.src, s.dst} {
+		if writer, ok := store.(port.RecoverableCommitteeMemberWriter); ok {
+			if err := writer.AbortMemberCreatesForIdentity(ctx, username, email); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

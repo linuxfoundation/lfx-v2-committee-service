@@ -341,6 +341,18 @@ When `X-Skip-Notification: true` is set:
 - `CommitteeMemberCreatedEventData.SkipNotification` is set to `true` in the `committee_member.created` NATS event payload.
 - `HandleCommitteeMemberCreated` short-circuits before sending either the direct notification email or the invite-service invite.
 
+### Bulk member create (`POST /committees/{uid}/members/bulk`)
+
+Each added row runs the same create path as a single member create:
+
+- The winning completion of an added row attempts its own `committee_member.created` publication, so each added member follows the normal notification/invite path. Publication remains best-effort, not a delivery guarantee.
+- `X-Skip-Notification: true` applies to every row of the request.
+- Skipped rows (`already_member`, `duplicate_in_request`) and failed rows publish no event, so nobody is notified for them.
+- As with a single create, a direct bulk add does not change pending `CommitteeInvite` records.
+- A pending row's retry uses its original member inputs, notification opt-out and creator, not replacement intent from the retry. Server-derived committee/project metadata is refreshed under the commit revision guard. A preparation-retirement failure does not suppress the confirmed winner's first publication attempt; completed retries publish no second create event.
+- Legacy incomplete members lack retained notification intent; completing their indexes suppresses a new notification. An uncertain reservation is retryable, never enough for terminal `already_member`.
+- Durable storage completion is not durable notification delivery: a crash before the elected best-effort publish can lose it. Recovery does not replay create notifications. See [recoverable storage](nats-storage.md#recoverable-bulk-member-creation).
+
 ### Member deleted (`DELETE /committees/{uid}/members/{member_uid}`)
 
 When `X-Skip-Notification: true` is set:
@@ -361,3 +373,9 @@ When `X-Skip-Notification: true` is set:
 - Indexer messages (`lfx.index.*`) — those are always published.
 - FGA access-control messages — those are always published.
 - Settings-change emails (`HandleCommitteeSettingsUpdated`) — those are not gated by this flag.
+
+Bulk pending-state identity cleanup is separate from invitation state: user deletion
+and known user-email change events abort matching uncommitted operations without
+sending member-created/deleted notifications. Pending resumes perform current identity
+validation even with `X-Skip-Enrichment`. Already-visible legacy memberships remain
+visible while missing indexes are repaired and never replay create notifications.

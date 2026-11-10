@@ -442,6 +442,16 @@ func (s *storage) get(ctx context.Context, bucket, uid string, model any, onlyRe
 	if errGet != nil {
 		return 0, errGet
 	}
+	if bucket == constants.KVBucketNameCommitteeMembers {
+		visible, err := memberCreateVisible(data.Value())
+		if err == nil && !visible {
+			return 0, jetstream.ErrKeyNotFound
+		}
+		// Keep legacy revision-only access to corrupt records for repair/deletion.
+		if err != nil && !onlyRevision {
+			return 0, err
+		}
+	}
 
 	if !onlyRevision {
 		errUnmarshal := json.Unmarshal(data.Value(), &model)
@@ -1380,6 +1390,13 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 		}
 		return nil, readError("failed to get committee member", errGet)
 	}
+	memberBytes, errMarshal = preserveMemberCreateState(ctx, kv, member.UID, memberBytes)
+	if errMarshal != nil {
+		if errors.Is(errMarshal, jetstream.ErrKeyNotFound) {
+			return nil, errs.NewNotFound("committee member not found")
+		}
+		return nil, readError("failed to preserve member creation fence", errMarshal)
+	}
 	oldKeys := buildMemberLookupKeys(ctx, existing)
 	newKeys := buildMemberLookupKeys(ctx, member)
 
@@ -1430,6 +1447,11 @@ func (s *storage) UpdateMember(ctx context.Context, member *model.CommitteeMembe
 			// The server rejected the revision, so this write did not land even though the stored bytes
 			// equal it: another writer stored the same value. Keys that version uses stay with it.
 			state = recordDiffers
+		}
+		if state == recordDiffers {
+			if visible, err := memberCreateVisible(stored.Value()); err == nil && !visible {
+				state = recordAbsent // A content-free delete fence is also logically absent.
+			}
 		}
 		switch state {
 		case recordMatches:
@@ -1596,7 +1618,7 @@ func (s *storage) DeleteMember(ctx context.Context, uid string, revision uint64)
 	keys := buildMemberLookupKeys(ctx, existing)
 
 	// Delete the member record with optimistic locking
-	if err := kv.Delete(ctx, uid, jetstream.LastRevision(revision)); err != nil {
+	if err := deleteMemberRecord(ctx, kv, uid, revision); err != nil {
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			slog.WarnContext(ctx, "committee member not found for deletion",
 				"member_uid", uid,
