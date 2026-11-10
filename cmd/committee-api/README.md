@@ -32,7 +32,7 @@ This service contains the following API endpoints:
   - `DELETE /{member_uid}`: remove a member from a committee
 
 - `/committees/{uid}/invites`
-  - `POST`: create an invite, or reinstate a revoked invite for the same email
+  - `POST`: create an invite, or reinstate the existing invite for the same email when it is revoked, declined, expired, or accepted with its member no longer in the committee
   - `GET /{invite_uid}`: retrieve an invite
   - `POST /{invite_uid}/accept`: accept a pending or declined invite
   - `POST /{invite_uid}/decline`: decline a pending invite

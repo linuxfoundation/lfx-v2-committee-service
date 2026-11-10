@@ -241,6 +241,7 @@ type MockRepository struct {
 	mu                   sync.RWMutex      // Protect concurrent access to maps
 	// Error injection for testing
 	ListApplicationsError error
+	ListMembersError      error
 }
 
 // ================== CommitteeBaseReader implementation ==================
@@ -377,6 +378,10 @@ func (m *MockRepository) ListMembersByCommittee(ctx context.Context, committeeUI
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
+	if m.ListMembersError != nil {
+		return nil, m.ListMembersError
+	}
 
 	committeeMembers, exists := m.committeeMembers[committeeUID]
 	if !exists {
@@ -1247,6 +1252,7 @@ func (m *MockRepository) ClearAll() {
 	m.inviteRevisions = make(map[string]uint64)
 	m.applicationRevisions = make(map[string]uint64)
 	m.ListApplicationsError = nil
+	m.ListMembersError = nil
 }
 
 // GetCommitteeCount returns the total number of committees
