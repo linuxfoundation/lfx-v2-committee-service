@@ -132,7 +132,9 @@ func TestInitPostgres(t *testing.T) {
 		pool, checks := initPostgres(ctx, env(values))
 		assert.Nil(t, pool)
 		require.Len(t, checks, 1, "the connection was attempted, so the readiness opt-in reports its failure")
-		assert.Error(t, checks[0].IsReady(ctx))
+		err := checks[0].IsReady(ctx)
+		require.ErrorContains(t, err, "connect to postgres", "it got as far as connecting, with the connection built from the PG* variables")
+		assert.NotContains(t, err.Error(), "POSTGRES_URL is empty", "the PG* variables were used, not skipped")
 	})
 
 	t.Run("enabled without a URL does not take the service down", func(t *testing.T) {

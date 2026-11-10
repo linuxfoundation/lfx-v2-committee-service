@@ -635,10 +635,10 @@ app:
     POSTGRES_ENABLED:
       value: "false"
     # POSTGRES_URL — connection string for the committee PostgreSQL database
-    # (postgres://user:password@host:5432/db?sslmode=verify-full&sslrootcert=...; require
-    # encrypts but does not verify the server certificate, and the pgx default
-    # sslmode=prefer can fall back to plaintext). It carries a
-    # password, so it comes only from a Secret. `optional: true` keeps the pod
+    # (postgres://user:password@host:5432/db?sslmode=verify-full&sslrootcert=...). A sslmode
+    # in the URL takes precedence; without one the driver uses PGSSLMODE below, which this
+    # chart sets to require (it encrypts but does not verify the server certificate). It
+    # carries a password, so it comes only from a Secret. `optional: true` keeps the pod
     # healthy when the key is absent: with no URL (and no PG* variables below) the
     # service does not touch PostgreSQL. Used when POSTGRES_ENABLED is "true" or
     # STORAGE_MODE names a PostgreSQL mode: the service then connects and applies the
@@ -661,8 +661,10 @@ app:
     # replace POSTGRES_URL.
     # The URL the service composes names no sslmode: the driver takes it from PGSSLMODE and
     # PGSSLROOTCERT (below), and also fills in from these variables anything a POSTGRES_URL
-    # leaves out. The key names are generic, so do not put another secret with a key named
-    # host, port, username, password or dbname under this service's tag.
+    # leaves out. The key names are generic: do not tag another AWS secret
+    # service-lfx-v2-committee-service: enabled if it has a key named host, port, username,
+    # password, dbname, engine or replica. The ExternalSecret merges the tagged secrets with
+    # conflictPolicy: Error and would stop syncing, so a rotated password would not reach the pods.
     PGHOST:
       valueFrom:
         secretKeyRef:
@@ -693,13 +695,15 @@ app:
           name: lfx-v2-committee-service-secrets
           key: dbname
           optional: true
-    # PGSSLMODE — TLS for the connection. `require` encrypts and refuses a server that does
-    # not offer TLS, but does not verify the certificate; the driver default (prefer) would
-    # fall back to plaintext. verify-full needs the RDS CA bundle, which this chart does not
-    # mount yet, so it is not the default: with no root certificate it would refuse every
-    # connection. Before PostgreSQL is enabled in staging or prod, mount the bundle and set
-    # PGSSLMODE=verify-full with PGSSLROOTCERT pointing at it; use disable only for a local
-    # database without TLS. A sslmode inside POSTGRES_URL takes precedence.
+    # PGSSLMODE — TLS for the connection: the PG* variables above, and a POSTGRES_URL that
+    # names no sslmode. `require` encrypts and refuses a server that does not offer TLS, but
+    # does not verify the certificate; the driver default (prefer) would fall back to
+    # plaintext. verify-full needs the RDS CA bundle, which this chart does not mount yet, so
+    # it is not the default: with no root certificate it would refuse every connection.
+    # Before PostgreSQL is enabled in staging or prod, mount the bundle and set
+    # PGSSLMODE=verify-full with PGSSLROOTCERT pointing at it (tracked in
+    # linuxfoundation/lfx-self-serve-ops#1164); use disable only for a local database without
+    # TLS. A sslmode inside POSTGRES_URL takes precedence.
     PGSSLMODE:
       value: "require"
     PGSSLROOTCERT:
