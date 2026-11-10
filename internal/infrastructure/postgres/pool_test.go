@@ -105,6 +105,11 @@ func TestNewPool(t *testing.T) {
 		parsed, err := url.Parse(testDSN(t))
 		require.NoError(t, err)
 		password, _ := parsed.User.Password()
+		if password == "" {
+			// CI's database uses trust authentication and a URL without a password, which it ignores; the PG* path
+			// requires one, as in production.
+			password = fakePassword
+		}
 		t.Setenv("PGSSLMODE", "disable") // the composed URL names no sslmode; the driver takes it from here
 		cfg, err := ConfigFromEnv(func(key string) string {
 			return map[string]string{
