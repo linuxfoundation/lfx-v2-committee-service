@@ -307,6 +307,18 @@ func TestStore_UpdateSetting(t *testing.T) {
 		assert.NotEqual(t, revision, newRevision)
 	})
 
+	t.Run("round-trips the Social Listening opt-in", func(t *testing.T) {
+		settings, revision, err := store.GetSettings(ctx, "uid-1")
+		require.NoError(t, err)
+		assert.False(t, settings.MembersCanViewSocialListening, "off by default")
+		settings.MembersCanViewSocialListening = true
+		require.NoError(t, store.UpdateSetting(ctx, settings, revision))
+
+		got, _, err := store.GetSettings(ctx, "uid-1")
+		require.NoError(t, err)
+		assert.True(t, got.MembersCanViewSocialListening)
+	})
+
 	t.Run("a stale revision is a conflict and changes nothing", func(t *testing.T) {
 		settings, revision, err := store.GetSettings(ctx, "uid-1")
 		require.NoError(t, err)
