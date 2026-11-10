@@ -807,14 +807,15 @@ func (s *storage) abortIndexedMemberCreate(ctx context.Context, identity *member
 		return memberCreateTemporary(err)
 	}
 	entry, err = kv.Get(ctx, identity.UID)
-	if errors.Is(err, jetstream.ErrKeyNotFound) {
+	switch {
+	case errors.Is(err, jetstream.ErrKeyNotFound):
 		fence, _ := json.Marshal(abortedMemberCreate(identity.UID))
 		if _, err := kv.Create(ctx, identity.UID, fence); err != nil {
 			return memberCreateTemporary(err)
 		}
-	} else if err != nil {
+	case err != nil:
 		return memberCreateTemporary(err)
-	} else {
+	default:
 		record, decodeErr := decodeMemberCreateRecord(entry.Value())
 		if decodeErr != nil {
 			return memberCreateTemporary(decodeErr)
