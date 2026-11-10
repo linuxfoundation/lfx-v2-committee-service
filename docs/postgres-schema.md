@@ -1,10 +1,12 @@
 # PostgreSQL Schema Reference
 
-This is the PostgreSQL schema the committee service will move its state to (see the storage
+This is the PostgreSQL schema the committee service is moving its state to (see the storage
 migration epic, [lfx-self-serve-ops#1133](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1133)).
-**Nothing reads or writes it yet**: NATS KV is still the only store, and the service runs unchanged
-with no database configured. The store implementation, the dual-write modes and the backfill land in
-follow-up tickets. For what is stored in NATS today see [nats-storage.md](nats-storage.md).
+**The default, `kv`, reads and writes no committee data in it**: NATS KV is the store, and the service runs unchanged
+with no database configured (with `POSTGRES_ENABLED=true` it only connects and applies the schema). The `dual`,
+`dual-pg` and `postgres` storage modes, the backfill and the way back to KV are
+implemented; [Selecting a storage mode](#selecting-a-storage-mode) says what each one does and in what order to turn
+them on. For what is stored in NATS see [nats-storage.md](nats-storage.md).
 
 Sources of truth:
 
@@ -140,12 +142,12 @@ Rules for adding a migration:
 What the service does with PostgreSQL depends on the storage mode (see [Selecting a storage mode](#selecting-a-storage-mode)).
 
 **In `kv`, the default,** PostgreSQL is behind a feature flag, `POSTGRES_ENABLED` (default off; only the exact value `true`
-enables it). With the flag off the service never connects, even if `POSTGRES_URL` is set, so deployments are unchanged until
+enables it). With the flag off the service never connects, even if `POSTGRES_URL` (or the `PG*` variables) is set, so deployments are unchanged until
 it is turned on (see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)). With the flag on,
 at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate` (a session advisory lock keeps
 replicas starting together from racing). In `kv` nothing reads or writes the data, so PostgreSQL must not be able to take the
-service down: a missing URL, bad `POSTGRES_MAX_CONNS`, an unreachable database or a failed migration is logged as an error
-and the service keeps running without it.
+service down: missing connection settings, a bad `POSTGRES_MAX_CONNS`, an unreachable database or a failed migration is
+logged as an error and the service keeps running without it.
 
 **In `dual`, `dual-pg` and `postgres`** the service uses the database, so it connects and migrates at startup whether or not
 `POSTGRES_ENABLED` is set, and the same failures stop startup instead of being logged: the service never runs in another
@@ -164,9 +166,16 @@ it is the primary store and does.
   `dual-pg` and `postgres` it repeats the ping the storage already makes.
   A failing check returns a generic 503 and logs the cause, and if PostgreSQL is enabled but could not be set up the check
   reports not ready.
-- Use `sslmode=verify-full` (with `sslrootcert`) outside local development: `require` encrypts but does not verify the
+- **The connection can be given as `POSTGRES_URL` or as `PGHOST`, `PGPORT` (default `5432`), `PGUSER`, `PGPASSWORD` and
+  `PGDATABASE`.** `POSTGRES_URL` wins when both are set. The service builds the URL from the variables in-process, the way the
+  newsletter service does, so a deployment can read them from the keys of the RDS secret that `lfx-v2-opentofu` creates for the
+  database (`host`, `port`, `username`, `password`, `dbname`, merged into the Secret by the ExternalSecret). The password rotates
+  with that secret: the ExternalSecret refreshes the Secret and Reloader restarts the pods, which read the new value at start.
+  The variables change nothing by themselves: in `kv` with `POSTGRES_ENABLED` off they are never read, and `POSTGRES_ENABLED` and `STORAGE_MODE` decide
+  whether the service connects. The URL it builds names no `sslmode`; the driver reads `PGSSLMODE` and `PGSSLROOTCERT`, which the chart defaults to `require` and empty. The driver also fills in from the `PG*` variables anything a `POSTGRES_URL` leaves out.
+- Use `sslmode=verify-full` (with `sslrootcert`; with the `PG*` variables, `PGSSLMODE=verify-full` and `PGSSLROOTCERT`) outside local development, and before PostgreSQL is enabled in staging or prod (the chart does not mount the RDS CA bundle yet, so it defaults to `require`): `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
-- The service applies the migrations itself at startup, so the role in `POSTGRES_URL` needs DDL rights. Before the
+- The service applies the migrations itself at startup, so the role in `POSTGRES_URL` (or `PGUSER`) needs DDL rights. Before the
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and
   give the runtime role DML only.
 
@@ -316,7 +325,7 @@ links and folders, weekly briefs, documents).
 - **`kv` is today's behavior, unchanged.** No composite is built, PostgreSQL is never connected to (a `POSTGRES_URL`
   alone does nothing, and `POSTGRES_ENABLED` keeps its own opt-in meaning), and the service uses the same KV storage
   objects it always has.
-- **A mode that was set must be usable, or startup stops.** An unrecognized value, a PostgreSQL mode without `POSTGRES_URL`, a
+- **A mode that was set must be usable, or startup stops.** An unrecognized value, a PostgreSQL mode without `POSTGRES_URL` or the `PG*` variables, a
   PostgreSQL that cannot be reached or migrated, and a tuning variable that cannot be parsed all stop the API (and the CLI
   command) with an error naming the cause. The service never runs in another mode than the one asked for. The API connects
   to PostgreSQL and applies the migrations at startup in these modes without `POSTGRES_ENABLED`; the CLI needs the
@@ -343,13 +352,19 @@ links and folders, weekly briefs, documents).
 
 **Rollout order** (each step is reversible by the rollback checklist above, and `kv` stays the default until you change it):
 
-1. In `kv`: `storage migrate --dry-run`, then `storage migrate`, until `written=0`, then `storage verify`; it must report no
+1. Apply the schema, in `kv`: set `POSTGRES_ENABLED=true` (with the connection set) and restart. The API connects and runs
+   the migrations at startup, and in `kv` a failure is only logged, so the service stays up. Wait for the
+   `connected to PostgreSQL` log line, which is logged at INFO (with `LOG_LEVEL=warn` or above it never appears). Or check
+   from the CLI: `storage migrate --dry-run` stops with "the PostgreSQL schema is not ready" until the schema exists, and
+   writes nothing once it does. The CLI never applies the schema itself, and `storage migrate` and `storage verify` stop
+   with the same error until the API has.
+2. In `kv`: `storage migrate --dry-run`, then `storage migrate`, until `written=0`, then `storage verify`; it must report no
    `extra` record, because `migrate` cannot delete.
-2. Set `STORAGE_MODE=dual`, restart. Watch the failure, mismatch and compare-error counters. Raise
+3. Set `STORAGE_MODE=dual`, restart. Watch the failure, mismatch and compare-error counters. Raise
    `STORAGE_READ_COMPARE_RATE` for a while if the traffic is low. Run `storage verify` again.
-3. With no writes in flight: `storage verify` clean, `storage flip --confirm` (advances the revision sequence above every KV
+4. With no writes in flight: `storage verify` clean, `storage flip --confirm` (advances the revision sequence above every KV
    revision), then `STORAGE_MODE=dual-pg`. Check with `storage verify --by-content`, because the revisions now differ.
-4. When PostgreSQL has been the primary store long enough, `STORAGE_MODE=postgres`.
+5. When PostgreSQL has been the primary store long enough, `STORAGE_MODE=postgres`.
 
 Going back is the rollback checklist above: from `dual-pg` or `postgres`, `storage migrate --direction pg-to-kv`, verify, switch to
 `kv`. A committee delete in `dual-pg` and `postgres` removes the committee's children too (the cascade); in `kv` and `dual` it

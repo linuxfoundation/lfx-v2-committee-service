@@ -32,6 +32,17 @@ func unreachableURL() string {
 	return "postgres" + "://first-last:not-a-real-secret@127.0.0.1:1/committee?sslmode=disable"
 }
 
+// unreachableParts is the same unreachable database given as PG* variables.
+func unreachableParts() map[string]string {
+	return map[string]string{
+		"PGHOST":     "127.0.0.1",
+		"PGPORT":     "1",
+		"PGUSER":     "first-last",
+		"PGPASSWORD": "not-a-real-secret",
+		"PGDATABASE": "committee",
+	}
+}
+
 func TestInitPostgres(t *testing.T) {
 	ctx := context.Background()
 
@@ -81,6 +92,49 @@ func TestInitPostgres(t *testing.T) {
 			assert.Nil(t, pool, mode)
 			assert.Empty(t, checks, "nothing was attempted: %q", mode)
 		}
+	})
+
+	t.Run("kv mode never connects without the flag, with the PG* variables set as the chart sets them", func(t *testing.T) {
+		for _, mode := range []string{"", "kv"} {
+			values := unreachableParts()
+			values["STORAGE_MODE"] = mode
+			values["POSTGRES_READINESS_CHECK"] = "true"
+			pool, checks := initPostgres(ctx, env(values))
+			assert.Nil(t, pool, mode)
+			assert.Empty(t, checks, "nothing was attempted: %q", mode)
+		}
+	})
+
+	t.Run("kv mode without the flag does not even read the connection settings", func(t *testing.T) {
+		for _, mode := range []string{"", "kv"} {
+			values := unreachableParts()
+			values["STORAGE_MODE"] = mode
+			values["POSTGRES_URL"] = unreachableURL()
+			values["POSTGRES_MAX_CONNS"] = "abc"
+			var read []string
+			pool, checks := initPostgres(ctx, func(key string) string {
+				read = append(read, key)
+				return values[key]
+			})
+			assert.Nil(t, pool, mode)
+			assert.Empty(t, checks, mode)
+			for _, key := range read {
+				assert.NotContains(t, []string{"POSTGRES_URL", "POSTGRES_MAX_CONNS", "PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"}, key,
+					"kv without the flag must not read %s: %q", key, mode)
+			}
+		}
+	})
+
+	t.Run("a storage mode that needs PostgreSQL connects with the PG* variables alone", func(t *testing.T) {
+		values := unreachableParts()
+		values["STORAGE_MODE"] = "dual"
+		values["POSTGRES_READINESS_CHECK"] = "true"
+		pool, checks := initPostgres(ctx, env(values))
+		assert.Nil(t, pool)
+		require.Len(t, checks, 1, "the connection was attempted, so the readiness opt-in reports its failure")
+		err := checks[0].IsReady(ctx)
+		require.ErrorContains(t, err, "connect to postgres", "it got as far as connecting, with the connection built from the PG* variables")
+		assert.NotContains(t, err.Error(), "POSTGRES_URL is empty", "the PG* variables were used, not skipped")
 	})
 
 	t.Run("enabled without a URL does not take the service down", func(t *testing.T) {
