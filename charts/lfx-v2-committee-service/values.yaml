@@ -624,12 +624,14 @@ app:
     # store, which is made on the request's path. Empty keeps the default (3s).
     STORAGE_SECONDARY_WRITE_TIMEOUT:
       value: ""
-    # POSTGRES_ENABLED — feature flag for PostgreSQL. Only the exact value
-    # "true" turns it on; anything else (the default) means the service never
-    # connects to PostgreSQL, even if POSTGRES_URL is set. When enabled, a
-    # missing URL, an unreachable database or a failed migration is logged as an
-    # error and the service keeps running without PostgreSQL: nothing reads or
-    # writes the database yet, so it must not be able to take the service down.
+    # POSTGRES_ENABLED — feature flag for PostgreSQL in kv mode. Only the exact
+    # value "true" turns it on; anything else (the default) means a kv service never
+    # connects to PostgreSQL, even if POSTGRES_URL or the PG* variables are set. When
+    # enabled, missing connection settings, an unreachable database or a failed
+    # migration is logged as an error and the service keeps running without
+    # PostgreSQL: in kv nothing reads or writes the database, so it must not be able
+    # to take the service down. In the other storage modes the service connects
+    # whether or not this is set, and the same failures stop it.
     POSTGRES_ENABLED:
       value: "false"
     # POSTGRES_URL — connection string for the committee PostgreSQL database

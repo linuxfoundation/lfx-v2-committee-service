@@ -125,8 +125,8 @@ enables it). With the flag off the service never connects, even if `POSTGRES_URL
 it is turned on (see the PostgreSQL table in [cmd/committee-api/README.md](../cmd/committee-api/README.md)). With the flag on,
 at startup the service opens a `pgxpool` pool, pings the database, and runs `postgres.Migrate` (a session advisory lock keeps
 replicas starting together from racing). In `kv` nothing reads or writes the data, so PostgreSQL must not be able to take the
-service down: a missing URL, bad `POSTGRES_MAX_CONNS`, an unreachable database or a failed migration is logged as an error
-and the service keeps running without it.
+service down: missing connection settings, a bad `POSTGRES_MAX_CONNS`, an unreachable database or a failed migration is
+logged as an error and the service keeps running without it.
 
 **In `dual`, `dual-pg` and `postgres`** the service uses the database, so it connects and migrates at startup whether or not
 `POSTGRES_ENABLED` is set, and the same failures stop startup instead of being logged: the service never runs in another
