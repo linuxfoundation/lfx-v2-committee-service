@@ -67,7 +67,11 @@ func ModeFromEnv(getenv func(string) string) (Mode, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, ok := postgres.ConnectionURL(getenv); mode.UsesPostgres() && !ok {
+	if !mode.UsesPostgres() {
+		// In kv nothing else is read, not even the PostgreSQL settings, so no connection string is built.
+		return mode, nil
+	}
+	if _, ok := postgres.ConnectionURL(getenv); !ok {
 		return "", fmt.Errorf("%s=%s needs PostgreSQL but POSTGRES_URL is not set (nor are PGHOST, PGUSER, PGPASSWORD and PGDATABASE)", EnvStorageMode, mode)
 	}
 	return mode, nil

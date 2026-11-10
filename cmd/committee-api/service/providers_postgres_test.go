@@ -105,6 +105,26 @@ func TestInitPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("kv mode without the flag does not even read the connection settings", func(t *testing.T) {
+		for _, mode := range []string{"", "kv"} {
+			values := unreachableParts()
+			values["STORAGE_MODE"] = mode
+			values["POSTGRES_URL"] = unreachableURL()
+			values["POSTGRES_MAX_CONNS"] = "abc"
+			var read []string
+			pool, checks := initPostgres(ctx, func(key string) string {
+				read = append(read, key)
+				return values[key]
+			})
+			assert.Nil(t, pool, mode)
+			assert.Empty(t, checks, mode)
+			for _, key := range read {
+				assert.NotContains(t, []string{"POSTGRES_URL", "POSTGRES_MAX_CONNS", "PGHOST", "PGPORT", "PGUSER", "PGPASSWORD", "PGDATABASE"}, key,
+					"kv without the flag must not read %s: %q", key, mode)
+			}
+		}
+	})
+
 	t.Run("a storage mode that needs PostgreSQL connects with the PG* variables alone", func(t *testing.T) {
 		values := unreachableParts()
 		values["STORAGE_MODE"] = "dual"
