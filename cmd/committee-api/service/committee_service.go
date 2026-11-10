@@ -782,17 +782,25 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 			return nil, wrapError(ctx, errList)
 		}
 		now := time.Now().UTC()
+		invitee := strings.TrimSpace(p.InviteeEmail) // the conflict key trims and lowercases the email, so match the same way
 		var existingInvite *model.CommitteeInvite
-		for _, inv := range existing {
-			if !strings.EqualFold(inv.InviteeEmail, p.InviteeEmail) {
+		var rev uint64
+		for _, listed := range existing {
+			if !strings.EqualFold(strings.TrimSpace(listed.InviteeEmail), invitee) {
 				continue
 			}
-			reinstate, errCheck := s.canReinstateInvite(ctx, inv, now)
+			// Decide on the stored invite, not the listed copy, and write it back under the revision it was
+			// read at, so an accept or a revoke that lands in between is not overwritten.
+			current, currentRev, errGet := s.storage.GetInvite(ctx, listed.UID)
+			if errGet != nil {
+				return nil, wrapError(ctx, errGet)
+			}
+			reinstate, errCheck := s.canReinstateInvite(ctx, current, now)
 			if errCheck != nil {
 				return nil, wrapError(ctx, errCheck)
 			}
 			if reinstate {
-				existingInvite = inv
+				existingInvite, rev = current, currentRev
 				break
 			}
 		}
@@ -801,10 +809,6 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 		}
 
 		// Reinstate the existing invite by setting it back to pending
-		_, rev, errGet := s.storage.GetInvite(ctx, existingInvite.UID)
-		if errGet != nil {
-			return nil, wrapError(ctx, errGet)
-		}
 		existingInvite.Status = "pending"
 		existingInvite.CommitteeName = committeeBase.Name
 		existingInvite.OrganizationRequired = orgRequired
@@ -848,10 +852,11 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 //   - accepted invites whose member is no longer in the committee.
 //
 // Anything else, a pending invite that has not expired or an accepted invite whose member still
-// exists, stays a conflict. The member check fails closed: when the committee's members cannot be
-// listed the error is returned and the invite is not reinstated, so a member who may still exist
-// is never invited a second time. It reads the whole member list, which is acceptable because it
-// only happens for an accepted invite.
+// exists, stays a conflict. The member check uses the same lookup as AcceptInvite, the members
+// with the invitee's email, and fails closed: that lookup returns an error when any of them cannot
+// be read, and the invite is then not reinstated, so a member who may still exist is never invited
+// a second time. (Listing the committee's members would not do: the KV adapter skips a member it
+// cannot read and returns no error.)
 func (s *committeeServicesrvc) canReinstateInvite(ctx context.Context, invite *model.CommitteeInvite, now time.Time) (bool, error) {
 	switch invite.Status {
 	case "revoked", "declined":
@@ -859,13 +864,12 @@ func (s *committeeServicesrvc) canReinstateInvite(ctx context.Context, invite *m
 	case "pending":
 		return !invite.ExpiresAt.IsZero() && now.After(invite.ExpiresAt), nil
 	case "accepted":
-		members, err := s.storage.ListMembersByCommittee(ctx, invite.CommitteeUID)
+		members, err := s.storage.ListMembersByEmail(ctx, invite.InviteeEmail)
 		if err != nil {
 			return false, err
 		}
-		invitee := strings.TrimSpace(invite.InviteeEmail)
 		for _, member := range members {
-			if member != nil && strings.EqualFold(strings.TrimSpace(member.Email), invitee) {
+			if member != nil && strings.EqualFold(member.CommitteeUID, invite.CommitteeUID) {
 				return false, nil
 			}
 		}

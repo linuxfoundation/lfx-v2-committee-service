@@ -1512,34 +1512,38 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 func TestCreateInvite_ReinstateByStatus(t *testing.T) {
 	const committeeUID = "committee-1"
 	now := time.Now().UTC()
-	member := func(email string) *model.CommitteeMember {
+	memberIn := func(committee, email string) *model.CommitteeMember {
 		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
-			UID: "member-1", CommitteeUID: committeeUID, Email: email, FirstName: "First", LastName: "Last", Status: "Active",
+			UID: "member-1", CommitteeUID: committee, Email: email, FirstName: "First", LastName: "Last", Status: "Active",
 		}}
 	}
+	member := func(email string) *model.CommitteeMember { return memberIn(committeeUID, email) }
 
 	tests := []struct {
-		name          string
-		status        string
-		expiresAt     time.Time
-		members       []*model.CommitteeMember
-		listMembersFn error // injected failure when the committee's members are listed
-		wantReinstate bool
-		wantConflict  bool
+		name           string
+		status         string
+		expiresAt      time.Time
+		members        []*model.CommitteeMember
+		listMembersErr error  // injected failure when the members with the invitee's email are looked up
+		storedPadding  string // spaces around the email stored on the existing invite
+		wantReinstate  bool
+		wantConflict   bool
 	}{
 		{name: "revoked is reinstated", status: "revoked", wantReinstate: true},
 		{name: "declined is reinstated", status: "declined", expiresAt: now.Add(24 * time.Hour), wantReinstate: true},
+		{name: "declined with spaces around the stored email is reinstated", status: "declined", storedPadding: "  ", wantReinstate: true},
 		{name: "declined and expired is reinstated", status: "declined", expiresAt: now.Add(-24 * time.Hour), wantReinstate: true},
 		{name: "pending past its expiry is reinstated", status: "pending", expiresAt: now.Add(-time.Minute), wantReinstate: true},
 		{name: "pending before its expiry is a conflict", status: "pending", expiresAt: now.Add(time.Minute), wantConflict: true},
 		{name: "pending with no expiry (a legacy record) is never expired", status: "pending", wantConflict: true},
 		{name: "accepted with no member left is reinstated", status: "accepted", wantReinstate: true},
 		{name: "accepted when another member has a different email is reinstated", status: "accepted", members: []*model.CommitteeMember{member("someone.else@example.com")}, wantReinstate: true},
+		{name: "accepted when only another committee has a member with that email is reinstated", status: "accepted", members: []*model.CommitteeMember{memberIn("committee-2", "{email}")}, wantReinstate: true},
 		{name: "accepted while the member exists is a conflict", status: "accepted", members: []*model.CommitteeMember{member("{email}")}, wantConflict: true},
 		{name: "accepted while the member exists, whatever the spacing of the email, is a conflict", status: "accepted", members: []*model.CommitteeMember{member("  {email}  ")}, wantConflict: true},
 		{name: "accepted while the member exists, whatever the case of the email, is a conflict", status: "accepted", members: []*model.CommitteeMember{member("{EMAIL}")}, wantConflict: true},
 		{name: "a status that is not known is a conflict", status: "unknown", wantConflict: true},
-		{name: "accepted when the members cannot be listed is not reinstated", status: "accepted", listMembersFn: stderrors.New("storage unavailable")},
+		{name: "accepted when the members cannot be listed is not reinstated", status: "accepted", listMembersErr: stderrors.New("storage unavailable")},
 	}
 
 	for i, tt := range tests {
@@ -1549,20 +1553,22 @@ func TestCreateInvite_ReinstateByStatus(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
 			inviteUID := fmt.Sprintf("reinstate-invite-%d", i)
 			email := fmt.Sprintf("reinstate-%d@example.com", i)
+			storedEmail := tt.storedPadding + email + tt.storedPadding
 			repo.AddCommitteeInvite(&model.CommitteeInvite{
-				UID: inviteUID, CommitteeUID: committeeUID, InviteeEmail: email,
+				UID: inviteUID, CommitteeUID: committeeUID, InviteeEmail: storedEmail,
 				Status: tt.status, CreatedAt: now.Add(-48 * time.Hour), ExpiresAt: tt.expiresAt, Role: "member",
 			})
 			for _, m := range tt.members {
 				m.UID = fmt.Sprintf("reinstate-member-%d", i)
 				m.Email = strings.ReplaceAll(strings.ReplaceAll(m.Email, "{email}", email), "{EMAIL}", strings.ToUpper(email))
-				repo.AddCommitteeMember(committeeUID, m)
+				repo.AddCommitteeMember(m.CommitteeUID, m)
 			}
-			repo.ListMembersError = tt.listMembersFn
-			t.Cleanup(func() { repo.ListMembersError = nil })
+			repo.ListMembersByEmailError = tt.listMembersErr
+			t.Cleanup(func() { repo.ListMembersByEmailError = nil })
 
 			result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
-				UID: committeeUID, InviteeEmail: strings.ToUpper(email[:1]) + email[1:], Role: stringPtr("chair"),
+				// Padded and capitalized: the conflict key trims and lowercases, so the invite must still be found.
+				UID: committeeUID, InviteeEmail: "  " + strings.ToUpper(email[:1]) + email[1:] + "  ", Role: stringPtr("chair"),
 			})
 
 			sender := svc.inviteSender.(*mockInviteSender)
@@ -1572,7 +1578,7 @@ func TestCreateInvite_ReinstateByStatus(t *testing.T) {
 			require.NoError(t, listErr)
 			forInvitee := 0
 			for _, inv := range invites {
-				if strings.EqualFold(inv.InviteeEmail, email) {
+				if strings.EqualFold(strings.TrimSpace(inv.InviteeEmail), email) {
 					forInvitee++
 				}
 			}
@@ -1587,7 +1593,7 @@ func TestCreateInvite_ReinstateByStatus(t *testing.T) {
 				assert.Equal(t, "chair", stored.Role, "the role of the new invite is applied")
 				assert.WithinDuration(t, now.Add(model.InviteDefaultTTL), stored.ExpiresAt, time.Minute, "a fresh 30 day window starts now")
 				require.Len(t, sender.calls, 1, "a fresh invite email is sent")
-				assert.Equal(t, email, sender.calls[0].Recipient.Email, "the email goes to the address stored on the reinstated invite")
+				assert.Equal(t, email, sender.calls[0].Recipient.Email, "the email goes to the address stored on the reinstated invite, without surrounding spaces")
 				return
 			}
 
@@ -1603,6 +1609,76 @@ func TestCreateInvite_ReinstateByStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// staleInviteListStorage lists a snapshot of the invites, as storage did a moment before another
+// request changed one of them, and reads everything else from the wrapped storage.
+type staleInviteListStorage struct {
+	port.CommitteeReaderWriter
+	listed []*model.CommitteeInvite
+}
+
+func (s staleInviteListStorage) ListInvites(context.Context, string) ([]*model.CommitteeInvite, error) {
+	return s.listed, nil
+}
+
+// TestCreateInvite_ReinstateDecidesOnTheStoredInvite covers a race: the invite was declined when it
+// was listed, and the invitee accepts it before the reinstate reads it. The reinstate must go by
+// the stored invite, which is now accepted with a member, and leave it alone.
+func TestCreateInvite_ReinstateDecidesOnTheStoredInvite(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	const committeeUID, email = "committee-1", "stale-snapshot@example.com"
+
+	repo.AddCommitteeInvite(&model.CommitteeInvite{
+		UID: "stale-snapshot-invite", CommitteeUID: committeeUID, InviteeEmail: email,
+		Status: "accepted", CreatedAt: time.Now().Add(-time.Hour),
+	})
+	repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "stale-snapshot-member", CommitteeUID: committeeUID, Email: email, Status: "Active",
+	}})
+	svc.storage = staleInviteListStorage{
+		CommitteeReaderWriter: svc.storage,
+		listed: []*model.CommitteeInvite{{
+			UID: "stale-snapshot-invite", CommitteeUID: committeeUID, InviteeEmail: email, Status: "declined",
+		}},
+	}
+
+	_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{UID: committeeUID, InviteeEmail: email})
+
+	var conflictErr *committeeservice.ConflictError
+	require.ErrorAs(t, err, &conflictErr, "the stored invite is accepted and its member exists")
+	stored, _, getErr := repo.GetInvite(context.Background(), "stale-snapshot-invite")
+	require.NoError(t, getErr)
+	assert.Equal(t, "accepted", stored.Status, "the accepted invite is not overwritten with the stale copy")
+	assert.Empty(t, svc.inviteSender.(*mockInviteSender).calls, "no email is sent")
+}
+
+// TestCreateInvite_ReinstateWritesTheStoredInvite covers the same race when the stored invite is still
+// reinstatable: what is written back is the stored invite, with what the new request changes, and
+// nothing taken from the copy that was listed before another request changed it.
+func TestCreateInvite_ReinstateWritesTheStoredInvite(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	const committeeUID, email = "committee-1", "stored-copy@example.com"
+
+	repo.AddCommitteeInvite(&model.CommitteeInvite{
+		UID: "stored-copy-invite", CommitteeUID: committeeUID, InviteeEmail: email,
+		Status: "declined", Role: "stored-role", CreatedAt: time.Now().Add(-time.Hour),
+	})
+	svc.storage = staleInviteListStorage{
+		CommitteeReaderWriter: svc.storage,
+		listed: []*model.CommitteeInvite{{
+			UID: "stored-copy-invite", CommitteeUID: committeeUID, InviteeEmail: email,
+			Status: "declined", Role: "role-from-the-stale-copy",
+		}},
+	}
+
+	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{UID: committeeUID, InviteeEmail: email})
+
+	require.NoError(t, err)
+	assert.Equal(t, "pending", result.Status)
+	stored, _, getErr := repo.GetInvite(context.Background(), "stored-copy-invite")
+	require.NoError(t, getErr)
+	assert.Equal(t, "stored-role", stored.Role, "the role comes from the stored invite, since the request does not change it")
 }
 
 func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {

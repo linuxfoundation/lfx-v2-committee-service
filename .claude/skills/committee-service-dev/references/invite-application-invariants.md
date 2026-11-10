@@ -64,7 +64,7 @@ accepted ──POST /invites (same email)──▶ pending   (reinstate, only wh
 | `lfx.invite-service.send_invite` dispatched (best-effort) | Failure is logged, does not fail the API call |
 | `inviter` and `expires_at` set on the record | 30-day expiry from creation |
 
-**Conflict rule:** an existing `pending` invite that has not expired (a zero `expires_at` is a legacy record and never expires), or an `accepted` invite whose member is still in the committee, for the same email → `409`. An existing `revoked` or `declined` invite, a `pending` invite past its `expires_at`, or an `accepted` invite whose member is no longer in the committee → reinstate instead of creating a new record; refresh `inviter` and `expires_at`. The member check fails closed: if the committee's members cannot be listed the invite is left as it was and the error is returned. No cooldown after a decline.
+**Conflict rule:** an existing `pending` invite that has not expired (a zero `expires_at` is a legacy record and never expires), or an `accepted` invite whose member is still in the committee, for the same email → `409`. An existing `revoked` or `declined` invite, a `pending` invite past its `expires_at`, or an `accepted` invite whose member is no longer in the committee → reinstate instead of creating a new record; refresh `inviter` and `expires_at`. The member check looks the members up by the invitee's email (as `AcceptInvite` does) and fails closed: if that lookup fails the invite is left as it was and the error is returned. The decision is taken on the stored invite, which is written back under the revision it was read at. No cooldown after a decline.
 
 #### Accept invite (`pending` or `declined`) → `accepted`
 

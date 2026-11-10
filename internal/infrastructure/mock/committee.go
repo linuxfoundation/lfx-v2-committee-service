@@ -240,8 +240,8 @@ type MockRepository struct {
 	applicationRevisions map[string]uint64 // applicationUID -> revision
 	mu                   sync.RWMutex      // Protect concurrent access to maps
 	// Error injection for testing
-	ListApplicationsError error
-	ListMembersError      error
+	ListApplicationsError   error
+	ListMembersByEmailError error
 }
 
 // ================== CommitteeBaseReader implementation ==================
@@ -379,10 +379,6 @@ func (m *MockRepository) ListMembersByCommittee(ctx context.Context, committeeUI
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if m.ListMembersError != nil {
-		return nil, m.ListMembersError
-	}
-
 	committeeMembers, exists := m.committeeMembers[committeeUID]
 	if !exists {
 		return []*model.CommitteeMember{}, nil // Return empty slice if no members
@@ -473,6 +469,9 @@ func (m *MockRepository) ListMembersByEmail(ctx context.Context, email string) (
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.ListMembersByEmailError != nil {
+		return nil, m.ListMembersByEmailError
+	}
 	var members []*model.CommitteeMember
 	for _, committeeMembers := range m.committeeMembers {
 		for _, member := range committeeMembers {
@@ -1252,7 +1251,7 @@ func (m *MockRepository) ClearAll() {
 	m.inviteRevisions = make(map[string]uint64)
 	m.applicationRevisions = make(map[string]uint64)
 	m.ListApplicationsError = nil
-	m.ListMembersError = nil
+	m.ListMembersByEmailError = nil
 }
 
 // GetCommitteeCount returns the total number of committees
