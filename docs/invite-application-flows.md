@@ -42,13 +42,16 @@ pending  ──revoke──▶  revoked
 declined ──accept──▶  accepted
 declined ──revoke──▶  revoked
 revoked  ──re-invite──▶ pending  (reinstates existing record)
+declined ──re-invite──▶ pending  (reinstates existing record)
+pending  ──re-invite──▶ pending  (only once it has expired: refreshes the existing record)
+accepted ──re-invite──▶ pending  (only when the member is no longer in the committee)
 ```
 
 ### Endpoints
 
 | Method | Path | Actor | Description |
 | -------- | ------ | ------- | ------------- |
-| `POST` | `/committees/{uid}/invites` | Admin | Create a new invite (or reinstate a revoked one) |
+| `POST` | `/committees/{uid}/invites` | Admin | Create a new invite (or reinstate an existing one, see below) |
 | `GET` | `/committees/{uid}/invites/{invite_uid}` | Admin | Retrieve an invite |
 | `POST` | `/committees/{uid}/invites/{invite_uid}/accept` | Invitee | Accept a pending or declined invite |
 | `POST` | `/committees/{uid}/invites/{invite_uid}/decline` | Invitee | Decline a pending invite |
@@ -60,10 +63,13 @@ revoked  ──re-invite──▶ pending  (reinstates existing record)
 
 - Creates a new invite with `status: pending`.
 - Optional body field `organization` (`id`, `name`, `website`) stores the invitee's organization on the invite record when provided.
-- The service resolves the acting user (the authenticated principal) into an `inviter` object (`name`, `username`, `email`, `avatar`) and persists it on the invite, and sets `expires_at` to `created_at + 30 days` (mirroring the invite-service default token TTL). Both are indexed so the invitee can see who invited them and when the invite expires in-app, independent of email delivery. Inviter resolution is best-effort (`resolveInviterUser` in `cmd/committee-api/service/committee_service.go`): `username` is always the principal, while `name`/`avatar` (auth-service profile metadata) and `email` (primary email) degrade to empty on lookup failure. When there is no principal, `inviter` is omitted. On reinstate of a revoked invite, both `inviter` and `expires_at` are refreshed to the re-inviting actor and a fresh 30-day window.
-- If an invite for the same email already exists in this committee:
-  - `status: revoked` — the existing invite is reinstated to `pending` (no new record created); role and organization are updated if provided.
-  - Any other status (`pending`, `declined`, `accepted`) — returns `409 Conflict`.
+- The service resolves the acting user (the authenticated principal) into an `inviter` object (`name`, `username`, `email`, `avatar`) and persists it on the invite, and sets `expires_at` to `created_at + 30 days` (mirroring the invite-service default token TTL). Both are indexed so the invitee can see who invited them and when the invite expires in-app, independent of email delivery. Inviter resolution is best-effort (`resolveInviterUser` in `cmd/committee-api/service/committee_service.go`): `username` is always the principal, while `name`/`avatar` (auth-service profile metadata) and `email` (primary email) degrade to empty on lookup failure. When there is no principal, `inviter` is omitted. On reinstate (see the rules below), both `inviter` and `expires_at` are refreshed to the re-inviting actor and a fresh 30-day window.
+- If an invite for the same email already exists in this committee (there is one record per committee and email), it is reinstated to `pending` in the same call, with no new record created, when its status allows it:
+  - `status: revoked` or `status: declined`.
+  - `status: pending` whose stored, non-zero `expires_at` has passed. A record with no `expires_at` (a legacy record) is never treated as expired.
+  - `status: accepted`, when no member with that email is in the committee any more (for example the member was removed after accepting). The email is compared without regard to case or surrounding spaces, here and when the existing invite is matched. The members are looked up by that email, as when an accepted invite is accepted again; if any of them cannot be read, the request fails and the invite is left as it was, so a member who may still exist is never invited a second time.
+  - A reinstate starts a fresh window (`expires_at` is set to now + 30 days), refreshes `inviter` when the acting user resolves, and updates `role` and `organization` if provided. There is no cooldown after a decline.
+  - Anything else, a `pending` invite that has not expired or an `accepted` invite whose member is still in the committee, returns `409 Conflict`.
 - After the invite record is persisted (create or reinstate), the service dispatches a best-effort send-invite request to the invite service (`lfx.invite-service.send_invite`, `dispatchInviteEmail` in `cmd/committee-api/service/committee_service.go`) so the invitee receives an email. The request uses the invite-service permission vocabulary with `role: "Member"` (the committee role on the invite record is applied after acceptance). Dispatch is best-effort: `inviteSender.SendInvite` failures are logged (`failed to dispatch committee invite email` with `error`, `committee_uid`, `invite_uid`) and do not fail the API call. There is no automatic retry of a failed send, and committee-service exposes no dedicated "resend" endpoint. Recovery is via the invite lifecycle: revoke the invite and re-invite the same email (`POST /committees/{uid}/invites`), which reinstates the record and re-triggers `dispatchInviteEmail`.
 
   The request includes six `CustomClaims` (JWT `map[string]string`) so the BFF ([lfx-self-serve](https://github.com/linuxfoundation/lfx-self-serve)) can accept the invite on LFID registration without a secondary email-indexed fetch:
@@ -192,7 +198,7 @@ The service uses `primary_email` from the auth-service response (primary path) o
 Both the invite and application flows are designed so transient failures during the terminal step do not leave records in an unrecoverable state:
 
 - **Member creation happens before the invite/application is marked terminal.** If member creation succeeds but the status update fails, the invite/application remains in its pre-terminal state and the caller can safely retry. Duplicate member creation is handled by the member uniqueness check.
-- **Revoked invites and rejected applications are reinstateable**, so admin workflows that revoke-then-reinvite, or reviewer workflows that reject-then-reconsider, do not require manual record cleanup.
+- **Revoked, declined and expired invites, accepted invites whose member is gone, and rejected applications are reinstateable**, so admin workflows that re-invite someone, or reviewer workflows that reject-then-reconsider, do not require manual record cleanup or a revoke first.
 
 ---
 

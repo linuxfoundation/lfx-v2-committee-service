@@ -768,60 +768,73 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 
 	// Create the invite; storage reports a conflict when one already exists for this email, in
-	// which case a revoked invite is reinstated instead
+	// which case the existing invite is reinstated instead when its status allows it
 	if errCreate := s.storage.CreateInvite(ctx, invite); errCreate != nil {
 		var conflictErr errors.Conflict
 		if !stderrors.As(errCreate, &conflictErr) {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Uniqueness conflict: look for a revoked invite to reinstate
+		// Uniqueness conflict: find the existing invite for this email that may be reinstated.
+		// Storage keeps one invite per committee and email, so there is at most one candidate.
 		existing, errList := s.storage.ListInvites(ctx, p.UID)
 		if errList != nil {
 			return nil, wrapError(ctx, errList)
 		}
-		var revokedInvite *model.CommitteeInvite
-		for _, inv := range existing {
-			if strings.EqualFold(inv.InviteeEmail, p.InviteeEmail) && inv.Status == "revoked" {
-				revokedInvite = inv
+		now := time.Now().UTC()
+		invitee := strings.TrimSpace(p.InviteeEmail) // the conflict key trims and lowercases the email, so match the same way
+		var existingInvite *model.CommitteeInvite
+		var rev uint64
+		for _, listed := range existing {
+			if !strings.EqualFold(strings.TrimSpace(listed.InviteeEmail), invitee) {
+				continue
+			}
+			// Decide on the stored invite, not the listed copy, and write it back under the revision it was
+			// read at, so an accept or a revoke that lands in between is not overwritten.
+			current, currentRev, errGet := s.storage.GetInvite(ctx, listed.UID)
+			if errGet != nil {
+				return nil, wrapError(ctx, errGet)
+			}
+			reinstate, errCheck := s.canReinstateInvite(ctx, current, now)
+			if errCheck != nil {
+				return nil, wrapError(ctx, errCheck)
+			}
+			if reinstate {
+				existingInvite, rev = current, currentRev
 				break
 			}
 		}
-		if revokedInvite == nil {
+		if existingInvite == nil {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Reinstate the revoked invite by setting it back to pending
-		_, rev, errGet := s.storage.GetInvite(ctx, revokedInvite.UID)
-		if errGet != nil {
-			return nil, wrapError(ctx, errGet)
-		}
-		revokedInvite.Status = "pending"
-		revokedInvite.CommitteeName = committeeBase.Name
-		revokedInvite.OrganizationRequired = orgRequired
+		// Reinstate the existing invite by setting it back to pending
+		existingInvite.Status = "pending"
+		existingInvite.CommitteeName = committeeBase.Name
+		existingInvite.OrganizationRequired = orgRequired
 		// Reinstating is effectively re-sending the invite: start a fresh expiry window from
 		// now. If a new inviter resolved (non-nil), refresh it; otherwise keep the stored
 		// attribution rather than overwriting valid data with nil (matches the pattern in
 		// enrichInviteFromCommittee, which deliberately leaves fields unchanged on lookup failure).
 		if inviter != nil {
-			revokedInvite.Inviter = inviter
+			existingInvite.Inviter = inviter
 		}
-		revokedInvite.ExpiresAt = time.Now().UTC().Add(model.InviteDefaultTTL)
+		existingInvite.ExpiresAt = time.Now().UTC().Add(model.InviteDefaultTTL)
 		if p.Role != nil {
-			revokedInvite.Role = *p.Role
+			existingInvite.Role = *p.Role
 		}
 		if p.Organization != nil {
-			revokedInvite.Organization = organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
+			existingInvite.Organization = organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 		}
-		if errUpdate := s.storage.UpdateInvite(ctx, revokedInvite, rev); errUpdate != nil {
+		if errUpdate := s.storage.UpdateInvite(ctx, existingInvite, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
 
-		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
-		s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync, nil)
-		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
+		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, existingInvite, p.XSync)
+		s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, existingInvite, p.XSync, nil)
+		s.dispatchInviteEmail(ctx, committeeBase, existingInvite)
 
-		return s.convertInviteDomainToResponse(revokedInvite), nil
+		return s.convertInviteDomainToResponse(existingInvite), nil
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
@@ -829,6 +842,41 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	s.dispatchInviteEmail(ctx, committeeBase, invite)
 
 	return s.convertInviteDomainToResponse(invite), nil
+}
+
+// canReinstateInvite reports whether a new POST for an invite's email may reinstate the existing
+// invite to pending instead of returning a conflict:
+//   - revoked and declined invites;
+//   - pending invites whose stored, non-zero expires_at has passed (a zero expires_at is a legacy
+//     record and is never treated as expired);
+//   - accepted invites whose member is no longer in the committee.
+//
+// Anything else, a pending invite that has not expired or an accepted invite whose member still
+// exists, stays a conflict. The member check uses the same lookup as AcceptInvite, the members
+// with the invitee's email, and fails closed: that lookup returns an error when any of them cannot
+// be read, and the invite is then not reinstated, so a member who may still exist is never invited
+// a second time. (Listing the committee's members would not do: the KV adapter skips a member it
+// cannot read and returns no error.)
+func (s *committeeServicesrvc) canReinstateInvite(ctx context.Context, invite *model.CommitteeInvite, now time.Time) (bool, error) {
+	switch invite.Status {
+	case "revoked", "declined":
+		return true, nil
+	case "pending":
+		return !invite.ExpiresAt.IsZero() && now.After(invite.ExpiresAt), nil
+	case "accepted":
+		members, err := s.storage.ListMembersByEmail(ctx, invite.InviteeEmail)
+		if err != nil {
+			return false, err
+		}
+		for _, member := range members {
+			if member != nil && strings.EqualFold(member.CommitteeUID, invite.CommitteeUID) {
+				return false, nil
+			}
+		}
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 // inviteDispatchTimeout is the total budget for a single invite dispatch (name
