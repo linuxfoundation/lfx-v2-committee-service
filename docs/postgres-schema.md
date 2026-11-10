@@ -1,10 +1,11 @@
 # PostgreSQL Schema Reference
 
-This is the PostgreSQL schema the committee service will move its state to (see the storage
+This is the PostgreSQL schema the committee service is moving its state to (see the storage
 migration epic, [lfx-self-serve-ops#1133](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1133)).
-**Nothing reads or writes it yet**: NATS KV is still the only store, and the service runs unchanged
-with no database configured. The store implementation, the dual-write modes and the backfill land in
-follow-up tickets. For what is stored in NATS today see [nats-storage.md](nats-storage.md).
+**The default, `kv`, never reads or writes it**: NATS KV is the store, and the service runs unchanged with no
+database configured. The `dual`, `dual-pg` and `postgres` storage modes, the backfill and the way back to KV are
+implemented; [Selecting a storage mode](#selecting-a-storage-mode) says what each one does and in what order to turn
+them on. For what is stored in NATS see [nats-storage.md](nats-storage.md).
 
 Sources of truth:
 
@@ -330,13 +331,17 @@ links and folders, weekly briefs, documents).
 
 **Rollout order** (each step is reversible by the rollback checklist above, and `kv` stays the default until you change it):
 
-1. In `kv`: `storage migrate --dry-run`, then `storage migrate`, until `written=0`, then `storage verify`; it must report no
+1. Apply the schema, in `kv`: set `POSTGRES_ENABLED=true` (with the connection set) and restart. The API connects and runs
+   the migrations at startup, and in `kv` a failure is only logged, so the service stays up. Wait for the
+   `connected to PostgreSQL` log line. The CLI never applies the schema, and `storage migrate` and `storage verify` stop
+   with an error until it exists.
+2. In `kv`: `storage migrate --dry-run`, then `storage migrate`, until `written=0`, then `storage verify`; it must report no
    `extra` record, because `migrate` cannot delete.
-2. Set `STORAGE_MODE=dual`, restart. Watch the failure, mismatch and compare-error counters. Raise
+3. Set `STORAGE_MODE=dual`, restart. Watch the failure, mismatch and compare-error counters. Raise
    `STORAGE_READ_COMPARE_RATE` for a while if the traffic is low. Run `storage verify` again.
-3. With no writes in flight: `storage verify` clean, `storage flip --confirm` (advances the revision sequence above every KV
+4. With no writes in flight: `storage verify` clean, `storage flip --confirm` (advances the revision sequence above every KV
    revision), then `STORAGE_MODE=dual-pg`. Check with `storage verify --by-content`, because the revisions now differ.
-4. When PostgreSQL has been the primary store long enough, `STORAGE_MODE=postgres`.
+5. When PostgreSQL has been the primary store long enough, `STORAGE_MODE=postgres`.
 
 Going back is the rollback checklist above: from `dual-pg` or `postgres`, `storage migrate --direction pg-to-kv`, verify, switch to
 `kv`. A committee delete in `dual-pg` and `postgres` removes the committee's children too (the cascade); in `kv` and `dual` it

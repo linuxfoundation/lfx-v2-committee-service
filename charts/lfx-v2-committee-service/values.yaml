@@ -637,10 +637,10 @@ app:
     # encrypts but does not verify the server certificate, and the pgx default
     # sslmode=prefer can fall back to plaintext). It carries a
     # password, so it comes only from a Secret. `optional: true` keeps the pod
-    # healthy when the key is absent: with no URL the service does not touch
-    # PostgreSQL at all (nothing reads or writes it yet). Used only when
-    # POSTGRES_ENABLED is "true": the service then connects and applies the schema
-    # migrations at startup. Create the database with a UTF-8 locale and
+    # healthy when the key is absent: with no URL (and no PG* variables below) the
+    # service does not touch PostgreSQL. Used when POSTGRES_ENABLED is "true" or
+    # STORAGE_MODE names a PostgreSQL mode: the service then connects and applies the
+    # schema migrations at startup. Create the database with a UTF-8 locale and
     # the libc provider (see docs/postgres-schema.md).
     POSTGRES_URL:
       valueFrom:
