@@ -92,13 +92,14 @@ func (s *committeeServicesrvc) convertPayloadToBase(p *committeeservice.CreateCo
 // convertPayloadToSettings converts GOA payload to CommitteeSettings domain model
 func (s *committeeServicesrvc) convertPayloadToSettings(p *committeeservice.CreateCommitteePayload) *model.CommitteeSettings {
 	settings := &model.CommitteeSettings{
-		BusinessEmailRequired: p.BusinessEmailRequired,
-		ChatWebhookURL:        p.ChatWebhookURL,
-		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               convertPayloadUsersToModel(p.Writers, nil),
-		Auditors:              convertPayloadUsersToModel(p.Auditors, nil),
-		ShowMeetingAttendees:  p.ShowMeetingAttendees,
-		MemberVisibility:      p.MemberVisibility,
+		BusinessEmailRequired:         p.BusinessEmailRequired,
+		ChatWebhookURL:                p.ChatWebhookURL,
+		LastReviewedBy:                p.LastReviewedBy,
+		Writers:                       convertPayloadUsersToModel(p.Writers, nil),
+		Auditors:                      convertPayloadUsersToModel(p.Auditors, nil),
+		ShowMeetingAttendees:          p.ShowMeetingAttendees,
+		MembersCanViewSocialListening: p.MembersCanViewSocialListening,
+		MemberVisibility:              p.MemberVisibility,
 	}
 
 	// Handle LastReviewedAt - GOA validates format via Pattern constraint
@@ -323,15 +324,16 @@ func (s *committeeServicesrvc) convertPayloadToUpdateSettings(p *committeeservic
 	}
 
 	settings := &model.CommitteeSettings{
-		UID:                   *p.UID, // UID is required for updates
-		BusinessEmailRequired: p.BusinessEmailRequired,
-		ChatWebhookURL:        p.ChatWebhookURL,
-		LastReviewedAt:        p.LastReviewedAt,
-		LastReviewedBy:        p.LastReviewedBy,
-		Writers:               convertPayloadUsersToModel(p.Writers, existingWriters),
-		Auditors:              convertPayloadUsersToModel(p.Auditors, existingAuditors),
-		ShowMeetingAttendees:  p.ShowMeetingAttendees,
-		MemberVisibility:      p.MemberVisibility,
+		UID:                           *p.UID, // UID is required for updates
+		BusinessEmailRequired:         p.BusinessEmailRequired,
+		ChatWebhookURL:                p.ChatWebhookURL,
+		LastReviewedAt:                p.LastReviewedAt,
+		LastReviewedBy:                p.LastReviewedBy,
+		Writers:                       convertPayloadUsersToModel(p.Writers, existingWriters),
+		Auditors:                      convertPayloadUsersToModel(p.Auditors, existingAuditors),
+		ShowMeetingAttendees:          p.ShowMeetingAttendees,
+		MembersCanViewSocialListening: p.MembersCanViewSocialListening,
+		MemberVisibility:              p.MemberVisibility,
 	}
 
 	return settings
@@ -416,6 +418,7 @@ func (s *committeeServicesrvc) convertDomainToFullResponse(response *model.Commi
 		}
 
 		result.ShowMeetingAttendees = response.ShowMeetingAttendees
+		result.MembersCanViewSocialListening = response.MembersCanViewSocialListening
 		result.MemberVisibility = response.MemberVisibility
 	}
 
@@ -498,10 +501,11 @@ func (s *committeeServicesrvc) convertSettingsToResponse(settings *model.Committ
 	}
 
 	result := &committeeservice.CommitteeSettingsWithReadonlyAttributes{
-		UID:                   &settings.UID,
-		BusinessEmailRequired: settings.BusinessEmailRequired,
-		ShowMeetingAttendees:  settings.ShowMeetingAttendees,
-		MemberVisibility:      settings.MemberVisibility,
+		UID:                           &settings.UID,
+		BusinessEmailRequired:         settings.BusinessEmailRequired,
+		ShowMeetingAttendees:          settings.ShowMeetingAttendees,
+		MembersCanViewSocialListening: settings.MembersCanViewSocialListening,
+		MemberVisibility:              settings.MemberVisibility,
 	}
 
 	// Only set optional fields if they have values

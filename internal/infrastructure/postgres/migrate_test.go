@@ -541,7 +541,7 @@ func TestCheckMigrated(t *testing.T) {
 
 		err = CheckMigrated(ctx, db)
 
-		require.ErrorContains(t, err, "[2] have not been applied")
+		require.ErrorContains(t, err, "[2 3] have not been applied")
 	})
 
 	t.Run("a version table with nothing applied names every migration", func(t *testing.T) {
@@ -549,7 +549,7 @@ func TestCheckMigrated(t *testing.T) {
 		_, err := db.ExecContext(ctx, "UPDATE goose_db_version SET is_applied = false")
 		require.NoError(t, err)
 
-		require.ErrorContains(t, CheckMigrated(ctx, db), "[1 2] have not been applied")
+		require.ErrorContains(t, CheckMigrated(ctx, db), "[1 2 3] have not been applied")
 	})
 
 	t.Run("an empty database is refused and nothing is created in it", func(t *testing.T) {
