@@ -37,9 +37,11 @@ match.
 
 Design choices made so a backfill from KV cannot fail on existing data: ids are `TEXT`, there are no
 `CHECK` constraints on enum-like columns, dates the Go models keep as strings stay `TEXT`, and there
-are no foreign keys (KV has no referential integrity). Foreign keys are added later as `NOT VALID`
-and validated once `committee-cli storage verify` ([#1198](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1198))
-reports no PostgreSQL orphans (`committee-cli storage prune-orphans` deletes the members of committees that are gone). Deletes are hard deletes.
+are no foreign keys (KV has no referential integrity). Foreign keys can be added later as optional hardening, as
+`NOT VALID` and then validated once `committee-cli storage verify` ([#1198](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1198))
+reports no PostgreSQL orphans (`committee-cli storage prune-orphans` deletes the members of committees that are gone). The service
+cascades a committee delete in code in the PostgreSQL-primary modes, so a key would be a guard and not what removes the children.
+Deletes are hard deletes.
 
 ## Unique indexes: the KV lookup keys
 
