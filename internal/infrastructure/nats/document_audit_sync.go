@@ -78,14 +78,23 @@ func (s *storage) ListAllLinks(ctx context.Context, committeeUID string) ([]*mod
 }
 
 // ListAllDocuments lists committee document metadata. When committeeUID is empty, all documents are returned.
+//
+// The keys come from a watcher snapshot whose end is checked (see visitKVSnapshot), not from ListKeys: a listing that
+// ended early would look complete there, and the folder delete reads this list to refuse a folder that still holds a
+// document, so an incomplete list must be an error. When the snapshot is cut short it returns the documents of the keys
+// it did receive together with that error, so a caller looking for one document can still find it.
 func (s *storage) ListAllDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
-	keys, errKeys := s.client.kvStore[constants.KVBucketNameCommitteeDocuments].ListKeys(ctx)
-	if errKeys != nil {
-		return nil, errs.NewUnexpected("failed to list keys from committee documents bucket", errKeys)
+	watcher, errWatch := s.client.kvStore[constants.KVBucketNameCommitteeDocuments].WatchAll(ctx, jetstream.MetaOnly(), jetstream.IgnoreDeletes())
+	if errWatch != nil {
+		return nil, errs.NewUnexpected("failed to list keys from committee documents bucket", errWatch)
 	}
+	var keys []string
+	errSnapshot := visitKVSnapshot(ctx, watcher, func(entry jetstream.KeyValueEntry) {
+		keys = append(keys, entry.Key())
+	})
 	docs := make([]*model.CommitteeDocument, 0)
 	var readFailures int
-	for key := range keys.Keys() {
+	for _, key := range keys {
 		if strings.HasPrefix(key, "lookup/") {
 			continue
 		}
@@ -99,6 +108,9 @@ func (s *storage) ListAllDocuments(ctx context.Context, committeeUID string) ([]
 			continue
 		}
 		docs = append(docs, doc)
+	}
+	if errSnapshot != nil {
+		return docs, errSnapshot
 	}
 	if readFailures > 0 {
 		return docs, errs.NewUnexpected(fmt.Sprintf("%d document(s) failed to read during list", readFailures))

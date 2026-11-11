@@ -1336,7 +1336,7 @@ var _ = dsl.Service("committee-service", func() {
 	})
 
 	dsl.Method("delete-committee-link-folder", func() {
-		dsl.Description("Delete a folder from a committee. Returns BadRequest if the folder contains links.")
+		dsl.Description("Delete a folder from a committee. Returns BadRequest if the folder contains links or documents.")
 
 		dsl.Security(JWTAuth)
 

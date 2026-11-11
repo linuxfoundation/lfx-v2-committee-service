@@ -1101,6 +1101,17 @@ func CommitteeDocumentReaderWriterImpl(ctx context.Context) port.CommitteeDocume
 	return nil
 }
 
+// CommitteeDocumentListerImpl returns the lister of the committee document storage. The link writer uses it to refuse
+// deleting a folder that still holds a document, so a storage that cannot list stops the service at startup instead of
+// letting such a folder be deleted.
+func CommitteeDocumentListerImpl(docStorage port.CommitteeDocumentReaderWriter) port.CommitteeDocumentLister {
+	lister, ok := docStorage.(port.CommitteeDocumentLister)
+	if !ok {
+		log.Fatalf("committee document storage %T cannot list documents, which deleting a folder needs", docStorage)
+	}
+	return lister
+}
+
 // SlackSenderImpl returns a Slack Incoming Webhook sender.
 // The natural gate is whether a chat_webhook_url is stored for the committee;
 // no env flag is needed.

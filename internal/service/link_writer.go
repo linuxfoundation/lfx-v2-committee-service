@@ -28,6 +28,7 @@ type CommitteeLinkDataWriter interface {
 type linkWriterOrchestrator struct {
 	linkWriter         port.CommitteeLinkWriter
 	linkReader         port.CommitteeLinkReader
+	documentLister     port.CommitteeDocumentLister
 	committeePublisher port.CommitteePublisher
 }
 
@@ -42,6 +43,13 @@ func WithLinkWriter(w port.CommitteeLinkWriter) LinkWriterOption {
 func WithLinkReaderForWriter(r port.CommitteeLinkReader) LinkWriterOption {
 	return func(o *linkWriterOrchestrator) {
 		o.linkReader = r
+	}
+}
+
+// WithDocumentListerForWriter sets the lister DeleteLinkFolder uses to find the documents that are still in a folder.
+func WithDocumentListerForWriter(l port.CommitteeDocumentLister) LinkWriterOption {
+	return func(o *linkWriterOrchestrator) {
+		o.documentLister = l
 	}
 }
 
@@ -61,6 +69,10 @@ func NewLinkWriterOrchestrator(opts ...LinkWriterOption) CommitteeLinkDataWriter
 	}
 	if o.linkReader == nil {
 		panic("link reader is required for writer orchestrator")
+	}
+	if o.documentLister == nil {
+		// Without it a folder that only holds documents would look empty and could be deleted.
+		panic("document lister is required for writer orchestrator")
 	}
 	return o
 }
@@ -165,12 +177,40 @@ func (o *linkWriterOrchestrator) DeleteLinkFolder(ctx context.Context, committee
 		}
 	}
 
+	// Block deletion if folder contains documents. A document holds its folder in its own metadata, so the link list
+	// above cannot see it, and deleting the folder would leave the document pointing at a folder that is gone.
+	if err := o.assertFolderHasNoDocuments(ctx, committeeUID, folderUID); err != nil {
+		return err
+	}
+
 	if err := o.linkWriter.DeleteLinkFolder(ctx, committeeUID, folderUID, revision); err != nil {
 		return err
 	}
 
 	o.publishLinkFolderIndexerMessage(ctx, model.ActionDeleted, folder, sync)
 
+	return nil
+}
+
+// assertFolderHasNoDocuments returns errs.Validation when a document of the committee is in the folder. It fails closed:
+// when the documents cannot be listed completely and none of the ones that were listed is in the folder, the error is
+// returned rather than the folder being treated as empty. A document that was listed is always enough to refuse, even
+// when the list also failed.
+func (o *linkWriterOrchestrator) assertFolderHasNoDocuments(ctx context.Context, committeeUID, folderUID string) error {
+	docs, listErr := o.documentLister.ListAllDocuments(ctx, committeeUID)
+	for _, d := range docs {
+		if d != nil && d.CommitteeUID == committeeUID && d.FolderUID != nil && *d.FolderUID == folderUID {
+			return errs.NewValidation("folder cannot be deleted because it contains documents; remove all documents from the folder first")
+		}
+	}
+	if listErr != nil {
+		slog.WarnContext(ctx, "could not list documents to check that the folder is empty, refusing to delete it",
+			"committee_uid", committeeUID,
+			"folder_uid", folderUID,
+			"error", listErr,
+		)
+		return listErr
+	}
 	return nil
 }
 

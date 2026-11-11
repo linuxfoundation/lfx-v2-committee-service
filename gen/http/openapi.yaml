@@ -1074,7 +1074,7 @@ paths:
             tags:
                 - committee-service
             summary: delete-committee-link-folder committee-service
-            description: Delete a folder from a committee. Returns BadRequest if the folder contains links.
+            description: Delete a folder from a committee. Returns BadRequest if the folder contains links or documents.
             operationId: committee-service#delete-committee-link-folder
             parameters:
                 - name: v
