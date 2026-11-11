@@ -89,6 +89,9 @@ func (s *pruneOrphansSubcommand) Run(ctx context.Context, rc commands.RunContext
 			composite.ModeKV, composite.ModeDual, rc.StorageMode))
 	}
 
+	// The indexer rejects a message without an authorization header; the other CLI commands that publish set this one.
+	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
+
 	orphans, err := findOrphanMembers(ctx, rc)
 	if err != nil {
 		return err

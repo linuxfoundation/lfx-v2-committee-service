@@ -50,15 +50,19 @@ func (w *recordingMemberWriter) DeleteMember(_ context.Context, uid string, revi
 // recordingPublisher records the indexer messages and everything else that is published, which a prune must not do.
 type recordingPublisher struct {
 	indexer    []string // the subjects
+	messages   []*model.CommitteeIndexerMessage
 	indexerErr error
 	other      []string // the other publishes
 }
 
-func (p *recordingPublisher) Indexer(_ context.Context, subject string, _ any, _ bool) error {
+func (p *recordingPublisher) Indexer(_ context.Context, subject string, message any, _ bool) error {
 	if p.indexerErr != nil {
 		return p.indexerErr
 	}
 	p.indexer = append(p.indexer, subject)
+	if m, ok := message.(*model.CommitteeIndexerMessage); ok {
+		p.messages = append(p.messages, m)
+	}
 	return nil
 }
 func (p *recordingPublisher) UpdateAccess(context.Context, any) error {
@@ -171,6 +175,13 @@ func TestPruneOrphans_ApplyDeletesOnlyTheOrphans(t *testing.T) {
 	assert.Equal(t, []deletedMember{{"o-1", 30}, {"o-2", 31}, {"o-3", 32}}, writer.deleted, "each orphan is deleted at the revision KV holds it at, and the members of a committee that exists stay")
 	assert.Equal(t, []string{constants.IndexCommitteeMemberSubject, constants.IndexCommitteeMemberSubject, constants.IndexCommitteeMemberSubject}, publisher.indexer)
 	assert.Empty(t, publisher.other, "no deleted event (it notifies the person) and no access message")
+	require.Len(t, publisher.messages, 3)
+	for i, uid := range []string{"o-1", "o-2", "o-3"} {
+		assert.Equal(t, model.ActionDeleted, publisher.messages[i].Action)
+		assert.Equal(t, uid, publisher.messages[i].Data)
+		assert.Equal(t, "Bearer lfx-v2-committee-service", publisher.messages[i].Headers[constants.AuthorizationHeader],
+			"the indexer rejects a delete without an authorization header, and the document stays")
+	}
 	assert.Contains(t, out, "deleted=3 already_gone=0 failed=0 indexer_failed=0")
 }
 
