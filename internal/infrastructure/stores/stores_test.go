@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats/natstest"
@@ -62,6 +64,42 @@ func TestBuild_TheOtherModesAreComposites(t *testing.T) {
 			assert.IsType(t, &composite.Documents{}, built.Documents)
 		})
 	}
+}
+
+// The API gives the link writer its document store as a port.CommitteeDocumentLister, so that deleting a folder can refuse
+// when a document is still in it, and stops at startup when the store cannot list. So the store Build returns must list in
+// every mode: in kv mode it is the plain NATS document adapter, not a composite, and once it did not, which would have
+// stopped the API from starting in the default mode.
+func TestBuild_TheDocumentsListInEveryMode(t *testing.T) {
+	for _, mode := range []composite.Mode{composite.ModeKV, composite.ModeDual, composite.ModeDualPG, composite.ModePostgres} {
+		t.Run(string(mode), func(t *testing.T) {
+			built, err := stores.Build(mode, natstest.NewClient(t), postgrestest.NewStore(t))
+
+			require.NoError(t, err)
+			_, ok := built.Documents.(port.CommitteeDocumentLister)
+			assert.True(t, ok, "the documents Build returns for %s mode must list", mode)
+		})
+	}
+}
+
+// The default mode lists the documents it holds, which is what deleting a folder reads.
+func TestBuild_KVDocumentsListWhatTheyHold(t *testing.T) {
+	ctx := context.Background()
+	built, err := stores.Build(composite.ModeKV, natstest.NewClient(t), nil)
+	require.NoError(t, err)
+	lister, ok := built.Documents.(port.CommitteeDocumentLister)
+	require.True(t, ok)
+	folder := "folder-1"
+	require.NoError(t, built.Documents.CreateDocumentMetadata(ctx, &model.CommitteeDocument{UID: "doc-1", CommitteeUID: "committee-1", Name: "Charter", FolderUID: &folder}))
+	require.NoError(t, built.Documents.CreateDocumentMetadata(ctx, &model.CommitteeDocument{UID: "doc-2", CommitteeUID: "committee-2", Name: "Minutes"}))
+
+	docs, err := lister.ListAllDocuments(ctx, "committee-1")
+
+	require.NoError(t, err)
+	require.Len(t, docs, 1, "only the committee's documents, and not the name lookup keys that share the bucket")
+	assert.Equal(t, "doc-1", docs[0].UID)
+	require.NotNil(t, docs[0].FolderUID)
+	assert.Equal(t, folder, *docs[0].FolderUID)
 }
 
 func TestBuild_RefusesWhatItCannotBuild(t *testing.T) {
