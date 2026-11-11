@@ -112,3 +112,7 @@ reason = "stdlib/net/http: HTTP/2 server crash due to HPACK encoder race; fixed 
 [[IgnoredVulns]]
 id = "GO-2026-6809"
 reason = "stdlib/crypto/x509: denylist for compromised intermediate certificates not yet applied; fixed in go 1.26.10; go.mod capped at 1.26.3 by MegaLinter toolchain"
+
+[[IgnoredVulns]]
+id = "GO-2026-6859"
+reason = "stdlib/net/http: HTTP/1 server crash due to MaxBytesReader header race; fixed in go 1.26.11; go.mod capped at 1.26.3 by MegaLinter toolchain. The service uses MaxBytesReader only in requestBodyLimitMiddleware, which reads the whole body on the request goroutine before any handler runs, so nothing reads the body while a header is written"
