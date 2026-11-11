@@ -88,8 +88,10 @@ type RunContext struct {
 	// PostgresStore connects to PostgreSQL for the subcommands that need it and returns the store and a
 	// function that releases the connection. The other subcommands never connect.
 	PostgresStore func(ctx context.Context) (store *postgres.Store, closeStore func(), err error)
-	DryRun        bool
-	Args          []string // remaining args after command + subcommand, for subcommand flag parsing
+	// StorageMode is the storage mode the CLI runs with (STORAGE_MODE), for the subcommands that only make sense in some modes.
+	StorageMode string
+	DryRun      bool
+	Args        []string // remaining args after command + subcommand, for subcommand flag parsing
 }
 
 // Stats tracks counters for a command run.

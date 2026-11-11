@@ -82,6 +82,28 @@ func (p *recordingPublisher) Event(_ context.Context, subject string, _ any, _ b
 	return nil
 }
 
+// baseReader is a committee reader that holds the committees in exists and answers every other read with NotFound, or with err.
+type baseReader struct {
+	port.CommitteeReader
+	exists map[string]bool
+	err    error
+}
+
+func (r *baseReader) GetBase(_ context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	if r.err != nil {
+		return nil, 0, r.err
+	}
+	if r.exists[uid] {
+		return &model.CommitteeBase{UID: uid}, 1, nil
+	}
+	return nil, 0, errs.NewNotFound("committee not found")
+}
+
+// liveCommittees is the reader for pruneFixture: c-1 and c-2 exist and the others do not.
+func liveCommittees() *baseReader {
+	return &baseReader{exists: map[string]bool{"c-1": true, "c-2": true}}
+}
+
 // pruneFixture has two committees in KV, three members of them and three members of a committee that is gone.
 func pruneFixture() *fakeSource {
 	return &fakeSource{
@@ -103,11 +125,27 @@ func runPrune(t *testing.T, src *fakeSource, writer *recordingMemberWriter, publ
 	sub := &pruneOrphansSubcommand{out: &out}
 	err := sub.Run(context.Background(), commands.RunContext{
 		KVExport:              src,
+		KVCommitteeReader:     liveCommittees(),
 		CommitteeMemberWriter: writer,
 		Publisher:             publisher,
+		StorageMode:           "dual",
 		Args:                  args,
 	})
 	return out.String(), err
+}
+
+// runPruneWith runs the subcommand with the given committee reader and storage mode.
+func runPruneWith(t *testing.T, reader *baseReader, mode string, writer *recordingMemberWriter, args ...string) error {
+	t.Helper()
+	var out bytes.Buffer
+	return (&pruneOrphansSubcommand{out: &out}).Run(context.Background(), commands.RunContext{
+		KVExport:              pruneFixture(),
+		KVCommitteeReader:     reader,
+		CommitteeMemberWriter: writer,
+		Publisher:             &recordingPublisher{},
+		StorageMode:           mode,
+		Args:                  args,
+	})
 }
 
 func TestPruneOrphans_DryRunDeletesNothing(t *testing.T) {
@@ -221,6 +259,46 @@ func TestPruneOrphans_RejectsAStrayArgumentBeforeReadingAnything(t *testing.T) {
 	require.Error(t, err)
 	assert.Zero(t, src.listCalls)
 	assert.Empty(t, writer.deleted)
+}
+
+func TestPruneOrphans_ACommitteeTheListingMissedIsNotPruned(t *testing.T) {
+	// c-gone is in no listing, but a point read finds it: the listing was incomplete, and the members must stay, in a dry run too.
+	reader := &baseReader{exists: map[string]bool{"c-1": true, "c-2": true, "c-gone": true}}
+	for _, args := range [][]string{{"--apply"}, nil} {
+		writer := &recordingMemberWriter{}
+
+		err := runPruneWith(t, reader, "dual", writer, args...)
+
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "committee c-gone was missing from the committee listing but still exists in KV")
+		assert.Empty(t, writer.deleted, "a listing that missed one committee may have missed others, so nothing is deleted")
+	}
+}
+
+func TestPruneOrphans_AFailedCommitteeReadDeletesNothing(t *testing.T) {
+	writer := &recordingMemberWriter{}
+
+	err := runPruneWith(t, &baseReader{err: errors.New("kv unavailable")}, "dual", writer, "--apply")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted)
+}
+
+func TestPruneOrphans_RunsOnlyInTheModesThatLeaveOrphans(t *testing.T) {
+	for _, mode := range []string{"dual-pg", "postgres", "dual-write", ""} {
+		writer := &recordingMemberWriter{}
+
+		err := runPruneWith(t, liveCommittees(), mode, writer, "--apply")
+
+		require.Error(t, err, "mode %q", mode)
+		assert.Empty(t, writer.deleted, "mode %q", mode)
+	}
+	for _, mode := range []string{"kv", "dual"} {
+		writer := &recordingMemberWriter{}
+
+		require.NoError(t, runPruneWith(t, liveCommittees(), mode, writer, "--apply"), "mode %q", mode)
+		assert.Len(t, writer.deleted, 3, "mode %q", mode)
+	}
 }
 
 func TestPruneOrphans_NeedsItsWiring(t *testing.T) {

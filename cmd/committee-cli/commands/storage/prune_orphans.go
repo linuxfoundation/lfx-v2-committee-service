@@ -15,6 +15,7 @@ import (
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
@@ -77,8 +78,15 @@ func (s *pruneOrphansSubcommand) Run(ctx context.Context, rc commands.RunContext
 	if *maxDelete <= 0 {
 		return errs.NewValidation("--max must be greater than zero")
 	}
-	if rc.KVExport == nil || rc.CommitteeMemberWriter == nil || rc.Publisher == nil {
-		return errs.NewUnexpected("the KV export, the member writer and the publisher are not wired in RunContext")
+	if rc.KVExport == nil || rc.CommitteeMemberWriter == nil || rc.Publisher == nil || rc.KVReader() == nil {
+		return errs.NewUnexpected("the KV export, the KV reader, the member writer and the publisher are not wired in RunContext")
+	}
+	// Orphans only arise where KV decides and a committee delete does not cascade. In the PostgreSQL-primary modes the delete
+	// goes to PostgreSQL first, which issues its own revisions, so the KV revision of a scan is not the one to delete at, and
+	// a committee that failed to copy to KV would make its members look orphaned.
+	if mode := composite.Mode(rc.StorageMode); mode != composite.ModeKV && mode != composite.ModeDual {
+		return errs.NewValidation(fmt.Sprintf("prune-orphans runs with STORAGE_MODE=%s or %s, not %q: members of deleted committees are only left behind in those modes",
+			composite.ModeKV, composite.ModeDual, rc.StorageMode))
 	}
 
 	orphans, err := findOrphanMembers(ctx, rc)
@@ -135,7 +143,36 @@ func findOrphanMembers(ctx context.Context, rc commands.RunContext) ([]orphanMem
 	if scanErr != nil {
 		return nil, fmt.Errorf("scanning the members: %w", scanErr)
 	}
+	if err := confirmCommitteesGone(ctx, rc, orphans); err != nil {
+		return nil, err
+	}
 	return orphans, nil
+}
+
+// confirmCommitteesGone reads each committee the orphans point at, one by one, and returns an error unless every one of them
+// is gone. The committee uids come from a key listing that can end early without an error (docs/nats-storage.md), and they
+// are read before the members, so a committee that the listing missed, or that was created in between, would otherwise make
+// its members look orphaned; they would be deleted at their current revision, which the revision guard cannot catch. An error
+// stops the run before anything is deleted, since a listing that missed one committee may have missed others. There are few
+// distinct orphan committees, so this costs a few reads.
+func confirmCommitteesGone(ctx context.Context, rc commands.RunContext, orphans []orphanMember) error {
+	reader := rc.KVReader()
+	checked := map[string]struct{}{}
+	for _, o := range orphans {
+		if _, done := checked[o.committeeUID]; done {
+			continue
+		}
+		checked[o.committeeUID] = struct{}{}
+		_, _, err := reader.GetBase(ctx, o.committeeUID)
+		if err == nil {
+			return errs.NewUnexpected(fmt.Sprintf("committee %s was missing from the committee listing but still exists in KV: the listing is incomplete, so nothing was deleted", o.committeeUID))
+		}
+		var notFound errs.NotFound
+		if !errors.As(err, &notFound) {
+			return fmt.Errorf("checking that committee %s is gone: %w", o.committeeUID, err)
+		}
+	}
+	return nil
 }
 
 // prune deletes one orphan from the stores and tells the indexer. It does not publish the member deleted event or touch
