@@ -7,12 +7,16 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
+
+var _ port.CommitteeDocumentLister = (*MockDocumentRepository)(nil)
 
 // MockDocumentRepository provides an in-memory mock implementation of CommitteeDocumentReaderWriter.
 type MockDocumentRepository struct {
@@ -120,6 +124,20 @@ func (m *MockDocumentRepository) DocumentNameExists(ctx context.Context, committ
 	defer m.mu.RUnlock()
 	_, exists := m.nameKeys[nameKey]
 	return exists, nil
+}
+
+// ListAllDocuments returns the committee's documents, or every document when committeeUID is empty, in uid order.
+func (m *MockDocumentRepository) ListAllDocuments(_ context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	docs := make([]*model.CommitteeDocument, 0, len(m.documents))
+	for _, doc := range m.documents {
+		if committeeUID == "" || doc.CommitteeUID == committeeUID {
+			docs = append(docs, doc)
+		}
+	}
+	sort.Slice(docs, func(i, j int) bool { return docs[i].UID < docs[j].UID })
+	return docs, nil
 }
 
 func (m *MockDocumentRepository) DeleteDocumentFile(_ context.Context, documentUID string) error {

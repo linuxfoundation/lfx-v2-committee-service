@@ -737,7 +737,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    get-committee-link-folder: Get a single folder for a committee`)
 	fmt.Fprintln(os.Stderr, `    list-committee-link-folders: List all folders for a committee`)
 	fmt.Fprintln(os.Stderr, `    create-committee-link-folder: Create a folder to organize committee links`)
-	fmt.Fprintln(os.Stderr, `    delete-committee-link-folder: Delete a folder from a committee. Returns BadRequest if the folder contains links.`)
+	fmt.Fprintln(os.Stderr, `    delete-committee-link-folder: Delete a folder from a committee. Returns BadRequest if the folder contains links or documents.`)
 	fmt.Fprintln(os.Stderr, `    upload-committee-document: Upload a file document to a committee`)
 	fmt.Fprintln(os.Stderr, `    get-committee-document: Get metadata for a single committee document`)
 	fmt.Fprintln(os.Stderr, `    download-committee-document: Download the file for a committee document`)
@@ -1596,7 +1596,7 @@ func committeeServiceDeleteCommitteeLinkFolderUsage() {
 
 	// Description
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, `Delete a folder from a committee. Returns BadRequest if the folder contains links.`)
+	fmt.Fprintln(os.Stderr, `Delete a folder from a committee. Returns BadRequest if the folder contains links or documents.`)
 
 	// Flags list
 	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)

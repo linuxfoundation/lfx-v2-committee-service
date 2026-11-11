@@ -88,7 +88,7 @@ type Service interface {
 	// Create a folder to organize committee links
 	CreateCommitteeLinkFolder(context.Context, *CreateCommitteeLinkFolderPayload) (res *CommitteeLinkFolderWithReadonlyAttributes, err error)
 	// Delete a folder from a committee. Returns BadRequest if the folder contains
-	// links.
+	// links or documents.
 	DeleteCommitteeLinkFolder(context.Context, *DeleteCommitteeLinkFolderPayload) (err error)
 	// Upload a file document to a committee
 	UploadCommitteeDocument(context.Context, *UploadCommitteeDocumentPayload) (res *CommitteeDocumentWithReadonlyAttributes, err error)
