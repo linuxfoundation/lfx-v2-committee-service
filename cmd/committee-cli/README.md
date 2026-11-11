@@ -721,6 +721,30 @@ Only the members, expecting the orphans to have been copied:
 NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage verify --entity=members --include-orphans
 ```
 
+#### `storage prune-orphans`
+
+Deletes the committee members whose committee no longer exists in KV. KV and `dual` mode never delete a committee's members with it (only the PostgreSQL-primary modes do), so they stay behind, can never be listed again, and make `storage verify` report `orphans(postgresql)` for the copies in PostgreSQL: the rows that stop the `committee_uid` foreign key being added.
+
+It is **a dry run unless `--apply` is given**: it lists the orphans, grouped by committee, and deletes nothing. With `--apply` each orphan is deleted through the stores of the storage mode (in `dual` mode KV first, at the revision the scan read, and then PostgreSQL), and the indexer is told to drop its document. It does **not** publish the member deleted event or change any access tuple, because the event notifies the person and nobody should be told that they were removed from a committee that was deleted long ago.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--apply` | `false` | Delete the orphans; without it the run only reports them |
+| `--max` | `1000` | Refuse to delete more than this many members in one run, so a scan that wrongly finds a store orphaned deletes nothing; check the list, then raise it |
+
+A scan that cannot read every committee or member deletes nothing, and so does a KV with no committees at all. A member that changed since the scan (a stale revision) is reported as failed and left alone, and a member that is already gone counts as such.
+
+**Exit code:** `0` when every orphan was deleted (or the run was a dry run); `1` if any delete or any indexer message failed.
+
+**Output:** the number of orphans and committees, the committees with the most orphans (up to 50), and with `--apply` `deleted`, `already_gone`, `failed` and `indexer_failed`; the failures are in the log.
+
+```bash
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee STORAGE_MODE=dual   committee-cli storage prune-orphans
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee STORAGE_MODE=dual   committee-cli storage prune-orphans --apply
+```
+
+Run it with the storage mode the service runs with, so the deletes reach both stores; in `kv` mode only KV is changed. Run `storage verify` afterwards: `orphans(kv)` and `orphans(postgresql)` for the members should be `0`.
+
 #### `storage flip`
 
 Makes PostgreSQL ready to issue the revisions: it advances the revision sequence of PostgreSQL above the highest revision of any record in the NATS KV store, so that a token a client holds from before the cutover can never equal a revision issued after it. KV counts the revisions of each bucket on its own while every table in PostgreSQL shares one sequence, so the highest revision is taken over every record of every bucket the tables mirror, the orphans included.
