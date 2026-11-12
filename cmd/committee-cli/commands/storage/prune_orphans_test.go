@@ -1,0 +1,481 @@
+// Copyright The Linux Foundation and each contributor to LFX.
+// SPDX-License-Identifier: MIT
+
+package storage
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+)
+
+// deletedMember is a DeleteMember call.
+type deletedMember struct {
+	uid      string
+	revision uint64
+}
+
+// recordingMemberWriter records the deletes and fails the uids in failWith.
+type recordingMemberWriter struct {
+	deleted  []deletedMember
+	failWith map[string]error
+}
+
+func (w *recordingMemberWriter) CreateMember(context.Context, *model.CommitteeMember) error {
+	return errors.New("prune-orphans must not create members")
+}
+
+func (w *recordingMemberWriter) UpdateMember(context.Context, *model.CommitteeMember, uint64) (*model.CommitteeMember, error) {
+	return nil, errors.New("prune-orphans must not update members")
+}
+
+func (w *recordingMemberWriter) DeleteMember(_ context.Context, uid string, revision uint64) error {
+	if err := w.failWith[uid]; err != nil {
+		return err
+	}
+	w.deleted = append(w.deleted, deletedMember{uid: uid, revision: revision})
+	return nil
+}
+
+// recordingPublisher records the indexer messages and everything else that is published, which a prune must not do.
+type recordingPublisher struct {
+	indexer    []string // the subjects
+	messages   []*model.CommitteeIndexerMessage
+	indexerErr error
+	other      []string // the other publishes
+}
+
+func (p *recordingPublisher) Indexer(_ context.Context, subject string, message any, _ bool) error {
+	if p.indexerErr != nil {
+		return p.indexerErr
+	}
+	p.indexer = append(p.indexer, subject)
+	if m, ok := message.(*model.CommitteeIndexerMessage); ok {
+		p.messages = append(p.messages, m)
+	}
+	return nil
+}
+func (p *recordingPublisher) UpdateAccess(context.Context, any) error {
+	p.other = append(p.other, "UpdateAccess")
+	return nil
+}
+func (p *recordingPublisher) DeleteAccess(context.Context, any) error {
+	p.other = append(p.other, "DeleteAccess")
+	return nil
+}
+func (p *recordingPublisher) MemberPut(context.Context, any) error {
+	p.other = append(p.other, "MemberPut")
+	return nil
+}
+func (p *recordingPublisher) MemberRemove(context.Context, any) error {
+	p.other = append(p.other, "MemberRemove")
+	return nil
+}
+func (p *recordingPublisher) Event(_ context.Context, subject string, _ any, _ bool) error {
+	p.other = append(p.other, "Event "+subject)
+	return nil
+}
+
+// fakePostgresMembers is the member table of PostgreSQL in dual mode: the rows it holds, and the uids it fails to delete.
+type fakePostgresMembers struct {
+	rows       map[string]pgRow
+	deleted    []string
+	deleteFail map[string]error
+	listErr    error
+	opened     int
+}
+
+type pgRow struct {
+	committeeUID string
+	revision     uint64
+}
+
+func (p *fakePostgresMembers) EachMemberExport(_ context.Context, fn func(*model.CommitteeMember, uint64) error) error {
+	if p.listErr != nil {
+		return p.listErr
+	}
+	for uid, r := range p.rows {
+		if err := fn(storetest.NewMember(uid, r.committeeUID, "first.last@example.com"), r.revision); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *fakePostgresMembers) GetMemberRevision(_ context.Context, uid string) (uint64, error) {
+	r, ok := p.rows[uid]
+	if !ok {
+		return 0, errs.NewNotFound("committee member not found")
+	}
+	return r.revision, nil
+}
+
+func (p *fakePostgresMembers) DeleteMember(_ context.Context, uid string, _ uint64) error {
+	if err := p.deleteFail[uid]; err != nil {
+		return err
+	}
+	delete(p.rows, uid)
+	p.deleted = append(p.deleted, uid)
+	return nil
+}
+
+// open is the subcommand's openPostgres: it hands out the fake.
+func (p *fakePostgresMembers) open(context.Context, commands.RunContext) (memberPostgres, func(), error) {
+	p.opened++
+	return p, func() {}, nil
+}
+
+// baseReader is a committee reader that holds the committees in exists and answers every other read with NotFound, or with err.
+type baseReader struct {
+	port.CommitteeReader
+	exists map[string]bool
+	err    error
+}
+
+func (r *baseReader) GetBase(_ context.Context, uid string) (*model.CommitteeBase, uint64, error) {
+	if r.err != nil {
+		return nil, 0, r.err
+	}
+	if r.exists[uid] {
+		return &model.CommitteeBase{UID: uid}, 1, nil
+	}
+	return nil, 0, errs.NewNotFound("committee not found")
+}
+
+// liveCommittees is the reader for pruneFixture: c-1 and c-2 exist and the others do not.
+func liveCommittees() *baseReader {
+	return &baseReader{exists: map[string]bool{"c-1": true, "c-2": true}}
+}
+
+// pruneFixture has two committees in KV, three members of them and three members of a committee that is gone.
+func pruneFixture() *fakeSource {
+	return &fakeSource{
+		committees: []port.CommitteeExport{kvCommittee("c-1", "One", 10, 11), kvCommittee("c-2", "Two", 12, 13)},
+		members: []memberRecord{
+			kvMember("m-1", "c-1", "first.last1@example.com", 20),
+			kvMember("m-2", "c-2", "first.last2@example.com", 21),
+			kvMember("o-1", "c-gone", "first.last3@example.com", 30),
+			kvMember("o-2", "c-gone", "first.last4@example.com", 31),
+			kvMember("o-3", "c-gone-2", "first.last5@example.com", 32),
+		},
+	}
+}
+
+// runPrune runs the subcommand and returns what it printed.
+func runPrune(t *testing.T, src *fakeSource, writer *recordingMemberWriter, publisher *recordingPublisher, args ...string) (string, error) {
+	t.Helper()
+	return runPruneIn(t, src, writer, publisher, &fakePostgresMembers{}, args...)
+}
+
+// runPruneIn runs the subcommand in dual mode over the given PostgreSQL rows.
+func runPruneIn(t *testing.T, src *fakeSource, writer *recordingMemberWriter, publisher *recordingPublisher, pg *fakePostgresMembers, args ...string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	sub := &pruneOrphansSubcommand{out: &out, openPostgres: pg.open}
+	err := sub.Run(context.Background(), commands.RunContext{
+		KVExport:              src,
+		KVCommitteeReader:     liveCommittees(),
+		CommitteeMemberWriter: writer,
+		Publisher:             publisher,
+		StorageMode:           "dual",
+		Args:                  args,
+	})
+	return out.String(), err
+}
+
+// runPruneWith runs the subcommand with the given committee reader and storage mode.
+func runPruneWith(t *testing.T, reader *baseReader, mode string, writer *recordingMemberWriter, args ...string) error {
+	t.Helper()
+	var out bytes.Buffer
+	return (&pruneOrphansSubcommand{out: &out, openPostgres: (&fakePostgresMembers{}).open}).Run(context.Background(), commands.RunContext{
+		KVExport:              pruneFixture(),
+		KVCommitteeReader:     reader,
+		CommitteeMemberWriter: writer,
+		Publisher:             &recordingPublisher{},
+		StorageMode:           mode,
+		Args:                  args,
+	})
+}
+
+func TestPruneOrphans_DryRunDeletesNothing(t *testing.T) {
+	writer, publisher := &recordingMemberWriter{}, &recordingPublisher{}
+
+	out, err := runPrune(t, pruneFixture(), writer, publisher)
+
+	require.NoError(t, err)
+	assert.Empty(t, writer.deleted)
+	assert.Empty(t, publisher.indexer)
+	assert.Empty(t, publisher.other)
+	assert.Contains(t, out, "orphan members (committee not in KV): 3 in 2 committees")
+	assert.Contains(t, out, "committee c-gone: 2")
+	assert.Contains(t, out, "nothing was deleted")
+}
+
+func TestPruneOrphans_ApplyDeletesOnlyTheOrphans(t *testing.T) {
+	writer, publisher := &recordingMemberWriter{}, &recordingPublisher{}
+
+	out, err := runPrune(t, pruneFixture(), writer, publisher, "--apply")
+
+	require.NoError(t, err)
+	assert.Equal(t, []deletedMember{{"o-1", 30}, {"o-2", 31}, {"o-3", 32}}, writer.deleted, "each orphan is deleted at the revision KV holds it at, and the members of a committee that exists stay")
+	assert.Equal(t, []string{constants.IndexCommitteeMemberSubject, constants.IndexCommitteeMemberSubject, constants.IndexCommitteeMemberSubject}, publisher.indexer)
+	assert.Empty(t, publisher.other, "no deleted event (it notifies the person) and no access message")
+	require.Len(t, publisher.messages, 3)
+	for i, uid := range []string{"o-1", "o-2", "o-3"} {
+		assert.Equal(t, model.ActionDeleted, publisher.messages[i].Action)
+		assert.Equal(t, uid, publisher.messages[i].Data)
+		assert.Equal(t, "Bearer lfx-v2-committee-service", publisher.messages[i].Headers[constants.AuthorizationHeader],
+			"the indexer rejects a delete without an authorization header, and the document stays")
+	}
+	assert.Contains(t, out, "deleted=3 already_gone=0 failed=0 indexer_failed=0")
+}
+
+func TestPruneOrphans_AlreadyGoneIsNotAFailure(t *testing.T) {
+	writer := &recordingMemberWriter{failWith: map[string]error{"o-2": errs.NewNotFound("member not found")}}
+	publisher := &recordingPublisher{}
+
+	out, err := runPrune(t, pruneFixture(), writer, publisher, "--apply")
+
+	require.NoError(t, err)
+	assert.Contains(t, out, "deleted=2 already_gone=1 failed=0")
+	assert.Len(t, publisher.indexer, 3, "the indexer is told about a member that was already gone too, in case its document stayed")
+}
+
+func TestPruneOrphans_AFailedDeleteIsReportedAndTheNextRunRepeatsItsIndexerMessage(t *testing.T) {
+	writer := &recordingMemberWriter{failWith: map[string]error{"o-2": errs.NewConflict("modified")}}
+	publisher := &recordingPublisher{}
+
+	out, err := runPrune(t, pruneFixture(), writer, publisher, "--apply")
+
+	require.Error(t, err)
+	assert.Contains(t, out, "deleted=2 already_gone=0 failed=1")
+	assert.Len(t, publisher.indexer, 3, "the indexer is told first; the member that could not be deleted is found again by the next run, which repeats the message")
+}
+
+func TestPruneOrphans_AFailedIndexerMessageLeavesTheMembersForTheNextRun(t *testing.T) {
+	writer := &recordingMemberWriter{}
+	publisher := &recordingPublisher{indexerErr: errors.New("nats down")}
+
+	out, err := runPrune(t, pruneFixture(), writer, publisher, "--apply")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted, "a member whose search document could not be dropped is not deleted, or the next run could not find it")
+	assert.Contains(t, out, "deleted=0 already_gone=0 failed=0 indexer_failed=3")
+
+	// The next run, with the indexer back, finds the same members and finishes the job.
+	publisher.indexerErr = nil
+	out, err = runPrune(t, pruneFixture(), writer, publisher, "--apply")
+
+	require.NoError(t, err)
+	assert.Equal(t, []deletedMember{{"o-1", 30}, {"o-2", 31}, {"o-3", 32}}, writer.deleted)
+	assert.Len(t, publisher.indexer, 3)
+	assert.Contains(t, out, "deleted=3 already_gone=0 failed=0 indexer_failed=0")
+}
+
+func TestPruneOrphans_RefusesMoreThanMax(t *testing.T) {
+	writer, publisher := &recordingMemberWriter{}, &recordingPublisher{}
+
+	_, err := runPrune(t, pruneFixture(), writer, publisher, "--apply", "--max=2")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted)
+	assert.Empty(t, publisher.indexer)
+}
+
+func TestPruneOrphans_RefusesWhenKVHasNoCommittees(t *testing.T) {
+	src := pruneFixture()
+	src.committees = nil
+	writer := &recordingMemberWriter{}
+
+	_, err := runPrune(t, src, writer, &recordingPublisher{}, "--apply")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted, "an empty committee list must not make every member an orphan")
+}
+
+func TestPruneOrphans_APartialScanDeletesNothing(t *testing.T) {
+	src := pruneFixture()
+	src.memberErr = errors.New("a member could not be read")
+	writer := &recordingMemberWriter{}
+
+	_, err := runPrune(t, src, writer, &recordingPublisher{}, "--apply")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted)
+}
+
+func TestPruneOrphans_CommitteeListFailureDeletesNothing(t *testing.T) {
+	src := pruneFixture()
+	src.listErr = errors.New("kv unavailable")
+	writer := &recordingMemberWriter{}
+
+	_, err := runPrune(t, src, writer, &recordingPublisher{}, "--apply")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted)
+}
+
+func TestPruneOrphans_RejectsAStrayArgumentBeforeReadingAnything(t *testing.T) {
+	src := pruneFixture()
+	writer := &recordingMemberWriter{}
+
+	_, err := runPrune(t, src, writer, &recordingPublisher{}, "members", "--apply")
+
+	require.Error(t, err)
+	assert.Zero(t, src.listCalls)
+	assert.Empty(t, writer.deleted)
+}
+
+func TestPruneOrphans_ACommitteeTheListingMissedIsNotPruned(t *testing.T) {
+	// c-gone is in no listing, but a point read finds it: the listing was incomplete, and the members must stay, in a dry run too.
+	reader := &baseReader{exists: map[string]bool{"c-1": true, "c-2": true, "c-gone": true}}
+	for _, args := range [][]string{{"--apply"}, nil} {
+		writer := &recordingMemberWriter{}
+
+		err := runPruneWith(t, reader, "dual", writer, args...)
+
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "committee c-gone was missing from the committee listing but still exists in KV")
+		assert.Empty(t, writer.deleted, "a listing that missed one committee may have missed others, so nothing is deleted")
+	}
+}
+
+func TestPruneOrphans_AFailedCommitteeReadDeletesNothing(t *testing.T) {
+	writer := &recordingMemberWriter{}
+
+	err := runPruneWith(t, &baseReader{err: errors.New("kv unavailable")}, "dual", writer, "--apply")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted)
+}
+
+func TestPruneOrphans_RunsOnlyInTheModesThatLeaveOrphans(t *testing.T) {
+	for _, mode := range []string{"dual-pg", "postgres", "dual-write", ""} {
+		writer := &recordingMemberWriter{}
+
+		err := runPruneWith(t, liveCommittees(), mode, writer, "--apply")
+
+		require.Error(t, err, "mode %q", mode)
+		assert.Empty(t, writer.deleted, "mode %q", mode)
+	}
+	for _, mode := range []string{"kv", "dual"} {
+		writer := &recordingMemberWriter{}
+
+		require.NoError(t, runPruneWith(t, liveCommittees(), mode, writer, "--apply"), "mode %q", mode)
+		assert.Len(t, writer.deleted, 3, "mode %q", mode)
+	}
+}
+
+func TestPruneOrphans_ARowTheCompositeLeftInPostgreSQLIsDeletedAndConfirmed(t *testing.T) {
+	// The composite store logs a failed PostgreSQL delete and returns nil: the fake writer, which only knows KV, is that case.
+	pg := &fakePostgresMembers{rows: map[string]pgRow{"o-1": {"c-gone", 30}, "m-1": {"c-1", 20}}}
+	writer := &recordingMemberWriter{}
+
+	out, err := runPruneIn(t, pruneFixture(), writer, &recordingPublisher{}, pg, "--apply")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"o-1"}, pg.deleted, "the row that is still there is deleted directly, and the one of a committee that exists is left")
+	assert.Contains(t, pg.rows, "m-1")
+	assert.Contains(t, out, "deleted=3 already_gone=0 failed=0")
+}
+
+func TestPruneOrphans_ARowThatCannotBeDeletedFromPostgreSQLIsAFailure(t *testing.T) {
+	pg := &fakePostgresMembers{rows: map[string]pgRow{"o-1": {"c-gone", 30}}, deleteFail: map[string]error{"o-1": errors.New("connection lost")}}
+
+	out, err := runPruneIn(t, pruneFixture(), &recordingMemberWriter{}, &recordingPublisher{}, pg, "--apply")
+
+	require.Error(t, err, "a member counted as deleted while its PostgreSQL row remains would be a silent failure")
+	assert.Contains(t, out, "deleted=2 already_gone=0 failed=1")
+}
+
+func TestPruneOrphans_FindsAndDeletesTheMembersOnlyPostgreSQLHolds(t *testing.T) {
+	pg := &fakePostgresMembers{rows: map[string]pgRow{"pg-only": {"c-gone", 50}, "pg-live": {"c-2", 51}}}
+	writer := &recordingMemberWriter{}
+	publisher := &recordingPublisher{}
+
+	out, err := runPruneIn(t, pruneFixture(), writer, publisher, pg, "--apply")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"pg-only"}, pg.deleted, "a member of a committee that exists is never touched")
+	assert.NotContains(t, writer.deleted, deletedMember{"pg-only", 0}, "the KV writer is not asked for a member KV does not hold")
+	assert.Len(t, writer.deleted, 3)
+	assert.Len(t, publisher.indexer, 4, "its search document is dropped too")
+	assert.Contains(t, out, "orphan members (committee not in KV): 4 in 2 committees, 1 of them only in PostgreSQL")
+	assert.Contains(t, out, "deleted=4")
+}
+
+func TestPruneOrphans_ADryRunCountsTheMembersOnlyPostgreSQLHolds(t *testing.T) {
+	pg := &fakePostgresMembers{rows: map[string]pgRow{"pg-only": {"c-gone", 50}}}
+	writer := &recordingMemberWriter{}
+
+	out, err := runPruneIn(t, pruneFixture(), writer, &recordingPublisher{}, pg)
+
+	require.NoError(t, err)
+	assert.Empty(t, writer.deleted)
+	assert.Empty(t, pg.deleted)
+	assert.Contains(t, out, "1 of them only in PostgreSQL")
+}
+
+func TestPruneOrphans_APostgreSQLListingFailureDeletesNothing(t *testing.T) {
+	pg := &fakePostgresMembers{listErr: errors.New("postgres down")}
+	writer := &recordingMemberWriter{}
+
+	_, err := runPruneIn(t, pruneFixture(), writer, &recordingPublisher{}, pg, "--apply")
+
+	require.Error(t, err)
+	assert.Empty(t, writer.deleted)
+}
+
+func TestPruneOrphans_AMemberOnlyPostgreSQLHoldsOfACommitteeThatExistsStopsTheRun(t *testing.T) {
+	// c-gone is missing from the listing, but a point read finds it: the check covers the PostgreSQL orphans too.
+	pg := &fakePostgresMembers{rows: map[string]pgRow{"pg-only": {"c-live", 50}}}
+	reader := &baseReader{exists: map[string]bool{"c-1": true, "c-2": true, "c-live": true}}
+	var out bytes.Buffer
+
+	err := (&pruneOrphansSubcommand{out: &out, openPostgres: pg.open}).Run(context.Background(), commands.RunContext{
+		KVExport:              pruneFixture(),
+		KVCommitteeReader:     reader,
+		CommitteeMemberWriter: &recordingMemberWriter{},
+		Publisher:             &recordingPublisher{},
+		StorageMode:           "dual",
+		Args:                  []string{"--apply"},
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "committee c-live was missing from the committee listing but still exists in KV")
+	assert.Empty(t, pg.deleted)
+}
+
+func TestPruneOrphans_KVModeNeverOpensPostgreSQL(t *testing.T) {
+	pg := &fakePostgresMembers{}
+	var out bytes.Buffer
+
+	err := (&pruneOrphansSubcommand{out: &out, openPostgres: pg.open}).Run(context.Background(), commands.RunContext{
+		KVExport:              pruneFixture(),
+		KVCommitteeReader:     liveCommittees(),
+		CommitteeMemberWriter: &recordingMemberWriter{},
+		Publisher:             &recordingPublisher{},
+		StorageMode:           "kv",
+		Args:                  []string{"--apply"},
+	})
+
+	require.NoError(t, err)
+	assert.Zero(t, pg.opened, "kv mode may have no PostgreSQL to connect to")
+}
+
+func TestPruneOrphans_NeedsItsWiring(t *testing.T) {
+	err := (&pruneOrphansSubcommand{}).Run(context.Background(), commands.RunContext{})
+
+	require.Error(t, err)
+}

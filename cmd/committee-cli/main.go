@@ -158,6 +158,7 @@ func run() error {
 		UserReader:                  userReader,
 		GroupWeeklyBriefReader:      selected.briefs,
 		CommitteeBaseWriter:         selected.committees,
+		StorageMode:                 string(storageMode),
 		KVStore:                     client.GetOrBindKVStore,
 		KVExport:                    storage,
 		KVRepair:                    nats.NewKVRepairStore(client),

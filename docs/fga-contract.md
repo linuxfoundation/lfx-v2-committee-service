@@ -134,7 +134,7 @@ Published to `lfx.fga-sync.member_remove` when a committee member is deleted and
 
 ### Delete
 
-On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` with only the committee `uid` — all FGA tuples for `committee:{uid}` are removed by the fga-sync service.
+On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` with only the committee `uid` — all FGA tuples for `committee:{uid}` are removed by the fga-sync service. That is why `committee-cli storage prune-orphans`, which deletes the members a deleted committee left behind, sends no `member_remove`: their tuples were removed with the committee.
 
 ---
 
