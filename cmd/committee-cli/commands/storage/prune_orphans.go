@@ -33,6 +33,27 @@ const maxPrintedCommittees = 50
 type pruneOrphansSubcommand struct {
 	// out receives the summary; os.Stdout when nil.
 	out io.Writer
+	// openPostgres opens the PostgreSQL side in dual mode; it connects through RunContext.PostgresStore when nil.
+	openPostgres func(ctx context.Context, rc commands.RunContext) (memberPostgres, func(), error)
+}
+
+// memberPostgres is what prune-orphans reads and deletes in PostgreSQL in dual mode: *postgres.Store.
+type memberPostgres interface {
+	EachMemberExport(ctx context.Context, fn func(*model.CommitteeMember, uint64) error) error
+	GetMemberRevision(ctx context.Context, uid string) (uint64, error)
+	DeleteMember(ctx context.Context, uid string, revision uint64) error
+}
+
+// connectPostgres opens the PostgreSQL store of RunContext.
+func connectPostgres(ctx context.Context, rc commands.RunContext) (memberPostgres, func(), error) {
+	if rc.PostgresStore == nil {
+		return nil, nil, errs.NewUnexpected("the PostgreSQL store is not wired in RunContext")
+	}
+	store, closeStore, err := rc.PostgresStore(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return store, closeStore, nil
 }
 
 func (s *pruneOrphansSubcommand) Name() string { return "prune-orphans" }
@@ -41,16 +62,19 @@ func (s *pruneOrphansSubcommand) Help() string {
 	return "delete the committee members whose committee no longer exists in KV, from the stores of the storage mode (a dry run unless --apply)"
 }
 
-// orphanMember is a member whose committee is gone, with the revision KV holds it at.
+// orphanMember is a member whose committee is gone. inKV is false for a member only PostgreSQL holds, which a KV scan
+// cannot find; revision is the one KV holds it at.
 type orphanMember struct {
 	uid          string
 	committeeUID string
 	revision     uint64
+	inKV         bool
 }
 
 // pruneResult is what a run found and did.
 type pruneResult struct {
 	Orphans       int
+	PostgresOnly  int
 	Deleted       int
 	AlreadyGone   int
 	Failed        int
@@ -92,13 +116,33 @@ func (s *pruneOrphansSubcommand) Run(ctx context.Context, rc commands.RunContext
 	// The indexer rejects a message without an authorization header; the other CLI commands that publish set this one.
 	ctx = context.WithValue(ctx, constants.AuthorizationContextID, "Bearer lfx-v2-committee-service")
 
-	orphans, err := findOrphanMembers(ctx, rc)
+	// In dual mode the members are in PostgreSQL too: a delete there that failed after the KV delete left a row a KV scan cannot
+	// find again, so PostgreSQL is scanned as well, and each delete is confirmed there.
+	var pg memberPostgres
+	if composite.Mode(rc.StorageMode) == composite.ModeDual {
+		open := s.openPostgres
+		if open == nil {
+			open = connectPostgres
+		}
+		var closePostgres func()
+		var err error
+		pg, closePostgres, err = open(ctx, rc)
+		if err != nil {
+			return err
+		}
+		defer closePostgres()
+	}
+
+	orphans, err := findOrphanMembers(ctx, rc, pg)
 	if err != nil {
 		return err
 	}
 	result := &pruneResult{Orphans: len(orphans), ByCommittee: map[string]int{}}
 	for _, o := range orphans {
 		result.ByCommittee[o.committeeUID]++
+		if !o.inKV {
+			result.PostgresOnly++
+		}
 	}
 
 	if !*apply {
@@ -111,18 +155,18 @@ func (s *pruneOrphansSubcommand) Run(ctx context.Context, rc commands.RunContext
 	}
 
 	for _, o := range orphans {
-		s.prune(ctx, rc, o, result)
+		s.prune(ctx, rc, pg, o, result)
 	}
 	s.print(result, true)
 	if result.Failed > 0 || result.IndexerFailed > 0 {
-		return errs.NewUnexpected(fmt.Sprintf("%d members could not be deleted and %d indexer messages were not sent: see the log", result.Failed, result.IndexerFailed))
+		return errs.NewUnexpected(fmt.Sprintf("%d members could not be deleted and %d indexer messages were not sent, so those members are still there: see the log and run it again", result.Failed, result.IndexerFailed))
 	}
 	return nil
 }
 
-// findOrphanMembers lists the members whose committee is not in KV. A scan that could not read everything returns an
-// error and no members, so a partial scan never turns into deletes.
-func findOrphanMembers(ctx context.Context, rc commands.RunContext) ([]orphanMember, error) {
+// findOrphanMembers lists the members whose committee is not in KV, from KV and, in dual mode (pg is not nil), from PostgreSQL
+// too. A scan that could not read everything returns an error and no members, so a partial scan never turns into deletes.
+func findOrphanMembers(ctx context.Context, rc commands.RunContext, pg memberPostgres) ([]orphanMember, error) {
 	uids, err := rc.KVExport.ListAllUIDs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing the committees: %w", err)
@@ -137,14 +181,31 @@ func findOrphanMembers(ctx context.Context, rc commands.RunContext) ([]orphanMem
 	}
 
 	var orphans []orphanMember
+	inKV := map[string]struct{}{}
 	scanErr := rc.KVExport.EachMemberExport(ctx, func(member *model.CommitteeMember, revision uint64) error {
 		if _, ok := committees[member.CommitteeUID]; !ok {
-			orphans = append(orphans, orphanMember{uid: member.UID, committeeUID: member.CommitteeUID, revision: revision})
+			orphans = append(orphans, orphanMember{uid: member.UID, committeeUID: member.CommitteeUID, revision: revision, inKV: true})
+			inKV[member.UID] = struct{}{}
 		}
 		return nil
 	})
 	if scanErr != nil {
 		return nil, fmt.Errorf("scanning the members: %w", scanErr)
+	}
+	if pg != nil {
+		// What only PostgreSQL holds: the copy of a member whose KV record was deleted, with the PostgreSQL delete lost.
+		pgErr := pg.EachMemberExport(ctx, func(member *model.CommitteeMember, _ uint64) error {
+			if _, ok := committees[member.CommitteeUID]; ok {
+				return nil
+			}
+			if _, ok := inKV[member.UID]; !ok {
+				orphans = append(orphans, orphanMember{uid: member.UID, committeeUID: member.CommitteeUID})
+			}
+			return nil
+		})
+		if pgErr != nil {
+			return nil, fmt.Errorf("scanning the PostgreSQL members: %w", pgErr)
+		}
 	}
 	if err := confirmCommitteesGone(ctx, rc, orphans); err != nil {
 		return nil, err
@@ -178,23 +239,14 @@ func confirmCommitteesGone(ctx context.Context, rc commands.RunContext, orphans 
 	return nil
 }
 
-// prune deletes one orphan from the stores and tells the indexer. It does not publish the member deleted event or touch
-// the access tuples: the event notifies the person, and nobody should be told they were removed from a committee that was
-// deleted long ago.
-func (s *pruneOrphansSubcommand) prune(ctx context.Context, rc commands.RunContext, o orphanMember, result *pruneResult) {
-	if err := rc.CommitteeMemberWriter.DeleteMember(ctx, o.uid, o.revision); err != nil {
-		var notFound errs.NotFound
-		if errors.As(err, &notFound) {
-			result.AlreadyGone++
-		} else {
-			result.Failed++
-			slog.ErrorContext(ctx, "failed to delete an orphan member", "error", err, "member_uid", o.uid, "committee_uid", o.committeeUID)
-			return
-		}
-	} else {
-		result.Deleted++
-	}
-
+// prune deletes one orphan and tells the indexer. The indexer is told first: if that fails the member is left alone and counted,
+// so the next run finds it again and retries both, where a member deleted first could not be found again, and its search
+// document would stay. The delete goes to the stores of the mode (KV, then in dual mode PostgreSQL), and in dual mode
+// PostgreSQL is read afterwards, because the composite store only logs a failed PostgreSQL delete: a row that is still there
+// is deleted directly, and counted as failed if that fails too, so the next run finds it as a PostgreSQL-only orphan.
+// It does not publish the member deleted event or touch the access tuples: the event notifies the person, and nobody should
+// be told they were removed from a committee that was deleted long ago.
+func (s *pruneOrphansSubcommand) prune(ctx context.Context, rc commands.RunContext, pg memberPostgres, o orphanMember, result *pruneResult) {
 	message := model.CommitteeIndexerMessage{Action: model.ActionDeleted}
 	built, err := message.Build(ctx, o.uid)
 	if err == nil {
@@ -202,7 +254,44 @@ func (s *pruneOrphansSubcommand) prune(ctx context.Context, rc commands.RunConte
 	}
 	if err != nil {
 		result.IndexerFailed++
-		slog.ErrorContext(ctx, "failed to publish the indexer delete of an orphan member", "error", err, "member_uid", o.uid)
+		slog.ErrorContext(ctx, "failed to publish the indexer delete of an orphan member; the member is left for the next run", "error", err, "member_uid", o.uid)
+		return
+	}
+
+	var notFound errs.NotFound
+	removed := false
+	if o.inKV {
+		switch err := rc.CommitteeMemberWriter.DeleteMember(ctx, o.uid, o.revision); {
+		case err == nil:
+			removed = true
+		case errors.As(err, &notFound):
+		default:
+			result.Failed++
+			slog.ErrorContext(ctx, "failed to delete an orphan member", "error", err, "member_uid", o.uid, "committee_uid", o.committeeUID)
+			return
+		}
+	}
+	if pg != nil {
+		revision, err := pg.GetMemberRevision(ctx, o.uid)
+		switch {
+		case err == nil:
+			if err := pg.DeleteMember(ctx, o.uid, revision); err != nil && !errors.As(err, &notFound) {
+				result.Failed++
+				slog.ErrorContext(ctx, "failed to delete an orphan member from PostgreSQL", "error", err, "member_uid", o.uid, "committee_uid", o.committeeUID)
+				return
+			}
+			removed = true
+		case errors.As(err, &notFound):
+		default:
+			result.Failed++
+			slog.ErrorContext(ctx, "failed to check that an orphan member is gone from PostgreSQL", "error", err, "member_uid", o.uid, "committee_uid", o.committeeUID)
+			return
+		}
+	}
+	if removed {
+		result.Deleted++
+	} else {
+		result.AlreadyGone++
 	}
 }
 
@@ -212,7 +301,11 @@ func (s *pruneOrphansSubcommand) print(result *pruneResult, applied bool) {
 	if out == nil {
 		out = os.Stdout
 	}
-	_, _ = fmt.Fprintf(out, "orphan members (committee not in KV): %d in %d committees\n", result.Orphans, len(result.ByCommittee))
+	_, _ = fmt.Fprintf(out, "orphan members (committee not in KV): %d in %d committees", result.Orphans, len(result.ByCommittee))
+	if result.PostgresOnly > 0 {
+		_, _ = fmt.Fprintf(out, ", %d of them only in PostgreSQL", result.PostgresOnly)
+	}
+	_, _ = fmt.Fprintln(out)
 
 	type group struct {
 		uid   string
