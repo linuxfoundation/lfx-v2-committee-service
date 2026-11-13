@@ -15,9 +15,11 @@ Repo-local Goa design layout for this service: where files live, the base / sett
   `reassign-org-committee-seat`), invite/application flows, self-join/leave,
   committee links, link folders, committee documents, and working-group weekly
   briefs (`GET .../weekly-briefs/current`, `POST .../weekly-briefs/generate`).
-- Links, link folders, and documents currently support create/get/list/delete
-  shapes as applicable; there are no update endpoints for those resources
-  today.
+- Links also support a full-replacement `PUT /committees/{uid}/links/{link_uid}`
+  with `If-Match` (a move is a `PUT` that names the target `folder_uid`; an omitted
+  `folder_uid` is the root). Link folders and documents currently support only
+  create/get/list/delete shapes as applicable; there are no update endpoints for
+  those resources today.
 - Document upload uses Goa multipart request wiring plus the custom decoder in
   `cmd/committee-api/http.go`.
 - ETag/If-Match handling is used for mutable KV-backed resources and delete

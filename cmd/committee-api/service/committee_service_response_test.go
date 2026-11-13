@@ -2244,3 +2244,42 @@ func intPtr(i int) *int {
 func boolPtr(b bool) *bool {
 	return &b
 }
+
+// TestLinkRequestBodies_URLMustBeHTTP pins the scheme rule on the link request bodies: a link's URL is shown to every
+// member as something to follow, so only http and https are stored. The bodies are checked through the generated
+// validators, which is where the design's pattern is enforced before a request reaches the service.
+func TestLinkRequestBodies_URLMustBeHTTP(t *testing.T) {
+	name := "Technical Architecture Decision Records"
+
+	tests := []struct {
+		url     string
+		wantErr bool
+	}{
+		{url: "https://confluence.example.com/architecture-decisions"},
+		{url: "http://wiki.example.com/page?x=1#section"},
+		{url: "javascript:alert(1)", wantErr: true},
+		{url: "data:text/html,<script>alert(1)</script>", wantErr: true},
+		{url: "vbscript:msgbox(1)", wantErr: true},
+		{url: "ftp://files.example.com/archive.zip", wantErr: true},
+		{url: "mailto:first.last@example.com", wantErr: true},
+		{url: "//example.com/no-scheme", wantErr: true},
+		{url: "not a url", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			url := tt.url
+
+			createErr := server.ValidateCreateCommitteeLinkRequestBody(&server.CreateCommitteeLinkRequestBody{Name: &name, URL: &url})
+			updateErr := server.ValidateUpdateCommitteeLinkRequestBody(&server.UpdateCommitteeLinkRequestBody{Name: &name, URL: &url})
+
+			if tt.wantErr {
+				assert.Error(t, createErr, "creating a link must refuse this URL")
+				assert.Error(t, updateErr, "updating a link must refuse this URL")
+				return
+			}
+			assert.NoError(t, createErr)
+			assert.NoError(t, updateErr)
+		})
+	}
+}

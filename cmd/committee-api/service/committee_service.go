@@ -2750,6 +2750,44 @@ func (s *committeeServicesrvc) GetCommitteeLink(ctx context.Context, p *committe
 	}, nil
 }
 
+// UpdateCommitteeLink replaces a link's name, URL, description and folder. The request carries all of them: an
+// omitted description clears it and an omitted folder_uid moves the link to the root, so moving a link is an update
+// that names the target folder.
+func (s *committeeServicesrvc) UpdateCommitteeLink(ctx context.Context, p *committeeservice.UpdateCommitteeLinkPayload) (res *committeeservice.CommitteeLinkWithReadonlyAttributes, err error) {
+	slog.DebugContext(ctx, "committeeService.update-committee-link", "committee_uid", p.UID, "link_uid", p.LinkUID)
+
+	parsedRevision, err := etagValidator(p.IfMatch)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag", "error", err, "etag", p.IfMatch, "link_uid", p.LinkUID)
+		return nil, wrapError(ctx, err)
+	}
+
+	_, updatedBy := s.stampAuditUsers(ctx)
+	if updatedBy == nil {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity from token"))
+	}
+
+	link := &model.CommitteeLink{
+		UID:          *p.LinkUID,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		URL:          p.URL,
+		FolderUID:    p.FolderUID,
+		UpdatedBy:    updatedBy,
+	}
+	if p.Description != nil {
+		link.Description = *p.Description
+	}
+
+	updated, err := s.linkWriter.UpdateLink(ctx, link, parsedRevision, p.XSync)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	updated.CreatedBy, updated.UpdatedBy = s.normalizeAuditUsers(ctx, updated.CreatedBy, updated.UpdatedBy, "", "")
+	return domainLinkToGoa(updated), nil
+}
+
 // DeleteCommitteeLink removes a link from a committee.
 func (s *committeeServicesrvc) DeleteCommitteeLink(ctx context.Context, p *committeeservice.DeleteCommitteeLinkPayload) (err error) {
 	slog.DebugContext(ctx, "committeeService.delete-committee-link", "committee_uid", p.UID, "link_uid", p.LinkUID)

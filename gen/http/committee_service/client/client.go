@@ -134,6 +134,10 @@ type Client struct {
 	// create-committee-link endpoint.
 	CreateCommitteeLinkDoer goahttp.Doer
 
+	// UpdateCommitteeLink Doer is the HTTP client used to make requests to the
+	// update-committee-link endpoint.
+	UpdateCommitteeLinkDoer goahttp.Doer
+
 	// DeleteCommitteeLink Doer is the HTTP client used to make requests to the
 	// delete-committee-link endpoint.
 	DeleteCommitteeLinkDoer goahttp.Doer
@@ -245,6 +249,7 @@ func NewClient(
 		GetCommitteeLinkDoer:           doer,
 		ListCommitteeLinksDoer:         doer,
 		CreateCommitteeLinkDoer:        doer,
+		UpdateCommitteeLinkDoer:        doer,
 		DeleteCommitteeLinkDoer:        doer,
 		GetCommitteeLinkFolderDoer:     doer,
 		ListCommitteeLinkFoldersDoer:   doer,
@@ -948,6 +953,30 @@ func (c *Client) CreateCommitteeLink() goa.Endpoint {
 		resp, err := c.CreateCommitteeLinkDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "create-committee-link", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// UpdateCommitteeLink returns an endpoint that makes HTTP requests to the
+// committee-service service update-committee-link server.
+func (c *Client) UpdateCommitteeLink() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeUpdateCommitteeLinkRequest(c.encoder)
+		decodeResponse = DecodeUpdateCommitteeLinkResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildUpdateCommitteeLinkRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.UpdateCommitteeLinkDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "update-committee-link", err)
 		}
 		return decodeResponse(resp)
 	}

@@ -4782,3 +4782,133 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 		})
 	}
 }
+
+// setupUpdateLinkService builds the service over an in-memory link repository holding one folder and one link of
+// committee-1, the link at the root, created by a user other than the one the tests act as.
+func setupUpdateLinkService(t *testing.T) (*committeeServicesrvc, *mock.MockLinkRepository) {
+	t.Helper()
+	ctx := context.Background()
+	linkRepo := mock.NewMockLinkRepository()
+	require.NoError(t, linkRepo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-aaa", CommitteeUID: "committee-1", Name: "Governance"}))
+	require.NoError(t, linkRepo.CreateLink(ctx, &model.CommitteeLink{
+		UID:          "link-1",
+		CommitteeUID: "committee-1",
+		Name:         "Old name",
+		URL:          "https://example.com/old",
+		Description:  "Old description",
+		CreatedBy:    &model.CommitteeUser{Username: "seed-creator"},
+		UpdatedBy:    &model.CommitteeUser{Username: "seed-creator"},
+	}))
+
+	svc := &committeeServicesrvc{
+		linkReader: internalservice.NewLinkReaderOrchestrator(internalservice.WithLinkReader(linkRepo)),
+		linkWriter: internalservice.NewLinkWriterOrchestrator(
+			internalservice.WithLinkWriter(linkRepo),
+			internalservice.WithLinkReaderForWriter(linkRepo),
+			internalservice.WithDocumentListerForWriter(mock.NewMockDocumentRepository()),
+		),
+	}
+	return svc, linkRepo
+}
+
+func TestUpdateCommitteeLink(t *testing.T) {
+	newPayload := func(mutate func(*committeeservice.UpdateCommitteeLinkPayload)) *committeeservice.UpdateCommitteeLinkPayload {
+		p := &committeeservice.UpdateCommitteeLinkPayload{
+			IfMatch: strPtr("1"),
+			UID:     strPtr("committee-1"),
+			LinkUID: strPtr("link-1"),
+			Name:    "New name",
+			URL:     "https://example.com/new",
+		}
+		if mutate != nil {
+			mutate(p)
+		}
+		return p
+	}
+
+	t.Run("replaces the link, moves it into the folder and stamps who changed it", func(t *testing.T) {
+		svc, linkRepo := setupUpdateLinkService(t)
+
+		res, err := svc.UpdateCommitteeLink(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeLinkPayload) {
+			p.Description = strPtr("New description")
+			p.FolderUID = strPtr("folder-aaa")
+		}))
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, "link-1", *res.UID)
+		assert.Equal(t, "New name", *res.Name)
+		assert.Equal(t, "https://example.com/new", *res.URL)
+		assert.Equal(t, "New description", *res.Description)
+		require.NotNil(t, res.FolderUID)
+		assert.Equal(t, "folder-aaa", *res.FolderUID)
+		require.NotNil(t, res.UpdatedBy)
+		assert.Equal(t, "first-last", *res.UpdatedBy.Username)
+		require.NotNil(t, res.CreatedBy)
+		assert.Equal(t, "seed-creator", *res.CreatedBy.Username, "who created the link must not change")
+
+		stored, revision, err := linkRepo.GetLink(context.Background(), "committee-1", "link-1")
+		require.NoError(t, err)
+		assert.Equal(t, "New name", stored.Name)
+		assert.Equal(t, uint64(2), revision)
+	})
+
+	t.Run("an omitted description is cleared and an omitted folder moves the link to the root", func(t *testing.T) {
+		svc, _ := setupUpdateLinkService(t)
+		_, err := svc.UpdateCommitteeLink(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeLinkPayload) {
+			p.FolderUID = strPtr("folder-aaa")
+		}))
+		require.NoError(t, err)
+
+		res, err := svc.UpdateCommitteeLink(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeLinkPayload) {
+			p.IfMatch = strPtr("2")
+		}))
+
+		require.NoError(t, err)
+		assert.Nil(t, res.FolderUID)
+		assert.Nil(t, res.Description)
+	})
+
+	t.Run("refuses a request it cannot act on, and changes nothing", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			ctx      context.Context
+			mutate   func(*committeeservice.UpdateCommitteeLinkPayload)
+			wantType string
+		}{
+			{name: "no If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.IfMatch = nil }, wantType: "bad request"},
+			{name: "an If-Match that is not a revision", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.IfMatch = strPtr("not-a-revision") }, wantType: "bad request"},
+			{name: "no identity in the token", ctx: context.Background(), mutate: nil, wantType: "bad request"},
+			{name: "a target folder that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.FolderUID = strPtr("no-such-folder") }, wantType: "bad request"},
+			{name: "a link that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.LinkUID = strPtr("no-such-link") }, wantType: "not found"},
+			{name: "a link of another committee", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.UID = strPtr("committee-2") }, wantType: "not found"},
+			{name: "a stale If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.IfMatch = strPtr("7") }, wantType: "conflict"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				svc, linkRepo := setupUpdateLinkService(t)
+
+				res, err := svc.UpdateCommitteeLink(tt.ctx, newPayload(tt.mutate))
+
+				require.Error(t, err)
+				assert.Nil(t, res)
+				switch tt.wantType {
+				case "bad request":
+					var badRequest *committeeservice.BadRequestError
+					assert.ErrorAs(t, err, &badRequest)
+				case "not found":
+					var notFound *committeeservice.NotFoundError
+					assert.ErrorAs(t, err, &notFound)
+				case "conflict":
+					var conflict *committeeservice.ConflictError
+					assert.ErrorAs(t, err, &conflict)
+				}
+
+				stored, revision, getErr := linkRepo.GetLink(context.Background(), "committee-1", "link-1")
+				require.NoError(t, getErr)
+				assert.Equal(t, "Old name", stored.Name, "a refused update must not change the link")
+				assert.Equal(t, uint64(1), revision)
+			})
+		}
+	})
+}

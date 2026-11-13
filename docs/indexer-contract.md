@@ -508,7 +508,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLink`
 
-**Indexed on:** create and delete of a committee link. There is no link update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+**Indexed on:** create, update and delete of a committee link. `PUT /committees/{uid}/links/{link_uid}` publishes `ActionUpdated` with the whole link, so a rename, a changed URL or description, and a move all arrive as one message: a move changes the `folder_uid` tag and the `committee_link_folder` parent ref (a link moved to the root has neither). Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 

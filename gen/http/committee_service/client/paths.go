@@ -157,6 +157,11 @@ func CreateCommitteeLinkCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/links", uid)
 }
 
+// UpdateCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service update-committee-link HTTP endpoint.
+func UpdateCommitteeLinkCommitteeServicePath(uid string, linkUID string) string {
+	return fmt.Sprintf("/committees/%v/links/%v", uid, linkUID)
+}
+
 // DeleteCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service delete-committee-link HTTP endpoint.
 func DeleteCommitteeLinkCommitteeServicePath(uid string, linkUID string) string {
 	return fmt.Sprintf("/committees/%v/links/%v", uid, linkUID)

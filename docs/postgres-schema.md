@@ -223,8 +223,9 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   get and delete, as in KV. Links have no unique name; a folder name is unique per committee and case-sensitive, so
   `Legal` and `legal` can both exist. Deleting a folder leaves its links alone (no foreign key, as in KV). `UpdateLinkFolder`
   checks a changed name against the unique index, where KV keeps the lookup key of the name the folder was created with.
-  `UpdateLink` and `UpdateLinkFolder` find the record by uid and revision alone, as KV does, so they are for the
-  audit-sync tooling, not for a request path that must keep a record in its committee. `ListAllLinks` and
+  `UpdateLink` and `UpdateLinkFolder` find the record by uid and revision alone, as KV does, so a request path that must
+  keep a record in its committee has to check that first: the link update (`PUT /committees/{uid}/links/{link_uid}`) loads
+  the link through its committee before replacing it, and `UpdateLinkFolder` is still only for the audit-sync tooling. `ListAllLinks` and
   `ListAllLinkFolders` return every record when the committee is empty.
 - **Document metadata** is found by uid within its committee for get and delete, like links; `UpdateDocumentMetadata`
   matches on the uid and revision alone, as KV does, for the audit-sync tooling. A document name is unique per committee and

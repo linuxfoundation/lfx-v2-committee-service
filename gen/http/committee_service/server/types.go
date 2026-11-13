@@ -374,11 +374,24 @@ type JoinCommitteeRequestBody struct {
 type CreateCommitteeLinkRequestBody struct {
 	// Display name for the link
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// Optional folder UID to place this link in
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+}
+
+// UpdateCommitteeLinkRequestBody is the type of the "committee-service"
+// service "update-committee-link" endpoint HTTP request body.
+type UpdateCommitteeLinkRequestBody struct {
+	// Display name for the link
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// The URL this link points to (http or https)
+	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	// Optional description; omit to clear it
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Folder UID to place this link in; omit to move it to the root
 	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 }
 
@@ -1182,6 +1195,31 @@ type ListCommitteeLinksResponseBody []*CommitteeLinkWithReadonlyAttributesRespon
 // CreateCommitteeLinkResponseBody is the type of the "committee-service"
 // service "create-committee-link" endpoint HTTP response body.
 type CreateCommitteeLinkResponseBody struct {
+	// Link UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this link belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+	// Display name for the link
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// The URL this link points to
+	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// User who created this resource
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// UpdateCommitteeLinkResponseBody is the type of the "committee-service"
+// service "update-committee-link" endpoint HTTP response body.
+type UpdateCommitteeLinkResponseBody struct {
 	// Link UID
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
@@ -2327,6 +2365,46 @@ type CreateCommitteeLinkNotFoundResponseBody struct {
 // "committee-service" service "create-committee-link" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type CreateCommitteeLinkServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkBadRequestResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "BadRequest" error.
+type UpdateCommitteeLinkBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkConflictResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "Conflict" error.
+type UpdateCommitteeLinkConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkInternalServerErrorResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "InternalServerError" error.
+type UpdateCommitteeLinkInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkNotFoundResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "NotFound" error.
+type UpdateCommitteeLinkNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkServiceUnavailableResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type UpdateCommitteeLinkServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -4805,6 +4883,29 @@ func NewCreateCommitteeLinkResponseBody(res *committeeservice.CommitteeLinkWithR
 	return body
 }
 
+// NewUpdateCommitteeLinkResponseBody builds the HTTP response body from the
+// result of the "update-committee-link" endpoint of the "committee-service"
+// service.
+func NewUpdateCommitteeLinkResponseBody(res *committeeservice.CommitteeLinkWithReadonlyAttributes) *UpdateCommitteeLinkResponseBody {
+	body := &UpdateCommitteeLinkResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		FolderUID:    res.FolderUID,
+		Name:         res.Name,
+		URL:          res.URL,
+		Description:  res.Description,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(res.UpdatedBy)
+	}
+	return body
+}
+
 // NewGetCommitteeLinkFolderResponseBody builds the HTTP response body from the
 // result of the "get-committee-link-folder" endpoint of the
 // "committee-service" service.
@@ -6200,6 +6301,56 @@ func NewCreateCommitteeLinkNotFoundResponseBody(res *committeeservice.NotFoundEr
 // "committee-service" service.
 func NewCreateCommitteeLinkServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *CreateCommitteeLinkServiceUnavailableResponseBody {
 	body := &CreateCommitteeLinkServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkBadRequestResponseBody builds the HTTP response body
+// from the result of the "update-committee-link" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkBadRequestResponseBody(res *committeeservice.BadRequestError) *UpdateCommitteeLinkBadRequestResponseBody {
+	body := &UpdateCommitteeLinkBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkConflictResponseBody builds the HTTP response body
+// from the result of the "update-committee-link" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkConflictResponseBody(res *committeeservice.ConflictError) *UpdateCommitteeLinkConflictResponseBody {
+	body := &UpdateCommitteeLinkConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "update-committee-link" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *UpdateCommitteeLinkInternalServerErrorResponseBody {
+	body := &UpdateCommitteeLinkInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkNotFoundResponseBody builds the HTTP response body
+// from the result of the "update-committee-link" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkNotFoundResponseBody(res *committeeservice.NotFoundError) *UpdateCommitteeLinkNotFoundResponseBody {
+	body := &UpdateCommitteeLinkNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "update-committee-link" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *UpdateCommitteeLinkServiceUnavailableResponseBody {
+	body := &UpdateCommitteeLinkServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -7687,6 +7838,25 @@ func NewCreateCommitteeLinkPayload(body *CreateCommitteeLinkRequestBody, uid str
 	return v
 }
 
+// NewUpdateCommitteeLinkPayload builds a committee-service service
+// update-committee-link endpoint payload.
+func NewUpdateCommitteeLinkPayload(body *UpdateCommitteeLinkRequestBody, uid string, linkUID string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeLinkPayload {
+	v := &committeeservice.UpdateCommitteeLinkPayload{
+		Name:        *body.Name,
+		URL:         *body.URL,
+		Description: body.Description,
+		FolderUID:   body.FolderUID,
+	}
+	v.UID = &uid
+	v.LinkUID = &linkUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+	v.XSync = xSync
+
+	return v
+}
+
 // NewDeleteCommitteeLinkPayload builds a committee-service service
 // delete-committee-link endpoint payload.
 func NewDeleteCommitteeLinkPayload(uid string, linkUID string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteeLinkPayload {
@@ -8510,6 +8680,48 @@ func ValidateCreateCommitteeLinkRequestBody(body *CreateCommitteeLinkRequestBody
 		if utf8.RuneCountInString(*body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
 		}
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", *body.URL, goa.FormatURI))
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkRequestBody runs the validations defined on
+// Update-Committee-LinkRequestBody
+func ValidateUpdateCommitteeLinkRequestBody(body *UpdateCommitteeLinkRequestBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.URL == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("url", "body"))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", *body.URL, goa.FormatURI))
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
 	}
 	if body.URL != nil {
 		if utf8.RuneCountInString(*body.URL) > 2048 {

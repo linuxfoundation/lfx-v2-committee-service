@@ -48,6 +48,7 @@ This service contains the following API endpoints:
   - `GET`: list committee links
   - `POST`: create a committee link
   - `GET /{link_uid}`: retrieve a committee link
+  - `PUT /{link_uid}`: replace a committee link's name, url (http or https), description and folder; `If-Match` required. Moving a link is a `PUT` that names the target folder; an omitted folder is the root
   - `DELETE /{link_uid}`: delete a committee link
 
 - `/committees/{uid}/folders`
