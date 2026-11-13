@@ -46,6 +46,7 @@ type Client struct {
 	GetCommitteeLinkEndpoint           goa.Endpoint
 	ListCommitteeLinksEndpoint         goa.Endpoint
 	CreateCommitteeLinkEndpoint        goa.Endpoint
+	UpdateCommitteeLinkEndpoint        goa.Endpoint
 	DeleteCommitteeLinkEndpoint        goa.Endpoint
 	GetCommitteeLinkFolderEndpoint     goa.Endpoint
 	ListCommitteeLinkFoldersEndpoint   goa.Endpoint
@@ -64,7 +65,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, bulkCreateCommitteeMembers, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, bulkCreateCommitteeMembers, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, updateCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:            createCommittee,
 		GetCommitteeBaseEndpoint:           getCommitteeBase,
@@ -95,6 +96,7 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		GetCommitteeLinkEndpoint:           getCommitteeLink,
 		ListCommitteeLinksEndpoint:         listCommitteeLinks,
 		CreateCommitteeLinkEndpoint:        createCommitteeLink,
+		UpdateCommitteeLinkEndpoint:        updateCommitteeLink,
 		DeleteCommitteeLinkEndpoint:        deleteCommitteeLink,
 		GetCommitteeLinkFolderEndpoint:     getCommitteeLinkFolder,
 		ListCommitteeLinkFoldersEndpoint:   listCommitteeLinkFolders,
@@ -586,6 +588,24 @@ func (c *Client) ListCommitteeLinks(ctx context.Context, p *ListCommitteeLinksPa
 func (c *Client) CreateCommitteeLink(ctx context.Context, p *CreateCommitteeLinkPayload) (res *CommitteeLinkWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.CreateCommitteeLinkEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeLinkWithReadonlyAttributes), nil
+}
+
+// UpdateCommitteeLink calls the "update-committee-link" endpoint of the
+// "committee-service" service.
+// UpdateCommitteeLink may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) UpdateCommitteeLink(ctx context.Context, p *UpdateCommitteeLinkPayload) (res *CommitteeLinkWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.UpdateCommitteeLinkEndpoint(ctx, p)
 	if err != nil {
 		return
 	}

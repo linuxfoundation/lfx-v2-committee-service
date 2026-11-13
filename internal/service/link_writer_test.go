@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -59,6 +61,11 @@ func (m *mockLinkStorage) ListLinks(_ context.Context, committeeUID string) ([]*
 		}
 	}
 	return result, nil
+}
+
+func (m *mockLinkStorage) UpdateLink(_ context.Context, link *model.CommitteeLink, _ uint64) error {
+	m.links[link.UID] = link
+	return nil
 }
 
 func (m *mockLinkStorage) DeleteLink(_ context.Context, _, linkUID string, _ uint64) error {
@@ -279,4 +286,240 @@ func TestDeleteLinkFolder(t *testing.T) {
 			assert.Equal(t, !tt.wantDeleted, stillThere, "the folder must be deleted only when it is empty")
 		})
 	}
+}
+
+// recordingPublisher keeps the indexer messages a writer publishes, so a test can read what the indexer is told.
+type recordingPublisher struct {
+	indexed []*model.CommitteeIndexerMessage
+}
+
+func (p *recordingPublisher) Indexer(_ context.Context, _ string, message any, _ bool) error {
+	if m, ok := message.(*model.CommitteeIndexerMessage); ok {
+		p.indexed = append(p.indexed, m)
+	}
+	return nil
+}
+func (p *recordingPublisher) UpdateAccess(context.Context, any) error        { return nil }
+func (p *recordingPublisher) DeleteAccess(context.Context, any) error        { return nil }
+func (p *recordingPublisher) MemberPut(context.Context, any) error           { return nil }
+func (p *recordingPublisher) MemberRemove(context.Context, any) error        { return nil }
+func (p *recordingPublisher) Event(context.Context, string, any, bool) error { return nil }
+
+func TestUpdateLink(t *testing.T) {
+	const committeeUID = "committee-1"
+	const linkUID = "link-1"
+
+	ctx := context.Background()
+	creator := &model.CommitteeUser{Username: "first-last", Name: "First Last"}
+	editor := &model.CommitteeUser{Username: "other-editor", Name: "Other Editor"}
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	folderRef := func(uid string) *string { return &uid }
+
+	// setup builds a repository holding one link in committee-1 (in existingFolder, or at the root when nil), two folders
+	// of committee-1 and one of committee-2, and the orchestrator over it. The revision is the link's current one.
+	setup := func(t *testing.T, existingFolder *string) (*mock.MockLinkRepository, *recordingPublisher, service.CommitteeLinkDataWriter, uint64) {
+		t.Helper()
+		repo := mock.NewMockLinkRepository()
+		require.NoError(t, repo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-a", CommitteeUID: committeeUID, Name: "Folder A"}))
+		require.NoError(t, repo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-b", CommitteeUID: committeeUID, Name: "Folder B"}))
+		require.NoError(t, repo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-other", CommitteeUID: "committee-2", Name: "Elsewhere"}))
+		require.NoError(t, repo.CreateLink(ctx, &model.CommitteeLink{
+			UID:          linkUID,
+			CommitteeUID: committeeUID,
+			FolderUID:    existingFolder,
+			Name:         "Old name",
+			URL:          "https://example.com/old",
+			Description:  "Old description",
+			CreatedBy:    creator,
+			UpdatedBy:    creator,
+			CreatedAt:    createdAt,
+			UpdatedAt:    createdAt,
+		}))
+		publisher := &recordingPublisher{}
+		orch := service.NewLinkWriterOrchestrator(
+			service.WithLinkWriter(repo),
+			service.WithLinkReaderForWriter(repo),
+			service.WithDocumentListerForWriter(&fakeDocumentLister{}),
+			service.WithLinkPublisher(publisher),
+		)
+		_, revision, err := repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, err)
+		return repo, publisher, orch, revision
+	}
+
+	// request is a complete update of linkUID in committee-1; a test overrides what it is about.
+	request := func(mutate func(*model.CommitteeLink)) *model.CommitteeLink {
+		link := &model.CommitteeLink{
+			UID:          linkUID,
+			CommitteeUID: committeeUID,
+			Name:         "New name",
+			URL:          "https://example.com/new",
+			Description:  "New description",
+			UpdatedBy:    editor,
+		}
+		if mutate != nil {
+			mutate(link)
+		}
+		return link
+	}
+
+	// requireUnchanged asserts the link is exactly as setup left it and nothing was published.
+	requireUnchanged := func(t *testing.T, repo *mock.MockLinkRepository, publisher *recordingPublisher, revision uint64) {
+		t.Helper()
+		stored, storedRevision, err := repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, err)
+		assert.Equal(t, "Old name", stored.Name)
+		assert.Equal(t, "https://example.com/old", stored.URL)
+		assert.Equal(t, revision, storedRevision, "a refused update must not move the revision")
+		assert.Empty(t, publisher.indexed, "a refused update must not tell the indexer anything")
+	}
+
+	t.Run("replaces the editable fields and keeps the identity and who created the link", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, nil)
+		before := time.Now().UTC()
+
+		updated, err := orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.FolderUID = folderRef("folder-a") }), revision, false)
+
+		require.NoError(t, err)
+		stored, storedRevision, err := repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, err)
+		assert.Equal(t, updated, stored)
+		assert.Equal(t, "New name", stored.Name)
+		assert.Equal(t, "https://example.com/new", stored.URL)
+		assert.Equal(t, "New description", stored.Description)
+		require.NotNil(t, stored.FolderUID)
+		assert.Equal(t, "folder-a", *stored.FolderUID)
+		assert.Equal(t, linkUID, stored.UID)
+		assert.Equal(t, committeeUID, stored.CommitteeUID)
+		assert.Equal(t, creator, stored.CreatedBy)
+		assert.Equal(t, createdAt, stored.CreatedAt)
+		assert.Equal(t, editor, stored.UpdatedBy)
+		assert.False(t, stored.UpdatedAt.Before(before), "updated_at must be the time of the update")
+		assert.Equal(t, revision+1, storedRevision)
+
+		require.Len(t, publisher.indexed, 1)
+		message := publisher.indexed[0]
+		assert.Equal(t, model.ActionUpdated, message.Action)
+		assert.Contains(t, message.Tags, "folder_uid:folder-a", "the folder tag is what a folder's contents are found by")
+		require.NotNil(t, message.IndexingConfig)
+		assert.Equal(t, "New name", message.IndexingConfig.SortName)
+		assert.Contains(t, message.IndexingConfig.ParentRefs, "committee_link_folder:folder-a")
+	})
+
+	t.Run("moves a link between folders and then back to the root", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, folderRef("folder-a"))
+
+		_, err := orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.FolderUID = folderRef("folder-b") }), revision, false)
+		require.NoError(t, err)
+		stored, revision, err := repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, err)
+		require.NotNil(t, stored.FolderUID)
+		assert.Equal(t, "folder-b", *stored.FolderUID)
+
+		// An omitted folder is the root, so the next request names none.
+		_, err = orch.UpdateLink(ctx, request(nil), revision, false)
+		require.NoError(t, err)
+		stored, _, err = repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, err)
+		assert.Nil(t, stored.FolderUID)
+
+		require.Len(t, publisher.indexed, 2)
+		rootMessage := publisher.indexed[1]
+		for _, tag := range rootMessage.Tags {
+			assert.NotContains(t, tag, "folder_uid:", "a link at the root carries no folder tag")
+		}
+		assert.Equal(t, []string{"committee:" + committeeUID}, rootMessage.IndexingConfig.ParentRefs)
+	})
+
+	t.Run("treats an empty folder uid as the root", func(t *testing.T) {
+		repo, _, orch, revision := setup(t, folderRef("folder-a"))
+
+		_, err := orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.FolderUID = folderRef("") }), revision, false)
+
+		require.NoError(t, err)
+		stored, _, err := repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, err)
+		assert.Nil(t, stored.FolderUID, "an empty uid must not be stored as a folder that does not exist")
+	})
+
+	t.Run("clears the description when the request has none", func(t *testing.T) {
+		repo, _, orch, revision := setup(t, nil)
+
+		_, err := orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.Description = "" }), revision, false)
+
+		require.NoError(t, err)
+		stored, _, err := repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, err)
+		assert.Empty(t, stored.Description)
+	})
+
+	t.Run("a revision that has moved on is a conflict and changes nothing", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, nil)
+
+		_, err := orch.UpdateLink(ctx, request(nil), revision, false)
+		require.NoError(t, err)
+		publisher.indexed = nil
+
+		// The same, now stale, revision again.
+		_, err = orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.Name = "Lost update" }), revision, false)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		stored, _, getErr := repo.GetLink(ctx, committeeUID, linkUID)
+		require.NoError(t, getErr)
+		assert.Equal(t, "New name", stored.Name, "the update that lost must not overwrite the one that won")
+		assert.Empty(t, publisher.indexed)
+	})
+
+	t.Run("refuses a target folder that is missing or belongs to another committee", func(t *testing.T) {
+		for _, folder := range []string{"no-such-folder", "folder-other"} {
+			t.Run(folder, func(t *testing.T) {
+				repo, publisher, orch, revision := setup(t, nil)
+
+				_, err := orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.FolderUID = folderRef(folder) }), revision, false)
+
+				// The folder is named in the request body, so this is a bad request, not a missing link.
+				var validation errs.Validation
+				require.ErrorAs(t, err, &validation)
+				assert.Contains(t, err.Error(), "does not exist in this committee")
+				requireUnchanged(t, repo, publisher, revision)
+			})
+		}
+	})
+
+	t.Run("does not find a link of another committee", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, nil)
+
+		_, err := orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.CommitteeUID = "committee-2" }), revision, false)
+
+		var notFound errs.NotFound
+		require.ErrorAs(t, err, &notFound)
+		requireUnchanged(t, repo, publisher, revision)
+	})
+
+	t.Run("refuses an incomplete request", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			link   *model.CommitteeLink
+			wantIn string
+		}{
+			{name: "no link", link: nil, wantIn: "link is required"},
+			{name: "no link uid", link: request(func(l *model.CommitteeLink) { l.UID = "" }), wantIn: "link UID"},
+			{name: "no committee uid", link: request(func(l *model.CommitteeLink) { l.CommitteeUID = "" }), wantIn: "committee UID"},
+			{name: "no name", link: request(func(l *model.CommitteeLink) { l.Name = "" }), wantIn: "name"},
+			{name: "no url", link: request(func(l *model.CommitteeLink) { l.URL = "" }), wantIn: "URL"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				repo, publisher, orch, revision := setup(t, nil)
+
+				_, err := orch.UpdateLink(ctx, tt.link, revision, false)
+
+				var validation errs.Validation
+				require.ErrorAs(t, err, &validation)
+				assert.Contains(t, err.Error(), tt.wantIn)
+				requireUnchanged(t, repo, publisher, revision)
+			})
+		}
+	})
 }

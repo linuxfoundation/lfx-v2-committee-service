@@ -47,6 +47,7 @@ type Endpoints struct {
 	GetCommitteeLink           goa.Endpoint
 	ListCommitteeLinks         goa.Endpoint
 	CreateCommitteeLink        goa.Endpoint
+	UpdateCommitteeLink        goa.Endpoint
 	DeleteCommitteeLink        goa.Endpoint
 	GetCommitteeLinkFolder     goa.Endpoint
 	ListCommitteeLinkFolders   goa.Endpoint
@@ -105,6 +106,7 @@ func NewEndpoints(s Service) *Endpoints {
 		GetCommitteeLink:           NewGetCommitteeLinkEndpoint(s, a.JWTAuth),
 		ListCommitteeLinks:         NewListCommitteeLinksEndpoint(s, a.JWTAuth),
 		CreateCommitteeLink:        NewCreateCommitteeLinkEndpoint(s, a.JWTAuth),
+		UpdateCommitteeLink:        NewUpdateCommitteeLinkEndpoint(s, a.JWTAuth),
 		DeleteCommitteeLink:        NewDeleteCommitteeLinkEndpoint(s, a.JWTAuth),
 		GetCommitteeLinkFolder:     NewGetCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		ListCommitteeLinkFolders:   NewListCommitteeLinkFoldersEndpoint(s, a.JWTAuth),
@@ -154,6 +156,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.GetCommitteeLink = m(e.GetCommitteeLink)
 	e.ListCommitteeLinks = m(e.ListCommitteeLinks)
 	e.CreateCommitteeLink = m(e.CreateCommitteeLink)
+	e.UpdateCommitteeLink = m(e.UpdateCommitteeLink)
 	e.DeleteCommitteeLink = m(e.DeleteCommitteeLink)
 	e.GetCommitteeLinkFolder = m(e.GetCommitteeLinkFolder)
 	e.ListCommitteeLinkFolders = m(e.ListCommitteeLinkFolders)
@@ -805,6 +808,29 @@ func NewCreateCommitteeLinkEndpoint(s Service, authJWTFn security.AuthJWTFunc) g
 			return nil, err
 		}
 		return s.CreateCommitteeLink(ctx, p)
+	}
+}
+
+// NewUpdateCommitteeLinkEndpoint returns an endpoint function that calls the
+// method "update-committee-link" of service "committee-service".
+func NewUpdateCommitteeLinkEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*UpdateCommitteeLinkPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.UpdateCommitteeLink(ctx, p)
 	}
 }
 

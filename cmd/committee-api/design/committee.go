@@ -1189,6 +1189,66 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// PUT - Replace a committee link (complete replacement of the mutable fields)
+	// This endpoint follows PUT semantics: name, url, description and folder_uid are all replaced.
+	// An omitted description clears it, and an omitted folder_uid moves the link back to the root
+	// (outside every folder), so moving a link is a PUT with the target folder_uid.
+	dsl.Method("update-committee-link", func() {
+		dsl.Description("Replace a committee link's name, URL, description and folder (requires the complete set of mutable fields)")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			CommitteeUIDAttribute()
+			LinkUIDAttribute()
+
+			dsl.Attribute("name", dsl.String, "Display name for the link", func() {
+				dsl.MaxLength(500)
+				dsl.Example("Technical Architecture Decision Records")
+			})
+			dsl.Attribute("url", dsl.String, "The URL this link points to", func() {
+				dsl.MaxLength(2048)
+				dsl.Example("https://confluence.example.com/architecture-decisions")
+			})
+			dsl.Attribute("description", dsl.String, "Optional description; omit to clear it", func() {
+				dsl.MaxLength(2000)
+			})
+			dsl.Attribute("folder_uid", dsl.String, "Folder UID to place this link in; omit to move it to the root", func() {
+				dsl.Format(dsl.FormatUUID)
+			})
+			XSyncAttribute()
+
+			dsl.Required("name", "url")
+		})
+
+		dsl.Result(CommitteeLinkWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Conflict")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/links/{link_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("link_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	dsl.Method("delete-committee-link", func() {
 		dsl.Description("Delete a link from a committee")
 

@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -20,6 +21,9 @@ import (
 // CommitteeLinkDataWriter defines use case operations for writing links and folders.
 type CommitteeLinkDataWriter interface {
 	CreateLink(ctx context.Context, link *model.CommitteeLink, sync bool) (*model.CommitteeLink, error)
+	// UpdateLink replaces the link's name, URL, description and folder, guarded by the revision. An absent folder moves
+	// the link to the root. The link's identity and who created it are kept.
+	UpdateLink(ctx context.Context, link *model.CommitteeLink, revision uint64, sync bool) (*model.CommitteeLink, error)
 	DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64, sync bool) error
 	CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, sync bool) (*model.CommitteeLinkFolder, error)
 	DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64, sync bool) error
@@ -114,6 +118,68 @@ func (o *linkWriterOrchestrator) CreateLink(ctx context.Context, link *model.Com
 	o.publishLinkCreatedEvent(ctx, link)
 
 	return link, nil
+}
+
+func (o *linkWriterOrchestrator) UpdateLink(ctx context.Context, link *model.CommitteeLink, revision uint64, sync bool) (*model.CommitteeLink, error) {
+	if link == nil {
+		return nil, errs.NewValidation("link is required")
+	}
+	if link.UID == "" {
+		return nil, errs.NewValidation("link UID is required")
+	}
+	if link.CommitteeUID == "" {
+		return nil, errs.NewValidation("committee UID is required")
+	}
+	if link.Name == "" {
+		return nil, errs.NewValidation("link name is required")
+	}
+	if link.URL == "" {
+		return nil, errs.NewValidation("URL is required")
+	}
+
+	// Found through the committee first: a link of another committee is not found, which is what lets the store
+	// replace it by uid alone, and what is not editable (identity, creator, creation time) is taken from it.
+	existing, _, err := o.linkReader.GetLink(ctx, link.CommitteeUID, link.UID)
+	if err != nil {
+		return nil, err
+	}
+
+	var folderUID *string
+	if link.FolderUID != nil && *link.FolderUID != "" {
+		if _, _, err := o.linkReader.GetLinkFolder(ctx, link.CommitteeUID, *link.FolderUID); err != nil {
+			// The folder is named in the request, not in the path, so it being absent is a bad request, as it is when
+			// a document is uploaded into one: a 404 on this route would read as the link itself being gone.
+			var notFound errs.NotFound
+			if errors.As(err, &notFound) {
+				return nil, errs.NewValidation(fmt.Sprintf("folder %s does not exist in this committee", *link.FolderUID), err)
+			}
+			return nil, err
+		}
+		folderUID = link.FolderUID
+	}
+
+	updated := *existing
+	updated.Name = link.Name
+	updated.URL = link.URL
+	updated.Description = link.Description
+	updated.FolderUID = folderUID
+	if link.UpdatedBy != nil {
+		updated.UpdatedBy = link.UpdatedBy
+	}
+	updated.UpdatedAt = time.Now().UTC()
+
+	if err := o.linkWriter.UpdateLink(ctx, &updated, revision); err != nil {
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "updated committee link",
+		"link_uid", updated.UID,
+		"committee_uid", updated.CommitteeUID,
+	)
+
+	o.publishLinkIndexerMessage(ctx, model.ActionUpdated, &updated, sync)
+
+	return &updated, nil
 }
 
 func (o *linkWriterOrchestrator) DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64, sync bool) error {
