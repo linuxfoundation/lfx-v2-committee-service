@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
@@ -162,6 +163,9 @@ type renameWriteKV struct {
 	applied   bool
 	getErr    error
 	attempted bool
+	// beforeReadBack runs once, when the record is read back after the update was attempted: what another request does
+	// between the failed write and the recovery.
+	beforeReadBack func()
 }
 
 func (k *renameWriteKV) Update(ctx context.Context, key string, value []byte, revision uint64) (uint64, error) {
@@ -178,6 +182,11 @@ func (k *renameWriteKV) Update(ctx context.Context, key string, value []byte, re
 }
 
 func (k *renameWriteKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if key == k.recordKey && k.attempted && k.beforeReadBack != nil {
+		hook := k.beforeReadBack
+		k.beforeReadBack = nil
+		hook()
+	}
 	if key == k.recordKey && k.attempted && k.getErr != nil {
 		return nil, k.getErr
 	}
@@ -212,13 +221,13 @@ func TestUpdateDocumentMetadata_RenameWriteError(t *testing.T) {
 		return exists
 	}
 
-	t.Run("a write that landed but was reported as failed releases the old name and keeps the new one", func(t *testing.T) {
+	t.Run("a write that landed but was reported as failed is a success that releases the old name and keeps the new one", func(t *testing.T) {
 		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
 
 		doc.Name = "Minutes 2026"
 		err := NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision)
 
-		require.Error(t, err, "the caller still hears that the write was not confirmed")
+		require.NoError(t, err, "a write found to have landed is reported as done, so the update completes and is indexed")
 		got, _, getErr := NewDocumentStorage(client).GetDocumentMetadata(ctx, "committee-1", "d-1")
 		require.NoError(t, getErr)
 		assert.Equal(t, "Minutes 2026", got.Name, "the write did land")
@@ -227,8 +236,8 @@ func TestUpdateDocumentMetadata_RenameWriteError(t *testing.T) {
 		require.NoError(t, NewDocumentStorage(client).CreateDocumentMetadata(ctx, storetest.NewDocument("d-2", "committee-1", "Minutes")), "the old name is free again")
 	})
 
-	t.Run("a write that did not land releases the name reserved for it, so the same rename can be retried", func(t *testing.T) {
-		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.err = context.Canceled })
+	t.Run("a write that may still land keeps the name reserved for it and says so", func(t *testing.T) {
+		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.err = context.DeadlineExceeded })
 
 		doc.Name = "Minutes 2026"
 		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
@@ -237,12 +246,73 @@ func TestUpdateDocumentMetadata_RenameWriteError(t *testing.T) {
 		require.NoError(t, getErr)
 		assert.Equal(t, "Minutes", got.Name, "the write did not land")
 		assert.True(t, nameHeld(t, client, "Minutes"), "the record keeps its name")
-		assert.False(t, nameHeld(t, client, "Minutes 2026"), "a name reserved for a write that did not land must not stay locked")
+		// The record is still at the revision the write was sent at, so the write could land later; releasing the
+		// name now would let another document take it first.
+		assert.True(t, nameHeld(t, client, "Minutes 2026"), "the name stays reserved while the write may still land")
+	})
 
-		// The same document can try the same rename again: it is not refused against its own earlier attempt.
-		failing.err = nil
-		failing.applied = true
-		require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+	t.Run("a write that can no longer land because the record moved on releases the reserved name", func(t *testing.T) {
+		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.err = context.Canceled })
+		other := otherStorage(t, client)
+		failing.beforeReadBack = func() {
+			// Another request changes only the description: the record is at a later revision, so the earlier write,
+			// which needs the revision it was sent at, can never apply.
+			latest, rev, err := other.GetDocumentMetadata(ctx, "committee-1", "d-1")
+			require.NoError(t, err)
+			latest.Description = "edited meanwhile"
+			require.NoError(t, other.UpdateDocumentMetadata(ctx, latest, rev))
+		}
+
+		doc.Name = "Minutes 2026"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+
+		assert.True(t, nameHeld(t, client, "Minutes"))
+		assert.False(t, nameHeld(t, client, "Minutes 2026"), "the write cannot land any more, so its name is free")
+	})
+
+	t.Run("overlapping renames leave no name locked: A to B lands, B to C lands, then A to B is settled", func(t *testing.T) {
+		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+		other := otherStorage(t, client)
+		failing.beforeReadBack = func() {
+			latest, rev, err := other.GetDocumentMetadata(ctx, "committee-1", "d-1")
+			require.NoError(t, err)
+			latest.Name = "Minutes Final"
+			require.NoError(t, other.UpdateDocumentMetadata(ctx, latest, rev))
+		}
+
+		doc.Name = "Minutes 2026"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision), "the record was changed again, so this write is not reported as the outcome")
+
+		got, _, getErr := NewDocumentStorage(client).GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, getErr)
+		assert.Equal(t, "Minutes Final", got.Name)
+		assert.True(t, nameHeld(t, client, "Minutes Final"))
+		assert.False(t, nameHeld(t, client, "Minutes 2026"), "the intermediate name is free")
+		assert.False(t, nameHeld(t, client, "Minutes"), "the original name must not stay locked by a record that left it")
+	})
+
+	t.Run("recovery does not free a name the record took back in the meantime", func(t *testing.T) {
+		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+		other := otherStorage(t, client)
+		failing.beforeReadBack = func() {
+			// B to C, then C back to B: the key for B is released and reserved again by another request.
+			for _, name := range []string{"Minutes Final", "Minutes 2026"} {
+				latest, rev, err := other.GetDocumentMetadata(ctx, "committee-1", "d-1")
+				require.NoError(t, err)
+				latest.Name = name
+				require.NoError(t, other.UpdateDocumentMetadata(ctx, latest, rev))
+			}
+		}
+
+		doc.Name = "Minutes 2026"
+		_ = NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision)
+
+		assert.True(t, nameHeld(t, client, "Minutes 2026"), "the record holds this name, so its key must survive the recovery")
+		assert.False(t, nameHeld(t, client, "Minutes Final"))
+		assert.False(t, nameHeld(t, client, "Minutes"))
+		err := NewDocumentStorage(client).CreateDocumentMetadata(ctx, storetest.NewDocument("d-2", "committee-1", "Minutes 2026"))
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict, "another document still cannot take the name")
 	})
 
 	t.Run("a write the server refuses outright releases the reserved name and changes nothing", func(t *testing.T) {
@@ -269,4 +339,113 @@ func TestUpdateDocumentMetadata_RenameWriteError(t *testing.T) {
 		assert.True(t, nameHeld(t, client, "Minutes"))
 		assert.True(t, nameHeld(t, client, "Minutes 2026"))
 	})
+}
+
+// otherDocs is a second connection to the same server, for the requests that run while a faulted one is mid-flight.
+type otherDocs struct {
+	port.CommitteeDocumentReaderWriter
+	sync *storage
+}
+
+func (o otherDocs) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
+	return o.sync.UpdateDocumentMetadata(ctx, doc, revision)
+}
+
+func otherStorage(t *testing.T, client *NATSClient) otherDocs {
+	t.Helper()
+	other, err := NewClient(context.Background(), client.config)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = other.Close() })
+	return otherDocs{NewDocumentStorage(other), NewStorageBackend(other)}
+}
+
+// lostReservationKV stores the reservation for one lookup key and then reports an error, as a Create whose reply was
+// lost does. value, when set, is what is stored instead of the caller's, to stand for a reservation another attempt made.
+type lostReservationKV struct {
+	jetstream.KeyValue
+	lostKey string
+	value   string
+	err     error
+}
+
+func (k *lostReservationKV) Create(ctx context.Context, key string, value []byte, opts ...jetstream.KVCreateOpt) (uint64, error) {
+	if key != k.lostKey || k.err == nil {
+		return k.KeyValue.Create(ctx, key, value, opts...)
+	}
+	stored := value
+	if k.value != "" {
+		stored = []byte(k.value)
+	}
+	if _, err := k.KeyValue.Create(ctx, key, stored, opts...); err != nil {
+		return 0, err
+	}
+	return 0, k.err
+}
+
+// A reservation that was stored but whose reply was lost must not lock the name against the document's own retry.
+func TestUpdateDocumentMetadata_LostReservationReply(t *testing.T) {
+	ctx := context.Background()
+	setup := func(t *testing.T) (*NATSClient, *model.CommitteeDocument, uint64, *lostReservationKV) {
+		t.Helper()
+		client := newKVClient(t)
+		docs := NewDocumentStorage(client)
+		require.NoError(t, docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "committee-1", "Minutes")))
+		doc, revision, err := docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, err)
+		probe := &model.CommitteeDocument{CommitteeUID: "committee-1", Name: "Minutes 2026"}
+		real := client.kvStore[constants.KVBucketNameCommitteeDocuments]
+		lost := &lostReservationKV{KeyValue: real, lostKey: fmt.Sprintf(constants.KVLookupDocumentPrefix, probe.BuildIndexKey(ctx)), err: context.DeadlineExceeded}
+		client.kvStore[constants.KVBucketNameCommitteeDocuments] = lost
+		t.Cleanup(func() { client.kvStore[constants.KVBucketNameCommitteeDocuments] = real })
+		return client, doc, revision, lost
+	}
+	nameHeld := func(t *testing.T, client *NATSClient, name string) bool {
+		t.Helper()
+		exists, err := NewDocumentStorage(client).DocumentNameExists(ctx, "committee-1", name)
+		require.NoError(t, err)
+		return exists
+	}
+
+	t.Run("the key this attempt stored is released, so the same rename can be retried", func(t *testing.T) {
+		client, doc, revision, lost := setup(t)
+
+		doc.Name = "Minutes 2026"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+		assert.False(t, nameHeld(t, client, "Minutes 2026"), "a reservation this attempt made must not stay locked")
+		assert.True(t, nameHeld(t, client, "Minutes"))
+
+		lost.err = nil
+		require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+		assert.True(t, nameHeld(t, client, "Minutes 2026"))
+		assert.False(t, nameHeld(t, client, "Minutes"))
+	})
+
+	t.Run("a key that holds the document's uid but not this attempt's token is left alone", func(t *testing.T) {
+		client, doc, revision, lost := setup(t)
+		lost.value = "d-1#another-attempt"
+
+		doc.Name = "Minutes 2026"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+		assert.True(t, nameHeld(t, client, "Minutes 2026"), "another attempt's reservation is not this one's to release")
+	})
+}
+
+// The reservation a rename makes carries a token, which must not stop the document's delete from releasing the name.
+func TestDeleteDocumentMetadata_ReleasesRenamedName(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	docs := NewDocumentStorage(client)
+	require.NoError(t, docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "committee-1", "Minutes")))
+	doc, revision, err := docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+	require.NoError(t, err)
+	doc.Name = "Minutes 2026"
+	require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+	_, revision, err = docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+	require.NoError(t, err)
+
+	require.NoError(t, docs.DeleteDocumentMetadata(ctx, "committee-1", "d-1", revision))
+
+	exists, err := docs.DocumentNameExists(ctx, "committee-1", "Minutes 2026")
+	require.NoError(t, err)
+	assert.False(t, exists, "a deleted document must not leave its renamed name locked")
 }
