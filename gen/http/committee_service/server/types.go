@@ -374,7 +374,7 @@ type JoinCommitteeRequestBody struct {
 type CreateCommitteeLinkRequestBody struct {
 	// Display name for the link
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
@@ -387,7 +387,7 @@ type CreateCommitteeLinkRequestBody struct {
 type UpdateCommitteeLinkRequestBody struct {
 	// Display name for the link
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
 	// Optional description; omit to clear it
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
@@ -8682,6 +8682,12 @@ func ValidateCreateCommitteeLinkRequestBody(body *CreateCommitteeLinkRequestBody
 		}
 	}
 	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", *body.URL, goa.FormatURI))
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
+	}
+	if body.URL != nil {
 		if utf8.RuneCountInString(*body.URL) > 2048 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
 		}
@@ -8710,6 +8716,12 @@ func ValidateUpdateCommitteeLinkRequestBody(body *UpdateCommitteeLinkRequestBody
 		if utf8.RuneCountInString(*body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
 		}
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", *body.URL, goa.FormatURI))
+	}
+	if body.URL != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", *body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
 	}
 	if body.URL != nil {
 		if utf8.RuneCountInString(*body.URL) > 2048 {

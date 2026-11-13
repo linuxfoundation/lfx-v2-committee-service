@@ -12,6 +12,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -288,23 +289,6 @@ func TestDeleteLinkFolder(t *testing.T) {
 	}
 }
 
-// recordingPublisher keeps the indexer messages a writer publishes, so a test can read what the indexer is told.
-type recordingPublisher struct {
-	indexed []*model.CommitteeIndexerMessage
-}
-
-func (p *recordingPublisher) Indexer(_ context.Context, _ string, message any, _ bool) error {
-	if m, ok := message.(*model.CommitteeIndexerMessage); ok {
-		p.indexed = append(p.indexed, m)
-	}
-	return nil
-}
-func (p *recordingPublisher) UpdateAccess(context.Context, any) error        { return nil }
-func (p *recordingPublisher) DeleteAccess(context.Context, any) error        { return nil }
-func (p *recordingPublisher) MemberPut(context.Context, any) error           { return nil }
-func (p *recordingPublisher) MemberRemove(context.Context, any) error        { return nil }
-func (p *recordingPublisher) Event(context.Context, string, any, bool) error { return nil }
-
 func TestUpdateLink(t *testing.T) {
 	const committeeUID = "committee-1"
 	const linkUID = "link-1"
@@ -317,7 +301,7 @@ func TestUpdateLink(t *testing.T) {
 
 	// setup builds a repository holding one link in committee-1 (in existingFolder, or at the root when nil), two folders
 	// of committee-1 and one of committee-2, and the orchestrator over it. The revision is the link's current one.
-	setup := func(t *testing.T, existingFolder *string) (*mock.MockLinkRepository, *recordingPublisher, service.CommitteeLinkDataWriter, uint64) {
+	setup := func(t *testing.T, existingFolder *string) (*mock.MockLinkRepository, *mock.MockCommitteePublisher, service.CommitteeLinkDataWriter, uint64) {
 		t.Helper()
 		repo := mock.NewMockLinkRepository()
 		require.NoError(t, repo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-a", CommitteeUID: committeeUID, Name: "Folder A"}))
@@ -335,7 +319,7 @@ func TestUpdateLink(t *testing.T) {
 			CreatedAt:    createdAt,
 			UpdatedAt:    createdAt,
 		}))
-		publisher := &recordingPublisher{}
+		publisher := &mock.MockCommitteePublisher{}
 		orch := service.NewLinkWriterOrchestrator(
 			service.WithLinkWriter(repo),
 			service.WithLinkReaderForWriter(repo),
@@ -364,14 +348,14 @@ func TestUpdateLink(t *testing.T) {
 	}
 
 	// requireUnchanged asserts the link is exactly as setup left it and nothing was published.
-	requireUnchanged := func(t *testing.T, repo *mock.MockLinkRepository, publisher *recordingPublisher, revision uint64) {
+	requireUnchanged := func(t *testing.T, repo *mock.MockLinkRepository, publisher *mock.MockCommitteePublisher, revision uint64) {
 		t.Helper()
 		stored, storedRevision, err := repo.GetLink(ctx, committeeUID, linkUID)
 		require.NoError(t, err)
 		assert.Equal(t, "Old name", stored.Name)
 		assert.Equal(t, "https://example.com/old", stored.URL)
 		assert.Equal(t, revision, storedRevision, "a refused update must not move the revision")
-		assert.Empty(t, publisher.indexed, "a refused update must not tell the indexer anything")
+		assert.Empty(t, publisher.IndexerMessages, "a refused update must not tell the indexer anything")
 	}
 
 	t.Run("replaces the editable fields and keeps the identity and who created the link", func(t *testing.T) {
@@ -397,8 +381,10 @@ func TestUpdateLink(t *testing.T) {
 		assert.False(t, stored.UpdatedAt.Before(before), "updated_at must be the time of the update")
 		assert.Equal(t, revision+1, storedRevision)
 
-		require.Len(t, publisher.indexed, 1)
-		message := publisher.indexed[0]
+		require.Len(t, publisher.IndexerMessages, 1)
+		assert.Equal(t, constants.IndexCommitteeLinkSubject, publisher.IndexerSubjects[0])
+		message, ok := publisher.IndexerMessages[0].(*model.CommitteeIndexerMessage)
+		require.True(t, ok, "the indexer is sent a committee indexer message")
 		assert.Equal(t, model.ActionUpdated, message.Action)
 		assert.Contains(t, message.Tags, "folder_uid:folder-a", "the folder tag is what a folder's contents are found by")
 		require.NotNil(t, message.IndexingConfig)
@@ -423,8 +409,9 @@ func TestUpdateLink(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, stored.FolderUID)
 
-		require.Len(t, publisher.indexed, 2)
-		rootMessage := publisher.indexed[1]
+		require.Len(t, publisher.IndexerMessages, 2)
+		rootMessage, ok := publisher.IndexerMessages[1].(*model.CommitteeIndexerMessage)
+		require.True(t, ok, "the indexer is sent a committee indexer message")
 		for _, tag := range rootMessage.Tags {
 			assert.NotContains(t, tag, "folder_uid:", "a link at the root carries no folder tag")
 		}
@@ -458,7 +445,7 @@ func TestUpdateLink(t *testing.T) {
 
 		_, err := orch.UpdateLink(ctx, request(nil), revision, false)
 		require.NoError(t, err)
-		publisher.indexed = nil
+		publisher.IndexerMessages, publisher.IndexerSubjects = nil, nil
 
 		// The same, now stale, revision again.
 		_, err = orch.UpdateLink(ctx, request(func(l *model.CommitteeLink) { l.Name = "Lost update" }), revision, false)
@@ -468,7 +455,7 @@ func TestUpdateLink(t *testing.T) {
 		stored, _, getErr := repo.GetLink(ctx, committeeUID, linkUID)
 		require.NoError(t, getErr)
 		assert.Equal(t, "New name", stored.Name, "the update that lost must not overwrite the one that won")
-		assert.Empty(t, publisher.indexed)
+		assert.Empty(t, publisher.IndexerMessages)
 	})
 
 	t.Run("refuses a target folder that is missing or belongs to another committee", func(t *testing.T) {

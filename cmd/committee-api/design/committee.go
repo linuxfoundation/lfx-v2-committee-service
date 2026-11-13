@@ -1153,8 +1153,10 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.MaxLength(500)
 				dsl.Example("Technical Architecture Decision Records")
 			})
-			dsl.Attribute("url", dsl.String, "The URL this link points to", func() {
+			dsl.Attribute("url", dsl.String, "The URL this link points to (http or https)", func() {
 				dsl.MaxLength(2048)
+				dsl.Format(dsl.FormatURI)
+				dsl.Pattern(urlPattern)
 				dsl.Example("https://confluence.example.com/architecture-decisions")
 			})
 			dsl.Attribute("description", dsl.String, "Optional description", func() {
@@ -1209,8 +1211,10 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.MaxLength(500)
 				dsl.Example("Technical Architecture Decision Records")
 			})
-			dsl.Attribute("url", dsl.String, "The URL this link points to", func() {
+			dsl.Attribute("url", dsl.String, "The URL this link points to (http or https)", func() {
 				dsl.MaxLength(2048)
+				dsl.Format(dsl.FormatURI)
+				dsl.Pattern(urlPattern)
 				dsl.Example("https://confluence.example.com/architecture-decisions")
 			})
 			dsl.Attribute("description", dsl.String, "Optional description; omit to clear it", func() {

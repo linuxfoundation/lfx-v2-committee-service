@@ -758,7 +758,7 @@ type CreateCommitteeLinkPayload struct {
 	UID *string
 	// Display name for the link
 	Name string
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL string
 	// Optional description
 	Description *string
@@ -1751,7 +1751,7 @@ type UpdateCommitteeLinkPayload struct {
 	LinkUID *string
 	// Display name for the link
 	Name string
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL string
 	// Optional description; omit to clear it
 	Description *string

@@ -2428,6 +2428,8 @@ func BuildCreateCommitteeLinkPayload(committeeServiceCreateCommitteeLinkBody str
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
 		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", body.URL, goa.FormatURI))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
 		if utf8.RuneCountInString(body.URL) > 2048 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", body.URL, utf8.RuneCountInString(body.URL), 2048, false))
 		}
@@ -2505,6 +2507,8 @@ func BuildUpdateCommitteeLinkPayload(committeeServiceUpdateCommitteeLinkBody str
 		if utf8.RuneCountInString(body.Name) > 500 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 500, false))
 		}
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.url", body.URL, goa.FormatURI))
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.url", body.URL, "^https?://[^\\s/$.?#][^\\s]*$"))
 		if utf8.RuneCountInString(body.URL) > 2048 {
 			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", body.URL, utf8.RuneCountInString(body.URL), 2048, false))
 		}

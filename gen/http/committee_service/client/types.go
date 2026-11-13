@@ -374,7 +374,7 @@ type JoinCommitteeRequestBody struct {
 type CreateCommitteeLinkRequestBody struct {
 	// Display name for the link
 	Name string `form:"name" json:"name" xml:"name"`
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL string `form:"url" json:"url" xml:"url"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
@@ -387,7 +387,7 @@ type CreateCommitteeLinkRequestBody struct {
 type UpdateCommitteeLinkRequestBody struct {
 	// Display name for the link
 	Name string `form:"name" json:"name" xml:"name"`
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL string `form:"url" json:"url" xml:"url"`
 	// Optional description; omit to clear it
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`

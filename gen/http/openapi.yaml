@@ -4847,8 +4847,10 @@ definitions:
                 maxLength: 500
             url:
                 type: string
-                description: The URL this link points to
+                description: The URL this link points to (http or https)
                 example: https://confluence.example.com/architecture-decisions
+                format: uri
+                pattern: ^https?://[^\s/$.?#][^\s]*$
                 maxLength: 2048
         example:
             description: bro
@@ -5706,8 +5708,10 @@ definitions:
                 maxLength: 500
             url:
                 type: string
-                description: The URL this link points to
+                description: The URL this link points to (http or https)
                 example: https://confluence.example.com/architecture-decisions
+                format: uri
+                pattern: ^https?://[^\s/$.?#][^\s]*$
                 maxLength: 2048
         example:
             description: 0kz
