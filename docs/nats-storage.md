@@ -76,10 +76,14 @@ Renaming a document moves its key. `UpdateDocumentMetadata` reserves the new nam
 document holds is a conflict that changes nothing, then writes the record with the caller's revision, and
 releases the old name only once the write has landed and only while that key still holds the document's own
 uid. A revision that is no longer current is a conflict before anything is reserved, and a write the server
-refuses outright releases the name it reserved. If the outcome of the write is ambiguous the reserved key is
-kept, because a rename that landed needs it: a lost reply can leave the new name locked until the key is
-removed, and the warning that is logged names the document. This is what the PostgreSQL store's unique index
-does in one statement, so a rename behaves the same in every storage mode.
+refuses outright releases the name it reserved. If the write returns an error that is not a refusal (a client
+that disconnects mid-write is the usual cause), the record is read back on a context detached from the request
+and the keys follow what it holds: a rename that landed releases the old name, and one that did not releases the
+name reserved for it, so the same rename can be tried again. Only when the record cannot be read back are both
+keys kept, because either may be in use; that is logged at critical priority with the document, and the key the
+record does not use stays locked until it is removed. A crash between reserving the new name and writing the
+record leaves the same lock. This is what the PostgreSQL store's unique index does in one statement, so a rename
+behaves the same in every storage mode.
 
 Document upload pre-checks the name before storing the file, removes the stored file if metadata
 creation fails (unless the metadata is found to exist), and treats the metadata create as the

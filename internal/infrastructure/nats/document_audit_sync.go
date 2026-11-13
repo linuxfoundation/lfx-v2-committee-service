@@ -15,6 +15,7 @@ import (
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -185,6 +186,8 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 		rev, errReserve := kv.Create(ctx, newKey, []byte(doc.UID))
 		if errReserve != nil {
 			if isJetStreamCASConflict(errReserve) {
+				// A key that holds this document's own uid is not adopted: two renames of the same document to the same
+				// name would share the reservation, and the one that loses would release the key the winner now uses.
 				return errs.NewConflict("document with the same name already exists for this committee")
 			}
 			return errs.NewUnexpected("failed to create unique key for document name", errReserve)
@@ -199,10 +202,9 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 				// released by the revision it was reserved at, so a key another writer took over is left alone.
 				releaseLookupKey(ctx, kv, newKey, reserved, errUpdate, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
 			} else {
-				// The write may have landed, in which case the record holds the new name: keep the key rather than
-				// free a name that is in use. An unlanded write leaves the name locked until the key is removed.
-				slog.WarnContext(ctx, "document update reported an error that may have landed; keeping the reserved name key",
-					"error", errUpdate, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
+				// Not a refusal, so the write may or may not have landed (a client that disconnects mid-write is the usual
+				// cause): read the record back and settle the keys by what it holds.
+				settleDocumentRename(ctx, kv, doc, oldKey, newKey, reserved, errUpdate)
 			}
 		}
 		return writeError(ctx, kv, doc.UID, "document not found", "document has been modified since it was last read", "failed to update document metadata", errUpdate)
@@ -212,6 +214,40 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 		purgeOwnedLookupKey(ctx, kv, oldKey, doc.UID)
 	}
 	return nil
+}
+
+// settleDocumentRename resolves a rename whose write returned an error that is not a refusal, so it is not known whether
+// the record now holds the new name. The record is read back on a context detached from the request, and the lookup keys
+// follow what it holds: the new name means the write landed, so the old name is released; anything else means it did not,
+// so the name reserved for it is released, by the revision it was reserved at so that a key another writer took over is
+// left alone. When the record cannot be read back the state is not known, and both keys are kept rather than free a name
+// that is in use: one of them stays locked until it is removed, which is logged.
+//
+// A crash between reserving the new name and writing the record leaves the same lock, and nothing here can settle it.
+func settleDocumentRename(ctx context.Context, kv jetstream.KeyValue, doc *model.CommitteeDocument, oldKey, newKey string, reserved uint64, writeErr error) {
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
+	defer cancel()
+	attrs := []any{"document_uid", doc.UID, "committee_uid", doc.CommitteeUID}
+
+	entry, errGet := kv.Get(ctx, doc.UID)
+	if errGet != nil {
+		slog.ErrorContext(ctx, "could not read the document back after a rename write error; keeping both name keys, and the one the record does not use stays locked until it is removed",
+			append([]any{"error", errGet, "write_error", writeErr, log.PriorityCritical()}, attrs...)...)
+		return
+	}
+	stored := &model.CommitteeDocument{}
+	if errDecode := json.Unmarshal(entry.Value(), stored); errDecode != nil {
+		slog.ErrorContext(ctx, "could not decode the document after a rename write error; keeping both name keys, and the one the record does not use stays locked until it is removed",
+			append([]any{"error", errDecode, "write_error", writeErr, log.PriorityCritical()}, attrs...)...)
+		return
+	}
+
+	if fmt.Sprintf(constants.KVLookupDocumentPrefix, stored.BuildIndexKey(ctx)) == newKey {
+		// The write landed: the record left the old name, so its key is released, as after a confirmed write.
+		purgeOwnedLookupKey(ctx, kv, oldKey, doc.UID)
+		return
+	}
+	releaseLookupKey(ctx, kv, newKey, reserved, writeErr, attrs...)
 }
 
 // Compile-time check that storage implements DocumentAuditSyncStorage.

@@ -117,9 +117,8 @@ func (s *Store) CreateDocumentMetadata(ctx context.Context, doc *model.Committee
 	return nil
 }
 
-// UpdateDocumentMetadata replaces the metadata when the revision is still current. Unlike KV, which
-// keeps the lookup key of the name the document was created with, a changed name is checked against
-// the unique index.
+// UpdateDocumentMetadata replaces the metadata when the revision is still current. A changed name is checked
+// against the unique index, as KV checks it by moving the name lookup key, so a rename behaves the same in every mode.
 func (s *Store) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
 	if doc == nil {
 		return errs.NewValidation("document cannot be nil")

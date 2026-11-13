@@ -6,6 +6,8 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -13,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/storetest"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
 // keyEntry is a snapshot entry that carries only its key, as the MetaOnly watcher the listing uses delivers.
@@ -145,5 +149,124 @@ func TestDocumentStorage_ListAllDocuments(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cancelled")
+	})
+}
+
+// renameWriteKV makes the update of one record, the document's own, come back with an error, either after the update
+// ran (a write whose reply was lost) or without running it, the two outcomes a caller cannot tell apart. The lookup
+// keys go straight to the store. Once the update has been attempted, reading the record back can be made to fail too.
+type renameWriteKV struct {
+	jetstream.KeyValue
+	recordKey string
+	err       error
+	applied   bool
+	getErr    error
+	attempted bool
+}
+
+func (k *renameWriteKV) Update(ctx context.Context, key string, value []byte, revision uint64) (uint64, error) {
+	if key != k.recordKey {
+		return k.KeyValue.Update(ctx, key, value, revision)
+	}
+	k.attempted = true
+	if k.applied {
+		if _, err := k.KeyValue.Update(ctx, key, value, revision); err != nil {
+			return 0, err
+		}
+	}
+	return 0, k.err
+}
+
+func (k *renameWriteKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if key == k.recordKey && k.attempted && k.getErr != nil {
+		return nil, k.getErr
+	}
+	return k.KeyValue.Get(ctx, key)
+}
+
+// A rename whose write comes back with an error that is not a refusal (a client that disconnects mid-write is the usual
+// cause) must not leave a name locked: the record is read back, and the keys follow what it holds.
+func TestUpdateDocumentMetadata_RenameWriteError(t *testing.T) {
+	ctx := context.Background()
+
+	// setup creates the document "Minutes" and wraps the documents bucket so that its next update fails as the case says.
+	setup := func(t *testing.T, wrap func(*renameWriteKV)) (*NATSClient, *model.CommitteeDocument, uint64, *renameWriteKV) {
+		t.Helper()
+		client := newKVClient(t)
+		docs := NewDocumentStorage(client)
+		require.NoError(t, docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "committee-1", "Minutes")))
+		doc, revision, err := docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, err)
+
+		real := client.kvStore[constants.KVBucketNameCommitteeDocuments]
+		failing := &renameWriteKV{KeyValue: real, recordKey: "d-1"}
+		wrap(failing)
+		client.kvStore[constants.KVBucketNameCommitteeDocuments] = failing
+		t.Cleanup(func() { client.kvStore[constants.KVBucketNameCommitteeDocuments] = real })
+		return client, doc, revision, failing
+	}
+	nameHeld := func(t *testing.T, client *NATSClient, name string) bool {
+		t.Helper()
+		exists, err := NewDocumentStorage(client).DocumentNameExists(ctx, "committee-1", name)
+		require.NoError(t, err)
+		return exists
+	}
+
+	t.Run("a write that landed but was reported as failed releases the old name and keeps the new one", func(t *testing.T) {
+		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+
+		doc.Name = "Minutes 2026"
+		err := NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision)
+
+		require.Error(t, err, "the caller still hears that the write was not confirmed")
+		got, _, getErr := NewDocumentStorage(client).GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, getErr)
+		assert.Equal(t, "Minutes 2026", got.Name, "the write did land")
+		assert.True(t, nameHeld(t, client, "Minutes 2026"), "the record holds the new name")
+		assert.False(t, nameHeld(t, client, "Minutes"), "the old name must not stay locked by a record that left it")
+		require.NoError(t, NewDocumentStorage(client).CreateDocumentMetadata(ctx, storetest.NewDocument("d-2", "committee-1", "Minutes")), "the old name is free again")
+	})
+
+	t.Run("a write that did not land releases the name reserved for it, so the same rename can be retried", func(t *testing.T) {
+		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.err = context.Canceled })
+
+		doc.Name = "Minutes 2026"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+
+		got, _, getErr := NewDocumentStorage(client).GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, getErr)
+		assert.Equal(t, "Minutes", got.Name, "the write did not land")
+		assert.True(t, nameHeld(t, client, "Minutes"), "the record keeps its name")
+		assert.False(t, nameHeld(t, client, "Minutes 2026"), "a name reserved for a write that did not land must not stay locked")
+
+		// The same document can try the same rename again: it is not refused against its own earlier attempt.
+		failing.err = nil
+		failing.applied = true
+		require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+	})
+
+	t.Run("a write the server refuses outright releases the reserved name and changes nothing", func(t *testing.T) {
+		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.err = fmt.Errorf("update: %w", jetstream.ErrKeyExists) })
+
+		doc.Name = "Minutes 2026"
+		err := NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		assert.False(t, nameHeld(t, client, "Minutes 2026"), "a refused rename must not leave its name locked")
+		assert.True(t, nameHeld(t, client, "Minutes"))
+	})
+
+	t.Run("when the record cannot be read back both names are kept rather than guessed at", func(t *testing.T) {
+		client, doc, revision, _ := setup(t, func(k *renameWriteKV) {
+			k.err, k.getErr = context.DeadlineExceeded, errors.New("kv unavailable")
+		})
+
+		doc.Name = "Minutes 2026"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+
+		// Either name may be the record's, so neither key can be freed without risking a name that is in use.
+		assert.True(t, nameHeld(t, client, "Minutes"))
+		assert.True(t, nameHeld(t, client, "Minutes 2026"))
 	})
 }
