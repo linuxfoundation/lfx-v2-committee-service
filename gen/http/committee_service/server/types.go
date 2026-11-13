@@ -419,6 +419,17 @@ type UploadCommitteeDocumentRequestBody struct {
 	File []byte `form:"file,omitempty" json:"file,omitempty" xml:"file,omitempty"`
 }
 
+// UpdateCommitteeDocumentRequestBody is the type of the "committee-service"
+// service "update-committee-document" endpoint HTTP request body.
+type UpdateCommitteeDocumentRequestBody struct {
+	// Display name for the document; unique within the committee
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// Optional description; omit to clear it
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Folder UID to place this document in; omit to move it to the root
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+}
+
 // GenerateWeeklyBriefRequestBody is the type of the "committee-service"
 // service "generate-weekly-brief" endpoint HTTP request body.
 type GenerateWeeklyBriefRequestBody struct {
@@ -1301,6 +1312,35 @@ type UploadCommitteeDocumentResponseBody struct {
 // GetCommitteeDocumentResponseBody is the type of the "committee-service"
 // service "get-committee-document" endpoint HTTP response body.
 type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesResponseBody
+
+// UpdateCommitteeDocumentResponseBody is the type of the "committee-service"
+// service "update-committee-document" endpoint HTTP response body.
+type UpdateCommitteeDocumentResponseBody struct {
+	// Document UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this document belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+	// Display name for the document
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Original file name
+	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
+	// File size in bytes
+	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
+	// MIME type of the file
+	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
+	// User who created this resource
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
 
 // GetCurrentWeeklyBriefResponseBody is the type of the "committee-service"
 // service "get-current-weekly-brief" endpoint HTTP response body.
@@ -2661,6 +2701,46 @@ type DownloadCommitteeDocumentNotFoundResponseBody struct {
 // "committee-service" service "download-committee-document" endpoint HTTP
 // response body for the "ServiceUnavailable" error.
 type DownloadCommitteeDocumentServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeDocumentBadRequestResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "BadRequest" error.
+type UpdateCommitteeDocumentBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeDocumentConflictResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "Conflict" error.
+type UpdateCommitteeDocumentConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeDocumentInternalServerErrorResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "InternalServerError" error.
+type UpdateCommitteeDocumentInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeDocumentNotFoundResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "NotFound" error.
+type UpdateCommitteeDocumentNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeDocumentServiceUnavailableResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type UpdateCommitteeDocumentServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -5007,6 +5087,31 @@ func NewGetCommitteeDocumentResponseBody(res *committeeservice.GetCommitteeDocum
 	return body
 }
 
+// NewUpdateCommitteeDocumentResponseBody builds the HTTP response body from
+// the result of the "update-committee-document" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeDocumentResponseBody(res *committeeservice.CommitteeDocumentWithReadonlyAttributes) *UpdateCommitteeDocumentResponseBody {
+	body := &UpdateCommitteeDocumentResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		FolderUID:    res.FolderUID,
+		Name:         res.Name,
+		Description:  res.Description,
+		FileName:     res.FileName,
+		FileSize:     res.FileSize,
+		ContentType:  res.ContentType,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(res.UpdatedBy)
+	}
+	return body
+}
+
 // NewGetCurrentWeeklyBriefResponseBody builds the HTTP response body from the
 // result of the "get-current-weekly-brief" endpoint of the "committee-service"
 // service.
@@ -6676,6 +6781,56 @@ func NewDownloadCommitteeDocumentServiceUnavailableResponseBody(res *committeese
 	return body
 }
 
+// NewUpdateCommitteeDocumentBadRequestResponseBody builds the HTTP response
+// body from the result of the "update-committee-document" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeDocumentBadRequestResponseBody(res *committeeservice.BadRequestError) *UpdateCommitteeDocumentBadRequestResponseBody {
+	body := &UpdateCommitteeDocumentBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeDocumentConflictResponseBody builds the HTTP response body
+// from the result of the "update-committee-document" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeDocumentConflictResponseBody(res *committeeservice.ConflictError) *UpdateCommitteeDocumentConflictResponseBody {
+	body := &UpdateCommitteeDocumentConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeDocumentInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "update-committee-document" endpoint of
+// the "committee-service" service.
+func NewUpdateCommitteeDocumentInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *UpdateCommitteeDocumentInternalServerErrorResponseBody {
+	body := &UpdateCommitteeDocumentInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeDocumentNotFoundResponseBody builds the HTTP response body
+// from the result of the "update-committee-document" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeDocumentNotFoundResponseBody(res *committeeservice.NotFoundError) *UpdateCommitteeDocumentNotFoundResponseBody {
+	body := &UpdateCommitteeDocumentNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeDocumentServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "update-committee-document" endpoint of
+// the "committee-service" service.
+func NewUpdateCommitteeDocumentServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *UpdateCommitteeDocumentServiceUnavailableResponseBody {
+	body := &UpdateCommitteeDocumentServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewDeleteCommitteeDocumentBadRequestResponseBody builds the HTTP response
 // body from the result of the "delete-committee-document" endpoint of the
 // "committee-service" service.
@@ -7965,6 +8120,24 @@ func NewDownloadCommitteeDocumentPayload(uid string, documentUID string, version
 	return v
 }
 
+// NewUpdateCommitteeDocumentPayload builds a committee-service service
+// update-committee-document endpoint payload.
+func NewUpdateCommitteeDocumentPayload(body *UpdateCommitteeDocumentRequestBody, uid string, documentUID string, version *string, bearerToken *string, ifMatch string, xSync bool) *committeeservice.UpdateCommitteeDocumentPayload {
+	v := &committeeservice.UpdateCommitteeDocumentPayload{
+		Name:        *body.Name,
+		Description: body.Description,
+		FolderUID:   body.FolderUID,
+	}
+	v.UID = uid
+	v.DocumentUID = documentUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+	v.XSync = xSync
+
+	return v
+}
+
 // NewDeleteCommitteeDocumentPayload builds a committee-service service
 // delete-committee-document endpoint payload.
 func NewDeleteCommitteeDocumentPayload(uid string, documentUID string, version *string, bearerToken *string, ifMatch string, xSync bool) *committeeservice.DeleteCommitteeDocumentPayload {
@@ -8767,6 +8940,28 @@ func ValidateUploadCommitteeDocumentRequestBody(body *UploadCommitteeDocumentReq
 	}
 	if body.File == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("file", "body"))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeDocumentRequestBody runs the validations defined on
+// Update-Committee-DocumentRequestBody
+func ValidateUpdateCommitteeDocumentRequestBody(body *UpdateCommitteeDocumentRequestBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}
 	if body.Name != nil {
 		if utf8.RuneCountInString(*body.Name) > 500 {

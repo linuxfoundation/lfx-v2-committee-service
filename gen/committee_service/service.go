@@ -103,6 +103,9 @@ type Service interface {
 	// Consider [goa.design/goa/v3/pkg.SkipResponseWriter] to adapt existing
 	// implementations.
 	DownloadCommitteeDocument(context.Context, *DownloadCommitteeDocumentPayload) (body io.ReadCloser, err error)
+	// Replace a committee document's name, description and folder (requires the
+	// complete set of mutable fields); the uploaded file is not changed
+	UpdateCommitteeDocument(context.Context, *UpdateCommitteeDocumentPayload) (res *CommitteeDocumentWithReadonlyAttributes, err error)
 	// Delete a document from a committee
 	DeleteCommitteeDocument(context.Context, *DeleteCommitteeDocumentPayload) (err error)
 	// Get the working-group weekly brief for the UTC Sun→Sat window selected by
@@ -167,7 +170,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [44]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "bulk-create-committee-members", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "update-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
+var MethodNames = [45]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "bulk-create-committee-members", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "update-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "update-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
 
 // Optional accept-invite request body.
 type AcceptInviteOptionalBody struct {
@@ -1734,6 +1737,34 @@ type UpdateCommitteeBasePayload struct {
 	ExternalSources []*ExternalSource
 	// The committee's charter
 	Charter *CharterWrite
+}
+
+// UpdateCommitteeDocumentPayload is the payload type of the committee-service
+// service update-committee-document method.
+type UpdateCommitteeDocumentPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee document UID
+	DocumentUID string
+	// If-Match header value for conditional requests
+	IfMatch string
+	// Display name for the document; unique within the committee
+	Name string
+	// Optional description; omit to clear it
+	Description *string
+	// Folder UID to place this document in; omit to move it to the root
+	FolderUID *string
+	// Requests synchronous processing for applicable downstream operations.
+	// Indexer messages are always published fire-and-forget regardless of this
+	// flag (see indexer-contract.md); this header no longer affects indexer
+	// delivery. FGA update_access, delete_access, member_put, and member_remove
+	// publications remain asynchronous and do not wait for FGA processing or
+	// OpenFGA convergence.
+	XSync bool
 }
 
 // UpdateCommitteeLinkPayload is the payload type of the committee-service

@@ -61,6 +61,7 @@ This service contains the following API endpoints:
   - `POST`: upload a committee document using multipart form data
   - `GET /{document_uid}`: retrieve committee document metadata
   - `GET /{document_uid}/download`: download the stored document file
+  - `PUT /{document_uid}`: replace a document's name, description and folder; `If-Match` required. The file is not changed. A name another document in the committee holds is a `409`. Moving a document is a `PUT` that names the target folder; an omitted folder is the root
   - `DELETE /{document_uid}`: delete committee document metadata and file data
 
 - `/committees/{uid}/join`

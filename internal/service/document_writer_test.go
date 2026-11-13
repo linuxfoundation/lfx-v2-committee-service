@@ -8,9 +8,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,6 +80,11 @@ func (m *mockDocStorage) GetDocumentMetadata(ctx context.Context, committeeUID, 
 		return nil, 0, errs.NewNotFound("document not found")
 	}
 	return doc, m.revisions[documentUID], nil
+}
+
+func (m *mockDocStorage) UpdateDocumentMetadata(_ context.Context, doc *model.CommitteeDocument, _ uint64) error {
+	m.documents[doc.UID] = doc
+	return nil
 }
 
 func (m *mockDocStorage) PutDocumentFile(_ context.Context, documentUID string, fileData []byte) error {
@@ -568,4 +576,245 @@ func TestUploadDocument_CancelledRequest_RemovesUploadedFile(t *testing.T) {
 	require.Error(t, err)
 	assert.Empty(t, storage.documents)
 	assert.Empty(t, storage.files, "a cancelled upload must not leave its file behind")
+}
+
+func TestUpdateDocument(t *testing.T) {
+	const committeeUID = "committee-1"
+	const documentUID = "doc-1"
+
+	ctx := context.Background()
+	creator := &model.CommitteeUser{Username: "first-last", Name: "First Last"}
+	editor := &model.CommitteeUser{Username: "other-editor", Name: "Other Editor"}
+	uploadedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	folderRef := func(uid string) *string { return &uid }
+	fileData := validPDFFileData()
+
+	// setup builds a repository holding two documents of committee-1 (doc-1 in existingFolder, or at the root when nil,
+	// with its file, and doc-2) and one of committee-2 that shares doc-1's name, and the orchestrator over it. The
+	// revision is doc-1's current one.
+	setup := func(t *testing.T, existingFolder *string) (*mock.MockDocumentRepository, *mock.MockCommitteePublisher, service.CommitteeDocumentDataWriter, uint64) {
+		t.Helper()
+		repo := mock.NewMockDocumentRepository()
+		for _, d := range []*model.CommitteeDocument{
+			{
+				UID: documentUID, CommitteeUID: committeeUID, FolderUID: existingFolder, Name: "Minutes", Description: "Old description",
+				FileName: "minutes.pdf", FileSize: int64(len(fileData)), ContentType: "application/pdf",
+				CreatedBy: creator, UpdatedBy: creator, CreatedAt: uploadedAt, UpdatedAt: uploadedAt,
+			},
+			{UID: "doc-2", CommitteeUID: committeeUID, Name: "Agenda", FileName: "agenda.pdf", ContentType: "application/pdf", CreatedAt: uploadedAt, UpdatedAt: uploadedAt},
+			{UID: "doc-3", CommitteeUID: "committee-2", Name: "Minutes", FileName: "minutes.pdf", ContentType: "application/pdf", CreatedAt: uploadedAt, UpdatedAt: uploadedAt},
+		} {
+			require.NoError(t, repo.CreateDocumentMetadata(ctx, d))
+		}
+		require.NoError(t, repo.PutDocumentFile(ctx, documentUID, fileData))
+		publisher := &mock.MockCommitteePublisher{}
+		orch := service.NewDocumentWriterOrchestrator(
+			service.WithDocumentWriter(repo),
+			service.WithDocumentReaderForWriter(repo),
+			service.WithDocumentPublisher(publisher),
+		)
+		_, revision, err := repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, err)
+		return repo, publisher, orch, revision
+	}
+
+	// request is a complete update of doc-1 in committee-1; a test overrides what it is about.
+	request := func(mutate func(*model.CommitteeDocument)) *model.CommitteeDocument {
+		doc := &model.CommitteeDocument{
+			UID:          documentUID,
+			CommitteeUID: committeeUID,
+			Name:         "Minutes 2026",
+			Description:  "New description",
+			UpdatedBy:    editor,
+		}
+		if mutate != nil {
+			mutate(doc)
+		}
+		return doc
+	}
+
+	// requireUnchanged asserts doc-1 is exactly as setup left it, its name still held, and nothing was published.
+	requireUnchanged := func(t *testing.T, repo *mock.MockDocumentRepository, publisher *mock.MockCommitteePublisher, revision uint64) {
+		t.Helper()
+		stored, storedRevision, err := repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, err)
+		assert.Equal(t, "Minutes", stored.Name)
+		assert.Equal(t, "Old description", stored.Description)
+		assert.Equal(t, revision, storedRevision, "a refused update must not move the revision")
+		assert.Empty(t, publisher.IndexerMessages, "a refused update must not tell the indexer anything")
+		held, err := repo.DocumentNameExists(ctx, committeeUID, "Minutes")
+		require.NoError(t, err)
+		assert.True(t, held, "a refused update must keep the name it holds")
+	}
+
+	t.Run("replaces the editable fields and keeps the file, the identity and who uploaded it", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, nil)
+		before := time.Now().UTC()
+
+		updated, err := orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.FolderUID = folderRef("folder-a") }), revision, false)
+
+		require.NoError(t, err)
+		stored, storedRevision, err := repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, err)
+		assert.Equal(t, updated, stored)
+		assert.Equal(t, "Minutes 2026", stored.Name)
+		assert.Equal(t, "New description", stored.Description)
+		require.NotNil(t, stored.FolderUID)
+		assert.Equal(t, "folder-a", *stored.FolderUID)
+		assert.Equal(t, documentUID, stored.UID)
+		assert.Equal(t, committeeUID, stored.CommitteeUID)
+		assert.Equal(t, "minutes.pdf", stored.FileName, "the file is not editable")
+		assert.Equal(t, int64(len(fileData)), stored.FileSize)
+		assert.Equal(t, "application/pdf", stored.ContentType)
+		assert.Equal(t, creator, stored.CreatedBy)
+		assert.Equal(t, uploadedAt, stored.CreatedAt)
+		assert.Equal(t, editor, stored.UpdatedBy)
+		assert.False(t, stored.UpdatedAt.Before(before), "updated_at must be the time of the update")
+		assert.Equal(t, revision+1, storedRevision)
+
+		// The stored file is not touched.
+		gotFile, err := repo.GetDocumentFile(ctx, documentUID)
+		require.NoError(t, err)
+		assert.Equal(t, fileData, gotFile)
+
+		// The new name is held and the old one is free again, in this committee only.
+		for _, c := range []struct {
+			committee, name string
+			want            bool
+		}{
+			{committeeUID, "Minutes 2026", true},
+			{committeeUID, "Minutes", false},
+			{"committee-2", "Minutes", true},
+		} {
+			exists, err := repo.DocumentNameExists(ctx, c.committee, c.name)
+			require.NoError(t, err)
+			assert.Equal(t, c.want, exists, "%s in %s", c.name, c.committee)
+		}
+
+		require.Len(t, publisher.IndexerMessages, 1)
+		assert.Equal(t, constants.IndexCommitteeDocumentSubject, publisher.IndexerSubjects[0])
+		message, ok := publisher.IndexerMessages[0].(*model.CommitteeIndexerMessage)
+		require.True(t, ok, "the indexer is sent a committee indexer message")
+		assert.Equal(t, model.ActionUpdated, message.Action)
+		assert.Contains(t, message.Tags, "folder_uid:folder-a", "the folder tag is what a folder's contents are found by")
+		require.NotNil(t, message.IndexingConfig)
+		assert.Equal(t, "Minutes 2026", message.IndexingConfig.SortName)
+	})
+
+	t.Run("moves a document between folders and back to the root, and an empty folder uid is the root", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, folderRef("folder-a"))
+
+		_, err := orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Minutes"; d.FolderUID = folderRef("folder-b") }), revision, false)
+		require.NoError(t, err)
+		stored, revision, err := repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, err)
+		require.NotNil(t, stored.FolderUID)
+		assert.Equal(t, "folder-b", *stored.FolderUID)
+
+		// An omitted folder is the root, so the next request names none.
+		_, err = orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Minutes" }), revision, false)
+		require.NoError(t, err)
+		stored, revision, err = repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, err)
+		assert.Nil(t, stored.FolderUID)
+
+		_, err = orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Minutes"; d.FolderUID = folderRef("") }), revision, false)
+		require.NoError(t, err)
+		stored, _, err = repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, err)
+		assert.Nil(t, stored.FolderUID, "an empty uid must not be stored as a folder that does not exist")
+
+		require.Len(t, publisher.IndexerMessages, 3)
+		rootMessage, ok := publisher.IndexerMessages[1].(*model.CommitteeIndexerMessage)
+		require.True(t, ok)
+		for _, tag := range rootMessage.Tags {
+			assert.NotContains(t, tag, "folder_uid:", "a document at the root carries no folder tag")
+		}
+	})
+
+	t.Run("clears the description when the request has none, and keeps the name when only that changes", func(t *testing.T) {
+		repo, _, orch, revision := setup(t, nil)
+
+		_, err := orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Minutes"; d.Description = "" }), revision, false)
+
+		require.NoError(t, err)
+		stored, _, err := repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, err)
+		assert.Equal(t, "Minutes", stored.Name)
+		assert.Empty(t, stored.Description)
+		held, err := repo.DocumentNameExists(ctx, committeeUID, "Minutes")
+		require.NoError(t, err)
+		assert.True(t, held, "keeping the name must keep holding it")
+	})
+
+	t.Run("a name another document in the committee holds is a conflict and changes nothing", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, nil)
+
+		_, err := orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Agenda" }), revision, false)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		requireUnchanged(t, repo, publisher, revision)
+	})
+
+	t.Run("a name only another committee holds is free", func(t *testing.T) {
+		repo, _, orch, revision := setup(t, nil)
+		require.NoError(t, repo.CreateDocumentMetadata(ctx, &model.CommitteeDocument{UID: "doc-4", CommitteeUID: "committee-2", Name: "Budget", FileName: "b.pdf", ContentType: "application/pdf"}))
+
+		_, err := orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Budget" }), revision, false)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("a revision that has moved on is a conflict and changes nothing", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, nil)
+		_, err := orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Minutes" }), revision, false)
+		require.NoError(t, err)
+		publisher.IndexerMessages, publisher.IndexerSubjects = nil, nil
+
+		// The same, now stale, revision again.
+		_, err = orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.Name = "Lost update" }), revision, false)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		stored, _, getErr := repo.GetDocumentMetadata(ctx, committeeUID, documentUID)
+		require.NoError(t, getErr)
+		assert.Equal(t, "Minutes", stored.Name, "the update that lost must not overwrite the one that won")
+		assert.Empty(t, publisher.IndexerMessages)
+	})
+
+	t.Run("does not find a document of another committee", func(t *testing.T) {
+		repo, publisher, orch, revision := setup(t, nil)
+
+		_, err := orch.UpdateDocument(ctx, request(func(d *model.CommitteeDocument) { d.CommitteeUID = "committee-2" }), revision, false)
+
+		var notFound errs.NotFound
+		require.ErrorAs(t, err, &notFound)
+		requireUnchanged(t, repo, publisher, revision)
+	})
+
+	t.Run("refuses an incomplete request", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			doc    *model.CommitteeDocument
+			wantIn string
+		}{
+			{name: "no document", doc: nil, wantIn: "document is required"},
+			{name: "no document uid", doc: request(func(d *model.CommitteeDocument) { d.UID = "" }), wantIn: "document UID"},
+			{name: "no committee uid", doc: request(func(d *model.CommitteeDocument) { d.CommitteeUID = "" }), wantIn: "committee UID"},
+			{name: "no name", doc: request(func(d *model.CommitteeDocument) { d.Name = "" }), wantIn: "name"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				repo, publisher, orch, revision := setup(t, nil)
+
+				_, err := orch.UpdateDocument(ctx, tt.doc, revision, false)
+
+				var validation errs.Validation
+				require.ErrorAs(t, err, &validation)
+				assert.Contains(t, err.Error(), tt.wantIn)
+				requireUnchanged(t, repo, publisher, revision)
+			})
+		}
+	})
 }

@@ -97,6 +97,37 @@ func (m *MockDocumentRepository) GetDocumentFile(ctx context.Context, documentUI
 	return buf, nil
 }
 
+// UpdateDocumentMetadata replaces the metadata found by its uid, like the real stores: a missing document is not found,
+// a stale revision is a conflict, and a changed name moves the name key, so a name another document holds is a
+// conflict that changes nothing. The revision moves on, so the next update needs the new one.
+func (m *MockDocumentRepository) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
+	if doc == nil {
+		return errs.NewValidation("document cannot be nil")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current, ok := m.documents[doc.UID]
+	if !ok {
+		return errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", doc.UID))
+	}
+	if m.documentRevisions[doc.UID] != revision {
+		return errs.NewConflict("document has been modified since it was last read")
+	}
+	oldKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, current.BuildIndexKey(ctx))
+	newKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
+	if newKey != oldKey {
+		if _, taken := m.nameKeys[newKey]; taken {
+			return errs.NewConflict("document with the same name already exists for this committee")
+		}
+		delete(m.nameKeys, oldKey)
+		m.nameKeys[newKey] = doc.UID
+	}
+	copied := *doc
+	m.documents[doc.UID] = &copied
+	m.documentRevisions[doc.UID] = revision + 1
+	return nil
+}
+
 func (m *MockDocumentRepository) DeleteDocumentMetadata(ctx context.Context, committeeUID, documentUID string, revision uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

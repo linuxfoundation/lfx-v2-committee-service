@@ -310,7 +310,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 
 **Source struct:** `internal/domain/model/committee_document.go` — `CommitteeDocument`
 
-**Indexed on:** upload/create and delete of a committee document. There is no document update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+**Indexed on:** upload/create, update and delete of a committee document. `PUT /committees/{uid}/documents/{document_uid}` publishes `ActionUpdated` with the whole document, so a rename, a changed description and a move all arrive as one message: a move changes the `folder_uid` tag (a document at the root has none). The uploaded file is never changed by an update. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 
