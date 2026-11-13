@@ -1560,6 +1560,63 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	// PUT - Replace a committee document's metadata (complete replacement of the mutable fields)
+	// This endpoint follows PUT semantics: name, description and folder_uid are all replaced. An omitted description
+	// clears it and an omitted folder_uid moves the document to the root (outside every folder), so moving a document
+	// is a PUT with the target folder_uid. The uploaded file (its content, file name, type and size) is not editable.
+	dsl.Method("update-committee-document", func() {
+		dsl.Description("Replace a committee document's name, description and folder (requires the complete set of mutable fields); the uploaded file is not changed")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			DocumentUIDAttribute()
+			IfMatchAttribute()
+
+			dsl.Attribute("name", dsl.String, "Display name for the document; unique within the committee", func() {
+				dsl.MaxLength(500)
+				dsl.Example("Architecture Decision Record")
+			})
+			dsl.Attribute("description", dsl.String, "Optional description; omit to clear it", func() {
+				dsl.MaxLength(2000)
+			})
+			dsl.Attribute("folder_uid", dsl.String, "Folder UID to place this document in; omit to move it to the root", func() {
+				dsl.Format(dsl.FormatUUID)
+				dsl.Example("f1e2d3c4-b5a6-7890-fedc-ba9876543210")
+			})
+			XSyncAttribute()
+
+			dsl.Required("uid", "document_uid", "name", "if_match")
+		})
+
+		dsl.Result(CommitteeDocumentWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Document name already exists, or the revision is stale")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/documents/{document_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("document_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	dsl.Method("delete-committee-document", func() {
 		dsl.Description("Delete a document from a committee")
 

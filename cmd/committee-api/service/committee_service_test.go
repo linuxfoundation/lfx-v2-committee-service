@@ -4912,3 +4912,162 @@ func TestUpdateCommitteeLink(t *testing.T) {
 		}
 	})
 }
+
+// failingFolderReader is a link repository whose folder lookup fails the way a storage outage does, not as "not found".
+type failingFolderReader struct{ *mock.MockLinkRepository }
+
+func (failingFolderReader) GetLinkFolder(context.Context, string, string) (*model.CommitteeLinkFolder, uint64, error) {
+	return nil, 0, errs.NewUnexpected("folder store unavailable")
+}
+
+// setupUpdateDocumentService builds the service over in-memory repositories holding one folder of each of two
+// committees and, in committee-1, doc-1 ("Minutes", at the root, created by a user other than the one the tests act as)
+// and doc-2 ("Agenda"), plus doc-3 in committee-2 that shares doc-1's name.
+func setupUpdateDocumentService(t *testing.T) (*committeeServicesrvc, *mock.MockDocumentRepository) {
+	t.Helper()
+	ctx := context.Background()
+	linkRepo := mock.NewMockLinkRepository()
+	docRepo := mock.NewMockDocumentRepository()
+	require.NoError(t, linkRepo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-aaa", CommitteeUID: "committee-1", Name: "Governance"}))
+	require.NoError(t, linkRepo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-other", CommitteeUID: "committee-2", Name: "Elsewhere"}))
+	for _, d := range []*model.CommitteeDocument{
+		{
+			UID: "doc-1", CommitteeUID: "committee-1", Name: "Minutes", Description: "Old description", FileName: "minutes.pdf", FileSize: 2048,
+			ContentType: "application/pdf", CreatedBy: &model.CommitteeUser{Username: "seed-creator"}, UpdatedBy: &model.CommitteeUser{Username: "seed-creator"},
+		},
+		{UID: "doc-2", CommitteeUID: "committee-1", Name: "Agenda", FileName: "agenda.pdf", ContentType: "application/pdf"},
+		{UID: "doc-3", CommitteeUID: "committee-2", Name: "Minutes", FileName: "minutes.pdf", ContentType: "application/pdf"},
+	} {
+		require.NoError(t, docRepo.CreateDocumentMetadata(ctx, d))
+	}
+
+	svc := &committeeServicesrvc{
+		linkReader: internalservice.NewLinkReaderOrchestrator(internalservice.WithLinkReader(linkRepo)),
+		docWriter: internalservice.NewDocumentWriterOrchestrator(
+			internalservice.WithDocumentWriter(docRepo),
+			internalservice.WithDocumentReaderForWriter(docRepo),
+		),
+	}
+	return svc, docRepo
+}
+
+func TestUpdateCommitteeDocument(t *testing.T) {
+	newPayload := func(mutate func(*committeeservice.UpdateCommitteeDocumentPayload)) *committeeservice.UpdateCommitteeDocumentPayload {
+		p := &committeeservice.UpdateCommitteeDocumentPayload{
+			IfMatch:     "1",
+			UID:         "committee-1",
+			DocumentUID: "doc-1",
+			Name:        "Minutes 2026",
+		}
+		if mutate != nil {
+			mutate(p)
+		}
+		return p
+	}
+
+	t.Run("renames the document, moves it into the folder and stamps who changed it", func(t *testing.T) {
+		svc, docRepo := setupUpdateDocumentService(t)
+
+		res, err := svc.UpdateCommitteeDocument(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeDocumentPayload) {
+			p.Description = strPtr("New description")
+			p.FolderUID = strPtr("folder-aaa")
+		}))
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, "doc-1", *res.UID)
+		assert.Equal(t, "Minutes 2026", *res.Name)
+		assert.Equal(t, "New description", *res.Description)
+		require.NotNil(t, res.FolderUID)
+		assert.Equal(t, "folder-aaa", *res.FolderUID)
+		assert.Equal(t, "minutes.pdf", *res.FileName, "the uploaded file is not editable")
+		assert.Equal(t, int64(2048), *res.FileSize)
+		require.NotNil(t, res.UpdatedBy)
+		assert.Equal(t, "first-last", *res.UpdatedBy.Username)
+		require.NotNil(t, res.CreatedBy)
+		assert.Equal(t, "seed-creator", *res.CreatedBy.Username, "who uploaded the document must not change")
+
+		stored, revision, err := docRepo.GetDocumentMetadata(context.Background(), "committee-1", "doc-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Minutes 2026", stored.Name)
+		assert.Equal(t, uint64(2), revision)
+	})
+
+	t.Run("an omitted description is cleared and an omitted folder moves the document to the root", func(t *testing.T) {
+		svc, _ := setupUpdateDocumentService(t)
+		_, err := svc.UpdateCommitteeDocument(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeDocumentPayload) {
+			p.FolderUID = strPtr("folder-aaa")
+		}))
+		require.NoError(t, err)
+
+		res, err := svc.UpdateCommitteeDocument(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeDocumentPayload) {
+			p.IfMatch = "2"
+		}))
+
+		require.NoError(t, err)
+		assert.Nil(t, res.FolderUID)
+		assert.Nil(t, res.Description)
+	})
+
+	t.Run("refuses a request it cannot act on, and changes nothing", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			ctx      context.Context
+			mutate   func(*committeeservice.UpdateCommitteeDocumentPayload)
+			wantType string
+		}{
+			{name: "no If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.IfMatch = "" }, wantType: "bad request"},
+			{name: "an If-Match that is not a revision", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.IfMatch = "not-a-revision" }, wantType: "bad request"},
+			{name: "no identity in the token", ctx: context.Background(), mutate: nil, wantType: "bad request"},
+			{name: "a target folder that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.FolderUID = strPtr("no-such-folder") }, wantType: "bad request"},
+			{name: "a target folder of another committee", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.FolderUID = strPtr("folder-other") }, wantType: "bad request"},
+			{name: "a document that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.DocumentUID = "no-such-document" }, wantType: "not found"},
+			{name: "a document of another committee", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.UID = "committee-2" }, wantType: "not found"},
+			{name: "a stale If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.IfMatch = "7" }, wantType: "conflict"},
+			{name: "a name another document in the committee holds", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeDocumentPayload) { p.Name = "Agenda" }, wantType: "conflict"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				svc, docRepo := setupUpdateDocumentService(t)
+
+				res, err := svc.UpdateCommitteeDocument(tt.ctx, newPayload(tt.mutate))
+
+				require.Error(t, err)
+				assert.Nil(t, res)
+				switch tt.wantType {
+				case "bad request":
+					var badRequest *committeeservice.BadRequestError
+					assert.ErrorAs(t, err, &badRequest)
+				case "not found":
+					var notFound *committeeservice.NotFoundError
+					assert.ErrorAs(t, err, &notFound)
+				case "conflict":
+					var conflict *committeeservice.ConflictError
+					assert.ErrorAs(t, err, &conflict)
+				}
+
+				stored, revision, getErr := docRepo.GetDocumentMetadata(context.Background(), "committee-1", "doc-1")
+				require.NoError(t, getErr)
+				assert.Equal(t, "Minutes", stored.Name, "a refused update must not change the document")
+				assert.Equal(t, uint64(1), revision)
+			})
+		}
+	})
+
+	t.Run("a failing folder lookup is a server error, not the caller's mistake", func(t *testing.T) {
+		svc, docRepo := setupUpdateDocumentService(t)
+		svc.linkReader = internalservice.NewLinkReaderOrchestrator(internalservice.WithLinkReader(failingFolderReader{mock.NewMockLinkRepository()}))
+
+		res, err := svc.UpdateCommitteeDocument(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeDocumentPayload) {
+			p.FolderUID = strPtr("folder-aaa")
+		}))
+
+		require.Error(t, err)
+		assert.Nil(t, res)
+		var badRequest *committeeservice.BadRequestError
+		assert.False(t, stderrors.As(err, &badRequest), "a storage failure must not be reported as a bad request")
+		stored, _, getErr := docRepo.GetDocumentMetadata(context.Background(), "committee-1", "doc-1")
+		require.NoError(t, getErr)
+		assert.Equal(t, "Minutes", stored.Name)
+	})
+}

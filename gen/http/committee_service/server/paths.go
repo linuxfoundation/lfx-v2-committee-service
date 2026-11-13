@@ -202,6 +202,11 @@ func DownloadCommitteeDocumentCommitteeServicePath(uid string, documentUID strin
 	return fmt.Sprintf("/committees/%v/documents/%v/download", uid, documentUID)
 }
 
+// UpdateCommitteeDocumentCommitteeServicePath returns the URL path to the committee-service service update-committee-document HTTP endpoint.
+func UpdateCommitteeDocumentCommitteeServicePath(uid string, documentUID string) string {
+	return fmt.Sprintf("/committees/%v/documents/%v", uid, documentUID)
+}
+
 // DeleteCommitteeDocumentCommitteeServicePath returns the URL path to the committee-service service delete-committee-document HTTP endpoint.
 func DeleteCommitteeDocumentCommitteeServicePath(uid string, documentUID string) string {
 	return fmt.Sprintf("/committees/%v/documents/%v", uid, documentUID)

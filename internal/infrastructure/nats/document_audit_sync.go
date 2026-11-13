@@ -148,7 +148,11 @@ func (s *storage) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeL
 	return nil
 }
 
-// UpdateDocumentMetadata persists document metadata with optimistic concurrency.
+// UpdateDocumentMetadata persists document metadata with optimistic concurrency. A changed name moves the
+// (committee, name) uniqueness lookup key with it, as the PostgreSQL store's unique index does: the new name is
+// reserved first, so a name another document holds is errs.Conflict and changes nothing, and the old name is
+// released only once the record is written. A revision that is no longer current is a conflict before anything is
+// reserved.
 func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
 	if doc == nil {
 		return errs.NewValidation("document cannot be nil")
@@ -158,8 +162,54 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 		return errs.NewUnexpected("failed to marshal document", errMarshal)
 	}
 	kv := s.client.kvStore[constants.KVBucketNameCommitteeDocuments]
+
+	// The record as it is stored tells which name the document holds the lookup key for.
+	current := &model.CommitteeDocument{}
+	currentRevision, errGet := s.get(ctx, constants.KVBucketNameCommitteeDocuments, doc.UID, current, false)
+	if errGet != nil {
+		if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+			return errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", doc.UID))
+		}
+		return errs.NewUnexpected("failed to read document before update", errGet)
+	}
+	if currentRevision != revision {
+		return errs.NewConflict("document has been modified since it was last read")
+	}
+
+	oldKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, current.BuildIndexKey(ctx))
+	newKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
+	renamed := newKey != oldKey
+
+	var reserved uint64
+	if renamed {
+		rev, errReserve := kv.Create(ctx, newKey, []byte(doc.UID))
+		if errReserve != nil {
+			if isJetStreamCASConflict(errReserve) {
+				return errs.NewConflict("document with the same name already exists for this committee")
+			}
+			return errs.NewUnexpected("failed to create unique key for document name", errReserve)
+		}
+		reserved = rev
+	}
+
 	if _, errUpdate := kv.Update(ctx, doc.UID, docBytes, revision); errUpdate != nil {
+		if renamed {
+			if isJetStreamCASConflict(errUpdate) {
+				// Refused outright, so the record keeps its old name and the one reserved for it is nobody's. It is
+				// released by the revision it was reserved at, so a key another writer took over is left alone.
+				releaseLookupKey(ctx, kv, newKey, reserved, errUpdate, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
+			} else {
+				// The write may have landed, in which case the record holds the new name: keep the key rather than
+				// free a name that is in use. An unlanded write leaves the name locked until the key is removed.
+				slog.WarnContext(ctx, "document update reported an error that may have landed; keeping the reserved name key",
+					"error", errUpdate, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
+			}
+		}
 		return writeError(ctx, kv, doc.UID, "document not found", "document has been modified since it was last read", "failed to update document metadata", errUpdate)
+	}
+
+	if renamed {
+		purgeOwnedLookupKey(ctx, kv, oldKey, doc.UID)
 	}
 	return nil
 }

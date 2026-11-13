@@ -186,6 +186,104 @@ func runDocumentContract(t *testing.T, newStore DocumentFactory) {
 		assert.Equal(t, "first writer", got.Description)
 	})
 
+	t.Run("UpdateDocumentMetadata renames: the new name is held and the old one is free again", func(t *testing.T) {
+		store := seed(t)
+		doc, revision, err := store.GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, err)
+		doc.Name = "Minutes 2026"
+		require.NoError(t, store.UpdateDocumentMetadata(ctx, doc, revision))
+
+		for _, c := range []struct {
+			committee, name string
+			want            bool
+		}{
+			{"committee-1", "Minutes 2026", true},
+			{"committee-1", "Minutes", false},
+			{"committee-2", "Minutes", true}, // another committee's document of the old name is untouched
+		} {
+			exists, err := store.DocumentNameExists(ctx, c.committee, c.name)
+			require.NoError(t, err)
+			assert.Equal(t, c.want, exists, "%s in %s", c.name, c.committee)
+		}
+		// The new name is taken, and the old one can be used again.
+		requireConflict(t, store.CreateDocumentMetadata(ctx, NewDocument("d-dup", "committee-1", "Minutes 2026")))
+		require.NoError(t, store.CreateDocumentMetadata(ctx, NewDocument("d-reuse", "committee-1", "Minutes")))
+		got, _, err := store.GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Minutes 2026", got.Name)
+	})
+
+	t.Run("UpdateDocumentMetadata renaming to a name another document holds is a conflict and changes nothing", func(t *testing.T) {
+		store := seed(t)
+		doc, revision, err := store.GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, err)
+		doc.Name = "Agenda" // held by d-2
+		requireConflict(t, store.UpdateDocumentMetadata(ctx, doc, revision))
+
+		got, gotRevision, err := store.GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Minutes", got.Name)
+		assert.Equal(t, revision, gotRevision, "a refused rename must not move the revision")
+		for _, name := range []string{"Minutes", "Agenda"} {
+			exists, err := store.DocumentNameExists(ctx, "committee-1", name)
+			require.NoError(t, err)
+			assert.True(t, exists, "%s is still held", name)
+		}
+
+		// The refused attempt reserved nothing, so a rename the document is allowed to make still works.
+		doc.Name = "Minutes 2026"
+		require.NoError(t, store.UpdateDocumentMetadata(ctx, doc, revision))
+	})
+
+	t.Run("UpdateDocumentMetadata renaming with a stale revision fails without reserving the new name", func(t *testing.T) {
+		store := seed(t)
+		doc, revision, err := store.GetDocumentMetadata(ctx, "committee-1", "d-2")
+		require.NoError(t, err)
+		winner := *doc
+		winner.Description = "first writer"
+		require.NoError(t, store.UpdateDocumentMetadata(ctx, &winner, revision))
+
+		stale := *doc
+		stale.Name = "Agenda 2"
+		requireConflict(t, store.UpdateDocumentMetadata(ctx, &stale, revision))
+
+		exists, err := store.DocumentNameExists(ctx, "committee-1", "Agenda 2")
+		require.NoError(t, err)
+		assert.False(t, exists, "a rename that lost must not leave its name locked")
+		require.NoError(t, store.CreateDocumentMetadata(ctx, NewDocument("d-free", "committee-1", "Agenda 2")))
+		exists, err = store.DocumentNameExists(ctx, "committee-1", "Agenda")
+		require.NoError(t, err)
+		assert.True(t, exists, "the document that lost keeps its old name")
+	})
+
+	t.Run("two documents renamed to the same name at once: one wins", func(t *testing.T) {
+		store := seed(t)
+		first, firstRevision, err := store.GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, err)
+		second, secondRevision, err := store.GetDocumentMetadata(ctx, "committee-1", "d-2")
+		require.NoError(t, err)
+
+		wins := race(t, func(writer int) error {
+			update, revision := *first, firstRevision
+			if writer%2 == 1 {
+				update, revision = *second, secondRevision
+			}
+			update.Name = "Shared"
+			return store.UpdateDocumentMetadata(ctx, &update, revision)
+		}, requireConflict)
+
+		assert.Equal(t, 1, wins)
+		holders := 0
+		for _, uid := range []string{"d-1", "d-2"} {
+			got, _, err := store.GetDocumentMetadata(ctx, "committee-1", uid)
+			require.NoError(t, err)
+			if got.Name == "Shared" {
+				holders++
+			}
+		}
+		assert.Equal(t, 1, holders, "exactly one document holds the name")
+	})
+
 	t.Run("UpdateDocumentMetadata of a missing document is not found, and a nil one is invalid", func(t *testing.T) {
 		store := newStore(t)
 		requireNotFound(t, store.UpdateDocumentMetadata(ctx, NewDocument("ghost", "committee-1", "Ghost"), 1))

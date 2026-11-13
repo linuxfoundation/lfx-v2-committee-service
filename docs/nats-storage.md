@@ -72,6 +72,15 @@ the email or name is not left locked. If the write error is ambiguous (the recor
 stored), the key is kept, which blocks re-creation instead of allowing a duplicate. Deleting a folder,
 document, or application releases its key. Callers never see or build these keys.
 
+Renaming a document moves its key. `UpdateDocumentMetadata` reserves the new name first, so a name another
+document holds is a conflict that changes nothing, then writes the record with the caller's revision, and
+releases the old name only once the write has landed and only while that key still holds the document's own
+uid. A revision that is no longer current is a conflict before anything is reserved, and a write the server
+refuses outright releases the name it reserved. If the outcome of the write is ambiguous the reserved key is
+kept, because a rename that landed needs it: a lost reply can leave the new name locked until the key is
+removed, and the warning that is logged names the document. This is what the PostgreSQL store's unique index
+does in one statement, so a rename behaves the same in every storage mode.
+
 Document upload pre-checks the name before storing the file, removes the stored file if metadata
 creation fails (unless the metadata is found to exist), and treats the metadata create as the
 authoritative uniqueness check.

@@ -62,6 +62,7 @@ type Server struct {
 	UploadCommitteeDocument    http.Handler
 	GetCommitteeDocument       http.Handler
 	DownloadCommitteeDocument  http.Handler
+	UpdateCommitteeDocument    http.Handler
 	DeleteCommitteeDocument    http.Handler
 	GetCurrentWeeklyBrief      http.Handler
 	GenerateWeeklyBrief        http.Handler
@@ -165,6 +166,7 @@ func New(
 			{"UploadCommitteeDocument", "POST", "/committees/{uid}/documents"},
 			{"GetCommitteeDocument", "GET", "/committees/{uid}/documents/{document_uid}"},
 			{"DownloadCommitteeDocument", "GET", "/committees/{uid}/documents/{document_uid}/download"},
+			{"UpdateCommitteeDocument", "PUT", "/committees/{uid}/documents/{document_uid}"},
 			{"DeleteCommitteeDocument", "DELETE", "/committees/{uid}/documents/{document_uid}"},
 			{"GetCurrentWeeklyBrief", "GET", "/committees/{uid}/weekly-briefs/current"},
 			{"GenerateWeeklyBrief", "POST", "/committees/{uid}/weekly-briefs/generate"},
@@ -214,6 +216,7 @@ func New(
 		UploadCommitteeDocument:    NewUploadCommitteeDocumentHandler(e.UploadCommitteeDocument, mux, NewCommitteeServiceUploadCommitteeDocumentDecoder(mux, committeeServiceUploadCommitteeDocumentDecoderFn), encoder, errhandler, formatter),
 		GetCommitteeDocument:       NewGetCommitteeDocumentHandler(e.GetCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
 		DownloadCommitteeDocument:  NewDownloadCommitteeDocumentHandler(e.DownloadCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
+		UpdateCommitteeDocument:    NewUpdateCommitteeDocumentHandler(e.UpdateCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeDocument:    NewDeleteCommitteeDocumentHandler(e.DeleteCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
 		GetCurrentWeeklyBrief:      NewGetCurrentWeeklyBriefHandler(e.GetCurrentWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
 		GenerateWeeklyBrief:        NewGenerateWeeklyBriefHandler(e.GenerateWeeklyBrief, mux, decoder, encoder, errhandler, formatter),
@@ -270,6 +273,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.UploadCommitteeDocument = m(s.UploadCommitteeDocument)
 	s.GetCommitteeDocument = m(s.GetCommitteeDocument)
 	s.DownloadCommitteeDocument = m(s.DownloadCommitteeDocument)
+	s.UpdateCommitteeDocument = m(s.UpdateCommitteeDocument)
 	s.DeleteCommitteeDocument = m(s.DeleteCommitteeDocument)
 	s.GetCurrentWeeklyBrief = m(s.GetCurrentWeeklyBrief)
 	s.GenerateWeeklyBrief = m(s.GenerateWeeklyBrief)
@@ -321,6 +325,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountUploadCommitteeDocumentHandler(mux, h.UploadCommitteeDocument)
 	MountGetCommitteeDocumentHandler(mux, h.GetCommitteeDocument)
 	MountDownloadCommitteeDocumentHandler(mux, h.DownloadCommitteeDocument)
+	MountUpdateCommitteeDocumentHandler(mux, h.UpdateCommitteeDocument)
 	MountDeleteCommitteeDocumentHandler(mux, h.DeleteCommitteeDocument)
 	MountGetCurrentWeeklyBriefHandler(mux, h.GetCurrentWeeklyBrief)
 	MountGenerateWeeklyBriefHandler(mux, h.GenerateWeeklyBrief)
@@ -2397,6 +2402,60 @@ func NewDownloadCommitteeDocumentHandler(
 		if _, err := io.Copy(w, buf); err != nil {
 			http.NewResponseController(w).Flush()
 			panic(http.ErrAbortHandler) // too late to write an error
+		}
+	})
+}
+
+// MountUpdateCommitteeDocumentHandler configures the mux to serve the
+// "committee-service" service "update-committee-document" endpoint.
+func MountUpdateCommitteeDocumentHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("PUT", "/committees/{uid}/documents/{document_uid}", f)
+}
+
+// NewUpdateCommitteeDocumentHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "update-committee-document" endpoint.
+func NewUpdateCommitteeDocumentHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeUpdateCommitteeDocumentRequest(mux, decoder)
+		encodeResponse = EncodeUpdateCommitteeDocumentResponse(encoder)
+		encodeError    = EncodeUpdateCommitteeDocumentError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "update-committee-document")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
 		}
 	})
 }

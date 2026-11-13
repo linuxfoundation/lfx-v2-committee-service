@@ -419,6 +419,17 @@ type UploadCommitteeDocumentRequestBody struct {
 	File []byte `form:"file" json:"file" xml:"file"`
 }
 
+// UpdateCommitteeDocumentRequestBody is the type of the "committee-service"
+// service "update-committee-document" endpoint HTTP request body.
+type UpdateCommitteeDocumentRequestBody struct {
+	// Display name for the document; unique within the committee
+	Name string `form:"name" json:"name" xml:"name"`
+	// Optional description; omit to clear it
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Folder UID to place this document in; omit to move it to the root
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+}
+
 // GenerateWeeklyBriefRequestBody is the type of the "committee-service"
 // service "generate-weekly-brief" endpoint HTTP request body.
 type GenerateWeeklyBriefRequestBody struct {
@@ -1301,6 +1312,35 @@ type UploadCommitteeDocumentResponseBody struct {
 // GetCommitteeDocumentResponseBody is the type of the "committee-service"
 // service "get-committee-document" endpoint HTTP response body.
 type GetCommitteeDocumentResponseBody CommitteeDocumentWithReadonlyAttributesResponseBody
+
+// UpdateCommitteeDocumentResponseBody is the type of the "committee-service"
+// service "update-committee-document" endpoint HTTP response body.
+type UpdateCommitteeDocumentResponseBody struct {
+	// Document UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this document belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+	// Display name for the document
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Original file name
+	FileName *string `form:"file_name,omitempty" json:"file_name,omitempty" xml:"file_name,omitempty"`
+	// File size in bytes
+	FileSize *int64 `form:"file_size,omitempty" json:"file_size,omitempty" xml:"file_size,omitempty"`
+	// MIME type of the file
+	ContentType *string `form:"content_type,omitempty" json:"content_type,omitempty" xml:"content_type,omitempty"`
+	// User who created this resource
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
 
 // GetCurrentWeeklyBriefResponseBody is the type of the "committee-service"
 // service "get-current-weekly-brief" endpoint HTTP response body.
@@ -2661,6 +2701,46 @@ type DownloadCommitteeDocumentNotFoundResponseBody struct {
 // "committee-service" service "download-committee-document" endpoint HTTP
 // response body for the "ServiceUnavailable" error.
 type DownloadCommitteeDocumentServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeDocumentBadRequestResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "BadRequest" error.
+type UpdateCommitteeDocumentBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeDocumentConflictResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "Conflict" error.
+type UpdateCommitteeDocumentConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeDocumentInternalServerErrorResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "InternalServerError" error.
+type UpdateCommitteeDocumentInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeDocumentNotFoundResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "NotFound" error.
+type UpdateCommitteeDocumentNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeDocumentServiceUnavailableResponseBody is the type of the
+// "committee-service" service "update-committee-document" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type UpdateCommitteeDocumentServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -4177,6 +4257,18 @@ func NewUploadCommitteeDocumentRequestBody(p *committeeservice.UploadCommitteeDo
 		FileName:    p.FileName,
 		ContentType: p.ContentType,
 		File:        p.File,
+	}
+	return body
+}
+
+// NewUpdateCommitteeDocumentRequestBody builds the HTTP request body from the
+// payload of the "update-committee-document" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeDocumentRequestBody(p *committeeservice.UpdateCommitteeDocumentPayload) *UpdateCommitteeDocumentRequestBody {
+	body := &UpdateCommitteeDocumentRequestBody{
+		Name:        p.Name,
+		Description: p.Description,
+		FolderUID:   p.FolderUID,
 	}
 	return body
 }
@@ -7275,6 +7367,82 @@ func NewDownloadCommitteeDocumentServiceUnavailable(body *DownloadCommitteeDocum
 	return v
 }
 
+// NewUpdateCommitteeDocumentCommitteeDocumentWithReadonlyAttributesOK builds a
+// "committee-service" service "update-committee-document" endpoint result from
+// a HTTP "OK" response.
+func NewUpdateCommitteeDocumentCommitteeDocumentWithReadonlyAttributesOK(body *UpdateCommitteeDocumentResponseBody) *committeeservice.CommitteeDocumentWithReadonlyAttributes {
+	v := &committeeservice.CommitteeDocumentWithReadonlyAttributes{
+		UID:          body.UID,
+		CommitteeUID: body.CommitteeUID,
+		FolderUID:    body.FolderUID,
+		Name:         body.Name,
+		Description:  body.Description,
+		FileName:     body.FileName,
+		FileSize:     body.FileSize,
+		ContentType:  body.ContentType,
+		CreatedAt:    body.CreatedAt,
+		UpdatedAt:    body.UpdatedAt,
+	}
+	if body.CreatedBy != nil {
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
+	}
+	if body.UpdatedBy != nil {
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeDocumentBadRequest builds a committee-service service
+// update-committee-document endpoint BadRequest error.
+func NewUpdateCommitteeDocumentBadRequest(body *UpdateCommitteeDocumentBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeDocumentConflict builds a committee-service service
+// update-committee-document endpoint Conflict error.
+func NewUpdateCommitteeDocumentConflict(body *UpdateCommitteeDocumentConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeDocumentInternalServerError builds a committee-service
+// service update-committee-document endpoint InternalServerError error.
+func NewUpdateCommitteeDocumentInternalServerError(body *UpdateCommitteeDocumentInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeDocumentNotFound builds a committee-service service
+// update-committee-document endpoint NotFound error.
+func NewUpdateCommitteeDocumentNotFound(body *UpdateCommitteeDocumentNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeDocumentServiceUnavailable builds a committee-service
+// service update-committee-document endpoint ServiceUnavailable error.
+func NewUpdateCommitteeDocumentServiceUnavailable(body *UpdateCommitteeDocumentServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewDeleteCommitteeDocumentBadRequest builds a committee-service service
 // delete-committee-document endpoint BadRequest error.
 func NewDeleteCommitteeDocumentBadRequest(body *DeleteCommitteeDocumentBadRequestResponseBody) *committeeservice.BadRequestError {
@@ -9503,6 +9671,57 @@ func ValidateGetCommitteeDocumentResponseBody(body *GetCommitteeDocumentResponse
 	return
 }
 
+// ValidateUpdateCommitteeDocumentResponseBody runs the validations defined on
+// Update-Committee-DocumentResponseBody
+func ValidateUpdateCommitteeDocumentResponseBody(body *UpdateCommitteeDocumentResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.FileName != nil {
+		if utf8.RuneCountInString(*body.FileName) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.file_name", *body.FileName, utf8.RuneCountInString(*body.FileName), 500, false))
+		}
+	}
+	if body.FileSize != nil {
+		if *body.FileSize < 0 {
+			err = goa.MergeErrors(err, goa.InvalidRangeError("body.file_size", *body.FileSize, 0, true))
+		}
+	}
+	if body.CreatedBy != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.UpdatedBy != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
 // ValidateGetCurrentWeeklyBriefResponseBody runs the validations defined on
 // Get-Current-Weekly-BriefResponseBody
 func ValidateGetCurrentWeeklyBriefResponseBody(body *GetCurrentWeeklyBriefResponseBody) (err error) {
@@ -11087,6 +11306,53 @@ func ValidateDownloadCommitteeDocumentNotFoundResponseBody(body *DownloadCommitt
 // validations defined on
 // download-committee-document_ServiceUnavailable_response_body
 func ValidateDownloadCommitteeDocumentServiceUnavailableResponseBody(body *DownloadCommitteeDocumentServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeDocumentBadRequestResponseBody runs the validations
+// defined on update-committee-document_BadRequest_response_body
+func ValidateUpdateCommitteeDocumentBadRequestResponseBody(body *UpdateCommitteeDocumentBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeDocumentConflictResponseBody runs the validations
+// defined on update-committee-document_Conflict_response_body
+func ValidateUpdateCommitteeDocumentConflictResponseBody(body *UpdateCommitteeDocumentConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeDocumentInternalServerErrorResponseBody runs the
+// validations defined on
+// update-committee-document_InternalServerError_response_body
+func ValidateUpdateCommitteeDocumentInternalServerErrorResponseBody(body *UpdateCommitteeDocumentInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeDocumentNotFoundResponseBody runs the validations
+// defined on update-committee-document_NotFound_response_body
+func ValidateUpdateCommitteeDocumentNotFoundResponseBody(body *UpdateCommitteeDocumentNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeDocumentServiceUnavailableResponseBody runs the
+// validations defined on
+// update-committee-document_ServiceUnavailable_response_body
+func ValidateUpdateCommitteeDocumentServiceUnavailableResponseBody(body *UpdateCommitteeDocumentServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

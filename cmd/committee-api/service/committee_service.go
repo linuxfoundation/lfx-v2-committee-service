@@ -3019,6 +3019,54 @@ func (s *committeeServicesrvc) DownloadCommitteeDocument(ctx context.Context, p 
 	}, nil
 }
 
+// UpdateCommitteeDocument replaces a document's name, description and folder, using optimistic locking via If-Match.
+// The uploaded file is not changed. The request carries all three: an omitted description clears it and an omitted
+// folder_uid moves the document to the root, so moving a document is an update that names the target folder.
+func (s *committeeServicesrvc) UpdateCommitteeDocument(ctx context.Context, p *committeeservice.UpdateCommitteeDocumentPayload) (res *committeeservice.CommitteeDocumentWithReadonlyAttributes, err error) {
+	slog.DebugContext(ctx, "committeeService.update-committee-document", "committee_uid", p.UID, "document_uid", p.DocumentUID)
+
+	revision, err := etagValidator(&p.IfMatch)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	_, updatedBy := s.stampAuditUsers(ctx)
+	if updatedBy == nil {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity from token"))
+	}
+
+	// The folder is named in the request, not in the path, so one that does not exist is a bad request, as it is on
+	// upload. Any other failure to look it up is not the caller's mistake and stays what it is.
+	if p.FolderUID != nil && *p.FolderUID != "" {
+		if _, _, err := s.linkReader.GetLinkFolder(ctx, p.UID, *p.FolderUID); err != nil {
+			var notFound errors.NotFound
+			if stderrors.As(err, &notFound) {
+				return nil, wrapError(ctx, errors.NewValidation("folder_uid does not exist or does not belong to this committee"))
+			}
+			return nil, wrapError(ctx, err)
+		}
+	}
+
+	doc := &model.CommitteeDocument{
+		UID:          p.DocumentUID,
+		CommitteeUID: p.UID,
+		Name:         p.Name,
+		FolderUID:    p.FolderUID,
+		UpdatedBy:    updatedBy,
+	}
+	if p.Description != nil {
+		doc.Description = *p.Description
+	}
+
+	updated, err := s.docWriter.UpdateDocument(ctx, doc, revision, p.XSync)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	updated.CreatedBy, updated.UpdatedBy = s.normalizeAuditUsers(ctx, updated.CreatedBy, updated.UpdatedBy, "", "")
+	return domainDocumentToGoa(updated), nil
+}
+
 // DeleteCommitteeDocument deletes a committee document using optimistic locking via If-Match.
 func (s *committeeServicesrvc) DeleteCommitteeDocument(ctx context.Context, p *committeeservice.DeleteCommitteeDocumentPayload) (err error) {
 	slog.DebugContext(ctx, "committeeService.delete-committee-document", "committee_uid", p.UID, "document_uid", p.DocumentUID)

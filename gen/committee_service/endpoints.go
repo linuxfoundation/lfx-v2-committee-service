@@ -56,6 +56,7 @@ type Endpoints struct {
 	UploadCommitteeDocument    goa.Endpoint
 	GetCommitteeDocument       goa.Endpoint
 	DownloadCommitteeDocument  goa.Endpoint
+	UpdateCommitteeDocument    goa.Endpoint
 	DeleteCommitteeDocument    goa.Endpoint
 	GetCurrentWeeklyBrief      goa.Endpoint
 	GenerateWeeklyBrief        goa.Endpoint
@@ -115,6 +116,7 @@ func NewEndpoints(s Service) *Endpoints {
 		UploadCommitteeDocument:    NewUploadCommitteeDocumentEndpoint(s, a.JWTAuth),
 		GetCommitteeDocument:       NewGetCommitteeDocumentEndpoint(s, a.JWTAuth),
 		DownloadCommitteeDocument:  NewDownloadCommitteeDocumentEndpoint(s, a.JWTAuth),
+		UpdateCommitteeDocument:    NewUpdateCommitteeDocumentEndpoint(s, a.JWTAuth),
 		DeleteCommitteeDocument:    NewDeleteCommitteeDocumentEndpoint(s, a.JWTAuth),
 		GetCurrentWeeklyBrief:      NewGetCurrentWeeklyBriefEndpoint(s, a.JWTAuth),
 		GenerateWeeklyBrief:        NewGenerateWeeklyBriefEndpoint(s, a.JWTAuth),
@@ -165,6 +167,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.UploadCommitteeDocument = m(e.UploadCommitteeDocument)
 	e.GetCommitteeDocument = m(e.GetCommitteeDocument)
 	e.DownloadCommitteeDocument = m(e.DownloadCommitteeDocument)
+	e.UpdateCommitteeDocument = m(e.UpdateCommitteeDocument)
 	e.DeleteCommitteeDocument = m(e.DeleteCommitteeDocument)
 	e.GetCurrentWeeklyBrief = m(e.GetCurrentWeeklyBrief)
 	e.GenerateWeeklyBrief = m(e.GenerateWeeklyBrief)
@@ -1019,6 +1022,29 @@ func NewDownloadCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTF
 			return nil, err
 		}
 		return &DownloadCommitteeDocumentResponseData{Body: body}, nil
+	}
+}
+
+// NewUpdateCommitteeDocumentEndpoint returns an endpoint function that calls
+// the method "update-committee-document" of service "committee-service".
+func NewUpdateCommitteeDocumentEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*UpdateCommitteeDocumentPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.UpdateCommitteeDocument(ctx, p)
 	}
 }
 
