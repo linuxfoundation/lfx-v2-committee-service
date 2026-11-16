@@ -703,6 +703,10 @@ type BulkCreateCommitteeMembersResponseBody struct {
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesResponseBody
 
+// ListCommitteeMembersResponseBody is the type of the "committee-service"
+// service "list-committee-members" endpoint HTTP response body.
+type ListCommitteeMembersResponseBody []*CommitteeMemberFullWithReadonlyAttributesResponse
+
 // GetOrgCommitteeSeatsResponseBody is the type of the "committee-service"
 // service "get-org-committee-seats" endpoint HTTP response body.
 type GetOrgCommitteeSeatsResponseBody struct {
@@ -1700,6 +1704,38 @@ type GetCommitteeMemberNotFoundResponseBody struct {
 // "committee-service" service "get-committee-member" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type GetCommitteeMemberServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ListCommitteeMembersBadRequestResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "BadRequest" error.
+type ListCommitteeMembersBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ListCommitteeMembersInternalServerErrorResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "InternalServerError" error.
+type ListCommitteeMembersInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ListCommitteeMembersNotFoundResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "NotFound" error.
+type ListCommitteeMembersNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ListCommitteeMembersServiceUnavailableResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type ListCommitteeMembersServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -3204,6 +3240,66 @@ type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
 	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
 }
 
+// CommitteeMemberFullWithReadonlyAttributesResponse is used to define fields
+// on response body types.
+type CommitteeMemberFullWithReadonlyAttributesResponse struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
+	// Member status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
 // OrgCommitteeSeatResponseBody is used to define fields on response body types.
 type OrgCommitteeSeatResponseBody struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
@@ -4196,6 +4292,17 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 			Name:    res.Member.Organization.Name,
 			Website: res.Member.Organization.Website,
 		}
+	}
+	return body
+}
+
+// NewListCommitteeMembersResponseBody builds the HTTP response body from the
+// result of the "list-committee-members" endpoint of the "committee-service"
+// service.
+func NewListCommitteeMembersResponseBody(res []*committeeservice.CommitteeMemberFullWithReadonlyAttributes) ListCommitteeMembersResponseBody {
+	body := make([]*CommitteeMemberFullWithReadonlyAttributesResponse, len(res))
+	for i, val := range res {
+		body[i] = marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommitteeMemberFullWithReadonlyAttributesResponse(val)
 	}
 	return body
 }
@@ -5481,6 +5588,46 @@ func NewGetCommitteeMemberNotFoundResponseBody(res *committeeservice.NotFoundErr
 // "committee-service" service.
 func NewGetCommitteeMemberServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *GetCommitteeMemberServiceUnavailableResponseBody {
 	body := &GetCommitteeMemberServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewListCommitteeMembersBadRequestResponseBody builds the HTTP response body
+// from the result of the "list-committee-members" endpoint of the
+// "committee-service" service.
+func NewListCommitteeMembersBadRequestResponseBody(res *committeeservice.BadRequestError) *ListCommitteeMembersBadRequestResponseBody {
+	body := &ListCommitteeMembersBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewListCommitteeMembersInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "list-committee-members" endpoint of
+// the "committee-service" service.
+func NewListCommitteeMembersInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ListCommitteeMembersInternalServerErrorResponseBody {
+	body := &ListCommitteeMembersInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewListCommitteeMembersNotFoundResponseBody builds the HTTP response body
+// from the result of the "list-committee-members" endpoint of the
+// "committee-service" service.
+func NewListCommitteeMembersNotFoundResponseBody(res *committeeservice.NotFoundError) *ListCommitteeMembersNotFoundResponseBody {
+	body := &ListCommitteeMembersNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewListCommitteeMembersServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "list-committee-members" endpoint of
+// the "committee-service" service.
+func NewListCommitteeMembersServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *ListCommitteeMembersServiceUnavailableResponseBody {
+	body := &ListCommitteeMembersServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -7438,6 +7585,17 @@ func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, 
 	v := &committeeservice.GetCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewListCommitteeMembersPayload builds a committee-service service
+// list-committee-members endpoint payload.
+func NewListCommitteeMembersPayload(uid string, version string, bearerToken *string) *committeeservice.ListCommitteeMembersPayload {
+	v := &committeeservice.ListCommitteeMembersPayload{}
+	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
 

@@ -362,6 +362,29 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	return res, nil
 }
 
+// ListCommitteeMembers returns every member of a committee (PCC-1657). Delegates to the same
+// ListMembersByCommittee secondary-index scan already used internally by LeaveCommittee and by
+// the NATS list-members handler; this just exposes it over HTTP for gateway-only consumers.
+func (s *committeeServicesrvc) ListCommitteeMembers(ctx context.Context, p *committeeservice.ListCommitteeMembersPayload) (res []*committeeservice.CommitteeMemberFullWithReadonlyAttributes, err error) {
+	slog.DebugContext(ctx, "committeeMemberService.list-committee-members", "committee_uid", p.UID)
+
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	members, err := s.committeeReaderOrchestrator.ListMembersByCommittee(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	result := make([]*committeeservice.CommitteeMemberFullWithReadonlyAttributes, 0, len(members))
+	for _, m := range members {
+		result = append(result, s.convertMemberDomainToFullResponse(m))
+	}
+
+	return result, nil
+}
+
 // GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for the
 // Org Lens Board & Committee tab, paginated. The org filter is the sole scoping control (best-effort:
 // org_id is self-reported until LFXV2-330).
