@@ -279,6 +279,21 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 	return svc, mockOrchestrator, mockRepo
 }
 
+// applicationGetHookStore runs onGet before every GetApplication so a test can interleave or fail the read.
+type applicationGetHookStore struct {
+	port.CommitteeReaderWriter
+	onGet func() error
+}
+
+func (h *applicationGetHookStore) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+	if h.onGet != nil {
+		if err := h.onGet(); err != nil {
+			return nil, 0, err
+		}
+	}
+	return h.CommitteeReaderWriter.GetApplication(ctx, uid)
+}
+
 func TestPublishInviteAccessControlMessage(t *testing.T) {
 	invite := &model.CommitteeInvite{
 		UID:          "invite-1",
@@ -2638,6 +2653,39 @@ func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
 	}
 }
 
+func TestSubmitApplication_ReinstateRecheck(t *testing.T) {
+	for _, status := range []string{"pending", "approved"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			repo.SetJoinMode("committee-1", "application")
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "moved-on-app",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "first.last@example.com",
+				Status:         "withdrawn",
+				CreatedAt:      time.Now(),
+			})
+			writer := mock.NewMockCommitteeReaderWriter(repo)
+			// Another request moves the record on between the listing and the re-read.
+			svc.storage = &applicationGetHookStore{CommitteeReaderWriter: writer, onGet: func() error {
+				app, rev, err := writer.GetApplication(context.Background(), "moved-on-app")
+				require.NoError(t, err)
+				app.Status = status
+				return writer.UpdateApplication(context.Background(), app, rev)
+			}}
+
+			svc.userReader = mockReaderForPrincipalEmail("first.last@example.com", "first.last@example.com")
+			_, err := svc.SubmitApplication(testCtx("first.last@example.com"), &committeeservice.SubmitApplicationPayload{UID: "committee-1"})
+
+			var conflictErr *committeeservice.ConflictError
+			require.ErrorAs(t, err, &conflictErr)
+			stored, _, getErr := repo.GetApplication(context.Background(), "moved-on-app")
+			require.NoError(t, getErr)
+			assert.Equal(t, status, stored.Status)
+		})
+	}
+}
+
 func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
 	for _, status := range []string{"pending", "approved"} {
 		t.Run(status, func(t *testing.T) {
@@ -2764,6 +2812,7 @@ func TestApproveApplication(t *testing.T) {
 	raceTests := []struct {
 		name        string
 		interleave  func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository)
+		failReread  bool
 		deleteErr   error
 		wantErr     any
 		wantDeletes int
@@ -2811,6 +2860,20 @@ func TestApproveApplication(t *testing.T) {
 			wantStatus:  "approved",
 		},
 		{
+			name: "failed re-read keeps the member and returns the write error",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			failReread:  true,
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 0,
+			wantStatus:  "withdrawn",
+		},
+		{
 			name: "failed member removal is not reported as a conflict",
 			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
 				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
@@ -2847,9 +2910,14 @@ func TestApproveApplication(t *testing.T) {
 			mockOrch.createMember = created
 			mockOrch.deleteError = tt.deleteErr
 			// Runs after approve read the pending application and before its status write.
+			hooked := &applicationGetHookStore{CommitteeReaderWriter: svc.storage}
+			svc.storage = hooked
 			mockOrch.createMemberValidator = func(*model.CommitteeMember) error {
 				repo.AddCommitteeMember("committee-1", created)
 				tt.interleave(t, svc, repo)
+				if tt.failReread {
+					hooked.onGet = func() error { return errs.NewServiceUnavailable("storage unavailable") }
+				}
 				return nil
 			}
 
