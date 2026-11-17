@@ -2761,51 +2761,115 @@ func TestApproveApplication(t *testing.T) {
 		assert.Empty(t, member.Username)
 	})
 
-	t.Run("withdraw landing during member creation removes the created member", func(t *testing.T) {
-		svc, mockOrch, repo := setupServiceTestWithRepo()
-		svc.userReader = mockReaderForPrincipalEmail("first.last@example.com", "first.last@example.com")
-		repo.AddCommitteeApplication(&model.CommitteeApplication{
-			UID:            "app-approve-race",
-			CommitteeUID:   "committee-1",
-			ApplicantEmail: "first.last@example.com",
-			Status:         "pending",
-			CreatedAt:      time.Now(),
-		})
-		created := &model.CommitteeMember{
-			CommitteeMemberBase: model.CommitteeMemberBase{
-				UID:          "member-approve-race",
-				CommitteeUID: "committee-1",
-				Email:        "first.last@example.com",
-				Status:       "Active",
+	raceTests := []struct {
+		name        string
+		interleave  func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository)
+		deleteErr   error
+		wantErr     any
+		wantDeletes int
+		wantStatus  string
+	}{
+		{
+			name: "withdraw during member creation removes the created member",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
 			},
-		}
-		mockOrch.createMember = created
-		// The applicant withdraws after approve read the pending application, before its status write.
-		mockOrch.createMemberValidator = func(*model.CommitteeMember) error {
-			repo.AddCommitteeMember("committee-1", created)
-			_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 1,
+			wantStatus:  "withdrawn",
+		},
+		{
+			name: "withdraw and resubmit during member creation removes the created member",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+				repo.SetJoinMode("committee-1", "application")
+				_, err = svc.SubmitApplication(testCtx("first.last@example.com"), &committeeservice.SubmitApplicationPayload{UID: "committee-1"})
+				require.NoError(t, err)
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 1,
+			wantStatus:  "pending",
+		},
+		{
+			name: "approved re-read keeps the member",
+			interleave: func(t *testing.T, _ *committeeServicesrvc, repo *mock.MockRepository) {
+				app, rev, err := repo.GetApplication(context.Background(), "app-approve-race")
+				require.NoError(t, err)
+				app.Status = "approved"
+				require.NoError(t, mock.NewMockCommitteeReaderWriter(repo).UpdateApplication(context.Background(), app, rev))
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 0,
+			wantStatus:  "approved",
+		},
+		{
+			name: "failed member removal is not reported as a conflict",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			deleteErr:   errs.NewUnexpected("delete failed"),
+			wantErr:     new(*committeeservice.InternalServerError),
+			wantDeletes: 1,
+			wantStatus:  "withdrawn",
+		},
+	}
+	for _, tt := range raceTests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+			svc.userReader = mockReaderForPrincipalEmail("first.last@example.com", "first.last@example.com")
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "app-approve-race",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "first.last@example.com",
+				Status:         "pending",
+				CreatedAt:      time.Now(),
+			})
+			created := &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-approve-race",
+					CommitteeUID: "committee-1",
+					Email:        "first.last@example.com",
+					Status:       "Active",
+				},
+			}
+			mockOrch.createMember = created
+			mockOrch.deleteError = tt.deleteErr
+			// Runs after approve read the pending application and before its status write.
+			mockOrch.createMemberValidator = func(*model.CommitteeMember) error {
+				repo.AddCommitteeMember("committee-1", created)
+				tt.interleave(t, svc, repo)
+				return nil
+			}
+
+			result, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
 				UID:            "committee-1",
 				ApplicationUID: "app-approve-race",
 			})
-			return err
-		}
 
-		result, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
-			UID:            "committee-1",
-			ApplicationUID: "app-approve-race",
+			require.Error(t, err)
+			assert.Nil(t, result)
+			require.ErrorAs(t, err, tt.wantErr)
+			require.Len(t, mockOrch.deleteCalls, tt.wantDeletes)
+			if tt.wantDeletes > 0 {
+				assert.Equal(t, "member-approve-race", mockOrch.deleteCalls[0].uid)
+			}
+			stored, _, getErr := repo.GetApplication(context.Background(), "app-approve-race")
+			require.NoError(t, getErr)
+			assert.Equal(t, tt.wantStatus, stored.Status)
 		})
-
-		require.Error(t, err)
-		assert.Nil(t, result)
-		var conflictErr *committeeservice.ConflictError
-		require.ErrorAs(t, err, &conflictErr)
-		require.Len(t, mockOrch.deleteCalls, 1)
-		assert.Equal(t, "committee-1", mockOrch.deleteCalls[0].committeeUID)
-		assert.Equal(t, "member-approve-race", mockOrch.deleteCalls[0].uid)
-		stored, _, getErr := repo.GetApplication(context.Background(), "app-approve-race")
-		require.NoError(t, getErr)
-		assert.Equal(t, "withdrawn", stored.Status)
-	})
+	}
 }
 
 func TestApproveApplication_WrongCommittee(t *testing.T) {

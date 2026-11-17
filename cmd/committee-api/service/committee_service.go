@@ -1507,9 +1507,15 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
-		// A withdraw or reject that won the race must not leave the member it just created behind
-		if current, _, errGet := s.storage.GetApplication(ctx, application.UID); errGet == nil && current.Status != "pending" {
-			s.removeApprovedMember(ctx, application.CommitteeUID, response.UID)
+		// Keep the member only if the re-read shows this approval's write landed
+		current, _, errGet := s.storage.GetApplication(ctx, application.UID)
+		if errGet != nil || current.Status == "approved" {
+			return nil, wrapError(ctx, err)
+		}
+		if errRemove := s.removeApprovedMember(ctx, application.CommitteeUID, response.UID); errRemove != nil {
+			return nil, wrapError(ctx, errors.NewUnexpected("approval failed and removing the created member also failed; manual recovery required", err, errRemove))
+		}
+		if current.Status != "pending" {
 			return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
 		}
 		return nil, wrapError(ctx, err)
@@ -1525,19 +1531,20 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	return s.convertMemberDomainToFullResponse(response), nil
 }
 
-// removeApprovedMember deletes the member an approval created after the application left pending.
-func (s *committeeServicesrvc) removeApprovedMember(ctx context.Context, committeeUID, memberUID string) {
+// removeApprovedMember deletes the member an approval created when its status write did not land.
+func (s *committeeServicesrvc) removeApprovedMember(ctx context.Context, committeeUID, memberUID string) error {
 	rev, err := s.storage.GetMemberRevision(ctx, memberUID)
 	if err == nil {
 		err = s.committeeWriterOrchestrator.DeleteMember(ctx, committeeUID, memberUID, rev, false, true)
 	}
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to remove member created by an approval that lost to a concurrent transition",
+		slog.ErrorContext(ctx, "failed to remove member created by an approval whose status write did not land",
 			"error", err,
 			"committee_uid", committeeUID,
 			"member_uid", memberUID,
 		)
 	}
+	return err
 }
 
 // RejectApplication rejects a pending application

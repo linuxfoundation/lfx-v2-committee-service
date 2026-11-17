@@ -134,7 +134,7 @@ withdrawn ──POST /applications (same email)──▶ pending  (reinstate)
 | `lfx.index.committee_member` published | |
 | `lfx.committee-api.committee_application.updated` published (domain event) | Consumed to send decision email to applicant |
 
-If the status write fails and the application is no longer `pending` (a concurrent withdraw or reject won), delete the member just created and return `409`.
+If the status write fails, re-read the application. Unless it reads `approved` (write landed), delete the member just created; return `409` for `withdrawn`/`rejected`, the original error for `pending`, and `500` if the delete fails.
 
 #### Reject application (`pending`) → `rejected`
 
@@ -156,7 +156,7 @@ No FGA change on rejection — no member exists.
 
 **Caller:** applicant only (resolved caller email must equal `applicant_email`, else `403`).
 Any status other than `pending` → `409`. No domain event, so no email.
-A withdraw racing an approve's member create makes approve's status write fail on revision; approve then deletes the member it created and returns `409`.
+A withdraw racing an approve's member create makes approve's status write fail on revision; approve then deletes the member it created (see Approve above).
 
 ---
 
