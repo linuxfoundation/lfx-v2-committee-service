@@ -1410,6 +1410,9 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		if errGet != nil {
 			return nil, wrapError(ctx, errGet)
 		}
+		if current.Status != "rejected" && current.Status != "withdrawn" {
+			return nil, wrapError(ctx, errCreate)
+		}
 		current.Status = "pending"
 		current.ReviewerNotes = ""
 		if applicantUsername != "" {
@@ -1504,6 +1507,11 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
+		// A withdraw or reject that won the race must not leave the member it just created behind
+		if current, _, errGet := s.storage.GetApplication(ctx, application.UID); errGet == nil && current.Status != "pending" {
+			s.removeApprovedMember(ctx, application.CommitteeUID, response.UID)
+			return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
+		}
 		return nil, wrapError(ctx, err)
 	}
 
@@ -1515,6 +1523,21 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	return s.convertMemberDomainToFullResponse(response), nil
+}
+
+// removeApprovedMember deletes the member an approval created after the application left pending.
+func (s *committeeServicesrvc) removeApprovedMember(ctx context.Context, committeeUID, memberUID string) {
+	rev, err := s.storage.GetMemberRevision(ctx, memberUID)
+	if err == nil {
+		err = s.committeeWriterOrchestrator.DeleteMember(ctx, committeeUID, memberUID, rev, false, true)
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to remove member created by an approval that lost to a concurrent transition",
+			"error", err,
+			"committee_uid", committeeUID,
+			"member_uid", memberUID,
+		)
+	}
 }
 
 // RejectApplication rejects a pending application

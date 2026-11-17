@@ -148,7 +148,7 @@ withdrawn ──reapply──▶  pending  (reinstates existing record)
 **Approving an application** (`POST .../approve`):
 
 - Only allowed when `status: pending`.
-- On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry.
+- On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry. If the status write then fails because the application was withdrawn or rejected in the meantime, the member just created is deleted and `409 Conflict` is returned.
 - The stored `organization` from the application record is seeded onto the new committee member record. This preserves the organization the applicant confirmed at submission time and takes precedence over profile-metadata enrichment (which only fills `name`, not `id`/`website`). When no organization was stored on the application, the member's organization is populated only by the normal `enrichMember` path.
 - Returns the created committee member.
 
@@ -164,7 +164,7 @@ withdrawn ──reapply──▶  pending  (reinstates existing record)
 - Only allowed when `status: pending`; any other status returns `409 Conflict`.
 - Marks the application `withdrawn` and keeps the record, so the applicant can still view it and can resubmit later (see above).
 - Publishes the indexer update and the `update_access` message like reject. No domain event is published, so no email is sent.
-- Known race: a withdraw that lands while a reviewer's approve is creating the member makes the approve's status write fail on its revision check, leaving a member and a `withdrawn` application. The window is the member-create call; the reviewer sees the error and can remove the member.
+- If a withdraw lands while a reviewer's approve is creating the member, the approve's status write fails its revision check. The approve then re-reads the application and, finding it no longer `pending`, deletes the member it created (no removal email) and returns `409 Conflict`. The same applies when a concurrent reject wins. A failed delete is logged at error level.
 
 **Email notifications (opt-in via `notify` request field, default `false`):**
 
