@@ -1026,6 +1026,45 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	dsl.Method("withdraw-application", func() {
+		dsl.Description("Withdraw your own pending application")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			CommitteeUIDAttribute()
+			ApplicationUIDAttribute()
+
+			dsl.Required("version", "uid", "application_uid")
+		})
+
+		dsl.Result(CommitteeApplicationWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("Forbidden", ForbiddenError, "You are not the applicant for this application")
+		dsl.Error("NotFound", NotFoundError, "Application not found")
+		dsl.Error("Conflict", ConflictError, "Application already processed")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.POST("/committees/{uid}/applications/{application_uid}/withdraw")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("application_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("Forbidden", dsl.StatusForbidden)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	// Self-join and leave endpoints
 	dsl.Method("join-committee", func() {
 		dsl.Description("Self-join a committee (only works when join_mode is open)")

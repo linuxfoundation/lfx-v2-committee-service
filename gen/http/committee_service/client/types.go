@@ -1128,6 +1128,34 @@ type RejectApplicationResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
+// WithdrawApplicationResponseBody is the type of the "committee-service"
+// service "withdraw-application" endpoint HTTP response body.
+type WithdrawApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
 // JoinCommitteeResponseBody is the type of the "committee-service" service
 // "join-committee" endpoint HTTP response body.
 type JoinCommitteeResponseBody struct {
@@ -2233,6 +2261,54 @@ type RejectApplicationNotFoundResponseBody struct {
 // "committee-service" service "reject-application" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
 type RejectApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "BadRequest" error.
+type WithdrawApplicationBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationConflictResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Conflict" error.
+type WithdrawApplicationConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationForbiddenResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Forbidden" error.
+type WithdrawApplicationForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "InternalServerError" error.
+type WithdrawApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationNotFoundResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "NotFound" error.
+type WithdrawApplicationNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type WithdrawApplicationServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -6558,6 +6634,102 @@ func NewRejectApplicationServiceUnavailable(body *RejectApplicationServiceUnavai
 	return v
 }
 
+// NewWithdrawApplicationCommitteeApplicationWithReadonlyAttributesOK builds a
+// "committee-service" service "withdraw-application" endpoint result from a
+// HTTP "OK" response.
+func NewWithdrawApplicationCommitteeApplicationWithReadonlyAttributesOK(body *WithdrawApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
+	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
+	}
+	if body.Status != nil {
+		v.Status = *body.Status
+	}
+	if body.Status == nil {
+		v.Status = "pending"
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationBadRequest builds a committee-service service
+// withdraw-application endpoint BadRequest error.
+func NewWithdrawApplicationBadRequest(body *WithdrawApplicationBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationConflict builds a committee-service service
+// withdraw-application endpoint Conflict error.
+func NewWithdrawApplicationConflict(body *WithdrawApplicationConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationForbidden builds a committee-service service
+// withdraw-application endpoint Forbidden error.
+func NewWithdrawApplicationForbidden(body *WithdrawApplicationForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationInternalServerError builds a committee-service service
+// withdraw-application endpoint InternalServerError error.
+func NewWithdrawApplicationInternalServerError(body *WithdrawApplicationInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationNotFound builds a committee-service service
+// withdraw-application endpoint NotFound error.
+func NewWithdrawApplicationNotFound(body *WithdrawApplicationNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationServiceUnavailable builds a committee-service service
+// withdraw-application endpoint ServiceUnavailable error.
+func NewWithdrawApplicationServiceUnavailable(body *WithdrawApplicationServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewJoinCommitteeCommitteeMemberFullWithReadonlyAttributesCreated builds a
 // "committee-service" service "join-committee" endpoint result from a HTTP
 // "Created" response.
@@ -9019,8 +9191,8 @@ func ValidateGetApplicationResponseBody(body *GetApplicationResponseBody) (err e
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -9062,8 +9234,8 @@ func ValidateSubmitApplicationResponseBody(body *SubmitApplicationResponseBody) 
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -9211,8 +9383,51 @@ func ValidateRejectApplicationResponseBody(body *RejectApplicationResponseBody) 
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
+		}
+	}
+	if body.ReviewerNotes != nil {
+		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationResponseBody runs the validations defined on
+// Withdraw-ApplicationResponseBody
+func ValidateWithdrawApplicationResponseBody(body *WithdrawApplicationResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Message != nil {
+		if utf8.RuneCountInString(*body.Message) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+		}
+	}
+	if body.Status != nil {
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -10734,6 +10949,60 @@ func ValidateRejectApplicationNotFoundResponseBody(body *RejectApplicationNotFou
 // ValidateRejectApplicationServiceUnavailableResponseBody runs the validations
 // defined on reject-application_ServiceUnavailable_response_body
 func ValidateRejectApplicationServiceUnavailableResponseBody(body *RejectApplicationServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationBadRequestResponseBody runs the validations
+// defined on withdraw-application_BadRequest_response_body
+func ValidateWithdrawApplicationBadRequestResponseBody(body *WithdrawApplicationBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationConflictResponseBody runs the validations defined
+// on withdraw-application_Conflict_response_body
+func ValidateWithdrawApplicationConflictResponseBody(body *WithdrawApplicationConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationForbiddenResponseBody runs the validations
+// defined on withdraw-application_Forbidden_response_body
+func ValidateWithdrawApplicationForbiddenResponseBody(body *WithdrawApplicationForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationInternalServerErrorResponseBody runs the
+// validations defined on withdraw-application_InternalServerError_response_body
+func ValidateWithdrawApplicationInternalServerErrorResponseBody(body *WithdrawApplicationInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationNotFoundResponseBody runs the validations defined
+// on withdraw-application_NotFound_response_body
+func ValidateWithdrawApplicationNotFoundResponseBody(body *WithdrawApplicationNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationServiceUnavailableResponseBody runs the
+// validations defined on withdraw-application_ServiceUnavailable_response_body
+func ValidateWithdrawApplicationServiceUnavailableResponseBody(body *WithdrawApplicationServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

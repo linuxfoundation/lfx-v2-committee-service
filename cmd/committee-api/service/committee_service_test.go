@@ -2603,35 +2603,39 @@ func TestSubmitApplication(t *testing.T) {
 }
 
 func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
-	svc, _, repo := setupServiceTestWithRepo()
-	repo.SetJoinMode("committee-1", "application")
+	for _, status := range []string{"rejected", "withdrawn"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			repo.SetJoinMode("committee-1", "application")
 
-	// Seed a rejected application
-	rejected := &model.CommitteeApplication{
-		UID:            "rejected-app",
-		CommitteeUID:   "committee-1",
-		ApplicantEmail: "reapplicant@example.com",
-		Status:         "rejected",
-		ReviewerNotes:  "not a good fit",
-		CreatedAt:      time.Now(),
+			// Seed a closed application
+			rejected := &model.CommitteeApplication{
+				UID:            "rejected-app",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "reapplicant@example.com",
+				Status:         status,
+				ReviewerNotes:  "not a good fit",
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(rejected)
+
+			svc.userReader = mockReaderForPrincipalEmail("reapplicant@example.com", "reapplicant@example.com")
+			newMsg := "I've improved since last time"
+			ctx := testCtx("reapplicant@example.com")
+			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+				UID:     "committee-1",
+				Message: &newMsg,
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			// Should return the existing application reinstated, not a new one
+			assert.Equal(t, rejected.UID, *result.UID)
+			assert.Equal(t, "pending", result.Status)
+			require.NotNil(t, result.Message)
+			assert.Equal(t, newMsg, *result.Message)
+		})
 	}
-	repo.AddCommitteeApplication(rejected)
-
-	svc.userReader = mockReaderForPrincipalEmail("reapplicant@example.com", "reapplicant@example.com")
-	newMsg := "I've improved since last time"
-	ctx := testCtx("reapplicant@example.com")
-	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
-		UID:     "committee-1",
-		Message: &newMsg,
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	// Should return the existing application reinstated, not a new one
-	assert.Equal(t, rejected.UID, *result.UID)
-	assert.Equal(t, "pending", result.Status)
-	require.NotNil(t, result.Message)
-	assert.Equal(t, newMsg, *result.Message)
 }
 
 func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
@@ -3045,6 +3049,100 @@ func TestRejectApplication(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, "rejected", result.Status)
 			}
+		})
+	}
+}
+
+func TestWithdrawApplication(t *testing.T) {
+	tests := []struct {
+		name          string
+		seedStatus    string
+		seedCommittee string
+		caller        string
+		wantErr       any
+	}{
+		{
+			name:          "applicant withdraws pending application",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+		},
+		{
+			name:          "caller email matched case-insensitively",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "First.Last@Example.com",
+		},
+		{
+			name:          "another user cannot withdraw",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "other.user@example.com",
+			wantErr:       new(*committeeservice.ForbiddenError),
+		},
+		{
+			name:          "application in another committee",
+			seedStatus:    "pending",
+			seedCommittee: "committee-2",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.NotFoundError),
+		},
+		{
+			name:          "cannot withdraw approved application",
+			seedStatus:    "approved",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+		{
+			name:          "cannot withdraw rejected application",
+			seedStatus:    "rejected",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+		{
+			name:          "cannot withdraw twice",
+			seedStatus:    "withdrawn",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			svc.userReader = mockReaderForPrincipalEmail(tt.caller, tt.caller)
+
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "app-withdraw-test",
+				CommitteeUID:   tt.seedCommittee,
+				ApplicantEmail: "first.last@example.com",
+				Status:         tt.seedStatus,
+				CreatedAt:      time.Now(),
+			})
+
+			result, err := svc.WithdrawApplication(testCtx(tt.caller), &committeeservice.WithdrawApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "app-withdraw-test",
+			})
+
+			stored, _, getErr := repo.GetApplication(context.Background(), "app-withdraw-test")
+			require.NoError(t, getErr)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				require.ErrorAs(t, err, tt.wantErr)
+				assert.Equal(t, tt.seedStatus, stored.Status)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, "withdrawn", result.Status)
+			assert.Equal(t, "withdrawn", stored.Status)
 		})
 	}
 }

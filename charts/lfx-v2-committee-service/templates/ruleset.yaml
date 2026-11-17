@@ -790,6 +790,27 @@ spec:
             values:
               aud: {{ .Values.app.audience }}
 
+    - id: "rule:lfx:lfx-v2-committee-service:committee_applications:withdraw"
+      allow_encoded_slashes: 'off'
+      match:
+        methods:
+          - POST
+        routes:
+          - path: /committees/:uid/applications/:application_uid/withdraw
+      execute:
+        - authenticator: oidc
+        - authenticator: anonymous_authenticator
+        {{- if .Values.app.use_oidc_contextualizer }}
+        - contextualizer: oidc_contextualizer
+        {{- end }}
+        # Self-action: any authenticated user can withdraw their own application.
+        # Ownership is enforced in the service layer (caller email == applicant_email).
+        - authorizer: allow_all
+        - finalizer: create_jwt
+          config:
+            values:
+              aud: {{ .Values.app.audience }}
+
     # Committee link endpoints
     - id: "rule:lfx:lfx-v2-committee-service:committee_links:list"
       allow_encoded_slashes: 'off'

@@ -116,9 +116,11 @@ accepted ──re-invite──▶ pending  (only when the member is no longer in
 ### Statuses
 
 ```
-pending  ──approve──▶ approved
-pending  ──reject──▶  rejected
-rejected ──reapply──▶ pending  (reinstates existing record)
+pending   ──approve──▶  approved
+pending   ──reject──▶   rejected
+pending   ──withdraw──▶ withdrawn
+rejected  ──reapply──▶  pending  (reinstates existing record)
+withdrawn ──reapply──▶  pending  (reinstates existing record)
 ```
 
 ### Endpoints
@@ -129,6 +131,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 | `GET` | `/committees/{uid}/applications/{application_uid}` | Admin / Applicant | Retrieve an application |
 | `POST` | `/committees/{uid}/applications/{application_uid}/approve` | Reviewer | Approve a pending application |
 | `POST` | `/committees/{uid}/applications/{application_uid}/reject` | Reviewer | Reject a pending application |
+| `POST` | `/committees/{uid}/applications/{application_uid}/withdraw` | Applicant | Withdraw their own pending application |
 
 ### Rules
 
@@ -139,7 +142,7 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 - Creates a new application with `status: pending`.
 - Optional body field `organization` (`id`, `name`, `website`) stores the applicant's confirmed organization on the application record when provided. This is the organization the applicant selected in the join dialog.
 - If an application for the same email already exists in this committee:
-  - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared, `message` is updated if provided, and `organization` is **replaced** with the new payload value if one is supplied.
+  - `status: rejected` or `status: withdrawn` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared, `message` is updated if provided, and `organization` is **replaced** with the new payload value if one is supplied.
   - Any other status (`pending`, `approved`) — returns `409 Conflict`.
 
 **Approving an application** (`POST .../approve`):
@@ -154,6 +157,13 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 - Only allowed when `status: pending`.
 - Optionally accepts `reviewer_notes`.
 - A rejected application can be resubmitted by the applicant (see above).
+
+**Withdrawing an application** (`POST .../withdraw`):
+
+- Only the applicant can withdraw. The caller's email is resolved via [Identity Resolution](#identity-resolution) and compared to `applicant_email` without regard to case; a mismatch returns `403 Forbidden`.
+- Only allowed when `status: pending`; any other status returns `409 Conflict`.
+- Marks the application `withdrawn` and keeps the record, so the applicant can still view it and can resubmit later (see above).
+- Publishes the indexer update and the `update_access` message like reject. No domain event is published, so no email is sent.
 
 **Email notifications (opt-in via `notify` request field, default `false`):**
 
@@ -198,7 +208,7 @@ The service uses `primary_email` from the auth-service response (primary path) o
 Both the invite and application flows are designed so transient failures during the terminal step do not leave records in an unrecoverable state:
 
 - **Member creation happens before the invite/application is marked terminal.** If member creation succeeds but the status update fails, the invite/application remains in its pre-terminal state and the caller can safely retry. Duplicate member creation is handled by the member uniqueness check.
-- **Revoked, declined and expired invites, accepted invites whose member is gone, and rejected applications are reinstateable**, so admin workflows that re-invite someone, or reviewer workflows that reject-then-reconsider, do not require manual record cleanup or a revoke first.
+- **Revoked, declined and expired invites, accepted invites whose member is gone, and rejected or withdrawn applications are reinstateable**, so admin workflows that re-invite someone, or reviewer workflows that reject-then-reconsider, do not require manual record cleanup or a revoke first.
 
 ---
 

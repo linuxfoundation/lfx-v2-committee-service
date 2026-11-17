@@ -1380,33 +1380,33 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	}
 
 	// Create the application; storage reports a conflict when one already exists for this
-	// applicant, in which case a rejected application is reinstated instead
+	// applicant, in which case a rejected or withdrawn application is reinstated instead
 	if errCreate := s.storage.CreateApplication(ctx, application); errCreate != nil {
 		var conflictErr errors.Conflict
 		if !stderrors.As(errCreate, &conflictErr) {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Uniqueness conflict: look for a rejected application to reinstate
+		// Uniqueness conflict: look for a rejected or withdrawn application to reinstate
 		existing, errList := s.storage.ListApplications(ctx, p.UID)
 		if errList != nil {
 			return nil, wrapError(ctx, errList)
 		}
-		var rejectedApp *model.CommitteeApplication
+		var closedApp *model.CommitteeApplication
 		for _, app := range existing {
-			if strings.EqualFold(app.ApplicantEmail, email) && app.Status == "rejected" {
-				rejectedApp = app
+			if strings.EqualFold(app.ApplicantEmail, email) && (app.Status == "rejected" || app.Status == "withdrawn") {
+				closedApp = app
 				break
 			}
 		}
-		if rejectedApp == nil {
+		if closedApp == nil {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Reinstate the rejected application by setting it back to pending.
+		// Reinstate the application by setting it back to pending.
 		// Use the fresh record from GetApplication as the write base to avoid
 		// overwriting concurrent status/notes changes with the stale list snapshot.
-		current, rev, errGet := s.storage.GetApplication(ctx, rejectedApp.UID)
+		current, rev, errGet := s.storage.GetApplication(ctx, closedApp.UID)
 		if errGet != nil {
 			return nil, wrapError(ctx, errGet)
 		}
@@ -1551,6 +1551,46 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
+
+	return s.convertApplicationDomainToResponse(application), nil
+}
+
+// WithdrawApplication lets the applicant withdraw their own pending application
+func (s *committeeServicesrvc) WithdrawApplication(ctx context.Context, p *committeeservice.WithdrawApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.withdraw-application",
+		"committee_uid", p.UID,
+		"application_uid", p.ApplicationUID,
+	)
+
+	application, rev, err := s.storage.GetApplication(ctx, p.ApplicationUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
+	}
+
+	// Enforce application ownership: only the applicant can withdraw their own application
+	email, err := s.resolveCallerEmail(ctx)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if !strings.EqualFold(email, application.ApplicantEmail) {
+		return nil, wrapError(ctx, errors.NewForbidden("you are not the applicant for this application"))
+	}
+
+	if application.Status != "pending" {
+		return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
+	}
+
+	application.Status = "withdrawn"
+	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+	s.publishApplicationAccessControlMessage(ctx, application, nil)
 
 	return s.convertApplicationDomainToResponse(application), nil
 }

@@ -440,7 +440,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
-**Indexed on:** create and status updates of a committee application (reapply, approve, reject), and cascade `ActionDeleted` (plus KV record deletion) when the parent committee is deleted.
+**Indexed on:** create and status updates of a committee application (reapply, approve, reject, withdraw), and cascade `ActionDeleted` (plus KV record deletion) when the parent committee is deleted.
 
 ### Data Schema
 
@@ -451,7 +451,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 | `applicant_email` | string | Email address of the applicant |
 | `applicant_username` | string (optional) | LFID username of the applicant (omitted for email-only applicants) |
 | `message` | string | Application message from the applicant |
-| `status` | string | Application status (e.g., `pending`, `approved`, `rejected`) |
+| `status` | string | Application status (`pending`, `approved`, `rejected`, `withdrawn`) |
 | `reviewer_notes` | string | Notes left by the reviewer |
 | `organization` | object (optional) | Organization confirmed by the applicant at submission time |
 | `organization.id` | string (optional) | Organization ID |

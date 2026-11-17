@@ -40,10 +40,11 @@ This service contains the following API endpoints:
   - `DELETE /{invite_uid}`: revoke a pending or declined invite
 
 - `/committees/{uid}/applications`
-  - `POST`: submit an application, or reinstate a rejected application
+  - `POST`: submit an application, or reinstate a rejected or withdrawn application
   - `GET /{application_uid}`: retrieve an application
   - `POST /{application_uid}/approve`: approve a pending application and create the member
   - `POST /{application_uid}/reject`: reject a pending application
+  - `POST /{application_uid}/withdraw`: withdraw your own pending application
 
 - `/committees/{uid}/links`
   - `GET`: list committee links

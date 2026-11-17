@@ -43,6 +43,7 @@ type Endpoints struct {
 	SubmitApplication          goa.Endpoint
 	ApproveApplication         goa.Endpoint
 	RejectApplication          goa.Endpoint
+	WithdrawApplication        goa.Endpoint
 	JoinCommittee              goa.Endpoint
 	LeaveCommittee             goa.Endpoint
 	GetCommitteeLink           goa.Endpoint
@@ -103,6 +104,7 @@ func NewEndpoints(s Service) *Endpoints {
 		SubmitApplication:          NewSubmitApplicationEndpoint(s, a.JWTAuth),
 		ApproveApplication:         NewApproveApplicationEndpoint(s, a.JWTAuth),
 		RejectApplication:          NewRejectApplicationEndpoint(s, a.JWTAuth),
+		WithdrawApplication:        NewWithdrawApplicationEndpoint(s, a.JWTAuth),
 		JoinCommittee:              NewJoinCommitteeEndpoint(s, a.JWTAuth),
 		LeaveCommittee:             NewLeaveCommitteeEndpoint(s, a.JWTAuth),
 		GetCommitteeLink:           NewGetCommitteeLinkEndpoint(s, a.JWTAuth),
@@ -154,6 +156,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.SubmitApplication = m(e.SubmitApplication)
 	e.ApproveApplication = m(e.ApproveApplication)
 	e.RejectApplication = m(e.RejectApplication)
+	e.WithdrawApplication = m(e.WithdrawApplication)
 	e.JoinCommittee = m(e.JoinCommittee)
 	e.LeaveCommittee = m(e.LeaveCommittee)
 	e.GetCommitteeLink = m(e.GetCommitteeLink)
@@ -719,6 +722,29 @@ func NewRejectApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa
 			return nil, err
 		}
 		return s.RejectApplication(ctx, p)
+	}
+}
+
+// NewWithdrawApplicationEndpoint returns an endpoint function that calls the
+// method "withdraw-application" of service "committee-service".
+func NewWithdrawApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*WithdrawApplicationPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.WithdrawApplication(ctx, p)
 	}
 }
 
