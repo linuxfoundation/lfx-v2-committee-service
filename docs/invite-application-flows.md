@@ -148,7 +148,7 @@ withdrawn ──reapply──▶  pending  (reinstates existing record)
 **Approving an application** (`POST .../approve`):
 
 - Only allowed when `status: pending`.
-- On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry. If the status write then fails and a re-read does not show `approved`, the member just created is deleted (see Withdrawing an application below).
+- On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry. If the status write then fails, approve re-reads the application and either keeps or deletes the member just created; the rules are under Withdrawing an application below.
 - The stored `organization` from the application record is seeded onto the new committee member record. This preserves the organization the applicant confirmed at submission time and takes precedence over profile-metadata enrichment (which only fills `name`, not `id`/`website`). When no organization was stored on the application, the member's organization is populated only by the normal `enrichMember` path.
 - Returns the created committee member.
 
