@@ -1128,6 +1128,34 @@ type RejectApplicationResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
+// WithdrawApplicationResponseBody is the type of the "committee-service"
+// service "withdraw-application" endpoint HTTP response body.
+type WithdrawApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
 // JoinCommitteeResponseBody is the type of the "committee-service" service
 // "join-committee" endpoint HTTP response body.
 type JoinCommitteeResponseBody struct {
@@ -2233,6 +2261,54 @@ type RejectApplicationNotFoundResponseBody struct {
 // "committee-service" service "reject-application" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
 type RejectApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "BadRequest" error.
+type WithdrawApplicationBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationConflictResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Conflict" error.
+type WithdrawApplicationConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationForbiddenResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Forbidden" error.
+type WithdrawApplicationForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "InternalServerError" error.
+type WithdrawApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationNotFoundResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "NotFound" error.
+type WithdrawApplicationNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type WithdrawApplicationServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -4845,6 +4921,42 @@ func NewRejectApplicationResponseBody(res *committeeservice.CommitteeApplication
 	return body
 }
 
+// NewWithdrawApplicationResponseBody builds the HTTP response body from the
+// result of the "withdraw-application" endpoint of the "committee-service"
+// service.
+func NewWithdrawApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *WithdrawApplicationResponseBody {
+	body := &WithdrawApplicationResponseBody{
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
+	}
+	return body
+}
+
 // NewJoinCommitteeResponseBody builds the HTTP response body from the result
 // of the "join-committee" endpoint of the "committee-service" service.
 func NewJoinCommitteeResponseBody(res *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *JoinCommitteeResponseBody {
@@ -6243,6 +6355,66 @@ func NewRejectApplicationNotFoundResponseBody(res *committeeservice.NotFoundErro
 // "committee-service" service.
 func NewRejectApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *RejectApplicationServiceUnavailableResponseBody {
 	body := &RejectApplicationServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationBadRequestResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationBadRequestResponseBody(res *committeeservice.BadRequestError) *WithdrawApplicationBadRequestResponseBody {
+	body := &WithdrawApplicationBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationConflictResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationConflictResponseBody(res *committeeservice.ConflictError) *WithdrawApplicationConflictResponseBody {
+	body := &WithdrawApplicationConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationForbiddenResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationForbiddenResponseBody(res *committeeservice.ForbiddenError) *WithdrawApplicationForbiddenResponseBody {
+	body := &WithdrawApplicationForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *WithdrawApplicationInternalServerErrorResponseBody {
+	body := &WithdrawApplicationInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationNotFoundResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationNotFoundResponseBody(res *committeeservice.NotFoundError) *WithdrawApplicationNotFoundResponseBody {
+	body := &WithdrawApplicationNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *WithdrawApplicationServiceUnavailableResponseBody {
+	body := &WithdrawApplicationServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -7906,6 +8078,18 @@ func NewRejectApplicationPayload(body *RejectApplicationRequestBody, uid string,
 	if body.Notify == nil {
 		v.Notify = false
 	}
+	v.UID = uid
+	v.ApplicationUID = applicationUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewWithdrawApplicationPayload builds a committee-service service
+// withdraw-application endpoint payload.
+func NewWithdrawApplicationPayload(uid string, applicationUID string, version string, bearerToken *string) *committeeservice.WithdrawApplicationPayload {
+	v := &committeeservice.WithdrawApplicationPayload{}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
 	v.Version = version

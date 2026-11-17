@@ -71,6 +71,8 @@ type Service interface {
 	ApproveApplication(context.Context, *ApproveApplicationPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Reject a pending application
 	RejectApplication(context.Context, *RejectApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	// Withdraw your own pending application
+	WithdrawApplication(context.Context, *WithdrawApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
 	// Self-join a committee (only works when join_mode is open)
 	JoinCommittee(context.Context, *JoinCommitteePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Leave a committee
@@ -169,7 +171,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [45]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "bulk-create-committee-members", "get-committee-member", "list-committee-members", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "update-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
+var MethodNames = [46]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "bulk-create-committee-members", "get-committee-member", "list-committee-members", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "withdraw-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "update-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
 
 // Optional accept-invite request body.
 type AcceptInviteOptionalBody struct {
@@ -1933,6 +1935,19 @@ type UploadCommitteeDocumentPayload struct {
 	// publications remain asynchronous and do not wait for FGA processing or
 	// OpenFGA convergence.
 	XSync bool
+}
+
+// WithdrawApplicationPayload is the payload type of the committee-service
+// service withdraw-application method.
+type WithdrawApplicationPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee application UID
+	ApplicationUID string
 }
 
 type BadRequestError struct {

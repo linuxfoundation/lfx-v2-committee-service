@@ -49,6 +49,7 @@ type Server struct {
 	SubmitApplication          http.Handler
 	ApproveApplication         http.Handler
 	RejectApplication          http.Handler
+	WithdrawApplication        http.Handler
 	JoinCommittee              http.Handler
 	LeaveCommittee             http.Handler
 	GetCommitteeLink           http.Handler
@@ -153,6 +154,7 @@ func New(
 			{"SubmitApplication", "POST", "/committees/{uid}/applications"},
 			{"ApproveApplication", "POST", "/committees/{uid}/applications/{application_uid}/approve"},
 			{"RejectApplication", "POST", "/committees/{uid}/applications/{application_uid}/reject"},
+			{"WithdrawApplication", "POST", "/committees/{uid}/applications/{application_uid}/withdraw"},
 			{"JoinCommittee", "POST", "/committees/{uid}/join"},
 			{"LeaveCommittee", "DELETE", "/committees/{uid}/leave"},
 			{"GetCommitteeLink", "GET", "/committees/{uid}/links/{link_uid}"},
@@ -203,6 +205,7 @@ func New(
 		SubmitApplication:          NewSubmitApplicationHandler(e.SubmitApplication, mux, decoder, encoder, errhandler, formatter),
 		ApproveApplication:         NewApproveApplicationHandler(e.ApproveApplication, mux, decoder, encoder, errhandler, formatter),
 		RejectApplication:          NewRejectApplicationHandler(e.RejectApplication, mux, decoder, encoder, errhandler, formatter),
+		WithdrawApplication:        NewWithdrawApplicationHandler(e.WithdrawApplication, mux, decoder, encoder, errhandler, formatter),
 		JoinCommittee:              NewJoinCommitteeHandler(e.JoinCommittee, mux, decoder, encoder, errhandler, formatter),
 		LeaveCommittee:             NewLeaveCommitteeHandler(e.LeaveCommittee, mux, decoder, encoder, errhandler, formatter),
 		GetCommitteeLink:           NewGetCommitteeLinkHandler(e.GetCommitteeLink, mux, decoder, encoder, errhandler, formatter),
@@ -260,6 +263,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.SubmitApplication = m(s.SubmitApplication)
 	s.ApproveApplication = m(s.ApproveApplication)
 	s.RejectApplication = m(s.RejectApplication)
+	s.WithdrawApplication = m(s.WithdrawApplication)
 	s.JoinCommittee = m(s.JoinCommittee)
 	s.LeaveCommittee = m(s.LeaveCommittee)
 	s.GetCommitteeLink = m(s.GetCommitteeLink)
@@ -312,6 +316,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountSubmitApplicationHandler(mux, h.SubmitApplication)
 	MountApproveApplicationHandler(mux, h.ApproveApplication)
 	MountRejectApplicationHandler(mux, h.RejectApplication)
+	MountWithdrawApplicationHandler(mux, h.WithdrawApplication)
 	MountJoinCommitteeHandler(mux, h.JoinCommittee)
 	MountLeaveCommitteeHandler(mux, h.LeaveCommittee)
 	MountGetCommitteeLinkHandler(mux, h.GetCommitteeLink)
@@ -1648,6 +1653,60 @@ func NewRejectApplicationHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "reject-application")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountWithdrawApplicationHandler configures the mux to serve the
+// "committee-service" service "withdraw-application" endpoint.
+func MountWithdrawApplicationHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("POST", "/committees/{uid}/applications/{application_uid}/withdraw", f)
+}
+
+// NewWithdrawApplicationHandler creates a HTTP handler which loads the HTTP
+// request and calls the "committee-service" service "withdraw-application"
+// endpoint.
+func NewWithdrawApplicationHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeWithdrawApplicationRequest(mux, decoder)
+		encodeResponse = EncodeWithdrawApplicationResponse(encoder)
+		encodeError    = EncodeWithdrawApplicationError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "withdraw-application")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

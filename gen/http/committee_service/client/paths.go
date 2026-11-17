@@ -137,6 +137,11 @@ func RejectApplicationCommitteeServicePath(uid string, applicationUID string) st
 	return fmt.Sprintf("/committees/%v/applications/%v/reject", uid, applicationUID)
 }
 
+// WithdrawApplicationCommitteeServicePath returns the URL path to the committee-service service withdraw-application HTTP endpoint.
+func WithdrawApplicationCommitteeServicePath(uid string, applicationUID string) string {
+	return fmt.Sprintf("/committees/%v/applications/%v/withdraw", uid, applicationUID)
+}
+
 // JoinCommitteeCommitteeServicePath returns the URL path to the committee-service service join-committee HTTP endpoint.
 func JoinCommitteeCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/join", uid)

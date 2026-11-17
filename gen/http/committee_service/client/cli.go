@@ -2239,6 +2239,51 @@ func BuildRejectApplicationPayload(committeeServiceRejectApplicationBody string,
 	return v, nil
 }
 
+// BuildWithdrawApplicationPayload builds the payload for the committee-service
+// withdraw-application endpoint from CLI flags.
+func BuildWithdrawApplicationPayload(committeeServiceWithdrawApplicationUID string, committeeServiceWithdrawApplicationApplicationUID string, committeeServiceWithdrawApplicationVersion string, committeeServiceWithdrawApplicationBearerToken string) (*committeeservice.WithdrawApplicationPayload, error) {
+	var err error
+	var uid string
+	{
+		uid = committeeServiceWithdrawApplicationUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var applicationUID string
+	{
+		applicationUID = committeeServiceWithdrawApplicationApplicationUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("application_uid", applicationUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version string
+	{
+		version = committeeServiceWithdrawApplicationVersion
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceWithdrawApplicationBearerToken != "" {
+			bearerToken = &committeeServiceWithdrawApplicationBearerToken
+		}
+	}
+	v := &committeeservice.WithdrawApplicationPayload{}
+	v.UID = uid
+	v.ApplicationUID = applicationUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v, nil
+}
+
 // BuildJoinCommitteePayload builds the payload for the committee-service
 // join-committee endpoint from CLI flags.
 func BuildJoinCommitteePayload(committeeServiceJoinCommitteeBody string, committeeServiceJoinCommitteeUID string, committeeServiceJoinCommitteeVersion string, committeeServiceJoinCommitteeBearerToken string, committeeServiceJoinCommitteeXSync string) (*committeeservice.JoinCommitteePayload, error) {

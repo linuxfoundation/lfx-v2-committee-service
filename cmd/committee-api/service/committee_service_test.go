@@ -279,6 +279,29 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 	return svc, mockOrchestrator, mockRepo
 }
 
+// applicationHookStore lets a test interleave or fail GetApplication, and fail UpdateApplication.
+type applicationHookStore struct {
+	port.CommitteeReaderWriter
+	onGet     func() error
+	updateErr error
+}
+
+func (h *applicationHookStore) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+	if h.updateErr != nil {
+		return h.updateErr
+	}
+	return h.CommitteeReaderWriter.UpdateApplication(ctx, application, revision)
+}
+
+func (h *applicationHookStore) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+	if h.onGet != nil {
+		if err := h.onGet(); err != nil {
+			return nil, 0, err
+		}
+	}
+	return h.CommitteeReaderWriter.GetApplication(ctx, uid)
+}
+
 func TestPublishInviteAccessControlMessage(t *testing.T) {
 	invite := &model.CommitteeInvite{
 		UID:          "invite-1",
@@ -2603,35 +2626,72 @@ func TestSubmitApplication(t *testing.T) {
 }
 
 func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
-	svc, _, repo := setupServiceTestWithRepo()
-	repo.SetJoinMode("committee-1", "application")
+	for _, status := range []string{"rejected", "withdrawn"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			repo.SetJoinMode("committee-1", "application")
 
-	// Seed a rejected application
-	rejected := &model.CommitteeApplication{
-		UID:            "rejected-app",
-		CommitteeUID:   "committee-1",
-		ApplicantEmail: "reapplicant@example.com",
-		Status:         "rejected",
-		ReviewerNotes:  "not a good fit",
-		CreatedAt:      time.Now(),
+			// Seed a rejected or withdrawn application
+			rejected := &model.CommitteeApplication{
+				UID:            "rejected-app",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "reapplicant@example.com",
+				Status:         status,
+				ReviewerNotes:  "not a good fit",
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(rejected)
+
+			svc.userReader = mockReaderForPrincipalEmail("reapplicant@example.com", "reapplicant@example.com")
+			newMsg := "I've improved since last time"
+			ctx := testCtx("reapplicant@example.com")
+			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+				UID:     "committee-1",
+				Message: &newMsg,
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			// Should return the existing application reinstated, not a new one
+			assert.Equal(t, rejected.UID, *result.UID)
+			assert.Equal(t, "pending", result.Status)
+			require.NotNil(t, result.Message)
+			assert.Equal(t, newMsg, *result.Message)
+		})
 	}
-	repo.AddCommitteeApplication(rejected)
+}
 
-	svc.userReader = mockReaderForPrincipalEmail("reapplicant@example.com", "reapplicant@example.com")
-	newMsg := "I've improved since last time"
-	ctx := testCtx("reapplicant@example.com")
-	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
-		UID:     "committee-1",
-		Message: &newMsg,
-	})
+func TestSubmitApplication_ReinstateRecheck(t *testing.T) {
+	for _, status := range []string{"pending", "approved"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			repo.SetJoinMode("committee-1", "application")
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "moved-on-app",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "first.last@example.com",
+				Status:         "withdrawn",
+				CreatedAt:      time.Now(),
+			})
+			writer := mock.NewMockCommitteeReaderWriter(repo)
+			// Another request moves the record on between the listing and the re-read.
+			svc.storage = &applicationHookStore{CommitteeReaderWriter: writer, onGet: func() error {
+				app, rev, err := writer.GetApplication(context.Background(), "moved-on-app")
+				require.NoError(t, err)
+				app.Status = status
+				return writer.UpdateApplication(context.Background(), app, rev)
+			}}
 
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	// Should return the existing application reinstated, not a new one
-	assert.Equal(t, rejected.UID, *result.UID)
-	assert.Equal(t, "pending", result.Status)
-	require.NotNil(t, result.Message)
-	assert.Equal(t, newMsg, *result.Message)
+			svc.userReader = mockReaderForPrincipalEmail("first.last@example.com", "first.last@example.com")
+			_, err := svc.SubmitApplication(testCtx("first.last@example.com"), &committeeservice.SubmitApplicationPayload{UID: "committee-1"})
+
+			var conflictErr *committeeservice.ConflictError
+			require.ErrorAs(t, err, &conflictErr)
+			stored, _, getErr := repo.GetApplication(context.Background(), "moved-on-app")
+			require.NoError(t, getErr)
+			assert.Equal(t, status, stored.Status)
+		})
+	}
 }
 
 func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
@@ -2756,6 +2816,145 @@ func TestApproveApplication(t *testing.T) {
 		assert.Equal(t, model.IdentityLookupAbsent, member.IdentityLookup.Status)
 		assert.Empty(t, member.Username)
 	})
+
+	raceTests := []struct {
+		name        string
+		interleave  func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository)
+		failReread  bool
+		updateErr   error
+		deleteErr   error
+		wantErr     any
+		wantDeletes int
+		wantStatus  string
+	}{
+		{
+			name: "withdraw during member creation removes the created member",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 1,
+			wantStatus:  "withdrawn",
+		},
+		{
+			name: "withdraw and resubmit during member creation removes the created member",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+				repo.SetJoinMode("committee-1", "application")
+				_, err = svc.SubmitApplication(testCtx("first.last@example.com"), &committeeservice.SubmitApplicationPayload{UID: "committee-1"})
+				require.NoError(t, err)
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 1,
+			wantStatus:  "pending",
+		},
+		{
+			name: "approved re-read keeps the member",
+			interleave: func(t *testing.T, _ *committeeServicesrvc, repo *mock.MockRepository) {
+				app, rev, err := repo.GetApplication(context.Background(), "app-approve-race")
+				require.NoError(t, err)
+				app.Status = "approved"
+				require.NoError(t, mock.NewMockCommitteeReaderWriter(repo).UpdateApplication(context.Background(), app, rev))
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 0,
+			wantStatus:  "approved",
+		},
+		{
+			name: "failed re-read keeps the member and returns the write error",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			failReread:  true,
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 0,
+			wantStatus:  "withdrawn",
+		},
+		{
+			name:        "pending re-read after an unknown write outcome keeps the member",
+			interleave:  func(*testing.T, *committeeServicesrvc, *mock.MockRepository) {},
+			updateErr:   errs.NewServiceUnavailable("write timed out"),
+			wantErr:     new(*committeeservice.ServiceUnavailableError),
+			wantDeletes: 0,
+			wantStatus:  "pending",
+		},
+		{
+			name: "failed member removal is not reported as a conflict",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			deleteErr:   errs.NewUnexpected("delete failed"),
+			wantErr:     new(*committeeservice.InternalServerError),
+			wantDeletes: 1,
+			wantStatus:  "withdrawn",
+		},
+	}
+	for _, tt := range raceTests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+			svc.userReader = mockReaderForPrincipalEmail("first.last@example.com", "first.last@example.com")
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "app-approve-race",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "first.last@example.com",
+				Status:         "pending",
+				CreatedAt:      time.Now(),
+			})
+			created := &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-approve-race",
+					CommitteeUID: "committee-1",
+					Email:        "first.last@example.com",
+					Status:       "Active",
+				},
+			}
+			mockOrch.createMember = created
+			mockOrch.deleteError = tt.deleteErr
+			// Runs after approve read the pending application and before its status write.
+			hooked := &applicationHookStore{CommitteeReaderWriter: svc.storage, updateErr: tt.updateErr}
+			svc.storage = hooked
+			mockOrch.createMemberValidator = func(*model.CommitteeMember) error {
+				repo.AddCommitteeMember("committee-1", created)
+				tt.interleave(t, svc, repo)
+				if tt.failReread {
+					hooked.onGet = func() error { return errs.NewServiceUnavailable("storage unavailable") }
+				}
+				return nil
+			}
+
+			result, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "app-approve-race",
+			})
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+			require.ErrorAs(t, err, tt.wantErr)
+			require.Len(t, mockOrch.deleteCalls, tt.wantDeletes)
+			if tt.wantDeletes > 0 {
+				assert.Equal(t, "member-approve-race", mockOrch.deleteCalls[0].uid)
+			}
+			stored, _, getErr := repo.GetApplication(context.Background(), "app-approve-race")
+			require.NoError(t, getErr)
+			assert.Equal(t, tt.wantStatus, stored.Status)
+		})
+	}
 }
 
 func TestApproveApplication_WrongCommittee(t *testing.T) {
@@ -3045,6 +3244,106 @@ func TestRejectApplication(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, "rejected", result.Status)
 			}
+		})
+	}
+}
+
+func TestWithdrawApplication(t *testing.T) {
+	tests := []struct {
+		name          string
+		seedStatus    string
+		seedCommittee string
+		caller        string
+		wantErr       any
+	}{
+		{
+			name:          "applicant withdraws pending application",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+		},
+		{
+			name:          "caller email matched case-insensitively",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "First.Last@Example.com",
+		},
+		{
+			name:          "caller email matched ignoring surrounding spaces",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        " first.last@example.com ",
+		},
+		{
+			name:          "another user cannot withdraw",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "other.user@example.com",
+			wantErr:       new(*committeeservice.ForbiddenError),
+		},
+		{
+			name:          "application in another committee",
+			seedStatus:    "pending",
+			seedCommittee: "committee-2",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.NotFoundError),
+		},
+		{
+			name:          "cannot withdraw approved application",
+			seedStatus:    "approved",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+		{
+			name:          "cannot withdraw rejected application",
+			seedStatus:    "rejected",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+		{
+			name:          "cannot withdraw twice",
+			seedStatus:    "withdrawn",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			svc.userReader = mockReaderForPrincipalEmail(tt.caller, tt.caller)
+
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "app-withdraw-test",
+				CommitteeUID:   tt.seedCommittee,
+				ApplicantEmail: "first.last@example.com",
+				Status:         tt.seedStatus,
+				CreatedAt:      time.Now(),
+			})
+
+			result, err := svc.WithdrawApplication(testCtx(tt.caller), &committeeservice.WithdrawApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "app-withdraw-test",
+			})
+
+			stored, _, getErr := repo.GetApplication(context.Background(), "app-withdraw-test")
+			require.NoError(t, getErr)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				require.ErrorAs(t, err, tt.wantErr)
+				assert.Equal(t, tt.seedStatus, stored.Status)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, "withdrawn", result.Status)
+			assert.Equal(t, "withdrawn", stored.Status)
 		})
 	}
 }

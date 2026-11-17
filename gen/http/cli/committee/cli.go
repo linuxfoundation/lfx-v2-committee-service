@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|bulk-create-committee-members|get-committee-member|list-committee-members|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|update-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief|preview-generate-weekly-brief|update-current-weekly-brief|share-weekly-brief-to-chat)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|bulk-create-committee-members|get-committee-member|list-committee-members|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|withdraw-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|update-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief|preview-generate-weekly-brief|update-current-weekly-brief|share-weekly-brief-to-chat)",
 	}
 }
 
@@ -212,6 +212,12 @@ func ParseEndpoint(
 		committeeServiceRejectApplicationVersionFlag        = committeeServiceRejectApplicationFlags.String("version", "REQUIRED", "")
 		committeeServiceRejectApplicationBearerTokenFlag    = committeeServiceRejectApplicationFlags.String("bearer-token", "", "")
 
+		committeeServiceWithdrawApplicationFlags              = flag.NewFlagSet("withdraw-application", flag.ExitOnError)
+		committeeServiceWithdrawApplicationUIDFlag            = committeeServiceWithdrawApplicationFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceWithdrawApplicationApplicationUIDFlag = committeeServiceWithdrawApplicationFlags.String("application-uid", "REQUIRED", "Committee application UID")
+		committeeServiceWithdrawApplicationVersionFlag        = committeeServiceWithdrawApplicationFlags.String("version", "REQUIRED", "")
+		committeeServiceWithdrawApplicationBearerTokenFlag    = committeeServiceWithdrawApplicationFlags.String("bearer-token", "", "")
+
 		committeeServiceJoinCommitteeFlags           = flag.NewFlagSet("join-committee", flag.ExitOnError)
 		committeeServiceJoinCommitteeBodyFlag        = committeeServiceJoinCommitteeFlags.String("body", "REQUIRED", "")
 		committeeServiceJoinCommitteeUIDFlag         = committeeServiceJoinCommitteeFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
@@ -368,6 +374,7 @@ func ParseEndpoint(
 	committeeServiceSubmitApplicationFlags.Usage = committeeServiceSubmitApplicationUsage
 	committeeServiceApproveApplicationFlags.Usage = committeeServiceApproveApplicationUsage
 	committeeServiceRejectApplicationFlags.Usage = committeeServiceRejectApplicationUsage
+	committeeServiceWithdrawApplicationFlags.Usage = committeeServiceWithdrawApplicationUsage
 	committeeServiceJoinCommitteeFlags.Usage = committeeServiceJoinCommitteeUsage
 	committeeServiceLeaveCommitteeFlags.Usage = committeeServiceLeaveCommitteeUsage
 	committeeServiceGetCommitteeLinkFlags.Usage = committeeServiceGetCommitteeLinkUsage
@@ -497,6 +504,9 @@ func ParseEndpoint(
 
 			case "reject-application":
 				epf = committeeServiceRejectApplicationFlags
+
+			case "withdraw-application":
+				epf = committeeServiceWithdrawApplicationFlags
 
 			case "join-committee":
 				epf = committeeServiceJoinCommitteeFlags
@@ -656,6 +666,9 @@ func ParseEndpoint(
 			case "reject-application":
 				endpoint = c.RejectApplication()
 				data, err = committeeservicec.BuildRejectApplicationPayload(*committeeServiceRejectApplicationBodyFlag, *committeeServiceRejectApplicationUIDFlag, *committeeServiceRejectApplicationApplicationUIDFlag, *committeeServiceRejectApplicationVersionFlag, *committeeServiceRejectApplicationBearerTokenFlag)
+			case "withdraw-application":
+				endpoint = c.WithdrawApplication()
+				data, err = committeeservicec.BuildWithdrawApplicationPayload(*committeeServiceWithdrawApplicationUIDFlag, *committeeServiceWithdrawApplicationApplicationUIDFlag, *committeeServiceWithdrawApplicationVersionFlag, *committeeServiceWithdrawApplicationBearerTokenFlag)
 			case "join-committee":
 				endpoint = c.JoinCommittee()
 				data, err = committeeservicec.BuildJoinCommitteePayload(*committeeServiceJoinCommitteeBodyFlag, *committeeServiceJoinCommitteeUIDFlag, *committeeServiceJoinCommitteeVersionFlag, *committeeServiceJoinCommitteeBearerTokenFlag, *committeeServiceJoinCommitteeXSyncFlag)
@@ -757,6 +770,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    submit-application: Submit an application to join a committee`)
 	fmt.Fprintln(os.Stderr, `    approve-application: Approve a pending application`)
 	fmt.Fprintln(os.Stderr, `    reject-application: Reject a pending application`)
+	fmt.Fprintln(os.Stderr, `    withdraw-application: Withdraw your own pending application`)
 	fmt.Fprintln(os.Stderr, `    join-committee: Self-join a committee (only works when join_mode is open)`)
 	fmt.Fprintln(os.Stderr, `    leave-committee: Leave a committee`)
 	fmt.Fprintln(os.Stderr, `    get-committee-link: Get a single link for a committee`)
@@ -1409,6 +1423,30 @@ func committeeServiceRejectApplicationUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reject-application --body '{\n      \"notify\": false,\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceWithdrawApplicationUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service withdraw-application", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -application-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Withdraw your own pending application`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -application-uid STRING: Committee application UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service withdraw-application --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceJoinCommitteeUsage() {
