@@ -154,6 +154,7 @@ No FGA change on rejection — no member exists.
 
 **Caller:** applicant only (resolved caller email must equal `applicant_email`, else `403`).
 Any status other than `pending` → `409`. No domain event, so no email.
+A withdraw racing an approve's member create leaves a member and a `withdrawn` application (approve's status write fails on revision).
 
 ---
 

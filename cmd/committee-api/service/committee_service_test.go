@@ -2608,7 +2608,7 @@ func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
 			repo.SetJoinMode("committee-1", "application")
 
-			// Seed a closed application
+			// Seed a rejected or withdrawn application
 			rejected := &model.CommitteeApplication{
 				UID:            "rejected-app",
 				CommitteeUID:   "committee-1",
@@ -3072,6 +3072,12 @@ func TestWithdrawApplication(t *testing.T) {
 			seedStatus:    "pending",
 			seedCommittee: "committee-1",
 			caller:        "First.Last@Example.com",
+		},
+		{
+			name:          "caller email matched ignoring surrounding spaces",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        " first.last@example.com ",
 		},
 		{
 			name:          "another user cannot withdraw",

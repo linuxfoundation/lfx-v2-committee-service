@@ -127,7 +127,7 @@ withdrawn ──reapply──▶  pending  (reinstates existing record)
 
 | Method | Path | Actor | Description |
 | -------- | ------ | ------- | ------------- |
-| `POST` | `/committees/{uid}/applications` | Applicant | Submit an application (or reinstate a rejected one) |
+| `POST` | `/committees/{uid}/applications` | Applicant | Submit an application (or reinstate a rejected or withdrawn one) |
 | `GET` | `/committees/{uid}/applications/{application_uid}` | Admin / Applicant | Retrieve an application |
 | `POST` | `/committees/{uid}/applications/{application_uid}/approve` | Reviewer | Approve a pending application |
 | `POST` | `/committees/{uid}/applications/{application_uid}/reject` | Reviewer | Reject a pending application |
@@ -164,10 +164,11 @@ withdrawn ──reapply──▶  pending  (reinstates existing record)
 - Only allowed when `status: pending`; any other status returns `409 Conflict`.
 - Marks the application `withdrawn` and keeps the record, so the applicant can still view it and can resubmit later (see above).
 - Publishes the indexer update and the `update_access` message like reject. No domain event is published, so no email is sent.
+- Known race: a withdraw that lands while a reviewer's approve is creating the member makes the approve's status write fail on its revision check, leaving a member and a `withdrawn` application. The window is the member-create call; the reviewer sees the error and can remove the member.
 
 **Email notifications (opt-in via `notify` request field, default `false`):**
 
-- **Submitted / reinstated** — when `SubmitApplication` is called with `notify: true` and the call succeeds (both fresh-create and rejected→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. If the committee has no eligible writers, it falls back to the project-level writers (settings keyed by `committee.ProjectUID`). Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email includes the project name alongside the committee name, and links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
+- **Submitted / reinstated** — when `SubmitApplication` is called with `notify: true` and the call succeeds (both fresh-create and rejected/withdrawn→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. If the committee has no eligible writers, it falls back to the project-level writers (settings keyed by `committee.ProjectUID`). Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email includes the project name alongside the committee name, and links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
 - **Approved** — when `ApproveApplication` is called with `notify: true` and succeeds, a `lfx.committee-api.committee_application.updated` event is published. The notification handler sends a single accepted email to the applicant's email address. The generic member-added role notification is suppressed for LFID applicants when `notify: true` (the application-accepted email covers the same intent); email-only applicants still receive the invite-service invite.
 - **Rejected** — when `RejectApplication` is called with `notify: true` and succeeds, the same updated event is published. The handler sends a single rejected email to the applicant, including `reviewer_notes` if set.
 - Writers without an LFID (no `Username`) or without a known email address are skipped — both are required for a direct email.

@@ -1394,7 +1394,7 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 		}
 		var closedApp *model.CommitteeApplication
 		for _, app := range existing {
-			if strings.EqualFold(app.ApplicantEmail, email) && (app.Status == "rejected" || app.Status == "withdrawn") {
+			if strings.EqualFold(strings.TrimSpace(app.ApplicantEmail), strings.TrimSpace(email)) && (app.Status == "rejected" || app.Status == "withdrawn") {
 				closedApp = app
 				break
 			}
@@ -1576,7 +1576,7 @@ func (s *committeeServicesrvc) WithdrawApplication(ctx context.Context, p *commi
 	if err != nil {
 		return nil, wrapError(ctx, err)
 	}
-	if !strings.EqualFold(email, application.ApplicantEmail) {
+	if !strings.EqualFold(strings.TrimSpace(email), strings.TrimSpace(application.ApplicantEmail)) {
 		return nil, wrapError(ctx, errors.NewForbidden("you are not the applicant for this application"))
 	}
 
