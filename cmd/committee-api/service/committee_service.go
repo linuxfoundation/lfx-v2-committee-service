@@ -1508,11 +1508,22 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 
 	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
 		// Keep the member only if the re-read shows this approval's write landed
-		current, _, errGet := s.storage.GetApplication(ctx, application.UID)
-		if errGet != nil || current.Status == "approved" {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		current, _, errGet := s.storage.GetApplication(cleanupCtx, application.UID)
+		if errGet != nil {
+			slog.ErrorContext(ctx, "approval status write and re-read failed; created member kept for manual reconciliation",
+				"error", errGet,
+				"committee_uid", application.CommitteeUID,
+				"application_uid", application.UID,
+				"member_uid", response.UID,
+			)
 			return nil, wrapError(ctx, err)
 		}
-		if errRemove := s.removeApprovedMember(ctx, application.CommitteeUID, response.UID); errRemove != nil {
+		if current.Status == "approved" {
+			return nil, wrapError(ctx, err)
+		}
+		if errRemove := s.removeApprovedMember(cleanupCtx, application.CommitteeUID, response.UID); errRemove != nil {
 			return nil, wrapError(ctx, errors.NewUnexpected("approval failed and removing the created member also failed; manual recovery required", err, errRemove))
 		}
 		if current.Status != "pending" {
