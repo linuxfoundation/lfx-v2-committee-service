@@ -1507,7 +1507,7 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
-		// Keep the member only if the re-read shows this approval's write landed
+		// Remove the member this approval created only when its write provably did not land
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
 		current, _, errGet := s.storage.GetApplication(cleanupCtx, application.UID)
@@ -1521,6 +1521,17 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 			return nil, wrapError(ctx, err)
 		}
 		if current.Status == "approved" {
+			return nil, wrapError(ctx, err)
+		}
+		// A pending re-read proves nothing unless the store rejected the write on its revision
+		var revisionConflict errors.Conflict
+		if current.Status == "pending" && !stderrors.As(err, &revisionConflict) {
+			slog.ErrorContext(ctx, "approval status write outcome unknown; created member kept for manual reconciliation",
+				"error", err,
+				"committee_uid", application.CommitteeUID,
+				"application_uid", application.UID,
+				"member_uid", response.UID,
+			)
 			return nil, wrapError(ctx, err)
 		}
 		if errRemove := s.removeApprovedMember(cleanupCtx, application.CommitteeUID, response.UID); errRemove != nil {

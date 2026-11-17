@@ -279,13 +279,21 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 	return svc, mockOrchestrator, mockRepo
 }
 
-// applicationGetHookStore runs onGet before every GetApplication so a test can interleave or fail the read.
-type applicationGetHookStore struct {
+// applicationHookStore lets a test interleave or fail GetApplication, and fail UpdateApplication.
+type applicationHookStore struct {
 	port.CommitteeReaderWriter
-	onGet func() error
+	onGet     func() error
+	updateErr error
 }
 
-func (h *applicationGetHookStore) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+func (h *applicationHookStore) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+	if h.updateErr != nil {
+		return h.updateErr
+	}
+	return h.CommitteeReaderWriter.UpdateApplication(ctx, application, revision)
+}
+
+func (h *applicationHookStore) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
 	if h.onGet != nil {
 		if err := h.onGet(); err != nil {
 			return nil, 0, err
@@ -2667,7 +2675,7 @@ func TestSubmitApplication_ReinstateRecheck(t *testing.T) {
 			})
 			writer := mock.NewMockCommitteeReaderWriter(repo)
 			// Another request moves the record on between the listing and the re-read.
-			svc.storage = &applicationGetHookStore{CommitteeReaderWriter: writer, onGet: func() error {
+			svc.storage = &applicationHookStore{CommitteeReaderWriter: writer, onGet: func() error {
 				app, rev, err := writer.GetApplication(context.Background(), "moved-on-app")
 				require.NoError(t, err)
 				app.Status = status
@@ -2813,6 +2821,7 @@ func TestApproveApplication(t *testing.T) {
 		name        string
 		interleave  func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository)
 		failReread  bool
+		updateErr   error
 		deleteErr   error
 		wantErr     any
 		wantDeletes int
@@ -2874,6 +2883,14 @@ func TestApproveApplication(t *testing.T) {
 			wantStatus:  "withdrawn",
 		},
 		{
+			name:        "pending re-read after an unknown write outcome keeps the member",
+			interleave:  func(*testing.T, *committeeServicesrvc, *mock.MockRepository) {},
+			updateErr:   errs.NewServiceUnavailable("write timed out"),
+			wantErr:     new(*committeeservice.ServiceUnavailableError),
+			wantDeletes: 0,
+			wantStatus:  "pending",
+		},
+		{
 			name: "failed member removal is not reported as a conflict",
 			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
 				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
@@ -2910,7 +2927,7 @@ func TestApproveApplication(t *testing.T) {
 			mockOrch.createMember = created
 			mockOrch.deleteError = tt.deleteErr
 			// Runs after approve read the pending application and before its status write.
-			hooked := &applicationGetHookStore{CommitteeReaderWriter: svc.storage}
+			hooked := &applicationHookStore{CommitteeReaderWriter: svc.storage, updateErr: tt.updateErr}
 			svc.storage = hooked
 			mockOrch.createMemberValidator = func(*model.CommitteeMember) error {
 				repo.AddCommitteeMember("committee-1", created)

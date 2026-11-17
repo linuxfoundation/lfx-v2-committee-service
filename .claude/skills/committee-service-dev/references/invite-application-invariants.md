@@ -134,7 +134,7 @@ withdrawn ──POST /applications (same email)──▶ pending  (reinstate)
 | `lfx.index.committee_member` published | |
 | `lfx.committee-api.committee_application.updated` published (domain event) | Consumed to send decision email to applicant |
 
-If the status write fails, re-read the application on a detached, bounded context. If it reads `approved` (write landed), keep the member. If the re-read fails, keep the member, log it at error level and return the original error. Otherwise delete the member just created; return `409` for `withdrawn`/`rejected`, the original error for `pending`, and `500` if the delete fails.
+If the status write fails, re-read the application on a detached, bounded context. If it reads `approved` (write landed), keep the member. If the re-read fails, keep the member, log it at error level and return the original error. If it reads `pending` and the write error is not a revision conflict, the write may still land: keep the member. Otherwise delete the member just created; return `409` for `withdrawn`/`rejected`, the original error for `pending`, and `500` if the delete fails.
 
 #### Reject application (`pending`) → `rejected`
 
