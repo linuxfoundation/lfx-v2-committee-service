@@ -28,7 +28,7 @@ import (
 // schema inside it and drops the schema afterwards, so tests do not see each other's tables.
 const envTestDatabaseURL = "TEST_DATABASE_URL"
 
-// committeeTables lists every table the migrations create.
+// committeeTables lists the live resource tables carrying source revisions.
 var committeeTables = []string{
 	"committees",
 	"committee_settings",
@@ -41,6 +41,8 @@ var committeeTables = []string{
 	"group_weekly_briefs",
 	"group_weekly_brief_throttle",
 }
+
+var allCommitteeTables = append(append([]string(nil), committeeTables...), "committee_audit_outbox", "committee_audit_revisions")
 
 // testDSN returns the database URL, or skips the test when none is configured. On CI the database
 // is promised, so a missing one fails instead: a harness that silently skips everywhere proves nothing.
@@ -123,12 +125,26 @@ func currentSchema(t *testing.T, db *sql.DB) string {
 
 // TestMigrate covers the runner: applying, re-applying, reversing and locking.
 func TestMigrate(t *testing.T) {
+	t.Run("upgrades the classification on an existing outbox", func(t *testing.T) {
+		db := newSchemaDB(t)
+		provider, err := newProvider(db)
+		require.NoError(t, err)
+		_, err = provider.UpTo(context.Background(), 5)
+		require.NoError(t, err)
+		_, err = db.Exec("COMMENT ON COLUMN committee_audit_outbox.payload IS 'PII'")
+		require.NoError(t, err)
+		require.NoError(t, Migrate(context.Background(), db))
+		var comment string
+		require.NoError(t, db.QueryRow(`SELECT col_description(attrelid,attnum)
+			FROM pg_attribute WHERE attrelid = 'committee_audit_outbox'::regclass AND attname = 'payload'`).Scan(&comment))
+		require.True(t, strings.HasPrefix(comment, "SENSITIVE"))
+	})
 	t.Run("applies to an empty database", func(t *testing.T) {
 		db := newSchemaDB(t)
 
 		require.NoError(t, Migrate(context.Background(), db))
 
-		assert.ElementsMatch(t, committeeTables, tablesIn(t, db))
+		assert.ElementsMatch(t, allCommitteeTables, tablesIn(t, db))
 	})
 
 	t.Run("is idempotent", func(t *testing.T) {
@@ -146,15 +162,19 @@ func TestMigrate(t *testing.T) {
 		assert.Positive(t, after)
 	})
 
-	t.Run("down removes everything and up recreates it", func(t *testing.T) {
+	t.Run("down retains audit repair sources and up recreates live tables", func(t *testing.T) {
 		db := migratedDB(t)
 		provider, err := newProvider(db)
+		require.NoError(t, err)
+		_, err = db.ExecContext(context.Background(), `INSERT INTO committee_audit_outbox
+			(event_id, object_type, object_id, resource_revision, payload)
+			VALUES ('retained-event', 'committee', 'committee-1', 1, convert_to('{}', 'UTF8'))`)
 		require.NoError(t, err)
 
 		_, err = provider.DownTo(context.Background(), 0)
 		require.NoError(t, err)
 
-		assert.Empty(t, tablesIn(t, db))
+		assert.Equal(t, []string{"committee_audit_outbox", "committee_audit_revisions"}, tablesIn(t, db), "rollback must not destroy retained audit repair sources or lineage")
 		var sequences int
 		require.NoError(t, db.QueryRow(
 			`SELECT count(*) FROM information_schema.sequences WHERE sequence_schema = current_schema()`).Scan(&sequences))
@@ -166,7 +186,10 @@ func TestMigrate(t *testing.T) {
 		assert.Zero(t, functions, "the normalization function must go with the indexes")
 
 		require.NoError(t, Migrate(context.Background(), db), "the schema must be re-creatable after a down")
-		assert.ElementsMatch(t, committeeTables, tablesIn(t, db))
+		assert.ElementsMatch(t, allCommitteeTables, tablesIn(t, db))
+		var retained int
+		require.NoError(t, db.QueryRow("SELECT count(*) FROM committee_audit_outbox WHERE event_id = 'retained-event'").Scan(&retained))
+		assert.Equal(t, 1, retained, "rollback and re-upgrade must preserve retained repair payloads")
 	})
 
 	t.Run("waits for the migration lock", func(t *testing.T) {
@@ -198,7 +221,7 @@ func TestMigrate(t *testing.T) {
 		case <-time.After(30 * time.Second):
 			t.Fatal("Migrate did not finish after the lock was released")
 		}
-		assert.ElementsMatch(t, committeeTables, tablesIn(t, db))
+		assert.ElementsMatch(t, allCommitteeTables, tablesIn(t, db))
 	})
 
 	t.Run("concurrent runners all succeed", func(t *testing.T) {
@@ -225,7 +248,7 @@ func TestMigrate(t *testing.T) {
 		for i, err := range errs {
 			assert.NoError(t, err, "runner %d", i)
 		}
-		assert.ElementsMatch(t, committeeTables, tablesIn(t, db))
+		assert.ElementsMatch(t, allCommitteeTables, tablesIn(t, db))
 	})
 }
 
@@ -507,16 +530,20 @@ func TestSchema(t *testing.T) {
 
 		assert.True(t, strings.HasPrefix(comment("committee_settings", "chat_webhook_url"), "SENSITIVE"),
 			"the webhook URL is a bearer credential and must be marked so exports can exclude it")
+		assert.True(t, strings.HasPrefix(comment("committee_audit_outbox", "payload"), "SENSITIVE"),
+			"optional actor JWT evidence must be excluded from ordinary exports")
 		for table, columns := range map[string][]string{
-			"committees":             {"charter"},
-			"committee_members":      {"email", "first_name", "last_name", "username", "avatar", "linkedin_profile", "job_title"},
-			"committee_settings":     {"writers", "auditors", "last_reviewed_by"},
-			"committee_invites":      {"invitee_email", "inviter"},
-			"committee_applications": {"applicant_email", "applicant_username", "message", "reviewer_notes"},
-			"committee_link_folders": {"created_by", "updated_by"},
-			"committee_links":        {"created_by", "updated_by"},
-			"committee_documents":    {"created_by", "updated_by"},
-			"group_weekly_briefs":    {"brief_text", "last_edited_by", "source_refs"},
+			"committees":                {"charter"},
+			"committee_members":         {"email", "first_name", "last_name", "username", "avatar", "linkedin_profile", "job_title"},
+			"committee_settings":        {"writers", "auditors", "last_reviewed_by"},
+			"committee_invites":         {"invitee_email", "inviter"},
+			"committee_applications":    {"applicant_email", "applicant_username", "message", "reviewer_notes"},
+			"committee_link_folders":    {"created_by", "updated_by"},
+			"committee_links":           {"created_by", "updated_by"},
+			"committee_documents":       {"created_by", "updated_by"},
+			"group_weekly_briefs":       {"brief_text", "last_edited_by", "source_refs"},
+			"committee_audit_outbox":    {"object_id"},
+			"committee_audit_revisions": {"object_id"},
 		} {
 			for _, column := range columns {
 				assert.Equal(t, "PII", comment(table, column), "%s.%s", table, column)
@@ -541,7 +568,7 @@ func TestCheckMigrated(t *testing.T) {
 
 		err = CheckMigrated(ctx, db)
 
-		require.ErrorContains(t, err, "[2 3] have not been applied")
+		require.ErrorContains(t, err, "[2 3 4 5 6] have not been applied")
 	})
 
 	t.Run("a version table with nothing applied names every migration", func(t *testing.T) {
@@ -549,7 +576,7 @@ func TestCheckMigrated(t *testing.T) {
 		_, err := db.ExecContext(ctx, "UPDATE goose_db_version SET is_applied = false")
 		require.NoError(t, err)
 
-		require.ErrorContains(t, CheckMigrated(ctx, db), "[1 2 3] have not been applied")
+		require.ErrorContains(t, CheckMigrated(ctx, db), "[1 2 3 4 5 6] have not been applied")
 	})
 
 	t.Run("an empty database is refused and nothing is created in it", func(t *testing.T) {

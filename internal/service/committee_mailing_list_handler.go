@@ -33,6 +33,7 @@ func NewCommitteeMailingListHandler(
 }
 
 func (h *committeeMailingListHandler) HandleCommitteeMailingListChanged(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	ctx = model.WithCommitteeSystemActor(ctx)
 	var event model.CommitteeMailingListChangedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
 		return nil, errors.NewValidation("failed to unmarshal CommitteeMailingListChangedEvent", err)
