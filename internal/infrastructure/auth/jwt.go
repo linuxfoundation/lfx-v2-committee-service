@@ -5,12 +5,15 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 
 	"github.com/auth0/go-jwt-middleware/v2/jwks"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
@@ -50,8 +53,9 @@ var (
 // HeimdallClaims contains extra custom claims we want to parse from the JWT
 // token.
 type HeimdallClaims struct {
-	Principal string `json:"principal"`
-	Email     string `json:"email"`
+	Principal string          `json:"principal"`
+	Email     string          `json:"email"`
+	Actor     json.RawMessage `json:"act"`
 }
 
 // Validate provides additional middleware validation of any claims defined in
@@ -59,6 +63,26 @@ type HeimdallClaims struct {
 func (c *HeimdallClaims) Validate(_ context.Context) error {
 	if c.Principal == "" {
 		return errors.New("principal must be provided")
+	}
+	return nil
+}
+
+// validateActor applies the stricter attribution contract only to audit callers.
+func (c *HeimdallClaims) validateActor() error {
+	if len(c.Actor) != 0 {
+		var actor map[string]json.RawMessage
+		if json.Unmarshal(c.Actor, &actor) != nil || actor == nil {
+			return errors.New("invalid signed actor")
+		}
+		if _, nested := actor["act"]; nested {
+			return errors.New("nested signed actor is unsupported")
+		}
+		var identity model.AuthenticatedActor
+		if json.Unmarshal(c.Actor, &identity) != nil || strings.TrimSpace(identity.Subject) == "" ||
+			identity.Subject != strings.TrimSpace(identity.Subject) || strings.TrimSpace(identity.Username) == "" ||
+			strings.HasSuffix(c.Principal, "@clients") || c.Principal == "_anonymous" {
+			return errors.New("invalid signed actor identity")
+		}
 	}
 	return nil
 }
@@ -73,14 +97,27 @@ type JWTAuth struct {
 // Email is present when Authelia's oidc_contextualizer resolves it; it is empty
 // for M2M or anonymous tokens.
 func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog.Logger) (string, string, error) {
+	identity, err := j.parseIdentity(ctx, token, logger, false)
+	if err != nil {
+		return "", "", err
+	}
+	return identity.Principal, identity.Email, nil
+}
+
+// ParseIdentity validates a token once and retains its signed initiating actor.
+func (j *JWTAuth) ParseIdentity(ctx context.Context, token string, logger *slog.Logger) (*model.AuthenticatedIdentity, error) {
+	return j.parseIdentity(ctx, token, logger, true)
+}
+
+func (j *JWTAuth) parseIdentity(ctx context.Context, token string, logger *slog.Logger, audit bool) (*model.AuthenticatedIdentity, error) {
 	// When JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL is set, return it instead of the JWT principal.
 	if j.config.MockLocalPrincipal != "" {
 		logger.DebugContext(ctx, "JWT authentication is disabled, using configured mock principal")
-		return j.config.MockLocalPrincipal, j.config.MockLocalEmail, nil
+		return &model.AuthenticatedIdentity{Principal: j.config.MockLocalPrincipal, Email: j.config.MockLocalEmail}, nil
 	}
 
 	if j.validator == nil {
-		return "", "", errors.New("JWT validator is not set up")
+		return nil, errors.New("JWT validator is not set up")
 	}
 
 	parsedJWT, err := j.validator.ValidateToken(ctx, token)
@@ -95,20 +132,35 @@ func (j *JWTAuth) ParsePrincipal(ctx context.Context, token string, logger *slog
 				errString = errString[:firstColon+secondColon+1]
 			}
 		}
-		return "", "", errors.New(errString)
+		return nil, errors.New(errString)
 	}
 
 	claims, ok := parsedJWT.(*validator.ValidatedClaims)
 	if !ok {
-		return "", "", errors.New("failed to get validated authorization claims")
+		return nil, errors.New("failed to get validated authorization claims")
 	}
 
 	customClaims, ok := claims.CustomClaims.(*HeimdallClaims)
 	if !ok {
-		return "", "", errors.New("failed to get custom authorization claims")
+		return nil, errors.New("failed to get custom authorization claims")
 	}
 
-	return customClaims.Principal, customClaims.Email, nil
+	identity := &model.AuthenticatedIdentity{Principal: customClaims.Principal, Email: customClaims.Email}
+	if claims.RegisteredClaims.Expiry != 0 {
+		identity.ExpiresAt = time.Unix(claims.RegisteredClaims.Expiry, 0).UTC()
+	}
+	if audit {
+		if err := customClaims.validateActor(); err != nil {
+			return nil, err
+		}
+	}
+	if audit && len(customClaims.Actor) != 0 {
+		identity.Actor = new(model.AuthenticatedActor)
+		if json.Unmarshal(customClaims.Actor, identity.Actor) != nil {
+			return nil, errors.New("invalid signed actor")
+		}
+	}
+	return identity, nil
 }
 
 // NewJWTAuth creates a new JWT authentication service

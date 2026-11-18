@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +41,23 @@ func runWithArgs(t *testing.T, args ...string) (string, error) {
 	out, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	return string(out), runErr
+}
+
+func TestCommitteeAuditCommandContext(t *testing.T) {
+	for _, tc := range []struct {
+		command, subcommand string
+		projection          bool
+	}{
+		{"sync", "member-avatar-attribute", true}, {"sync", "member-project-attribute", true}, {"sync", "promote-email-only-members", true},
+		{"sync", "committee-fields", false}, {"sync", "member-cdp-org-id", false}, {"audit", "bootstrap", false},
+	} {
+		t.Run(tc.command+"/"+tc.subcommand, func(t *testing.T) {
+			ctx := committeeAuditCommandContext(context.Background(), tc.command, tc.subcommand)
+			require.NotNil(t, ctx.Value(constants.AuditAttributionContextID))
+			projection, _ := ctx.Value(constants.AuditProjectionContextID).(bool)
+			require.Equal(t, tc.projection, projection)
+		})
+	}
 }
 
 func TestRun_ListFieldsNeedsNoNATS(t *testing.T) {
@@ -174,6 +193,45 @@ func TestRun_StorageMode(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, out, "Fields supported by committee-fields")
 	})
+}
+
+func TestRun_AuditOperationsDoNotRequireNATS(t *testing.T) {
+	t.Setenv("COMMITTEE_AUDIT_ENABLED", "false")
+	t.Setenv("STORAGE_MODE", "postgres")
+	t.Setenv("POSTGRES_URL", "postgres://127.0.0.1:1/committee?sslmode=disable")
+	for _, key := range []string{"PGHOST", "PGUSER", "PGPASSWORD", "PGDATABASE"} {
+		t.Setenv(key, "")
+	}
+	for _, args := range [][]string{
+		{"audit", "status"}, {"audit", "bootstrap", "--committee", "committee-1"},
+		{"audit", "replay", "--event-id", "event-1"},
+		{"audit", "retire", "--event-id", "event-1", "--delivery-attempt", "1", "--confirmed-persisted"},
+		{"audit", "prune"},
+	} {
+		t.Run(args[1], func(t *testing.T) {
+			_, err := runWithArgs(t, args...)
+			require.ErrorContains(t, err, "connect")
+			require.NotContains(t, err.Error(), "NATS", "audit operations must reach the PostgreSQL connector even when NATS is unreachable")
+		})
+	}
+}
+
+func TestRun_AuditedOperationRefusesLegacyMaintenance(t *testing.T) {
+	t.Setenv("COMMITTEE_AUDIT_ENABLED", "true")
+	t.Setenv("STORAGE_MODE", "postgres")
+	t.Setenv("COMMITTEE_AUDIT_OUTBOX_RETENTION", "24h")
+	for _, key := range []string{"AUTH_SOURCE", "JWT_AUTH_DISABLED_MOCK_LOCAL_PRINCIPAL", "REPOSITORY_SOURCE", "MESSAGING_SOURCE"} {
+		t.Setenv(key, "")
+	}
+	for _, args := range [][]string{
+		{"sync", "reindex-settings"}, {"sync", "backfill-weekly-brief-index"},
+		{"sync", "repair-settings-index"}, {"storage", "migrate"},
+	} {
+		t.Run(args[1], func(t *testing.T) {
+			_, err := runWithArgs(t, args...)
+			require.ErrorContains(t, err, "legacy storage/projection maintenance must be paused")
+		})
+	}
 }
 
 func TestPrintUsage_ListsTheStorageMode(t *testing.T) {

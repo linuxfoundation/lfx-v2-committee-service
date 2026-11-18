@@ -6,6 +6,18 @@ The full OpenFGA type definitions (relations, schema) for all object types are d
 
 **Update this document in the same PR as any change to FGA message construction.**
 
+## Audit history authorization
+
+The opt-in [version 2 audit publisher](committee-audit.md) uses the existing
+`committee:{uid}#auditor` history check for committee, settings and member events.
+It does not introduce new FGA objects, relations or retained deletion grants.
+History readers must check the current grant for every returned event and must
+not use the ordinary public-resource bypass. Once committee deletion removes its
+tuples, deleted-committee history fails closed. Deleted-member events retain the
+parent committee anchor, not a deleted member object. Historical actor identity
+and recorded project scope are not grants. Tuple emission below is unchanged;
+verified initiating actors never replace the effective principal for access checks.
+
 ---
 
 ## Object Types

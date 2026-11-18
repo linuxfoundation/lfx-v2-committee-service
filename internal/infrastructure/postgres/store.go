@@ -29,12 +29,37 @@ const pgUniqueViolation = "23505"
 // assigned from the shared sequence on insert and replaced on every update, so a token that was read
 // before another write never matches again.
 type Store struct {
-	pool *pgxpool.Pool
+	pool         *pgxpool.Pool
+	tx           pgx.Tx
+	auditCapture bool
+}
+
+type storeDB interface {
+	Begin(context.Context) (pgx.Tx, error)
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+// db keeps all operations on a transaction-bound store on the same connection.
+// pgx implements nested Begin calls with savepoints.
+func (s *Store) db() storeDB {
+	if s.tx != nil {
+		return s.tx
+	}
+	return s.pool
 }
 
 // NewStore returns a Store that uses the pool. The schema must already be migrated.
 func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
+}
+
+// NewAuditedStore captures committee/settings/member mutations transactionally.
+// Use only when PostgreSQL is authoritative and every caller supplies trusted
+// audit attribution. Legacy indexing must be fenced before enabling delivery.
+func NewAuditedStore(pool *pgxpool.Pool) *Store {
+	return &Store{pool: pool, auditCapture: true}
 }
 
 // IsReady reports whether PostgreSQL answers a ping.
@@ -138,8 +163,10 @@ func (s *Store) AdvanceRevisionSequence(ctx context.Context, atLeast uint64) err
 	if atLeast > math.MaxInt64 {
 		return errs.NewValidation("revision must not exceed the largest BIGINT")
 	}
-	if _, err := s.pool.Exec(ctx,
-		"SELECT setval('committee_revision_seq', GREATEST($1::bigint, (SELECT last_value FROM committee_revision_seq)))", int64(atLeast)); err != nil {
+	if _, err := s.db().Exec(ctx,
+		`SELECT setval('committee_revision_seq', GREATEST($1::bigint,
+			(SELECT last_value FROM committee_revision_seq),
+			(SELECT COALESCE(max(resource_revision), 0) FROM committee_audit_revisions)))`, int64(atLeast)); err != nil {
 		return unexpected("failed to advance the revision sequence", err)
 	}
 	return nil
@@ -159,7 +186,7 @@ func revisionArg(revision uint64) int64 {
 // withTx runs fn in a transaction and commits it, or rolls it back when fn returns an error, which
 // is returned unchanged. The rollback uses the caller's context, so a cancelled request still releases the connection.
 func (s *Store) withTx(ctx context.Context, fn func(tx pgx.Tx) error) (err error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.db().Begin(ctx)
 	if err != nil {
 		return unexpected("failed to start a transaction", err)
 	}

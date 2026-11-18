@@ -46,6 +46,14 @@ func init() {
 }
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("committee API startup failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+// run owns cleanup so a startup failure unwinds resources before main exits.
+func run() error {
 	// Define command line flags, add any other flag required to configure the
 	// service.
 	var (
@@ -71,7 +79,7 @@ func main() {
 	otelShutdown, err := utils.SetupOTelSDKWithConfig(ctx, otelConfig)
 	if err != nil {
 		slog.ErrorContext(ctx, "error setting up OpenTelemetry SDK", "error", err)
-		os.Exit(1)
+		return err
 	}
 	// Handle shutdown properly so nothing leaks.
 	defer func() {
@@ -230,7 +238,13 @@ func main() {
 		addr = *bind + ":" + *port
 	}
 
-	// Start NATS subscriptions
+	// Validate relay configuration before starting servers.
+	if err := service.StartCommitteeAuditRelay(ctx, &wg); err != nil {
+		slog.ErrorContext(ctx, "failed to start committee audit relay", "error", err)
+		cancel()
+		return err
+	}
+	// Start NATS subscriptions.
 	if err := service.QueueSubscriptions(ctx, committeeRetriever); err != nil {
 		slog.ErrorContext(ctx, "failed to start queue subscriptions", "error", err)
 		errc <- fmt.Errorf("failed to start queue subscriptions: %w", err)
@@ -265,4 +279,5 @@ func main() {
 	}
 
 	slog.InfoContext(ctx, "exited")
+	return nil
 }

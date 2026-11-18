@@ -130,6 +130,50 @@ func TestCommitteeFields_DryRunByDefaultDoesNotWrite(t *testing.T) {
 	assert.Empty(t, f.writer.bases, "dry-run is the default and must not write")
 }
 
+func TestCommitteeFields_AuditedRepublishGuard(t *testing.T) {
+	t.Run("rejects live republish before infrastructure access", func(t *testing.T) {
+		t.Setenv("COMMITTEE_AUDIT_ENABLED", "true")
+		err := (&committeeFieldsSubcommand{}).Run(context.Background(), commands.RunContext{Args: []string{
+			"--committee-uid=committee-1", "--field=public", "--from=v2", "--dry-run=false",
+		}})
+		require.ErrorContains(t, err, "live V2-to-V1 committee republishes are disabled")
+		var validation errs.Validation
+		require.ErrorAs(t, err, &validation)
+	})
+	for _, tc := range []struct {
+		name, capture, from string
+		dryRun              bool
+		wantError           bool
+		writes              int
+	}{
+		{"audited live V2 republish", "true", "v2", false, true, 0},
+		{"audited V2 dry-run", "true", "v2", true, false, 0},
+		{"audited V1 business change", "true", "v1", false, false, 1},
+		{"legacy live V2 republish", "false", "v2", false, false, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("COMMITTEE_AUDIT_ENABLED", tc.capture)
+			base := fieldsBase("committee-1")
+			base.Public = true
+			f := newFieldsFixture(base, nil, map[string]any{"public_enabled": false})
+			args := []string{"--committee-uid=committee-1", "--field=public", "--from=" + tc.from}
+			if !tc.dryRun {
+				args = append(args, "--dry-run=false")
+			}
+			err := f.run(args...)
+			if tc.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Len(t, f.writer.bases, tc.writes)
+			if tc.from == "v1" && tc.writes > 0 {
+				require.False(t, f.writer.bases[0].Public, "real v1 business changes remain on the normal writer path")
+			}
+		})
+	}
+}
+
 func TestCommitteeFields_FromV1CopiesOnlyTheChosenFields(t *testing.T) {
 	base := fieldsBase("committee-1")
 	f := newFieldsFixture(base, nil, map[string]any{

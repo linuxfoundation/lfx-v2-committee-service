@@ -1,5 +1,26 @@
 # PostgreSQL Schema Reference
 
+The revised audit contract permits optional actor JWT evidence in the protected
+frozen outbox; profiles and dispatch headers are not retained. Migration `00005`
+adds durable `committee_audit_revisions` lineage and explicit outbox `retired_at`.
+The configured retention limit prunes only explicitly retired, broker-delivered
+rows. Row ETags can advance independently of authoritative audit revisions for
+derived reindex writes. See [the publisher contract](committee-audit.md).
+
+The additive `committee_audit_outbox` table supports opt-in
+[version 2 audit adoption](committee-audit.md), disabled by default.
+It stores immutable envelope bytes, optional actor evidence and source identity/revision,
+plus broker-delivery attempt metadata. Rows have no live-resource/user foreign
+keys. Pending and unretired rows remain repair sources after broker delivery;
+only explicitly retired rows are pruned under the configured retention policy.
+`broker_delivered_at` does not mean history persistence. Existing
+providers populate it only with `COMMITTEE_AUDIT_ENABLED=true` and PostgreSQL
+as the authoritative source. `NewAuditedStore` automatically captures owned
+mutations; `MutateWithAudit` supports explicitly enumerated same-transaction
+source changes and events. Mutation revisions are unique per resource; bootstrap
+projections share the source revision without fabricating a second mutation.
+`next_attempt_at` provides bounded retry/backoff and poison-event fairness.
+
 This is the PostgreSQL schema the committee service is moving its state to (see the storage
 migration epic, [lfx-self-serve-ops#1133](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1133)).
 **The default, `kv`, reads and writes no committee data in it**: NATS KV is the store, and the service runs unchanged
@@ -115,6 +136,10 @@ from `col_description()` instead of relying on a comment in the SQL:
   nothing that exports these tables (the warehouse pipeline, backups shared outside the service, ad-hoc
   queries) may include it. The schema does not enforce that exclusion yet; the store and the dbt tickets
   must (an export role without access to the column, or a separate table).
+- `committee_audit_outbox.payload` is marked `SENSITIVE`, not just `PII`, because
+  optional actor JWT evidence is retained alongside personal snapshots. Ordinary
+  exports must exclude it. Migration `00006` updates already-created outbox tables
+  without downgrading classification on rollback.
 - Columns holding personal data are marked `PII`: member and applicant names, emails, usernames, avatars
   and profiles, invite and application free text, the `inviter`, `created_by` / `updated_by` and
   `last_edited_by` users, the `writers` / `auditors` lists, the committee `charter` (it records who

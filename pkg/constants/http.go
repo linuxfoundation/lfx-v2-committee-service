@@ -16,6 +16,13 @@ const (
 	// EmailContextID is the context ID for the email claim from the Heimdall JWT, populated by JWTAuth.
 	// Semantically equivalent to meeting-service's "email" context key; this service uses a private typed key.
 	EmailContextID
+	// AuditAttributionContextID carries server-attested immutable audit attribution.
+	// It must never be populated directly from request headers or payloads.
+	AuditAttributionContextID
+	// ReadOnlyRequestContextID avoids directory/profile capture on HTTP reads.
+	ReadOnlyRequestContextID
+	// AuditProjectionContextID is selected only by trusted derived-data writers.
+	AuditProjectionContextID
 )
 
 type contextPrincipal string

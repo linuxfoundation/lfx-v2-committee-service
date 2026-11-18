@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -1938,6 +1939,94 @@ func TestCommitteeWriterOrchestrator_Update_ReadonlyFieldsPreservation(t *testin
 	assert.Equal(t, 42, result.TotalMembers)
 	assert.Equal(t, 3, result.TotalVotingRepos)
 	assert.True(t, result.HasMailingList)
+}
+
+// TestCommitteeWriterOrchestrator_Update_CharterURLValidation checks that Update validates only a
+// changed charter URL, so a stored legacy URL that fails the check does not block unrelated edits.
+func TestCommitteeWriterOrchestrator_Update_CharterURLValidation(t *testing.T) {
+	legacyURL := (&url.URL{Scheme: "https", Host: "example.org", Path: "/charter.pdf", User: url.UserPassword("first-last", "secret")}).String()
+	tests := []struct {
+		name        string
+		storedURL   string
+		charter     *model.Charter
+		expectError bool
+		expectedURL string
+	}{
+		{
+			name:        "unchanged legacy URL is kept",
+			storedURL:   legacyURL,
+			charter:     &model.Charter{URL: legacyURL},
+			expectedURL: legacyURL,
+		},
+		{
+			name:        "absent charter keeps legacy URL",
+			storedURL:   legacyURL,
+			expectedURL: legacyURL,
+		},
+		{
+			name:        "legacy URL replaced with a valid one",
+			storedURL:   legacyURL,
+			charter:     &model.Charter{URL: "https://example.org/charter.pdf"},
+			expectedURL: "https://example.org/charter.pdf",
+		},
+		{
+			name:        "legacy URL cleared",
+			storedURL:   legacyURL,
+			charter:     &model.Charter{URL: ""},
+			expectedURL: "",
+		},
+		{
+			name:        "new URL with credentials is rejected",
+			storedURL:   "https://example.org/charter.pdf",
+			charter:     &model.Charter{URL: legacyURL},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := mock.NewMockRepository()
+			mockRepo.ClearAll()
+			mockRepo.AddProject("project-1", "test-project", "Test Project")
+			mockRepo.AddCommittee(&model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Original Committee",
+					Category:   "governance",
+					Charter:    &model.Charter{URL: tc.storedURL, Version: 1},
+				},
+			})
+
+			orchestrator := NewCommitteeWriterOrchestrator(
+				WithCommitteeRetriever(mock.NewMockCommitteeReader(mockRepo)),
+				WithCommitteeWriter(NewTestMockCommitteeWriter(mockRepo)),
+				WithProjectRetriever(mock.NewMockProjectRetriever(mockRepo)),
+				WithCommitteePublisher(mock.NewMockCommitteePublisher()),
+			)
+
+			result, err := orchestrator.Update(context.Background(), &model.Committee{
+				CommitteeBase: model.CommitteeBase{
+					UID:        "committee-1",
+					ProjectUID: "project-1",
+					Name:       "Updated Committee",
+					Category:   "governance",
+					Charter:    tc.charter,
+				},
+			}, uint64(1), false)
+
+			if tc.expectError {
+				var validationErr errs.Validation
+				require.ErrorAs(t, err, &validationErr)
+				assert.NotContains(t, err.Error(), "secret")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "Updated Committee", result.Name)
+			require.NotNil(t, result.Charter)
+			assert.Equal(t, tc.expectedURL, result.Charter.URL)
+		})
+	}
 }
 
 // TestCommitteeWriterOrchestrator_Update_IgnoresExplicitComputedFieldOverride guards

@@ -67,6 +67,9 @@ func (d kvDocuments) DocumentCommittee(ctx context.Context, documentUID string) 
 // the PostgreSQL store is not needed and is not touched, and the service stores its data as it always has. The other modes
 // need the PostgreSQL store, and wrap the KV stores and PostgreSQL's in the composite of each aggregate.
 func Build(mode composite.Mode, client *nats.NATSClient, pg *postgres.Store, opts ...composite.Option) (*Stores, error) {
+	if pg != nil && pg.CapturesCommitteeAudit() && !mode.PostgresIsPrimary() {
+		return nil, errors.New("audited stores require PostgreSQL-primary storage")
+	}
 	if client == nil {
 		return nil, errors.New("the NATS client is needed to build the stores")
 	}

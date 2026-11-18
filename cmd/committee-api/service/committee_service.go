@@ -66,7 +66,27 @@ func (s *committeeServicesrvc) JWTAuth(ctx context.Context, token string, scheme
 
 	// Parse the Heimdall-authorized principal and email from the token.
 	// Email is non-empty for user JWTs (set by Authelia's oidc_contextualizer); empty for M2M/anonymous.
-	principal, email, err := s.auth.ParsePrincipal(ctx, token, slog.Default())
+	var principal, email string
+	var err error
+	if os.Getenv("COMMITTEE_AUDIT_ENABLED") == "true" {
+		authenticator, ok := s.auth.(port.AuditAuthenticator)
+		if !ok {
+			return ctx, errors.NewForbidden("verified audit authentication is required")
+		}
+		var identity *model.AuthenticatedIdentity
+		identity, err = authenticator.ParseIdentity(ctx, token, slog.Default())
+		if err == nil {
+			principal, email = identity.Principal, identity.Email
+			// Anonymous reads remain supported, but no audit actor is invented;
+			// an attempted anonymous source mutation fails at the store boundary.
+			readOnly, _ := ctx.Value(constants.ReadOnlyRequestContextID).(bool)
+			if principal != "_anonymous" && !readOnly {
+				ctx, err = service.CaptureCommitteeAuditIdentity(ctx, identity, token)
+			}
+		}
+	} else {
+		principal, email, err = s.auth.ParsePrincipal(ctx, token, slog.Default())
+	}
 	if err != nil {
 		slog.ErrorContext(ctx, "committeeService.jwt-auth",
 			"error", err,

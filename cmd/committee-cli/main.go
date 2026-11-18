@@ -16,11 +16,14 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
+	auditcmd "github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/audit"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/report"
 	storagecmd "github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/storage"
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands/sync"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/composite"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/nats"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/postgres"
 	usecaseSvc "github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/env"
 	logging "github.com/linuxfoundation/lfx-v2-committee-service/pkg/log"
@@ -112,11 +115,31 @@ func run() error {
 
 	// A store mode that was set on purpose and cannot be used stops the command before anything connects; with
 	// STORAGE_MODE unset the mode is kv and the command is as it has always been.
+	auditEnabled, err := postgres.AuditEnabled(os.Getenv)
+	if err != nil {
+		return err
+	}
+	if auditEnabled {
+		ctx = committeeAuditCommandContext(ctx, commandName, subcommandName)
+		if commandName == "storage" && subcommandName != "verify" || commandName == "sync" &&
+			(strings.HasPrefix(subcommandName, "reindex") || strings.HasPrefix(subcommandName, "backfill") ||
+				subcommandName == "repair-settings-index") {
+			return fmt.Errorf("legacy storage/projection maintenance must be paused during audited operation; use the audit bootstrap/replay workflow")
+		}
+	}
 	storageMode, err := composite.ModeFromEnv(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("invalid storage mode: %w", err)
 	}
+	if commandName == "audit" && subcommandName == "bootstrap" && !storageMode.PostgresIsPrimary() {
+		return fmt.Errorf("audit bootstrap requires PostgreSQL-primary STORAGE_MODE")
+	}
 	composite.NewMetrics().RecordMode(ctx, storageMode)
+	// Audit operations inspect or repair only the retained PostgreSQL source.
+	// They must remain usable during the broker outage they are designed to repair.
+	if commandName == "audit" {
+		return sub.Run(ctx, commands.RunContext{PostgresStore: connectPostgres, Args: parsed.SubArgs})
+	}
 
 	natsURL := env.Get("NATS_URL", "nats://localhost:4222")
 	natsTimeout := 120 * time.Second
@@ -150,6 +173,9 @@ func run() error {
 	}
 	defer selected.close()
 	publisher := nats.NewMessagePublisher(client)
+	if auditEnabled {
+		publisher = usecaseSvc.NewAuditedCommitteePublisher(publisher)
+	}
 	userReader := nats.NewUserRequest(client)
 	b2bOrgFallbackResolver := nats.NewB2BOrgFallbackResolver(client)
 
@@ -189,14 +215,26 @@ func run() error {
 	return sub.Run(ctx, rc)
 }
 
+// committeeAuditCommandContext classifies only trusted derived maintenance paths;
+// ordinary native source repairs retain authoritative mutation auditing.
+func committeeAuditCommandContext(ctx context.Context, command, subcommand string) context.Context {
+	ctx = model.WithCommitteeSystemActor(ctx)
+	if command == "sync" && (subcommand == "member-avatar-attribute" || subcommand == "member-project-attribute" || subcommand == "promote-email-only-members") {
+		return model.WithCommitteeProjection(ctx)
+	}
+	return ctx
+}
+
 func buildRegistry() map[string]commands.Command {
 	syncCmd := sync.NewCommand()
 	reportCmd := report.NewCommand()
 	storageCmd := storagecmd.NewCommand()
+	auditCmd := auditcmd.NewCommand()
 	return map[string]commands.Command{
 		syncCmd.Name():    syncCmd,
 		reportCmd.Name():  reportCmd,
 		storageCmd.Name(): storageCmd,
+		auditCmd.Name():   auditCmd,
 	}
 }
 
