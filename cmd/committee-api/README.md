@@ -391,7 +391,8 @@ In `dual`, `dual-pg` and `postgres`, PostgreSQL is connected to and migrated at 
 
    ```bash
    # From the root of the directory, run megalinter (https://megalinter.io/latest/mega-linter-runner/) to ensure the code passes the linter checks. The CI/CD has a check that uses megalinter.
-   npx mega-linter-runner .
+   # GOTOOLCHAIN=auto lets the Go linters fetch the go.mod toolchain, as in CI.
+   npx mega-linter-runner --env GOTOOLCHAIN=auto .
    ```
 
 7. **Docker build + K8**
