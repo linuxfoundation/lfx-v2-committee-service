@@ -20,7 +20,7 @@ HELM_NAMESPACE=lfx
 HELM_VALUES_FILE=./charts/lfx-v2-committee-service/values.local.yaml
 
 # Go
-GO_VERSION := 1.24.5
+GO_VERSION := 1.27.4
 GOOS := linux
 GOARCH := amd64
 GOA_VERSION := v3.22.6
