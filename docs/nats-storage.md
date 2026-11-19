@@ -4,9 +4,11 @@ This service stores all state in NATS JetStream: Key-Value (KV) buckets, one Obj
 streams. This document is the single reference for what exists, how keys are shaped, and which
 secondary indexes are maintained.
 
-> A PostgreSQL schema for this data exists but holds no data yet: NATS is still the only store (the service only connects and migrates when `POSTGRES_ENABLED=true`). See
+> NATS KV is the default store, and in the default `kv` mode it is the only one. A PostgreSQL schema for this data can
+> be kept next to it or take over, depending on `STORAGE_MODE` (`kv`, `dual`, `dual-pg`, `postgres`); in `kv` the service
+> connects to PostgreSQL only when `POSTGRES_ENABLED=true`, and then it only applies the schema and reads and writes no committee data. See
 > [postgres-schema.md](postgres-schema.md) for how each table and unique index maps to the buckets and
-> lookup keys below.
+> lookup keys below, and how a storage mode is selected.
 
 Sources of truth:
 
@@ -73,6 +75,14 @@ document, or application releases its key. Callers never see or build these keys
 Document upload pre-checks the name before storing the file, removes the stored file if metadata
 creation fails (unless the metadata is found to exist), and treats the metadata create as the
 authoritative uniqueness check.
+
+A folder is only deleted when it is empty. A link records its folder in `committee-links` and a document
+records it in its own metadata (`folder_uid` in `committee-documents-metadata`), so the delete checks both: it
+returns a validation error (HTTP 400) while the committee has a link or a document in the folder. The
+documents are listed through the completion-checked snapshot described under
+[Incident tips](#incident-tips), and the check fails closed: a document that was read always refuses the
+delete, and a listing that ended early without finding one is an error, never an empty folder. The service
+also refuses to start if its document storage cannot list documents, in every `STORAGE_MODE`.
 
 For committees the keys are an internal detail of the KV store: `Create` reserves the project+name lock
 and, when the committee has an SSO group name, the SSO group lock; `UpdateBase` reserves the new keys when
@@ -217,6 +227,14 @@ new ones are written; on delete, all of the member's index keys are removed. The
   `committee-applications`, `committee-links`, `committee-folders`, and `committee-documents-metadata` also returns `lookup/`
   keys. The service filters those out (and `slug/` in `committees`); do the same in scripts and
   one-off repairs, or you will try to unmarshal a UID string as a record.
+- **A key listing can end early without an error:** `ListKeys` (and `Keys`) have no error channel. When the
+  watcher's subscription dies part way (for example the ordered consumer cannot be recreated), the library
+  closes the updates channel, and a key lister reads that as the end of the listing, so a truncated listing looks
+  complete. That is fine for a plain list endpoint, but not for a decision that needs every key, such as refusing
+  to delete a folder that still holds a document. Those callers read a watcher snapshot and require its
+  completion sentinel, treating a closed channel or a cancelled context before it as an error
+  (`visitKVSnapshot`, used by the documents listing; `visitMemberCreateSnapshot` for member creation). Use one
+  of them for any new code whose safety depends on a complete listing.
 - **"Member exists but is missing from a list or lookup":** the secondary index is probably absent.
   Check with `nats kv ls committee-members | grep committee-members-by-`, then run the matching `sync members-by-*-index` command with
   `--dry-run` first.

@@ -6,9 +6,11 @@ package postgres
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,6 +101,33 @@ func TestNewPool(t *testing.T) {
 		require.NoError(t, NewReady(pool).IsReady(context.Background()))
 	})
 
+	t.Run("connects through the PG* variables", func(t *testing.T) {
+		parsed, err := url.Parse(testDSN(t))
+		require.NoError(t, err)
+		password, _ := parsed.User.Password()
+		if password == "" {
+			// CI's database uses trust authentication and a URL without a password, which it ignores; the PG* path
+			// requires one, as in production.
+			password = fakePassword
+		}
+		t.Setenv("PGSSLMODE", "disable") // the composed URL names no sslmode; the driver takes it from here
+		cfg, err := ConfigFromEnv(func(key string) string {
+			return map[string]string{
+				"PGHOST":     parsed.Hostname(),
+				"PGPORT":     parsed.Port(),
+				"PGUSER":     parsed.User.Username(),
+				"PGPASSWORD": password,
+				"PGDATABASE": strings.TrimPrefix(parsed.Path, "/"),
+			}[key]
+		})
+		require.NoError(t, err)
+
+		pool, err := NewPool(context.Background(), cfg)
+		require.NoError(t, err)
+		defer pool.Close()
+		require.NoError(t, NewReady(pool).IsReady(context.Background()))
+	})
+
 	t.Run("readiness fails once the pool is closed", func(t *testing.T) {
 		pool, err := NewPool(context.Background(), Config{URL: testDSN(t)})
 		require.NoError(t, err)
@@ -165,6 +194,42 @@ func TestConfigFromEnv(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("the connection can be given as PG* variables, as the newsletter service does", func(t *testing.T) {
+		cfg, err := ConfigFromEnv(env(pgParts("db.example.com", "")))
+		require.NoError(t, err)
+		assert.Equal(t, Config{URL: "postgres" + "://first-last:" + fakePassword + "@db.example.com:5432/committee"}, cfg)
+	})
+
+	t.Run("an incomplete set of PG* variables is not a connection, and the error carries no credential", func(t *testing.T) {
+		values := pgParts("db.example.com", "")
+		delete(values, "PGUSER")
+		_, err := ConfigFromEnv(env(values))
+		require.ErrorContains(t, err, "POSTGRES_URL is empty")
+		require.ErrorContains(t, err, "PGHOST")
+		assert.NotContains(t, err.Error(), fakePassword)
+		assert.NotContains(t, err.Error(), "db.example.com")
+	})
+
+	t.Run("PGPORT must be a port number, and the error carries no credential", func(t *testing.T) {
+		for _, bad := range []string{"abc", "0", "-1", "70000", "80 80", "+80"} {
+			values := pgParts("db.example.com", bad)
+			_, err := ConfigFromEnv(env(values))
+			require.ErrorContains(t, err, "invalid PGPORT", bad)
+			assert.NotContains(t, err.Error(), fakePassword, bad)
+			assert.NotContains(t, err.Error(), "db.example.com", bad)
+		}
+		cfg, err := ConfigFromEnv(env(pgParts("db.example.com", "65535")))
+		require.NoError(t, err)
+		assert.Contains(t, cfg.URL, "@db.example.com:65535/")
+
+		// PGPORT only matters when the URL is composed from the variables.
+		values := pgParts("db.example.com", "abc")
+		values["POSTGRES_URL"] = urlWithPassword("explicit.example.com")
+		cfg, err = ConfigFromEnv(env(values))
+		require.NoError(t, err)
+		assert.Equal(t, urlWithPassword("explicit.example.com"), cfg.URL)
+	})
+
 	t.Run("the pool size is optional and must be a positive integer", func(t *testing.T) {
 		cfg, err := ConfigFromEnv(env(map[string]string{"POSTGRES_URL": "postgres://example.com/db"}))
 		require.NoError(t, err)
@@ -184,5 +249,157 @@ func TestConfigFromEnv(t *testing.T) {
 		_, err := ConfigFromEnv(env(map[string]string{"POSTGRES_URL": urlWithPassword("example.com"), "POSTGRES_MAX_CONNS": "many"}))
 		require.Error(t, err)
 		assert.NotContains(t, err.Error(), "example.com")
+	})
+}
+
+// pgParts is a complete set of PG* variables for the host, with the port when one is given.
+func pgParts(host, port string) map[string]string {
+	values := map[string]string{
+		"PGHOST":     host,
+		"PGUSER":     "first-last",
+		"PGPASSWORD": fakePassword,
+		"PGDATABASE": "committee",
+	}
+	if port != "" {
+		values["PGPORT"] = port
+	}
+	return values
+}
+
+func TestConnectionURL(t *testing.T) {
+	env := func(values map[string]string) func(string) string {
+		return func(key string) string { return values[key] }
+	}
+	with := func(base map[string]string, key, value string) map[string]string {
+		out := map[string]string{}
+		for k, v := range base {
+			out[k] = v
+		}
+		out[key] = value
+		return out
+	}
+	// parsed checks the composed URL as a parser sees it, so a value that escaped into another part of the URL shows.
+	parsed := func(check func(t *testing.T, u *url.URL)) func(t *testing.T, got string) {
+		return func(t *testing.T, got string) {
+			u, err := url.Parse(got)
+			require.NoError(t, err)
+			check(t, u)
+		}
+	}
+
+	base := pgParts("db.example.com", "")
+	tests := []struct {
+		name  string
+		env   map[string]string
+		want  string // the exact URL, when the case pins it
+		ok    bool
+		check func(t *testing.T, got string)
+	}{
+		{name: "POSTGRES_URL wins over the PG* variables", env: with(base, "POSTGRES_URL", urlWithPassword("explicit.example.com")), want: urlWithPassword("explicit.example.com"), ok: true},
+		{name: "a blank POSTGRES_URL falls back to the PG* variables", env: with(pgParts("db.example.com", "6432"), "POSTGRES_URL", "  "), want: "postgres" + "://first-last:" + fakePassword + "@db.example.com:6432/committee", ok: true},
+		{name: "the port defaults to 5432", env: base, want: "postgres" + "://first-last:" + fakePassword + "@db.example.com:5432/committee", ok: true},
+		{name: "an IPv6 host is bracketed", env: pgParts("::1", ""), want: "postgres" + "://first-last:" + fakePassword + "@[::1]:5432/committee", ok: true},
+		{name: "an IPv6 host written with its brackets is bracketed once", env: pgParts("[::1]", "6432"), want: "postgres" + "://first-last:" + fakePassword + "@[::1]:6432/committee", ok: true},
+		{name: "a host that is only brackets is no host", env: pgParts("[]", "")},
+		{name: "an unbalanced bracket is no host", env: pgParts("[::1", "")},
+		{name: "a closing bracket alone is no host", env: pgParts("::1]", "")},
+		{name: "a doubled bracket is no host", env: pgParts("[[::1]]", "")},
+		{
+			name: "a password with reserved characters survives the round trip", env: with(base, "PGPASSWORD", "p@ss:w/rd?#%"), ok: true,
+			check: parsed(func(t *testing.T, u *url.URL) {
+				password, _ := u.User.Password()
+				assert.Equal(t, "p@ss:w/rd?#%", password)
+				assert.Equal(t, "db.example.com", u.Hostname())
+				assert.Equal(t, "/committee", u.Path)
+			}),
+		},
+	}
+	// A database name with reserved characters must stay in the path: a "?" or "#" that became a query or a fragment
+	// could add a sslmode of its own.
+	for _, database := range []string{"a/b", "a?sslmode=disable", "a#x", "a%b", "a b"} {
+		tests = append(tests, struct {
+			name  string
+			env   map[string]string
+			want  string
+			ok    bool
+			check func(t *testing.T, got string)
+		}{
+			name: "a database name with reserved characters stays in the path: " + database, env: with(base, "PGDATABASE", database), ok: true,
+			check: parsed(func(t *testing.T, u *url.URL) {
+				assert.Equal(t, "/"+database, u.Path)
+				assert.Empty(t, u.RawQuery, "the name must not turn into a query")
+				assert.Empty(t, u.Fragment, "the name must not turn into a fragment")
+				assert.Equal(t, "db.example.com", u.Hostname())
+			}),
+		})
+	}
+	// Each of host, user, password and database is required, missing or blank.
+	for _, key := range []string{"PGHOST", "PGUSER", "PGPASSWORD", "PGDATABASE"} {
+		missing := map[string]string{}
+		for k, v := range base {
+			if k != key {
+				missing[k] = v
+			}
+		}
+		blank := with(base, key, "   ")
+		if key == "PGPASSWORD" {
+			blank = with(base, key, "")
+		}
+		tests = append(tests,
+			struct {
+				name  string
+				env   map[string]string
+				want  string
+				ok    bool
+				check func(t *testing.T, got string)
+			}{name: key + " missing is not a connection", env: missing},
+			struct {
+				name  string
+				env   map[string]string
+				want  string
+				ok    bool
+				check func(t *testing.T, got string)
+			}{name: key + " blank is not a connection", env: blank},
+		)
+	}
+	tests = append(tests, struct {
+		name  string
+		env   map[string]string
+		want  string
+		ok    bool
+		check func(t *testing.T, got string)
+	}{name: "nothing set is not a connection"})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := ConnectionURL(env(tt.env))
+			require.Equal(t, tt.ok, ok)
+			if !tt.ok {
+				assert.Empty(t, got)
+				return
+			}
+			if tt.want != "" {
+				assert.Equal(t, tt.want, got)
+			}
+			if tt.check != nil {
+				tt.check(t, got)
+			}
+		})
+	}
+
+	t.Run("PGSSLMODE reaches the composed connection, which names no sslmode itself", func(t *testing.T) {
+		got, ok := ConnectionURL(env(pgParts("db.example.com", "")))
+		require.True(t, ok)
+		assert.NotContains(t, got, "sslmode")
+
+		t.Setenv("PGSSLMODE", "")
+		prefer, err := pgxpool.ParseConfig(got)
+		require.NoError(t, err)
+		assert.NotNil(t, prefer.ConnConfig.TLSConfig, "pgx defaults to prefer, which offers TLS")
+
+		t.Setenv("PGSSLMODE", "disable")
+		disabled, err := pgxpool.ParseConfig(got)
+		require.NoError(t, err)
+		assert.Nil(t, disabled.ConnConfig.TLSConfig, "PGSSLMODE=disable is honored")
 	})
 }

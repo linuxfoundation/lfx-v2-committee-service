@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -276,6 +277,29 @@ func setupServiceTestWithRepo() (*committeeServicesrvc, *mockCommitteeWriterOrch
 	}
 
 	return svc, mockOrchestrator, mockRepo
+}
+
+// applicationHookStore lets a test interleave or fail GetApplication, and fail UpdateApplication.
+type applicationHookStore struct {
+	port.CommitteeReaderWriter
+	onGet     func() error
+	updateErr error
+}
+
+func (h *applicationHookStore) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+	if h.updateErr != nil {
+		return h.updateErr
+	}
+	return h.CommitteeReaderWriter.UpdateApplication(ctx, application, revision)
+}
+
+func (h *applicationHookStore) GetApplication(ctx context.Context, uid string) (*model.CommitteeApplication, uint64, error) {
+	if h.onGet != nil {
+		if err := h.onGet(); err != nil {
+			return nil, 0, err
+		}
+	}
+	return h.CommitteeReaderWriter.GetApplication(ctx, uid)
 }
 
 func TestPublishInviteAccessControlMessage(t *testing.T) {
@@ -1505,6 +1529,181 @@ func TestCreateInvite_RevokedInviteReinstated(t *testing.T) {
 	assert.Equal(t, "", sender.calls[0].CustomClaims["organization_website"], "reinstated invite must carry empty organization_website when no org pre-filled")
 }
 
+// TestCreateInvite_ReinstateByStatus covers what a new POST does when an invite for the same email
+// already exists: revoked, declined, expired pending and accepted-without-a-member invites are
+// reinstated to pending in one call, and everything else stays a conflict.
+func TestCreateInvite_ReinstateByStatus(t *testing.T) {
+	const committeeUID = "committee-1"
+	now := time.Now().UTC()
+	memberIn := func(committee, email string) *model.CommitteeMember {
+		return &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+			UID: "member-1", CommitteeUID: committee, Email: email, FirstName: "First", LastName: "Last", Status: "Active",
+		}}
+	}
+	member := func(email string) *model.CommitteeMember { return memberIn(committeeUID, email) }
+
+	tests := []struct {
+		name           string
+		status         string
+		expiresAt      time.Time
+		members        []*model.CommitteeMember
+		listMembersErr error  // injected failure when the members with the invitee's email are looked up
+		storedPadding  string // spaces around the email stored on the existing invite
+		wantReinstate  bool
+		wantConflict   bool
+	}{
+		{name: "revoked is reinstated", status: "revoked", wantReinstate: true},
+		{name: "declined is reinstated", status: "declined", expiresAt: now.Add(24 * time.Hour), wantReinstate: true},
+		{name: "declined with spaces around the stored email is reinstated", status: "declined", storedPadding: "  ", wantReinstate: true},
+		{name: "declined and expired is reinstated", status: "declined", expiresAt: now.Add(-24 * time.Hour), wantReinstate: true},
+		{name: "pending past its expiry is reinstated", status: "pending", expiresAt: now.Add(-time.Minute), wantReinstate: true},
+		{name: "pending before its expiry is a conflict", status: "pending", expiresAt: now.Add(time.Minute), wantConflict: true},
+		{name: "pending with no expiry (a legacy record) is never expired", status: "pending", wantConflict: true},
+		{name: "accepted with no member left is reinstated", status: "accepted", wantReinstate: true},
+		{name: "accepted when another member has a different email is reinstated", status: "accepted", members: []*model.CommitteeMember{member("someone.else@example.com")}, wantReinstate: true},
+		{name: "accepted when only another committee has a member with that email is reinstated", status: "accepted", members: []*model.CommitteeMember{memberIn("committee-2", "{email}")}, wantReinstate: true},
+		{name: "accepted while the member exists is a conflict", status: "accepted", members: []*model.CommitteeMember{member("{email}")}, wantConflict: true},
+		{name: "accepted while the member exists, whatever the spacing of the email, is a conflict", status: "accepted", members: []*model.CommitteeMember{member("  {email}  ")}, wantConflict: true},
+		{name: "accepted while the member exists, whatever the case of the email, is a conflict", status: "accepted", members: []*model.CommitteeMember{member("{EMAIL}")}, wantConflict: true},
+		{name: "a status that is not known is a conflict", status: "unknown", wantConflict: true},
+		{name: "accepted when the members cannot be listed is not reinstated", status: "accepted", listMembersErr: stderrors.New("storage unavailable")},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The mock repository is shared by every test in the package, so each case gets its own invitee,
+			// invite and member, and the injected failure is cleared when the case ends.
+			svc, _, repo := setupServiceTestWithRepo()
+			inviteUID := fmt.Sprintf("reinstate-invite-%d", i)
+			email := fmt.Sprintf("reinstate-%d@example.com", i)
+			storedEmail := tt.storedPadding + email + tt.storedPadding
+			repo.AddCommitteeInvite(&model.CommitteeInvite{
+				UID: inviteUID, CommitteeUID: committeeUID, InviteeEmail: storedEmail,
+				Status: tt.status, CreatedAt: now.Add(-48 * time.Hour), ExpiresAt: tt.expiresAt, Role: "member",
+			})
+			for _, m := range tt.members {
+				m.UID = fmt.Sprintf("reinstate-member-%d", i)
+				m.Email = strings.ReplaceAll(strings.ReplaceAll(m.Email, "{email}", email), "{EMAIL}", strings.ToUpper(email))
+				repo.AddCommitteeMember(m.CommitteeUID, m)
+			}
+			repo.ListMembersByEmailError = tt.listMembersErr
+			t.Cleanup(func() { repo.ListMembersByEmailError = nil })
+
+			result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
+				// Padded and capitalized: the conflict key trims and lowercases, so the invite must still be found.
+				UID: committeeUID, InviteeEmail: "  " + strings.ToUpper(email[:1]) + email[1:] + "  ", Role: stringPtr("chair"),
+			})
+
+			sender := svc.inviteSender.(*mockInviteSender)
+			stored, _, getErr := repo.GetInvite(context.Background(), inviteUID)
+			require.NoError(t, getErr)
+			invites, listErr := repo.ListInvites(context.Background(), committeeUID)
+			require.NoError(t, listErr)
+			forInvitee := 0
+			for _, inv := range invites {
+				if strings.EqualFold(strings.TrimSpace(inv.InviteeEmail), email) {
+					forInvitee++
+				}
+			}
+			assert.Equal(t, 1, forInvitee, "an invite is reinstated in place and never duplicated")
+
+			if tt.wantReinstate {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				assert.Equal(t, inviteUID, *result.UID, "the existing record is reinstated, not a new one")
+				assert.Equal(t, "pending", result.Status)
+				assert.Equal(t, "pending", stored.Status)
+				assert.Equal(t, "chair", stored.Role, "the role of the new invite is applied")
+				assert.WithinDuration(t, now.Add(model.InviteDefaultTTL), stored.ExpiresAt, time.Minute, "a fresh 30 day window starts now")
+				require.Len(t, sender.calls, 1, "a fresh invite email is sent")
+				assert.Equal(t, email, sender.calls[0].Recipient.Email, "the email goes to the address stored on the reinstated invite, without surrounding spaces")
+				return
+			}
+
+			require.Error(t, err)
+			assert.Equal(t, tt.status, stored.Status, "an invite that is not reinstated is left as it was")
+			assert.Equal(t, tt.expiresAt, stored.ExpiresAt, "its expiry is left as it was")
+			assert.Empty(t, sender.calls, "no email is sent")
+			var conflictErr *committeeservice.ConflictError
+			if tt.wantConflict {
+				require.ErrorAs(t, err, &conflictErr)
+			} else {
+				assert.False(t, stderrors.As(err, &conflictErr), "a storage failure is not reported as a conflict")
+			}
+		})
+	}
+}
+
+// staleInviteListStorage lists a snapshot of the invites, as storage did a moment before another
+// request changed one of them, and reads everything else from the wrapped storage.
+type staleInviteListStorage struct {
+	port.CommitteeReaderWriter
+	listed []*model.CommitteeInvite
+}
+
+func (s staleInviteListStorage) ListInvites(context.Context, string) ([]*model.CommitteeInvite, error) {
+	return s.listed, nil
+}
+
+// TestCreateInvite_ReinstateDecidesOnTheStoredInvite covers a race: the invite was declined when it
+// was listed, and the invitee accepts it before the reinstate reads it. The reinstate must go by
+// the stored invite, which is now accepted with a member, and leave it alone.
+func TestCreateInvite_ReinstateDecidesOnTheStoredInvite(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	const committeeUID, email = "committee-1", "stale-snapshot@example.com"
+
+	repo.AddCommitteeInvite(&model.CommitteeInvite{
+		UID: "stale-snapshot-invite", CommitteeUID: committeeUID, InviteeEmail: email,
+		Status: "accepted", CreatedAt: time.Now().Add(-time.Hour),
+	})
+	repo.AddCommitteeMember(committeeUID, &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+		UID: "stale-snapshot-member", CommitteeUID: committeeUID, Email: email, Status: "Active",
+	}})
+	svc.storage = staleInviteListStorage{
+		CommitteeReaderWriter: svc.storage,
+		listed: []*model.CommitteeInvite{{
+			UID: "stale-snapshot-invite", CommitteeUID: committeeUID, InviteeEmail: email, Status: "declined",
+		}},
+	}
+
+	_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{UID: committeeUID, InviteeEmail: email})
+
+	var conflictErr *committeeservice.ConflictError
+	require.ErrorAs(t, err, &conflictErr, "the stored invite is accepted and its member exists")
+	stored, _, getErr := repo.GetInvite(context.Background(), "stale-snapshot-invite")
+	require.NoError(t, getErr)
+	assert.Equal(t, "accepted", stored.Status, "the accepted invite is not overwritten with the stale copy")
+	assert.Empty(t, svc.inviteSender.(*mockInviteSender).calls, "no email is sent")
+}
+
+// TestCreateInvite_ReinstateWritesTheStoredInvite covers the same race when the stored invite is still
+// reinstatable: what is written back is the stored invite, with what the new request changes, and
+// nothing taken from the copy that was listed before another request changed it.
+func TestCreateInvite_ReinstateWritesTheStoredInvite(t *testing.T) {
+	svc, _, repo := setupServiceTestWithRepo()
+	const committeeUID, email = "committee-1", "stored-copy@example.com"
+
+	repo.AddCommitteeInvite(&model.CommitteeInvite{
+		UID: "stored-copy-invite", CommitteeUID: committeeUID, InviteeEmail: email,
+		Status: "declined", Role: "stored-role", CreatedAt: time.Now().Add(-time.Hour),
+	})
+	svc.storage = staleInviteListStorage{
+		CommitteeReaderWriter: svc.storage,
+		listed: []*model.CommitteeInvite{{
+			UID: "stored-copy-invite", CommitteeUID: committeeUID, InviteeEmail: email,
+			Status: "declined", Role: "role-from-the-stale-copy",
+		}},
+	}
+
+	result, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{UID: committeeUID, InviteeEmail: email})
+
+	require.NoError(t, err)
+	assert.Equal(t, "pending", result.Status)
+	stored, _, getErr := repo.GetInvite(context.Background(), "stored-copy-invite")
+	require.NoError(t, getErr)
+	assert.Equal(t, "stored-role", stored.Role, "the role comes from the stored invite, since the request does not change it")
+}
+
 func TestCreateInvite_InviteSenderFailureDoesNotFailRequest(t *testing.T) {
 	svc, _, _ := setupServiceTestWithRepo()
 	sender := &mockInviteSender{retErr: assert.AnError}
@@ -1640,23 +1839,39 @@ func TestCreateInvite_RecipientNameResolution(t *testing.T) {
 	})
 }
 
-func TestCreateInvite_NonRevokedDuplicateRejected(t *testing.T) {
-	for _, status := range []string{"pending", "declined", "accepted"} {
-		t.Run(status, func(t *testing.T) {
+// TestCreateInvite_LiveDuplicateRejected covers the invites that cannot be re-invited: one that is
+// still pending, whether or not it has an expiry, and an accepted one whose member is still in the
+// committee. (Declined, expired and member-less accepted invites are reinstated; see
+// TestCreateInvite_ReinstateByStatus.)
+func TestCreateInvite_LiveDuplicateRejected(t *testing.T) {
+	tests := []struct {
+		name         string
+		status       string
+		expiresAt    time.Time
+		memberExists bool
+	}{
+		{name: "pending without an expiry", status: "pending"},
+		{name: "pending before its expiry", status: "pending", expiresAt: time.Now().Add(time.Hour)},
+		{name: "accepted with its member in the committee", status: "accepted", memberExists: true},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			svc, _, repo := setupServiceTestWithRepo()
+			email := fmt.Sprintf("dup-%d@example.com", i)
 
-			existing := &model.CommitteeInvite{
-				UID:          "existing-invite",
-				CommitteeUID: "committee-1",
-				InviteeEmail: "dup@example.com",
-				Status:       status,
-				CreatedAt:    time.Now(),
+			repo.AddCommitteeInvite(&model.CommitteeInvite{
+				UID: fmt.Sprintf("dup-invite-%d", i), CommitteeUID: "committee-1", InviteeEmail: email,
+				Status: tt.status, CreatedAt: time.Now(), ExpiresAt: tt.expiresAt,
+			})
+			if tt.memberExists {
+				repo.AddCommitteeMember("committee-1", &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+					UID: fmt.Sprintf("dup-member-%d", i), CommitteeUID: "committee-1", Email: email, Status: "Active",
+				}})
 			}
-			repo.AddCommitteeInvite(existing)
 
 			_, err := svc.CreateInvite(context.Background(), &committeeservice.CreateInvitePayload{
 				UID:          "committee-1",
-				InviteeEmail: "dup@example.com",
+				InviteeEmail: email,
 			})
 
 			require.Error(t, err)
@@ -2411,35 +2626,72 @@ func TestSubmitApplication(t *testing.T) {
 }
 
 func TestSubmitApplication_RejectedAppReinstated(t *testing.T) {
-	svc, _, repo := setupServiceTestWithRepo()
-	repo.SetJoinMode("committee-1", "application")
+	for _, status := range []string{"rejected", "withdrawn"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			repo.SetJoinMode("committee-1", "application")
 
-	// Seed a rejected application
-	rejected := &model.CommitteeApplication{
-		UID:            "rejected-app",
-		CommitteeUID:   "committee-1",
-		ApplicantEmail: "reapplicant@example.com",
-		Status:         "rejected",
-		ReviewerNotes:  "not a good fit",
-		CreatedAt:      time.Now(),
+			// Seed a rejected or withdrawn application
+			rejected := &model.CommitteeApplication{
+				UID:            "rejected-app",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "reapplicant@example.com",
+				Status:         status,
+				ReviewerNotes:  "not a good fit",
+				CreatedAt:      time.Now(),
+			}
+			repo.AddCommitteeApplication(rejected)
+
+			svc.userReader = mockReaderForPrincipalEmail("reapplicant@example.com", "reapplicant@example.com")
+			newMsg := "I've improved since last time"
+			ctx := testCtx("reapplicant@example.com")
+			result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
+				UID:     "committee-1",
+				Message: &newMsg,
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			// Should return the existing application reinstated, not a new one
+			assert.Equal(t, rejected.UID, *result.UID)
+			assert.Equal(t, "pending", result.Status)
+			require.NotNil(t, result.Message)
+			assert.Equal(t, newMsg, *result.Message)
+		})
 	}
-	repo.AddCommitteeApplication(rejected)
+}
 
-	svc.userReader = mockReaderForPrincipalEmail("reapplicant@example.com", "reapplicant@example.com")
-	newMsg := "I've improved since last time"
-	ctx := testCtx("reapplicant@example.com")
-	result, err := svc.SubmitApplication(ctx, &committeeservice.SubmitApplicationPayload{
-		UID:     "committee-1",
-		Message: &newMsg,
-	})
+func TestSubmitApplication_ReinstateRecheck(t *testing.T) {
+	for _, status := range []string{"pending", "approved"} {
+		t.Run(status, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			repo.SetJoinMode("committee-1", "application")
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "moved-on-app",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "first.last@example.com",
+				Status:         "withdrawn",
+				CreatedAt:      time.Now(),
+			})
+			writer := mock.NewMockCommitteeReaderWriter(repo)
+			// Another request moves the record on between the listing and the re-read.
+			svc.storage = &applicationHookStore{CommitteeReaderWriter: writer, onGet: func() error {
+				app, rev, err := writer.GetApplication(context.Background(), "moved-on-app")
+				require.NoError(t, err)
+				app.Status = status
+				return writer.UpdateApplication(context.Background(), app, rev)
+			}}
 
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	// Should return the existing application reinstated, not a new one
-	assert.Equal(t, rejected.UID, *result.UID)
-	assert.Equal(t, "pending", result.Status)
-	require.NotNil(t, result.Message)
-	assert.Equal(t, newMsg, *result.Message)
+			svc.userReader = mockReaderForPrincipalEmail("first.last@example.com", "first.last@example.com")
+			_, err := svc.SubmitApplication(testCtx("first.last@example.com"), &committeeservice.SubmitApplicationPayload{UID: "committee-1"})
+
+			var conflictErr *committeeservice.ConflictError
+			require.ErrorAs(t, err, &conflictErr)
+			stored, _, getErr := repo.GetApplication(context.Background(), "moved-on-app")
+			require.NoError(t, getErr)
+			assert.Equal(t, status, stored.Status)
+		})
+	}
 }
 
 func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
@@ -2564,6 +2816,145 @@ func TestApproveApplication(t *testing.T) {
 		assert.Equal(t, model.IdentityLookupAbsent, member.IdentityLookup.Status)
 		assert.Empty(t, member.Username)
 	})
+
+	raceTests := []struct {
+		name        string
+		interleave  func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository)
+		failReread  bool
+		updateErr   error
+		deleteErr   error
+		wantErr     any
+		wantDeletes int
+		wantStatus  string
+	}{
+		{
+			name: "withdraw during member creation removes the created member",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 1,
+			wantStatus:  "withdrawn",
+		},
+		{
+			name: "withdraw and resubmit during member creation removes the created member",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, repo *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+				repo.SetJoinMode("committee-1", "application")
+				_, err = svc.SubmitApplication(testCtx("first.last@example.com"), &committeeservice.SubmitApplicationPayload{UID: "committee-1"})
+				require.NoError(t, err)
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 1,
+			wantStatus:  "pending",
+		},
+		{
+			name: "approved re-read keeps the member",
+			interleave: func(t *testing.T, _ *committeeServicesrvc, repo *mock.MockRepository) {
+				app, rev, err := repo.GetApplication(context.Background(), "app-approve-race")
+				require.NoError(t, err)
+				app.Status = "approved"
+				require.NoError(t, mock.NewMockCommitteeReaderWriter(repo).UpdateApplication(context.Background(), app, rev))
+			},
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 0,
+			wantStatus:  "approved",
+		},
+		{
+			name: "failed re-read keeps the member and returns the write error",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			failReread:  true,
+			wantErr:     new(*committeeservice.ConflictError),
+			wantDeletes: 0,
+			wantStatus:  "withdrawn",
+		},
+		{
+			name:        "pending re-read after an unknown write outcome keeps the member",
+			interleave:  func(*testing.T, *committeeServicesrvc, *mock.MockRepository) {},
+			updateErr:   errs.NewServiceUnavailable("write timed out"),
+			wantErr:     new(*committeeservice.ServiceUnavailableError),
+			wantDeletes: 0,
+			wantStatus:  "pending",
+		},
+		{
+			name: "failed member removal is not reported as a conflict",
+			interleave: func(t *testing.T, svc *committeeServicesrvc, _ *mock.MockRepository) {
+				_, err := svc.WithdrawApplication(testCtx("first.last@example.com"), &committeeservice.WithdrawApplicationPayload{
+					UID:            "committee-1",
+					ApplicationUID: "app-approve-race",
+				})
+				require.NoError(t, err)
+			},
+			deleteErr:   errs.NewUnexpected("delete failed"),
+			wantErr:     new(*committeeservice.InternalServerError),
+			wantDeletes: 1,
+			wantStatus:  "withdrawn",
+		},
+	}
+	for _, tt := range raceTests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, mockOrch, repo := setupServiceTestWithRepo()
+			svc.userReader = mockReaderForPrincipalEmail("first.last@example.com", "first.last@example.com")
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "app-approve-race",
+				CommitteeUID:   "committee-1",
+				ApplicantEmail: "first.last@example.com",
+				Status:         "pending",
+				CreatedAt:      time.Now(),
+			})
+			created := &model.CommitteeMember{
+				CommitteeMemberBase: model.CommitteeMemberBase{
+					UID:          "member-approve-race",
+					CommitteeUID: "committee-1",
+					Email:        "first.last@example.com",
+					Status:       "Active",
+				},
+			}
+			mockOrch.createMember = created
+			mockOrch.deleteError = tt.deleteErr
+			// Runs after approve read the pending application and before its status write.
+			hooked := &applicationHookStore{CommitteeReaderWriter: svc.storage, updateErr: tt.updateErr}
+			svc.storage = hooked
+			mockOrch.createMemberValidator = func(*model.CommitteeMember) error {
+				repo.AddCommitteeMember("committee-1", created)
+				tt.interleave(t, svc, repo)
+				if tt.failReread {
+					hooked.onGet = func() error { return errs.NewServiceUnavailable("storage unavailable") }
+				}
+				return nil
+			}
+
+			result, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "app-approve-race",
+			})
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+			require.ErrorAs(t, err, tt.wantErr)
+			require.Len(t, mockOrch.deleteCalls, tt.wantDeletes)
+			if tt.wantDeletes > 0 {
+				assert.Equal(t, "member-approve-race", mockOrch.deleteCalls[0].uid)
+			}
+			stored, _, getErr := repo.GetApplication(context.Background(), "app-approve-race")
+			require.NoError(t, getErr)
+			assert.Equal(t, tt.wantStatus, stored.Status)
+		})
+	}
 }
 
 func TestApproveApplication_WrongCommittee(t *testing.T) {
@@ -2853,6 +3244,106 @@ func TestRejectApplication(t *testing.T) {
 				require.NotNil(t, result)
 				assert.Equal(t, "rejected", result.Status)
 			}
+		})
+	}
+}
+
+func TestWithdrawApplication(t *testing.T) {
+	tests := []struct {
+		name          string
+		seedStatus    string
+		seedCommittee string
+		caller        string
+		wantErr       any
+	}{
+		{
+			name:          "applicant withdraws pending application",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+		},
+		{
+			name:          "caller email matched case-insensitively",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "First.Last@Example.com",
+		},
+		{
+			name:          "caller email matched ignoring surrounding spaces",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        " first.last@example.com ",
+		},
+		{
+			name:          "another user cannot withdraw",
+			seedStatus:    "pending",
+			seedCommittee: "committee-1",
+			caller:        "other.user@example.com",
+			wantErr:       new(*committeeservice.ForbiddenError),
+		},
+		{
+			name:          "application in another committee",
+			seedStatus:    "pending",
+			seedCommittee: "committee-2",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.NotFoundError),
+		},
+		{
+			name:          "cannot withdraw approved application",
+			seedStatus:    "approved",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+		{
+			name:          "cannot withdraw rejected application",
+			seedStatus:    "rejected",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+		{
+			name:          "cannot withdraw twice",
+			seedStatus:    "withdrawn",
+			seedCommittee: "committee-1",
+			caller:        "first.last@example.com",
+			wantErr:       new(*committeeservice.ConflictError),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, _, repo := setupServiceTestWithRepo()
+			svc.userReader = mockReaderForPrincipalEmail(tt.caller, tt.caller)
+
+			repo.AddCommitteeApplication(&model.CommitteeApplication{
+				UID:            "app-withdraw-test",
+				CommitteeUID:   tt.seedCommittee,
+				ApplicantEmail: "first.last@example.com",
+				Status:         tt.seedStatus,
+				CreatedAt:      time.Now(),
+			})
+
+			result, err := svc.WithdrawApplication(testCtx(tt.caller), &committeeservice.WithdrawApplicationPayload{
+				UID:            "committee-1",
+				ApplicationUID: "app-withdraw-test",
+			})
+
+			stored, _, getErr := repo.GetApplication(context.Background(), "app-withdraw-test")
+			require.NoError(t, getErr)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				require.ErrorAs(t, err, tt.wantErr)
+				assert.Equal(t, tt.seedStatus, stored.Status)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, "withdrawn", result.Status)
+			assert.Equal(t, "withdrawn", stored.Status)
 		})
 	}
 }
@@ -4589,4 +5080,134 @@ func TestDomainGroupWeeklyBriefToGoa_ErrorReason(t *testing.T) {
 			}
 		})
 	}
+}
+
+// setupUpdateLinkService builds the service over an in-memory link repository holding one folder and one link of
+// committee-1, the link at the root, created by a user other than the one the tests act as.
+func setupUpdateLinkService(t *testing.T) (*committeeServicesrvc, *mock.MockLinkRepository) {
+	t.Helper()
+	ctx := context.Background()
+	linkRepo := mock.NewMockLinkRepository()
+	require.NoError(t, linkRepo.CreateLinkFolder(ctx, &model.CommitteeLinkFolder{UID: "folder-aaa", CommitteeUID: "committee-1", Name: "Governance"}))
+	require.NoError(t, linkRepo.CreateLink(ctx, &model.CommitteeLink{
+		UID:          "link-1",
+		CommitteeUID: "committee-1",
+		Name:         "Old name",
+		URL:          "https://example.com/old",
+		Description:  "Old description",
+		CreatedBy:    &model.CommitteeUser{Username: "seed-creator"},
+		UpdatedBy:    &model.CommitteeUser{Username: "seed-creator"},
+	}))
+
+	svc := &committeeServicesrvc{
+		linkReader: internalservice.NewLinkReaderOrchestrator(internalservice.WithLinkReader(linkRepo)),
+		linkWriter: internalservice.NewLinkWriterOrchestrator(
+			internalservice.WithLinkWriter(linkRepo),
+			internalservice.WithLinkReaderForWriter(linkRepo),
+			internalservice.WithDocumentListerForWriter(mock.NewMockDocumentRepository()),
+		),
+	}
+	return svc, linkRepo
+}
+
+func TestUpdateCommitteeLink(t *testing.T) {
+	newPayload := func(mutate func(*committeeservice.UpdateCommitteeLinkPayload)) *committeeservice.UpdateCommitteeLinkPayload {
+		p := &committeeservice.UpdateCommitteeLinkPayload{
+			IfMatch: strPtr("1"),
+			UID:     strPtr("committee-1"),
+			LinkUID: strPtr("link-1"),
+			Name:    "New name",
+			URL:     "https://example.com/new",
+		}
+		if mutate != nil {
+			mutate(p)
+		}
+		return p
+	}
+
+	t.Run("replaces the link, moves it into the folder and stamps who changed it", func(t *testing.T) {
+		svc, linkRepo := setupUpdateLinkService(t)
+
+		res, err := svc.UpdateCommitteeLink(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeLinkPayload) {
+			p.Description = strPtr("New description")
+			p.FolderUID = strPtr("folder-aaa")
+		}))
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, "link-1", *res.UID)
+		assert.Equal(t, "New name", *res.Name)
+		assert.Equal(t, "https://example.com/new", *res.URL)
+		assert.Equal(t, "New description", *res.Description)
+		require.NotNil(t, res.FolderUID)
+		assert.Equal(t, "folder-aaa", *res.FolderUID)
+		require.NotNil(t, res.UpdatedBy)
+		assert.Equal(t, "first-last", *res.UpdatedBy.Username)
+		require.NotNil(t, res.CreatedBy)
+		assert.Equal(t, "seed-creator", *res.CreatedBy.Username, "who created the link must not change")
+
+		stored, revision, err := linkRepo.GetLink(context.Background(), "committee-1", "link-1")
+		require.NoError(t, err)
+		assert.Equal(t, "New name", stored.Name)
+		assert.Equal(t, uint64(2), revision)
+	})
+
+	t.Run("an omitted description is cleared and an omitted folder moves the link to the root", func(t *testing.T) {
+		svc, _ := setupUpdateLinkService(t)
+		_, err := svc.UpdateCommitteeLink(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeLinkPayload) {
+			p.FolderUID = strPtr("folder-aaa")
+		}))
+		require.NoError(t, err)
+
+		res, err := svc.UpdateCommitteeLink(testCtx("first-last"), newPayload(func(p *committeeservice.UpdateCommitteeLinkPayload) {
+			p.IfMatch = strPtr("2")
+		}))
+
+		require.NoError(t, err)
+		assert.Nil(t, res.FolderUID)
+		assert.Nil(t, res.Description)
+	})
+
+	t.Run("refuses a request it cannot act on, and changes nothing", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			ctx      context.Context
+			mutate   func(*committeeservice.UpdateCommitteeLinkPayload)
+			wantType string
+		}{
+			{name: "no If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.IfMatch = nil }, wantType: "bad request"},
+			{name: "an If-Match that is not a revision", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.IfMatch = strPtr("not-a-revision") }, wantType: "bad request"},
+			{name: "no identity in the token", ctx: context.Background(), mutate: nil, wantType: "bad request"},
+			{name: "a target folder that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.FolderUID = strPtr("no-such-folder") }, wantType: "bad request"},
+			{name: "a link that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.LinkUID = strPtr("no-such-link") }, wantType: "not found"},
+			{name: "a link of another committee", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.UID = strPtr("committee-2") }, wantType: "not found"},
+			{name: "a stale If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkPayload) { p.IfMatch = strPtr("7") }, wantType: "conflict"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				svc, linkRepo := setupUpdateLinkService(t)
+
+				res, err := svc.UpdateCommitteeLink(tt.ctx, newPayload(tt.mutate))
+
+				require.Error(t, err)
+				assert.Nil(t, res)
+				switch tt.wantType {
+				case "bad request":
+					var badRequest *committeeservice.BadRequestError
+					assert.ErrorAs(t, err, &badRequest)
+				case "not found":
+					var notFound *committeeservice.NotFoundError
+					assert.ErrorAs(t, err, &notFound)
+				case "conflict":
+					var conflict *committeeservice.ConflictError
+					assert.ErrorAs(t, err, &conflict)
+				}
+
+				stored, revision, getErr := linkRepo.GetLink(context.Background(), "committee-1", "link-1")
+				require.NoError(t, getErr)
+				assert.Equal(t, "Old name", stored.Name, "a refused update must not change the link")
+				assert.Equal(t, uint64(1), revision)
+			})
+		}
+	})
 }

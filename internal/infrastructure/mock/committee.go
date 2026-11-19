@@ -240,7 +240,8 @@ type MockRepository struct {
 	applicationRevisions map[string]uint64 // applicationUID -> revision
 	mu                   sync.RWMutex      // Protect concurrent access to maps
 	// Error injection for testing
-	ListApplicationsError error
+	ListApplicationsError   error
+	ListMembersByEmailError error
 }
 
 // ================== CommitteeBaseReader implementation ==================
@@ -468,6 +469,9 @@ func (m *MockRepository) ListMembersByEmail(ctx context.Context, email string) (
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.ListMembersByEmailError != nil {
+		return nil, m.ListMembersByEmailError
+	}
 	var members []*model.CommitteeMember
 	for _, committeeMembers := range m.committeeMembers {
 		for _, member := range committeeMembers {
@@ -1070,6 +1074,9 @@ func (w *MockCommitteeWriter) UpdateApplication(ctx context.Context, application
 	if _, exists := w.mock.committeeApplications[application.UID]; !exists {
 		return errors.NewNotFound(fmt.Sprintf("application with UID %s not found", application.UID))
 	}
+	if current := w.mock.applicationRevisions[application.UID]; current != 0 && current != revision {
+		return errors.NewConflict(fmt.Sprintf("application with UID %s has been modified", application.UID))
+	}
 
 	w.mock.committeeApplications[application.UID] = application
 	w.mock.applicationIndexKeys[application.BuildIndexKey(ctx)] = application
@@ -1247,6 +1254,7 @@ func (m *MockRepository) ClearAll() {
 	m.inviteRevisions = make(map[string]uint64)
 	m.applicationRevisions = make(map[string]uint64)
 	m.ListApplicationsError = nil
+	m.ListMembersByEmailError = nil
 }
 
 // GetCommitteeCount returns the total number of committees

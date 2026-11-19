@@ -27,27 +27,30 @@ This service contains the following API endpoints:
 - `/committees/{uid}/members`
   - `POST`: add a new member to a committee (requires email and other member details)
   - `POST /bulk`: add up to 100 members in one request; every submitted row gets an added, skipped, or failed result
+  - `GET`: list all members of a committee
   - `GET /{member_uid}`: retrieve a specific committee member by member UID
   - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
   - `DELETE /{member_uid}`: remove a member from a committee
 
 - `/committees/{uid}/invites`
-  - `POST`: create an invite, or reinstate a revoked invite for the same email
+  - `POST`: create an invite, or reinstate the existing invite for the same email when it is revoked, declined, expired, or accepted with its member no longer in the committee
   - `GET /{invite_uid}`: retrieve an invite
   - `POST /{invite_uid}/accept`: accept a pending or declined invite
   - `POST /{invite_uid}/decline`: decline a pending invite
   - `DELETE /{invite_uid}`: revoke a pending or declined invite
 
 - `/committees/{uid}/applications`
-  - `POST`: submit an application, or reinstate a rejected application
+  - `POST`: submit an application, or reinstate a rejected or withdrawn application
   - `GET /{application_uid}`: retrieve an application
   - `POST /{application_uid}/approve`: approve a pending application and create the member
   - `POST /{application_uid}/reject`: reject a pending application
+  - `POST /{application_uid}/withdraw`: withdraw your own pending application
 
 - `/committees/{uid}/links`
   - `GET`: list committee links
   - `POST`: create a committee link
   - `GET /{link_uid}`: retrieve a committee link
+  - `PUT /{link_uid}`: replace a committee link's name, url (http or https), description and folder; `If-Match` required. Moving a link is a `PUT` that names the target folder; an omitted folder is the root
   - `DELETE /{link_uid}`: delete a committee link
 
 - `/committees/{uid}/folders`
@@ -252,7 +255,7 @@ The listen port and bind interface are set with the `-p` (default `8080`) and `-
 
 | Environment Variable | Default | Required | Description |
 |---|---|---|---|
-| `STORAGE_MODE` | `kv` | no | Which store reads and writes: `kv` (NATS KV only), `dual` (reads KV; writes KV, then PostgreSQL), `dual-pg` (reads PostgreSQL; writes PostgreSQL, then KV) or `postgres` (PostgreSQL only); see [lfx-self-serve-ops#1197](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1197). Unset or blank is `kv`: the service reads and writes NATS KV exactly as it does without the setting. A value that is not one of the four, a mode that uses PostgreSQL without `POSTGRES_URL`, or a PostgreSQL that cannot be reached or migrated in such a mode, stops the service at startup with an error naming the cause. A mode is never replaced by `kv` silently. The effective mode is logged at startup (`storage mode`) and exported as the `committee.storage.mode` metric. |
+| `STORAGE_MODE` | `kv` | no | Which store reads and writes: `kv` (NATS KV only), `dual` (reads KV; writes KV, then PostgreSQL), `dual-pg` (reads PostgreSQL; writes PostgreSQL, then KV) or `postgres` (PostgreSQL only); see [lfx-self-serve-ops#1197](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1197). Unset or blank is `kv`: the service reads and writes NATS KV exactly as it does without the setting. A value that is not one of the four, a mode that uses PostgreSQL without `POSTGRES_URL` or the `PG*` variables, or a PostgreSQL that cannot be reached or migrated in such a mode, stops the service at startup with an error naming the cause. A mode is never replaced by `kv` silently. The effective mode is logged at startup (`storage mode`) and exported as the `committee.storage.mode` metric. |
 
 These tune the modes that write both stores (`dual` and `dual-pg`); they are not read in `kv` or `postgres`, and a value that is set and cannot be used stops the service at startup.
 
@@ -269,7 +272,9 @@ In `dual`, `dual-pg` and `postgres`, PostgreSQL is connected to and migrated at 
 | Environment Variable | Default | Required | Description |
 |---|---|---|---|
 | `POSTGRES_ENABLED` | `false` | no | Feature flag. Only the exact value `true` turns PostgreSQL on; otherwise the service never connects, even if `POSTGRES_URL` is set. When on in `kv` mode, a missing URL, bad settings, an unreachable database or a failed migration is logged as an error and the service keeps running without PostgreSQL, so the database cannot take the service down. (In the other storage modes the same failures stop the service.) |
-| `POSTGRES_URL` | — | when `POSTGRES_ENABLED=true` | PostgreSQL connection string. With the flag on, the service connects and applies the schema migrations at startup. The URL carries a password: it is logged and returned in errors with the password removed. |
+| `POSTGRES_URL` | — | when `POSTGRES_ENABLED=true`, unless the `PG*` variables are set | PostgreSQL connection string. With the flag on, the service connects and applies the schema migrations at startup. The URL carries a password: it is logged and returned in errors with the password removed. |
+| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | — (`PGPORT`: `5432`) | when `POSTGRES_ENABLED=true` or `STORAGE_MODE` needs PostgreSQL, and there is no `POSTGRES_URL` | The same connection as separate variables, used when `POSTGRES_URL` is not set (`POSTGRES_URL` wins when both are). The service builds the URL from them, as the newsletter service does, so the chart can read them from the keys of the RDS secret (`host`, `port`, `username`, `password`, `dbname`) and a rotated password reaches the pods through Reloader. `PGHOST`, `PGUSER`, `PGPASSWORD` and `PGDATABASE` are all needed, `PGHOST` must be a single host name or address (an IPv6 literal may carry its brackets), and `PGPORT` must be a number from 1 to 65535. They change nothing by themselves: in `kv` with `POSTGRES_ENABLED` off they are never read, and `POSTGRES_ENABLED` and `STORAGE_MODE` decide whether the service connects. |
+| `PGSSLMODE`, `PGSSLROOTCERT` | chart: `require` and empty; driver default `prefer` | no | TLS for the connection. The driver reads these for any connection string that names no `sslmode`, including `POSTGRES_URL` (the URL built from the `PG*` variables names none). The chart sets `require`, which encrypts and refuses a server without TLS but does not verify the certificate; `verify-full` needs the RDS CA bundle, which the chart does not mount yet, so it is not the default. Before PostgreSQL is enabled in staging or prod, mount the bundle and set `verify-full` with `PGSSLROOTCERT` (tracked in [lfx-self-serve-ops#1164](https://github.com/linuxfoundation/lfx-self-serve-ops/issues/1164)); use `disable` only for a local database without TLS. A `sslmode` inside `POSTGRES_URL` takes precedence. |
 | `POSTGRES_MAX_CONNS` | `10` | no | Connection pool size per process; must be a positive integer |
 | `POSTGRES_READINESS_CHECK` | `false` | no | Set to `true` to make `/readyz` also ping PostgreSQL; in `kv` it needs `POSTGRES_ENABLED=true` too, since the service does not otherwise connect (opt-in, so a database outage does not remove pods from rotation in `kv` and `dual`, where the service does not depend on it; in `dual-pg` and `postgres` the storage's own readiness already pings PostgreSQL and NATS, flag or not). If PostgreSQL is enabled but could not be set up, the check reports not ready |
 
@@ -386,7 +391,8 @@ In `dual`, `dual-pg` and `postgres`, PostgreSQL is connected to and migrated at 
 
    ```bash
    # From the root of the directory, run megalinter (https://megalinter.io/latest/mega-linter-runner/) to ensure the code passes the linter checks. The CI/CD has a check that uses megalinter.
-   npx mega-linter-runner .
+   # GOTOOLCHAIN=auto lets the Go linters fetch the go.mod toolchain, as in CI.
+   npx mega-linter-runner --env GOTOOLCHAIN=auto .
    ```
 
 7. **Docker build + K8**

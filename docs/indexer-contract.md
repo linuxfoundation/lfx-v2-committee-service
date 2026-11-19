@@ -223,7 +223,7 @@ _(none)_
 
 **Source struct:** `internal/domain/model/committee_member.go` — `CommitteeMember`
 
-**Indexed on:** create, update, delete of a committee member. A bulk member create publishes one create message per added row and none for skipped or failed rows. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+**Indexed on:** create, update, delete of a committee member. A bulk member create publishes one create message per added row and none for skipped or failed rows. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)). Also `ActionDeleted` from `committee-cli storage prune-orphans`, which deletes the members a deleted committee left behind in the `kv` and `dual` modes: it publishes only this indexer message, without the member deleted event and without a `member_remove`.
 
 Bulk member recovery resumes the original member inputs/UID and missing storage indexes, refreshing only the service-derived committee name/category and project UID/slug under the commit revision guard before electing one create publication attempt. A retirement-only cleanup error does not suppress the confirmed winner's publication outcome. Pending operations are not completed memberships, and completed retries do not replay publication. This preserves the best-effort delivery semantics above: a crash between storage completion and publication is not repaired by an automatic notification/event replay. See [recoverable bulk storage](nats-storage.md#recoverable-bulk-member-creation).
 
@@ -392,7 +392,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 | `organization` | object | Organization for the invitee (`id`, `name`, `website`) when provided on create |
 | `status` | string | Invite status (e.g., `pending`, `accepted`, `declined`, `revoked`) |
 | `inviter` | object (optional) | The user who created the invite (`name`, `username`, `email`, `avatar`), resolved from the authenticated principal at creation time; absent when the principal could not be resolved. Surfaced in-app so the invitee sees who invited them |
-| `expires_at` | timestamp (optional) | Invite link expiry (RFC3339). Set at fresh creation to `created_at + 30 days`, mirroring the invite-service default token TTL. On reinstate of a revoked invite, refreshed to `now + 30 days` (the original `created_at` is preserved, so this field is **not** always `created_at + 30 days`). Absent on legacy records created before this field existed |
+| `expires_at` | timestamp (optional) | Invite link expiry (RFC3339). Set at fresh creation to `created_at + 30 days`, mirroring the invite-service default token TTL. On reinstate of a revoked, declined, expired or member-less accepted invite, refreshed to `now + 30 days` (the original `created_at` is preserved, so this field is **not** always `created_at + 30 days`). Absent on legacy records created before this field existed |
 | `created_at` | timestamp | Creation time (RFC3339) |
 
 ### Tags
@@ -441,7 +441,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
-**Indexed on:** create and status updates of a committee application (reapply, approve, reject), and cascade `ActionDeleted` (plus KV record deletion) when the parent committee is deleted.
+**Indexed on:** create and status updates of a committee application (reapply, approve, reject, withdraw), and cascade `ActionDeleted` (plus KV record deletion) when the parent committee is deleted.
 
 ### Data Schema
 
@@ -452,7 +452,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 | `applicant_email` | string | Email address of the applicant |
 | `applicant_username` | string (optional) | LFID username of the applicant (omitted for email-only applicants) |
 | `message` | string | Application message from the applicant |
-| `status` | string | Application status (e.g., `pending`, `approved`, `rejected`) |
+| `status` | string | Application status (`pending`, `approved`, `rejected`, `withdrawn`) |
 | `reviewer_notes` | string | Notes left by the reviewer |
 | `organization` | object (optional) | Organization confirmed by the applicant at submission time |
 | `organization.id` | string (optional) | Organization ID |
@@ -509,7 +509,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLink`
 
-**Indexed on:** create and delete of a committee link. There is no link update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+**Indexed on:** create, update and delete of a committee link. `PUT /committees/{uid}/links/{link_uid}` publishes `ActionUpdated` with the whole link, so a rename, a changed URL or description, and a move all arrive as one message: a move changes the `folder_uid` tag and the `committee_link_folder` parent ref (a link moved to the root has neither). Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 

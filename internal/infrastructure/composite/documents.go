@@ -59,7 +59,11 @@ type Documents struct {
 	src, dst DocumentMetadataBackend
 }
 
-var _ port.CommitteeDocumentReaderWriter = (*Documents)(nil)
+var (
+	_ port.CommitteeDocumentReaderWriter = (*Documents)(nil)
+	// The link writer lists the documents to refuse deleting a folder that still holds one, and the service gets this store.
+	_ port.CommitteeDocumentLister = (*Documents)(nil)
+)
 
 // NewDocuments returns the composite of the documents for the mode; see New. kv is needed in every mode, for the files.
 func NewDocuments(mode Mode, kv DocumentKVBackend, pg DocumentMetadataBackend, opts ...Option) (*Documents, error) {

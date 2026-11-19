@@ -14,6 +14,10 @@ type CommitteeLinkWriter interface {
 	// CreateLink persists a link. A nil link, or one without a UID or a CommitteeUID, returns
 	// errs.Validation, and a uid that another link already holds errs.Conflict.
 	CreateLink(ctx context.Context, link *model.CommitteeLink) error
+	// UpdateLink replaces the link when the revision is still current: a stale revision returns
+	// errs.Conflict, a missing link errs.NotFound, and a nil link errs.Validation. The record is found
+	// by its uid alone, so the caller must already have checked that it belongs to link.CommitteeUID.
+	UpdateLink(ctx context.Context, link *model.CommitteeLink, revision uint64) error
 	// DeleteLink removes the link when the revision is still current: a stale revision returns
 	// errs.Conflict, and a link that is missing or belongs to another committee errs.NotFound.
 	DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error

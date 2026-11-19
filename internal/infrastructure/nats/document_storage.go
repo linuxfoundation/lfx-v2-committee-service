@@ -32,6 +32,10 @@ var _ interface {
 	DocumentCommittee(ctx context.Context, documentUID string) (string, error)
 } = (*documentStorage)(nil)
 
+// documentStorage is what the service gets in kv mode, so it must list the documents: the API stops at startup when its
+// document store is not a port.CommitteeDocumentLister.
+var _ port.CommitteeDocumentLister = (*documentStorage)(nil)
+
 type documentStorage struct {
 	client *NATSClient
 }
@@ -157,6 +161,14 @@ func (ds *documentStorage) DocumentNameExists(ctx context.Context, committeeUID,
 		return false, errs.NewUnexpected("failed to check document name", errGet)
 	}
 	return true, nil
+}
+
+// ListAllDocuments lists the committee's documents, or every document when committeeUID is empty. It is the same list the
+// audit sync uses (see storage.ListAllDocuments), exposed here because in kv mode this adapter is the whole document
+// store: the link writer lists the documents through it to refuse deleting a folder that still holds one. When some
+// documents fail to read it returns the ones it did read together with the error.
+func (ds *documentStorage) ListAllDocuments(ctx context.Context, committeeUID string) ([]*model.CommitteeDocument, error) {
+	return (&storage{client: ds.client}).ListAllDocuments(ctx, committeeUID)
 }
 
 // DeleteDocumentFile removes the file from the object store. A missing file is not an error.

@@ -362,6 +362,29 @@ func (s *committeeServicesrvc) GetCommitteeMember(ctx context.Context, p *commit
 	return res, nil
 }
 
+// ListCommitteeMembers returns every member of a committee (PCC-1657). Delegates to the same
+// ListMembersByCommittee secondary-index scan already used internally by LeaveCommittee and by
+// the NATS list-members handler; this just exposes it over HTTP for gateway-only consumers.
+func (s *committeeServicesrvc) ListCommitteeMembers(ctx context.Context, p *committeeservice.ListCommitteeMembersPayload) (res []*committeeservice.CommitteeMemberFullWithReadonlyAttributes, err error) {
+	slog.DebugContext(ctx, "committeeMemberService.list-committee-members", "committee_uid", p.UID)
+
+	if _, _, err := s.committeeReaderOrchestrator.GetBase(ctx, p.UID); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	members, err := s.committeeReaderOrchestrator.ListMembersByCommittee(ctx, p.UID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	result := make([]*committeeservice.CommitteeMemberFullWithReadonlyAttributes, 0, len(members))
+	for _, m := range members {
+		result = append(result, s.convertMemberDomainToFullResponse(m))
+	}
+
+	return result, nil
+}
+
 // GetOrgCommitteeSeats lists a B2B org's committee seats across the membership project family for the
 // Org Lens Board & Committee tab, paginated. The org filter is the sole scoping control (best-effort:
 // org_id is self-reported until LFXV2-330).
@@ -768,60 +791,73 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	}
 
 	// Create the invite; storage reports a conflict when one already exists for this email, in
-	// which case a revoked invite is reinstated instead
+	// which case the existing invite is reinstated instead when its status allows it
 	if errCreate := s.storage.CreateInvite(ctx, invite); errCreate != nil {
 		var conflictErr errors.Conflict
 		if !stderrors.As(errCreate, &conflictErr) {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Uniqueness conflict: look for a revoked invite to reinstate
+		// Uniqueness conflict: find the existing invite for this email that may be reinstated.
+		// Storage keeps one invite per committee and email, so there is at most one candidate.
 		existing, errList := s.storage.ListInvites(ctx, p.UID)
 		if errList != nil {
 			return nil, wrapError(ctx, errList)
 		}
-		var revokedInvite *model.CommitteeInvite
-		for _, inv := range existing {
-			if strings.EqualFold(inv.InviteeEmail, p.InviteeEmail) && inv.Status == "revoked" {
-				revokedInvite = inv
+		now := time.Now().UTC()
+		invitee := strings.TrimSpace(p.InviteeEmail) // the conflict key trims and lowercases the email, so match the same way
+		var existingInvite *model.CommitteeInvite
+		var rev uint64
+		for _, listed := range existing {
+			if !strings.EqualFold(strings.TrimSpace(listed.InviteeEmail), invitee) {
+				continue
+			}
+			// Decide on the stored invite, not the listed copy, and write it back under the revision it was
+			// read at, so an accept or a revoke that lands in between is not overwritten.
+			current, currentRev, errGet := s.storage.GetInvite(ctx, listed.UID)
+			if errGet != nil {
+				return nil, wrapError(ctx, errGet)
+			}
+			reinstate, errCheck := s.canReinstateInvite(ctx, current, now)
+			if errCheck != nil {
+				return nil, wrapError(ctx, errCheck)
+			}
+			if reinstate {
+				existingInvite, rev = current, currentRev
 				break
 			}
 		}
-		if revokedInvite == nil {
+		if existingInvite == nil {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Reinstate the revoked invite by setting it back to pending
-		_, rev, errGet := s.storage.GetInvite(ctx, revokedInvite.UID)
-		if errGet != nil {
-			return nil, wrapError(ctx, errGet)
-		}
-		revokedInvite.Status = "pending"
-		revokedInvite.CommitteeName = committeeBase.Name
-		revokedInvite.OrganizationRequired = orgRequired
+		// Reinstate the existing invite by setting it back to pending
+		existingInvite.Status = "pending"
+		existingInvite.CommitteeName = committeeBase.Name
+		existingInvite.OrganizationRequired = orgRequired
 		// Reinstating is effectively re-sending the invite: start a fresh expiry window from
 		// now. If a new inviter resolved (non-nil), refresh it; otherwise keep the stored
 		// attribution rather than overwriting valid data with nil (matches the pattern in
 		// enrichInviteFromCommittee, which deliberately leaves fields unchanged on lookup failure).
 		if inviter != nil {
-			revokedInvite.Inviter = inviter
+			existingInvite.Inviter = inviter
 		}
-		revokedInvite.ExpiresAt = time.Now().UTC().Add(model.InviteDefaultTTL)
+		existingInvite.ExpiresAt = time.Now().UTC().Add(model.InviteDefaultTTL)
 		if p.Role != nil {
-			revokedInvite.Role = *p.Role
+			existingInvite.Role = *p.Role
 		}
 		if p.Organization != nil {
-			revokedInvite.Organization = organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
+			existingInvite.Organization = organizationPtrFromFields(inviteOrgID, inviteOrgName, inviteOrgWebsite)
 		}
-		if errUpdate := s.storage.UpdateInvite(ctx, revokedInvite, rev); errUpdate != nil {
+		if errUpdate := s.storage.UpdateInvite(ctx, existingInvite, rev); errUpdate != nil {
 			return nil, wrapError(ctx, errUpdate)
 		}
 
-		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync)
-		s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, revokedInvite, p.XSync, nil)
-		s.dispatchInviteEmail(ctx, committeeBase, revokedInvite)
+		s.publishInviteIndexerMessage(ctx, model.ActionUpdated, existingInvite, p.XSync)
+		s.publishInviteAccessControlMessage(ctx, model.ActionUpdated, existingInvite, p.XSync, nil)
+		s.dispatchInviteEmail(ctx, committeeBase, existingInvite)
 
-		return s.convertInviteDomainToResponse(revokedInvite), nil
+		return s.convertInviteDomainToResponse(existingInvite), nil
 	}
 
 	s.publishInviteIndexerMessage(ctx, model.ActionCreated, invite, p.XSync)
@@ -829,6 +865,41 @@ func (s *committeeServicesrvc) CreateInvite(ctx context.Context, p *committeeser
 	s.dispatchInviteEmail(ctx, committeeBase, invite)
 
 	return s.convertInviteDomainToResponse(invite), nil
+}
+
+// canReinstateInvite reports whether a new POST for an invite's email may reinstate the existing
+// invite to pending instead of returning a conflict:
+//   - revoked and declined invites;
+//   - pending invites whose stored, non-zero expires_at has passed (a zero expires_at is a legacy
+//     record and is never treated as expired);
+//   - accepted invites whose member is no longer in the committee.
+//
+// Anything else, a pending invite that has not expired or an accepted invite whose member still
+// exists, stays a conflict. The member check uses the same lookup as AcceptInvite, the members
+// with the invitee's email, and fails closed: that lookup returns an error when any of them cannot
+// be read, and the invite is then not reinstated, so a member who may still exist is never invited
+// a second time. (Listing the committee's members would not do: the KV adapter skips a member it
+// cannot read and returns no error.)
+func (s *committeeServicesrvc) canReinstateInvite(ctx context.Context, invite *model.CommitteeInvite, now time.Time) (bool, error) {
+	switch invite.Status {
+	case "revoked", "declined":
+		return true, nil
+	case "pending":
+		return !invite.ExpiresAt.IsZero() && now.After(invite.ExpiresAt), nil
+	case "accepted":
+		members, err := s.storage.ListMembersByEmail(ctx, invite.InviteeEmail)
+		if err != nil {
+			return false, err
+		}
+		for _, member := range members {
+			if member != nil && strings.EqualFold(member.CommitteeUID, invite.CommitteeUID) {
+				return false, nil
+			}
+		}
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 // inviteDispatchTimeout is the total budget for a single invite dispatch (name
@@ -1309,35 +1380,38 @@ func (s *committeeServicesrvc) SubmitApplication(ctx context.Context, p *committ
 	}
 
 	// Create the application; storage reports a conflict when one already exists for this
-	// applicant, in which case a rejected application is reinstated instead
+	// applicant, in which case a rejected or withdrawn application is reinstated instead
 	if errCreate := s.storage.CreateApplication(ctx, application); errCreate != nil {
 		var conflictErr errors.Conflict
 		if !stderrors.As(errCreate, &conflictErr) {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Uniqueness conflict: look for a rejected application to reinstate
+		// Uniqueness conflict: look for a rejected or withdrawn application to reinstate
 		existing, errList := s.storage.ListApplications(ctx, p.UID)
 		if errList != nil {
 			return nil, wrapError(ctx, errList)
 		}
-		var rejectedApp *model.CommitteeApplication
+		var closedApp *model.CommitteeApplication
 		for _, app := range existing {
-			if strings.EqualFold(app.ApplicantEmail, email) && app.Status == "rejected" {
-				rejectedApp = app
+			if strings.EqualFold(strings.TrimSpace(app.ApplicantEmail), strings.TrimSpace(email)) && (app.Status == "rejected" || app.Status == "withdrawn") {
+				closedApp = app
 				break
 			}
 		}
-		if rejectedApp == nil {
+		if closedApp == nil {
 			return nil, wrapError(ctx, errCreate)
 		}
 
-		// Reinstate the rejected application by setting it back to pending.
+		// Reinstate the application by setting it back to pending.
 		// Use the fresh record from GetApplication as the write base to avoid
 		// overwriting concurrent status/notes changes with the stale list snapshot.
-		current, rev, errGet := s.storage.GetApplication(ctx, rejectedApp.UID)
+		current, rev, errGet := s.storage.GetApplication(ctx, closedApp.UID)
 		if errGet != nil {
 			return nil, wrapError(ctx, errGet)
+		}
+		if current.Status != "rejected" && current.Status != "withdrawn" {
+			return nil, wrapError(ctx, errCreate)
 		}
 		current.Status = "pending"
 		current.ReviewerNotes = ""
@@ -1433,6 +1507,39 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
+		// Remove the member this approval created only when its write provably did not land
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		current, _, errGet := s.storage.GetApplication(cleanupCtx, application.UID)
+		if errGet != nil {
+			slog.ErrorContext(ctx, "approval status write and re-read failed; created member kept for manual reconciliation",
+				"error", errGet,
+				"committee_uid", application.CommitteeUID,
+				"application_uid", application.UID,
+				"member_uid", response.UID,
+			)
+			return nil, wrapError(ctx, err)
+		}
+		if current.Status == "approved" {
+			return nil, wrapError(ctx, err)
+		}
+		// A pending re-read proves nothing unless the store rejected the write on its revision
+		var revisionConflict errors.Conflict
+		if current.Status == "pending" && !stderrors.As(err, &revisionConflict) {
+			slog.ErrorContext(ctx, "approval status write outcome unknown; created member kept for manual reconciliation",
+				"error", err,
+				"committee_uid", application.CommitteeUID,
+				"application_uid", application.UID,
+				"member_uid", response.UID,
+			)
+			return nil, wrapError(ctx, err)
+		}
+		if errRemove := s.removeApprovedMember(cleanupCtx, application.CommitteeUID, response.UID); errRemove != nil {
+			return nil, wrapError(ctx, errors.NewUnexpected("approval failed and removing the created member also failed; manual recovery required", err, errRemove))
+		}
+		if current.Status != "pending" {
+			return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
+		}
 		return nil, wrapError(ctx, err)
 	}
 
@@ -1444,6 +1551,22 @@ func (s *committeeServicesrvc) ApproveApplication(ctx context.Context, p *commit
 	}
 
 	return s.convertMemberDomainToFullResponse(response), nil
+}
+
+// removeApprovedMember deletes the member an approval created when its status write did not land.
+func (s *committeeServicesrvc) removeApprovedMember(ctx context.Context, committeeUID, memberUID string) error {
+	rev, err := s.storage.GetMemberRevision(ctx, memberUID)
+	if err == nil {
+		err = s.committeeWriterOrchestrator.DeleteMember(ctx, committeeUID, memberUID, rev, false, true)
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to remove member created by an approval whose status write did not land",
+			"error", err,
+			"committee_uid", committeeUID,
+			"member_uid", memberUID,
+		)
+	}
+	return err
 }
 
 // RejectApplication rejects a pending application
@@ -1480,6 +1603,46 @@ func (s *committeeServicesrvc) RejectApplication(ctx context.Context, p *committ
 	if p.Notify {
 		s.publishApplicationEvent(ctx, model.ActionUpdated, application)
 	}
+
+	return s.convertApplicationDomainToResponse(application), nil
+}
+
+// WithdrawApplication lets the applicant withdraw their own pending application
+func (s *committeeServicesrvc) WithdrawApplication(ctx context.Context, p *committeeservice.WithdrawApplicationPayload) (*committeeservice.CommitteeApplicationWithReadonlyAttributes, error) {
+	slog.DebugContext(ctx, "committeeService.withdraw-application",
+		"committee_uid", p.UID,
+		"application_uid", p.ApplicationUID,
+	)
+
+	application, rev, err := s.storage.GetApplication(ctx, p.ApplicationUID)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	if application.CommitteeUID != p.UID {
+		return nil, wrapError(ctx, errors.NewNotFound("application not found in this committee"))
+	}
+
+	// Enforce application ownership: only the applicant can withdraw their own application
+	email, err := s.resolveCallerEmail(ctx)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+	if !strings.EqualFold(strings.TrimSpace(email), strings.TrimSpace(application.ApplicantEmail)) {
+		return nil, wrapError(ctx, errors.NewForbidden("you are not the applicant for this application"))
+	}
+
+	if application.Status != "pending" {
+		return nil, wrapError(ctx, errors.NewConflict("application has already been processed"))
+	}
+
+	application.Status = "withdrawn"
+	if err := s.storage.UpdateApplication(ctx, application, rev); err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	s.publishApplicationIndexerMessage(ctx, model.ActionUpdated, application, false)
+	s.publishApplicationAccessControlMessage(ctx, application, nil)
 
 	return s.convertApplicationDomainToResponse(application), nil
 }
@@ -2700,6 +2863,44 @@ func (s *committeeServicesrvc) GetCommitteeLink(ctx context.Context, p *committe
 		CommitteeLink: domainLinkToGoa(link),
 		Etag:          &revisionStr,
 	}, nil
+}
+
+// UpdateCommitteeLink replaces a link's name, URL, description and folder. The request carries all of them: an
+// omitted description clears it and an omitted folder_uid moves the link to the root, so moving a link is an update
+// that names the target folder.
+func (s *committeeServicesrvc) UpdateCommitteeLink(ctx context.Context, p *committeeservice.UpdateCommitteeLinkPayload) (res *committeeservice.CommitteeLinkWithReadonlyAttributes, err error) {
+	slog.DebugContext(ctx, "committeeService.update-committee-link", "committee_uid", p.UID, "link_uid", p.LinkUID)
+
+	parsedRevision, err := etagValidator(p.IfMatch)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag", "error", err, "etag", p.IfMatch, "link_uid", p.LinkUID)
+		return nil, wrapError(ctx, err)
+	}
+
+	_, updatedBy := s.stampAuditUsers(ctx)
+	if updatedBy == nil {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity from token"))
+	}
+
+	link := &model.CommitteeLink{
+		UID:          *p.LinkUID,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		URL:          p.URL,
+		FolderUID:    p.FolderUID,
+		UpdatedBy:    updatedBy,
+	}
+	if p.Description != nil {
+		link.Description = *p.Description
+	}
+
+	updated, err := s.linkWriter.UpdateLink(ctx, link, parsedRevision, p.XSync)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	updated.CreatedBy, updated.UpdatedBy = s.normalizeAuditUsers(ctx, updated.CreatedBy, updated.UpdatedBy, "", "")
+	return domainLinkToGoa(updated), nil
 }
 
 // DeleteCommitteeLink removes a link from a committee.

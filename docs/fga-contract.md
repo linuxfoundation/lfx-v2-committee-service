@@ -134,7 +134,7 @@ Published to `lfx.fga-sync.member_remove` when a committee member is deleted and
 
 ### Delete
 
-On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` with only the committee `uid` — all FGA tuples for `committee:{uid}` are removed by the fga-sync service.
+On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` with only the committee `uid` — all FGA tuples for `committee:{uid}` are removed by the fga-sync service. That is why `committee-cli storage prune-orphans`, which deletes the members a deleted committee left behind, sends no `member_remove`: their tuples were removed with the committee.
 
 ---
 
@@ -142,9 +142,9 @@ On delete, a `delete_access` message is sent to `lfx.fga-sync.delete_access` wit
 
 **Source struct:** `internal/domain/model/CommitteeApplication`
 
-**Synced on:** submit (create or reapply), approve, and reject of a committee application, and cascade `delete_access` when the parent committee is deleted.
+**Synced on:** submit (create or reapply), approve, reject, and withdraw of a committee application, and cascade `delete_access` when the parent committee is deleted.
 
-### update_access (Submit / Approve / Reject)
+### update_access (Submit / Approve / Reject / Withdraw)
 
 Published to `lfx.fga-sync.update_access` whenever a `committee_application` object is created or updated.
 
@@ -182,7 +182,7 @@ When a committee is deleted, `committeeWriterOrchestrator.Delete` lists all `com
 - An indexer `ActionDeleted` message to `lfx.index.committee_application` (removes the OpenSearch document).
 - A `delete_access` message to `lfx.fga-sync.delete_access` with `object_type: committee_application` (removes all FGA tuples for that application).
 
-Both messages are published fire-and-forget (`X-Sync: false`) as part of the same concurrent worker pool as the committee's own deletion messages. The application's KV record is also removed from storage in the same pool call. If `ListApplications` fails the cascade is skipped with a critical-priority warning; the committee delete itself still succeeds. There is no explicit withdraw or delete endpoint — cascade on committee delete is the only current callsite for `delete_access` on `committee_application`.
+Both messages are published fire-and-forget (`X-Sync: false`) as part of the same concurrent worker pool as the committee's own deletion messages. The application's KV record is also removed from storage in the same pool call. If `ListApplications` fails the cascade is skipped with a critical-priority warning; the committee delete itself still succeeds. Withdrawing an application keeps the object (see the event summary), so cascade on committee delete is the only current callsite for `delete_access` on `committee_application`.
 
 When the store removes a committee's children itself (the PostgreSQL store's `DeleteCommitteeCascade`), the applications
 are the ones it reports as removed, `ListApplications` is not called and no per-application record delete is made; the
@@ -199,9 +199,10 @@ context detached from the request, at most 32 at a time, and a failure of one do
 | Event | Object Type | Subject | Notes |
 |---|---|---|---|
 | Submit committee application | `committee_application` | `lfx.fga-sync.update_access` | `applicant` relation omitted when applicant has no LFID yet |
-| Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic |
+| Reapply (reinstated from rejected or withdrawn) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their rejected application |
+| Withdraw committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can still view their withdrawn application |
 | Delete parent committee (cascade) | `committee_application` | `lfx.fga-sync.delete_access` + `lfx.index.committee_application` | One pair per application, plus KV record deletion (none when the store cascades); fire-and-forget |
 
 ---
@@ -268,9 +269,10 @@ this branch; on a plain invite delete, and with the KV store, it has no callsite
 | Delete parent committee (cascade to invites) | `committee_invite` | `lfx.fga-sync.delete_access` | One message per invite, only when the store removes the committee's children itself (PostgreSQL); fire-and-forget |
 | LFID registered (`lfx.invite-service.invite_accepted`) | `committee_invite` | `lfx.fga-sync.update_access` | Publishes `invitee` relation for every `committee_invite` (any status) whose `InviteeEmail` matches the accepted email — grants visibility to all invites, including already-accepted ones |
 | Submit committee application | `committee_application` | `lfx.fga-sync.update_access` | `applicant` relation omitted when applicant has no LFID yet |
-| Reapply (reinstated from rejected) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic as submit |
+| Reapply (reinstated from rejected or withdrawn) | `committee_application` | `lfx.fga-sync.update_access` | Same applicant-resolution logic as submit |
 | Approve committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their approved application |
 | Reject committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their rejected application |
+| Withdraw committee application | `committee_application` | `lfx.fga-sync.update_access` | Tuple retained so applicant can view their withdrawn application |
 | Delete committee (cascade to applications) | `committee_application` | `lfx.fga-sync.delete_access` | One message per application plus KV record deletion; fire-and-forget; skipped if `ListApplications` fails. With a store that cascades, the applications come from the store and there is no `ListApplications` or KV record deletion |
 
 Pending bulk recovery snapshots are selected before shared current group and

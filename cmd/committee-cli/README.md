@@ -23,9 +23,9 @@ committee-cli <command> <subcommand> [subcommand flags]
 | `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch base URL (`sync member-cdp-org-id`) |
 | `OPENSEARCH_INDEX` | `resources` | OpenSearch resources index (`sync member-cdp-org-id`) |
 | `LOG_LEVEL` | `debug` | Log verbosity (e.g. `info`) |
-| `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate`, `storage verify` and `storage flip`, and by every command in `dual`, `dual-pg` and `postgres`. Holds a credential and is never logged |
+| `POSTGRES_URL` | | PostgreSQL connection string; required by `storage migrate`, `storage verify` and `storage flip`, and by every command in `dual`, `dual-pg` and `postgres`. Holds a credential and is never logged. Instead of it you can set `PGHOST`, `PGUSER`, `PGPASSWORD` and `PGDATABASE` (and `PGPORT`, default `5432`), which the CLI turns into the same connection; `POSTGRES_URL` wins when both are set. `PGSSLMODE` and `PGSSLROOTCERT` choose TLS |
 | `POSTGRES_MAX_CONNS` | `10` | PostgreSQL pool size (`storage migrate`, `storage verify`, `storage flip`, and every command in `dual`, `dual-pg` and `postgres`). Those modes refuse a pool of one connection, because a member scan holds a connection while the command reads the store again |
-| `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or a mode that needs PostgreSQL without `POSTGRES_URL` (or with a PostgreSQL that cannot be reached or is not migrated), stops a command that connects before it runs; commands that need no infrastructure ignore it. In `dual`, `dual-pg` and `postgres` the commands that write committee data write through the composite store, so a change reaches both stores; the audit syncs go through the composite too, and only the KV maintenance commands (the index backfillers, the exports, and `storage migrate`, `verify` and `flip`) use KV in every mode |
+| `STORAGE_MODE` | `kv` | The store mode, shared with the API (`kv`, `dual`, `dual-pg`, `postgres`). Unset is `kv`, as before. A value that is not recognized, or a mode that needs PostgreSQL without `POSTGRES_URL` or the `PG*` variables (or with a PostgreSQL that cannot be reached or is not migrated), stops a command that connects before it runs; commands that need no infrastructure ignore it. In `dual`, `dual-pg` and `postgres` the commands that write committee data write through the composite store, so a change reaches both stores; the audit syncs go through the composite too, and only the KV maintenance commands (the index backfillers, the exports, and `storage migrate`, `verify` and `flip`) use KV in every mode |
 | `STORAGE_READ_COMPARE_RATE`, `STORAGE_COMPARE_TIMEOUT`, `STORAGE_SECONDARY_WRITE_TIMEOUT` | `0.01`, `2s`, `3s` | Tune `dual` and `dual-pg`, as for the API; not read in the other modes |
 
 ### Commands
@@ -720,6 +720,30 @@ Only the members, expecting the orphans to have been copied:
 ```sh
 NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee   committee-cli storage verify --entity=members --include-orphans
 ```
+
+#### `storage prune-orphans`
+
+Deletes the committee members whose committee no longer exists in KV. KV and `dual` mode never delete a committee's members with it (only the PostgreSQL-primary modes do), so they stay behind, can never be listed again, and make `storage verify` report `orphans(postgresql)` for the copies in PostgreSQL: the rows that stop the `committee_uid` foreign key being added.
+
+It is **a dry run unless `--apply` is given**: it lists the orphans, grouped by committee, and deletes nothing. With `--apply` each orphan is handled in this order: the indexer is told to drop its document, then the member is deleted through the stores of the storage mode (in `dual` mode KV first, at the revision the scan read, and then PostgreSQL), and in `dual` mode PostgreSQL is read afterwards, because the composite store only logs a failed PostgreSQL delete: a row that is still there is deleted directly, and counted as failed if that fails too. The indexer goes first so that a failure at any step leaves the member where the next run finds it again, and a rerun repeats the steps (they are idempotent) and never leaves a stale search document behind. It does **not** publish the member deleted event or change any access tuple. The event notifies the person, and nobody should be told that they were removed from a committee that was deleted long ago; its other consumers have already handled the committee's own delete. The access tuples of a deleted committee are removed by that committee's `delete_access` (see `docs/fga-contract.md`).
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--apply` | `false` | Delete the orphans; without it the run only reports them |
+| `--max` | `1000` | Refuse to delete more than this many members in one run, so a scan that wrongly finds a store orphaned deletes nothing; check the list, then raise it |
+
+In `dual` mode the scan covers PostgreSQL too: a member only PostgreSQL holds (its KV record was deleted, and the PostgreSQL delete was lost) is found and deleted like the others, and is reported as `only in PostgreSQL`. A scan that cannot read every committee or member deletes nothing, and so does a KV with no committees at all. The committee list it compares the members with comes from a key listing that can end early without an error, so before anything is deleted, and in a dry run too, it reads every committee the orphans point at, one by one: if any of them still exists, or cannot be read, the run stops with an error and deletes nothing. A member that changed since the scan (a stale revision) is reported as failed and left alone, and a member that is already gone counts as such.
+
+**Exit code:** `0` when every orphan was deleted (or the run was a dry run); `1` if any delete or any indexer message failed, in which case run it again.
+
+**Output:** the number of orphans and committees, the committees with the most orphans (up to 50), and with `--apply` `deleted`, `already_gone`, `failed` and `indexer_failed`; the failures are in the log.
+
+```bash
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee STORAGE_MODE=dual   committee-cli storage prune-orphans
+NATS_URL=nats://localhost:4222 POSTGRES_URL=postgres://user:password@localhost:5432/committee STORAGE_MODE=dual   committee-cli storage prune-orphans --apply
+```
+
+It runs only with `STORAGE_MODE=kv` or `dual`, the modes that leave orphans behind: in the PostgreSQL-primary modes the delete goes to PostgreSQL first, which issues its own revisions, and KV is not the store that says whether a committee exists. Run it with the mode the service runs with, so the deletes reach both stores; in `kv` mode only KV is changed. The member list of KV is read with a key listing that can, rarely, end early without an error, which can only make a run find fewer orphans and never delete a member of a committee that exists: run `storage verify` afterwards, and run the command again if it still reports member orphans.
 
 #### `storage flip`
 

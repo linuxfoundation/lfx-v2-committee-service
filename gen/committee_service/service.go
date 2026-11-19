@@ -41,6 +41,8 @@ type Service interface {
 	BulkCreateCommitteeMembers(context.Context, *BulkCreateCommitteeMembersPayload) (res *CommitteeMemberBulkCreateResult, err error)
 	// Get a specific committee member by UID
 	GetCommitteeMember(context.Context, *GetCommitteeMemberPayload) (res *GetCommitteeMemberResult, err error)
+	// List all members of a committee
+	ListCommitteeMembers(context.Context, *ListCommitteeMembersPayload) (res []*CommitteeMemberFullWithReadonlyAttributes, err error)
 	// List a B2B organization's committee seats across the membership project
 	// family (Org Lens Board & Committee tab)
 	GetOrgCommitteeSeats(context.Context, *GetOrgCommitteeSeatsPayload) (res *OrgCommitteeSeatPage, err error)
@@ -69,6 +71,8 @@ type Service interface {
 	ApproveApplication(context.Context, *ApproveApplicationPayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Reject a pending application
 	RejectApplication(context.Context, *RejectApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
+	// Withdraw your own pending application
+	WithdrawApplication(context.Context, *WithdrawApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error)
 	// Self-join a committee (only works when join_mode is open)
 	JoinCommittee(context.Context, *JoinCommitteePayload) (res *CommitteeMemberFullWithReadonlyAttributes, err error)
 	// Leave a committee
@@ -79,6 +83,9 @@ type Service interface {
 	ListCommitteeLinks(context.Context, *ListCommitteeLinksPayload) (res []*CommitteeLinkWithReadonlyAttributes, err error)
 	// Add a URL link to a committee
 	CreateCommitteeLink(context.Context, *CreateCommitteeLinkPayload) (res *CommitteeLinkWithReadonlyAttributes, err error)
+	// Replace a committee link's name, URL, description and folder (requires the
+	// complete set of mutable fields)
+	UpdateCommitteeLink(context.Context, *UpdateCommitteeLinkPayload) (res *CommitteeLinkWithReadonlyAttributes, err error)
 	// Delete a link from a committee
 	DeleteCommitteeLink(context.Context, *DeleteCommitteeLinkPayload) (err error)
 	// Get a single folder for a committee
@@ -88,7 +95,7 @@ type Service interface {
 	// Create a folder to organize committee links
 	CreateCommitteeLinkFolder(context.Context, *CreateCommitteeLinkFolderPayload) (res *CommitteeLinkFolderWithReadonlyAttributes, err error)
 	// Delete a folder from a committee. Returns BadRequest if the folder contains
-	// links.
+	// links or documents.
 	DeleteCommitteeLinkFolder(context.Context, *DeleteCommitteeLinkFolderPayload) (err error)
 	// Upload a file document to a committee
 	UploadCommitteeDocument(context.Context, *UploadCommitteeDocumentPayload) (res *CommitteeDocumentWithReadonlyAttributes, err error)
@@ -164,7 +171,7 @@ const ServiceName = "committee-service"
 // MethodNames lists the service method names as defined in the design. These
 // are the same values that are set in the endpoint request contexts under the
 // MethodKey key.
-var MethodNames = [43]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "bulk-create-committee-members", "get-committee-member", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
+var MethodNames = [46]string{"create-committee", "get-committee-base", "update-committee-base", "delete-committee", "get-committee-settings", "update-committee-settings", "readyz", "livez", "create-committee-member", "bulk-create-committee-members", "get-committee-member", "list-committee-members", "get-org-committee-seats", "reassign-org-committee-seat", "update-committee-member", "delete-committee-member", "get-invite", "create-invite", "revoke-invite", "accept-invite", "decline-invite", "get-application", "submit-application", "approve-application", "reject-application", "withdraw-application", "join-committee", "leave-committee", "get-committee-link", "list-committee-links", "create-committee-link", "update-committee-link", "delete-committee-link", "get-committee-link-folder", "list-committee-link-folders", "create-committee-link-folder", "delete-committee-link-folder", "upload-committee-document", "get-committee-document", "download-committee-document", "delete-committee-document", "get-current-weekly-brief", "generate-weekly-brief", "preview-generate-weekly-brief", "update-current-weekly-brief", "share-weekly-brief-to-chat"}
 
 // Optional accept-invite request body.
 type AcceptInviteOptionalBody struct {
@@ -761,7 +768,7 @@ type CreateCommitteeLinkPayload struct {
 	UID *string
 	// Display name for the link
 	Name string
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL string
 	// Optional description
 	Description *string
@@ -1503,6 +1510,17 @@ type ListCommitteeLinksPayload struct {
 	FolderUID *string
 }
 
+// ListCommitteeMembersPayload is the payload type of the committee-service
+// service list-committee-members method.
+type ListCommitteeMembersPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+}
+
 // OrgCommitteeSeat is the result type of the committee-service service
 // reassign-org-committee-seat method.
 type OrgCommitteeSeat struct {
@@ -1742,6 +1760,36 @@ type UpdateCommitteeBasePayload struct {
 	Charter *CharterWrite
 }
 
+// UpdateCommitteeLinkPayload is the payload type of the committee-service
+// service update-committee-link method.
+type UpdateCommitteeLinkPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version *string
+	// If-Match header value for conditional requests
+	IfMatch *string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID *string
+	// Committee link UID
+	LinkUID *string
+	// Display name for the link
+	Name string
+	// The URL this link points to (http or https)
+	URL string
+	// Optional description; omit to clear it
+	Description *string
+	// Folder UID to place this link in; omit to move it to the root
+	FolderUID *string
+	// Requests synchronous processing for applicable downstream operations.
+	// Indexer messages are always published fire-and-forget regardless of this
+	// flag (see indexer-contract.md); this header no longer affects indexer
+	// delivery. FGA update_access, delete_access, member_put, and member_remove
+	// publications remain asynchronous and do not wait for FGA processing or
+	// OpenFGA convergence.
+	XSync bool
+}
+
 // UpdateCommitteeMemberPayload is the payload type of the committee-service
 // service update-committee-member method.
 type UpdateCommitteeMemberPayload struct {
@@ -1899,6 +1947,19 @@ type UploadCommitteeDocumentPayload struct {
 	// publications remain asynchronous and do not wait for FGA processing or
 	// OpenFGA convergence.
 	XSync bool
+}
+
+// WithdrawApplicationPayload is the payload type of the committee-service
+// service withdraw-application method.
+type WithdrawApplicationPayload struct {
+	// JWT token issued by Heimdall
+	BearerToken *string
+	// Version of the API
+	Version string
+	// Committee UID -- v2 uid, not related to v1 id directly
+	UID string
+	// Committee application UID
+	ApplicationUID string
 }
 
 type BadRequestError struct {

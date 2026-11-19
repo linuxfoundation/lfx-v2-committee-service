@@ -380,11 +380,24 @@ type JoinCommitteeRequestBody struct {
 type CreateCommitteeLinkRequestBody struct {
 	// Display name for the link
 	Name string `form:"name" json:"name" xml:"name"`
-	// The URL this link points to
+	// The URL this link points to (http or https)
 	URL string `form:"url" json:"url" xml:"url"`
 	// Optional description
 	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
 	// Optional folder UID to place this link in
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+}
+
+// UpdateCommitteeLinkRequestBody is the type of the "committee-service"
+// service "update-committee-link" endpoint HTTP request body.
+type UpdateCommitteeLinkRequestBody struct {
+	// Display name for the link
+	Name string `form:"name" json:"name" xml:"name"`
+	// The URL this link points to (http or https)
+	URL string `form:"url" json:"url" xml:"url"`
+	// Optional description; omit to clear it
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// Folder UID to place this link in; omit to move it to the root
 	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
 }
 
@@ -701,6 +714,10 @@ type BulkCreateCommitteeMembersResponseBody struct {
 // GetCommitteeMemberResponseBody is the type of the "committee-service"
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesResponseBody
+
+// ListCommitteeMembersResponseBody is the type of the "committee-service"
+// service "list-committee-members" endpoint HTTP response body.
+type ListCommitteeMembersResponseBody []*CommitteeMemberFullWithReadonlyAttributesResponse
 
 // GetOrgCommitteeSeatsResponseBody is the type of the "committee-service"
 // service "get-org-committee-seats" endpoint HTTP response body.
@@ -1123,6 +1140,34 @@ type RejectApplicationResponseBody struct {
 	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
 }
 
+// WithdrawApplicationResponseBody is the type of the "committee-service"
+// service "withdraw-application" endpoint HTTP response body.
+type WithdrawApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
 // JoinCommitteeResponseBody is the type of the "committee-service" service
 // "join-committee" endpoint HTTP response body.
 type JoinCommitteeResponseBody struct {
@@ -1194,6 +1239,31 @@ type ListCommitteeLinksResponseBody []*CommitteeLinkWithReadonlyAttributesRespon
 // CreateCommitteeLinkResponseBody is the type of the "committee-service"
 // service "create-committee-link" endpoint HTTP response body.
 type CreateCommitteeLinkResponseBody struct {
+	// Link UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Optional folder UID this link belongs to
+	FolderUID *string `form:"folder_uid,omitempty" json:"folder_uid,omitempty" xml:"folder_uid,omitempty"`
+	// Display name for the link
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// The URL this link points to
+	URL *string `form:"url,omitempty" json:"url,omitempty" xml:"url,omitempty"`
+	// Optional description
+	Description *string `form:"description,omitempty" json:"description,omitempty" xml:"description,omitempty"`
+	// User who created this resource
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// UpdateCommitteeLinkResponseBody is the type of the "committee-service"
+// service "update-committee-link" endpoint HTTP response body.
+type UpdateCommitteeLinkResponseBody struct {
 	// Link UID
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
@@ -1674,6 +1744,38 @@ type GetCommitteeMemberNotFoundResponseBody struct {
 // "committee-service" service "get-committee-member" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type GetCommitteeMemberServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeMembersBadRequestResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "BadRequest" error.
+type ListCommitteeMembersBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeMembersInternalServerErrorResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "InternalServerError" error.
+type ListCommitteeMembersInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeMembersNotFoundResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "NotFound" error.
+type ListCommitteeMembersNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeMembersServiceUnavailableResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type ListCommitteeMembersServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -2175,6 +2277,54 @@ type RejectApplicationServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// WithdrawApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "BadRequest" error.
+type WithdrawApplicationBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationConflictResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Conflict" error.
+type WithdrawApplicationConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationForbiddenResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Forbidden" error.
+type WithdrawApplicationForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "InternalServerError" error.
+type WithdrawApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationNotFoundResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "NotFound" error.
+type WithdrawApplicationNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type WithdrawApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // JoinCommitteeBadRequestResponseBody is the type of the "committee-service"
 // service "join-committee" endpoint HTTP response body for the "BadRequest"
 // error.
@@ -2339,6 +2489,46 @@ type CreateCommitteeLinkNotFoundResponseBody struct {
 // "committee-service" service "create-committee-link" endpoint HTTP response
 // body for the "ServiceUnavailable" error.
 type CreateCommitteeLinkServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeLinkBadRequestResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "BadRequest" error.
+type UpdateCommitteeLinkBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeLinkConflictResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "Conflict" error.
+type UpdateCommitteeLinkConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeLinkInternalServerErrorResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "InternalServerError" error.
+type UpdateCommitteeLinkInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeLinkNotFoundResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "NotFound" error.
+type UpdateCommitteeLinkNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// UpdateCommitteeLinkServiceUnavailableResponseBody is the type of the
+// "committee-service" service "update-committee-link" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type UpdateCommitteeLinkServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -3179,6 +3369,66 @@ type CommitteeMemberBulkCreateRowResultResponseBody struct {
 // CommitteeMemberFullWithReadonlyAttributesResponseBody is used to define
 // fields on response body types.
 type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy *string `form:"appointed_by,omitempty" json:"appointed_by,omitempty" xml:"appointed_by,omitempty"`
+	// Member status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status *string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeMemberFullWithReadonlyAttributesResponse is used to define fields
+// on response body types.
+type CommitteeMemberFullWithReadonlyAttributesResponse struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
@@ -4086,6 +4336,19 @@ func NewJoinCommitteeRequestBody(p *committeeservice.JoinCommitteePayload) *Join
 // service.
 func NewCreateCommitteeLinkRequestBody(p *committeeservice.CreateCommitteeLinkPayload) *CreateCommitteeLinkRequestBody {
 	body := &CreateCommitteeLinkRequestBody{
+		Name:        p.Name,
+		URL:         p.URL,
+		Description: p.Description,
+		FolderUID:   p.FolderUID,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkRequestBody builds the HTTP request body from the
+// payload of the "update-committee-link" endpoint of the "committee-service"
+// service.
+func NewUpdateCommitteeLinkRequestBody(p *committeeservice.UpdateCommitteeLinkPayload) *UpdateCommitteeLinkRequestBody {
+	body := &UpdateCommitteeLinkRequestBody{
 		Name:        p.Name,
 		URL:         p.URL,
 		Description: p.Description,
@@ -5198,6 +5461,58 @@ func NewGetCommitteeMemberNotFound(body *GetCommitteeMemberNotFoundResponseBody)
 // NewGetCommitteeMemberServiceUnavailable builds a committee-service service
 // get-committee-member endpoint ServiceUnavailable error.
 func NewGetCommitteeMemberServiceUnavailable(body *GetCommitteeMemberServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersCommitteeMemberFullWithReadonlyAttributesOK builds a
+// "committee-service" service "list-committee-members" endpoint result from a
+// HTTP "OK" response.
+func NewListCommitteeMembersCommitteeMemberFullWithReadonlyAttributesOK(body []*CommitteeMemberFullWithReadonlyAttributesResponse) []*committeeservice.CommitteeMemberFullWithReadonlyAttributes {
+	v := make([]*committeeservice.CommitteeMemberFullWithReadonlyAttributes, len(body))
+	for i, val := range body {
+		v[i] = unmarshalCommitteeMemberFullWithReadonlyAttributesResponseToCommitteeserviceCommitteeMemberFullWithReadonlyAttributes(val)
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersBadRequest builds a committee-service service
+// list-committee-members endpoint BadRequest error.
+func NewListCommitteeMembersBadRequest(body *ListCommitteeMembersBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersInternalServerError builds a committee-service
+// service list-committee-members endpoint InternalServerError error.
+func NewListCommitteeMembersInternalServerError(body *ListCommitteeMembersInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersNotFound builds a committee-service service
+// list-committee-members endpoint NotFound error.
+func NewListCommitteeMembersNotFound(body *ListCommitteeMembersNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersServiceUnavailable builds a committee-service service
+// list-committee-members endpoint ServiceUnavailable error.
+func NewListCommitteeMembersServiceUnavailable(body *ListCommitteeMembersServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -6366,6 +6681,102 @@ func NewRejectApplicationServiceUnavailable(body *RejectApplicationServiceUnavai
 	return v
 }
 
+// NewWithdrawApplicationCommitteeApplicationWithReadonlyAttributesOK builds a
+// "committee-service" service "withdraw-application" endpoint result from a
+// HTTP "OK" response.
+func NewWithdrawApplicationCommitteeApplicationWithReadonlyAttributesOK(body *WithdrawApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
+	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
+	}
+	if body.Status != nil {
+		v.Status = *body.Status
+	}
+	if body.Status == nil {
+		v.Status = "pending"
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationBadRequest builds a committee-service service
+// withdraw-application endpoint BadRequest error.
+func NewWithdrawApplicationBadRequest(body *WithdrawApplicationBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationConflict builds a committee-service service
+// withdraw-application endpoint Conflict error.
+func NewWithdrawApplicationConflict(body *WithdrawApplicationConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationForbidden builds a committee-service service
+// withdraw-application endpoint Forbidden error.
+func NewWithdrawApplicationForbidden(body *WithdrawApplicationForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationInternalServerError builds a committee-service service
+// withdraw-application endpoint InternalServerError error.
+func NewWithdrawApplicationInternalServerError(body *WithdrawApplicationInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationNotFound builds a committee-service service
+// withdraw-application endpoint NotFound error.
+func NewWithdrawApplicationNotFound(body *WithdrawApplicationNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationServiceUnavailable builds a committee-service service
+// withdraw-application endpoint ServiceUnavailable error.
+func NewWithdrawApplicationServiceUnavailable(body *WithdrawApplicationServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
 // NewJoinCommitteeCommitteeMemberFullWithReadonlyAttributesCreated builds a
 // "committee-service" service "join-committee" endpoint result from a HTTP
 // "Created" response.
@@ -6718,6 +7129,80 @@ func NewCreateCommitteeLinkNotFound(body *CreateCommitteeLinkNotFoundResponseBod
 // NewCreateCommitteeLinkServiceUnavailable builds a committee-service service
 // create-committee-link endpoint ServiceUnavailable error.
 func NewCreateCommitteeLinkServiceUnavailable(body *CreateCommitteeLinkServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeLinkCommitteeLinkWithReadonlyAttributesOK builds a
+// "committee-service" service "update-committee-link" endpoint result from a
+// HTTP "OK" response.
+func NewUpdateCommitteeLinkCommitteeLinkWithReadonlyAttributesOK(body *UpdateCommitteeLinkResponseBody) *committeeservice.CommitteeLinkWithReadonlyAttributes {
+	v := &committeeservice.CommitteeLinkWithReadonlyAttributes{
+		UID:          body.UID,
+		CommitteeUID: body.CommitteeUID,
+		FolderUID:    body.FolderUID,
+		Name:         body.Name,
+		URL:          body.URL,
+		Description:  body.Description,
+		CreatedAt:    body.CreatedAt,
+		UpdatedAt:    body.UpdatedAt,
+	}
+	if body.CreatedBy != nil {
+		v.CreatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.CreatedBy)
+	}
+	if body.UpdatedBy != nil {
+		v.UpdatedBy = unmarshalPublicAuditUserResponseBodyToCommitteeservicePublicAuditUser(body.UpdatedBy)
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeLinkBadRequest builds a committee-service service
+// update-committee-link endpoint BadRequest error.
+func NewUpdateCommitteeLinkBadRequest(body *UpdateCommitteeLinkBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeLinkConflict builds a committee-service service
+// update-committee-link endpoint Conflict error.
+func NewUpdateCommitteeLinkConflict(body *UpdateCommitteeLinkConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeLinkInternalServerError builds a committee-service service
+// update-committee-link endpoint InternalServerError error.
+func NewUpdateCommitteeLinkInternalServerError(body *UpdateCommitteeLinkInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeLinkNotFound builds a committee-service service
+// update-committee-link endpoint NotFound error.
+func NewUpdateCommitteeLinkNotFound(body *UpdateCommitteeLinkNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewUpdateCommitteeLinkServiceUnavailable builds a committee-service service
+// update-committee-link endpoint ServiceUnavailable error.
+func NewUpdateCommitteeLinkServiceUnavailable(body *UpdateCommitteeLinkServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -8753,8 +9238,8 @@ func ValidateGetApplicationResponseBody(body *GetApplicationResponseBody) (err e
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -8796,8 +9281,8 @@ func ValidateSubmitApplicationResponseBody(body *SubmitApplicationResponseBody) 
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -8945,8 +9430,51 @@ func ValidateRejectApplicationResponseBody(body *RejectApplicationResponseBody) 
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
+		}
+	}
+	if body.ReviewerNotes != nil {
+		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationResponseBody runs the validations defined on
+// Withdraw-ApplicationResponseBody
+func ValidateWithdrawApplicationResponseBody(body *WithdrawApplicationResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Message != nil {
+		if utf8.RuneCountInString(*body.Message) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+		}
+	}
+	if body.Status != nil {
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -9128,6 +9656,52 @@ func ValidateGetCommitteeLinkResponseBody(body *GetCommitteeLinkResponseBody) (e
 // ValidateCreateCommitteeLinkResponseBody runs the validations defined on
 // Create-Committee-LinkResponseBody
 func ValidateCreateCommitteeLinkResponseBody(body *CreateCommitteeLinkResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.FolderUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.folder_uid", *body.FolderUID, goa.FormatUUID))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 500 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 500, false))
+		}
+	}
+	if body.URL != nil {
+		if utf8.RuneCountInString(*body.URL) > 2048 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.url", *body.URL, utf8.RuneCountInString(*body.URL), 2048, false))
+		}
+	}
+	if body.Description != nil {
+		if utf8.RuneCountInString(*body.Description) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.description", *body.Description, utf8.RuneCountInString(*body.Description), 2000, false))
+		}
+	}
+	if body.CreatedBy != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.CreatedBy); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.UpdatedBy != nil {
+		if err2 := ValidatePublicAuditUserResponseBody(body.UpdatedBy); err2 != nil {
+			err = goa.MergeErrors(err, err2)
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkResponseBody runs the validations defined on
+// Update-Committee-LinkResponseBody
+func ValidateUpdateCommitteeLinkResponseBody(body *UpdateCommitteeLinkResponseBody) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}
@@ -9815,6 +10389,44 @@ func ValidateGetCommitteeMemberServiceUnavailableResponseBody(body *GetCommittee
 	return
 }
 
+// ValidateListCommitteeMembersBadRequestResponseBody runs the validations
+// defined on list-committee-members_BadRequest_response_body
+func ValidateListCommitteeMembersBadRequestResponseBody(body *ListCommitteeMembersBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeMembersInternalServerErrorResponseBody runs the
+// validations defined on
+// list-committee-members_InternalServerError_response_body
+func ValidateListCommitteeMembersInternalServerErrorResponseBody(body *ListCommitteeMembersInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeMembersNotFoundResponseBody runs the validations
+// defined on list-committee-members_NotFound_response_body
+func ValidateListCommitteeMembersNotFoundResponseBody(body *ListCommitteeMembersNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeMembersServiceUnavailableResponseBody runs the
+// validations defined on
+// list-committee-members_ServiceUnavailable_response_body
+func ValidateListCommitteeMembersServiceUnavailableResponseBody(body *ListCommitteeMembersServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateGetOrgCommitteeSeatsBadRequestResponseBody runs the validations
 // defined on get-org-committee-seats_BadRequest_response_body
 func ValidateGetOrgCommitteeSeatsBadRequestResponseBody(body *GetOrgCommitteeSeatsBadRequestResponseBody) (err error) {
@@ -10390,6 +11002,60 @@ func ValidateRejectApplicationServiceUnavailableResponseBody(body *RejectApplica
 	return
 }
 
+// ValidateWithdrawApplicationBadRequestResponseBody runs the validations
+// defined on withdraw-application_BadRequest_response_body
+func ValidateWithdrawApplicationBadRequestResponseBody(body *WithdrawApplicationBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationConflictResponseBody runs the validations defined
+// on withdraw-application_Conflict_response_body
+func ValidateWithdrawApplicationConflictResponseBody(body *WithdrawApplicationConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationForbiddenResponseBody runs the validations
+// defined on withdraw-application_Forbidden_response_body
+func ValidateWithdrawApplicationForbiddenResponseBody(body *WithdrawApplicationForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationInternalServerErrorResponseBody runs the
+// validations defined on withdraw-application_InternalServerError_response_body
+func ValidateWithdrawApplicationInternalServerErrorResponseBody(body *WithdrawApplicationInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationNotFoundResponseBody runs the validations defined
+// on withdraw-application_NotFound_response_body
+func ValidateWithdrawApplicationNotFoundResponseBody(body *WithdrawApplicationNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationServiceUnavailableResponseBody runs the
+// validations defined on withdraw-application_ServiceUnavailable_response_body
+func ValidateWithdrawApplicationServiceUnavailableResponseBody(body *WithdrawApplicationServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateJoinCommitteeBadRequestResponseBody runs the validations defined on
 // join-committee_BadRequest_response_body
 func ValidateJoinCommitteeBadRequestResponseBody(body *JoinCommitteeBadRequestResponseBody) (err error) {
@@ -10574,6 +11240,52 @@ func ValidateCreateCommitteeLinkNotFoundResponseBody(body *CreateCommitteeLinkNo
 // ValidateCreateCommitteeLinkServiceUnavailableResponseBody runs the
 // validations defined on create-committee-link_ServiceUnavailable_response_body
 func ValidateCreateCommitteeLinkServiceUnavailableResponseBody(body *CreateCommitteeLinkServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkBadRequestResponseBody runs the validations
+// defined on update-committee-link_BadRequest_response_body
+func ValidateUpdateCommitteeLinkBadRequestResponseBody(body *UpdateCommitteeLinkBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkConflictResponseBody runs the validations defined
+// on update-committee-link_Conflict_response_body
+func ValidateUpdateCommitteeLinkConflictResponseBody(body *UpdateCommitteeLinkConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkInternalServerErrorResponseBody runs the
+// validations defined on
+// update-committee-link_InternalServerError_response_body
+func ValidateUpdateCommitteeLinkInternalServerErrorResponseBody(body *UpdateCommitteeLinkInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkNotFoundResponseBody runs the validations defined
+// on update-committee-link_NotFound_response_body
+func ValidateUpdateCommitteeLinkNotFoundResponseBody(body *UpdateCommitteeLinkNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkServiceUnavailableResponseBody runs the
+// validations defined on update-committee-link_ServiceUnavailable_response_body
+func ValidateUpdateCommitteeLinkServiceUnavailableResponseBody(body *UpdateCommitteeLinkServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -11761,6 +12473,112 @@ func ValidateCommitteeMemberBulkCreateRowResultResponseBody(body *CommitteeMembe
 // validations defined on
 // committee-member-full-with-readonly-attributesResponseBody
 func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *CommitteeMemberFullWithReadonlyAttributesResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
+	}
+	if body.CommitteeCategory != nil {
+		if utf8.RuneCountInString(*body.CommitteeCategory) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
+		}
+	}
+	if body.Username != nil {
+		if utf8.RuneCountInString(*body.Username) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
+		}
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
+	if body.FirstName != nil {
+		if utf8.RuneCountInString(*body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+		}
+	}
+	if body.LastName != nil {
+		if utf8.RuneCountInString(*body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+		}
+	}
+	if body.JobTitle != nil {
+		if utf8.RuneCountInString(*body.JobTitle) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+		}
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
+	}
+	if body.Role != nil {
+		if body.Role.Name != nil {
+			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Technical Lead" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+			}
+		}
+		if body.Role.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
+		}
+		if body.Role.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.end_date", *body.Role.EndDate, goa.FormatDate))
+		}
+	}
+	if body.AppointedBy != nil {
+		if !(*body.AppointedBy == "Community" || *body.AppointedBy == "Membership Entitlement" || *body.AppointedBy == "Vote of End User Member Class" || *body.AppointedBy == "Vote of TSC Committee" || *body.AppointedBy == "Vote of TAC Committee" || *body.AppointedBy == "Vote of Academic Member Class" || *body.AppointedBy == "Vote of Lab Member Class" || *body.AppointedBy == "Vote of Marketing Committee" || *body.AppointedBy == "Vote of Governing Board" || *body.AppointedBy == "Vote of General Member Class" || *body.AppointedBy == "Vote of End User Committee" || *body.AppointedBy == "Vote of TOC Committee" || *body.AppointedBy == "Vote of Gold Member Class" || *body.AppointedBy == "Vote of Silver Member Class" || *body.AppointedBy == "Vote of Strategic Membership Class" || *body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", *body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
+		}
+	}
+	if body.Status != nil {
+		if !(*body.Status == "Active" || *body.Status == "Inactive") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"Active", "Inactive"}))
+		}
+	}
+	if body.Voting != nil {
+		if body.Voting.Status != nil {
+			if !(*body.Voting.Status == "Alternate Voting Rep" || *body.Voting.Status == "Observer" || *body.Voting.Status == "Voting Rep" || *body.Voting.Status == "Emeritus" || *body.Voting.Status == "None") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting.status", *body.Voting.Status, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+			}
+		}
+		if body.Voting.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.start_date", *body.Voting.StartDate, goa.FormatDate))
+		}
+		if body.Voting.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateCommitteeMemberFullWithReadonlyAttributesResponse runs the
+// validations defined on committee-member-full-with-readonly-attributesResponse
+func ValidateCommitteeMemberFullWithReadonlyAttributesResponse(body *CommitteeMemberFullWithReadonlyAttributesResponse) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}

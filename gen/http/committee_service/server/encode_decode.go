@@ -1440,6 +1440,127 @@ func EncodeGetCommitteeMemberError(encoder func(context.Context, http.ResponseWr
 	}
 }
 
+// EncodeListCommitteeMembersResponse returns an encoder for responses returned
+// by the committee-service list-committee-members endpoint.
+func EncodeListCommitteeMembersResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.([]*committeeservice.CommitteeMemberFullWithReadonlyAttributes)
+		enc := encoder(ctx, w)
+		body := NewListCommitteeMembersResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeListCommitteeMembersRequest returns a decoder for requests sent to the
+// committee-service list-committee-members endpoint.
+func DecodeListCommitteeMembersRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.ListCommitteeMembersPayload, error) {
+	return func(r *http.Request) (*committeeservice.ListCommitteeMembersPayload, error) {
+		var (
+			uid         string
+			version     string
+			bearerToken *string
+			err         error
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		version = r.URL.Query().Get("v")
+		if version == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("version", "query string"))
+		}
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewListCommitteeMembersPayload(uid, version, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeListCommitteeMembersError returns an encoder for errors returned by
+// the list-committee-members committee-service endpoint.
+func EncodeListCommitteeMembersError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewListCommitteeMembersBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewListCommitteeMembersInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewListCommitteeMembersNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewListCommitteeMembersServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // EncodeGetOrgCommitteeSeatsResponse returns an encoder for responses returned
 // by the committee-service get-org-committee-seats endpoint.
 func EncodeGetOrgCommitteeSeatsResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -3420,6 +3541,156 @@ func EncodeRejectApplicationError(encoder func(context.Context, http.ResponseWri
 	}
 }
 
+// EncodeWithdrawApplicationResponse returns an encoder for responses returned
+// by the committee-service withdraw-application endpoint.
+func EncodeWithdrawApplicationResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.CommitteeApplicationWithReadonlyAttributes)
+		enc := encoder(ctx, w)
+		body := NewWithdrawApplicationResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeWithdrawApplicationRequest returns a decoder for requests sent to the
+// committee-service withdraw-application endpoint.
+func DecodeWithdrawApplicationRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.WithdrawApplicationPayload, error) {
+	return func(r *http.Request) (*committeeservice.WithdrawApplicationPayload, error) {
+		var (
+			uid            string
+			applicationUID string
+			version        string
+			bearerToken    *string
+			err            error
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		applicationUID = params["application_uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("application_uid", applicationUID, goa.FormatUUID))
+		version = r.URL.Query().Get("v")
+		if version == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("version", "query string"))
+		}
+		if !(version == "1") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", version, []any{"1"}))
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewWithdrawApplicationPayload(uid, applicationUID, version, bearerToken)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeWithdrawApplicationError returns an encoder for errors returned by the
+// withdraw-application committee-service endpoint.
+func EncodeWithdrawApplicationError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewWithdrawApplicationBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "Conflict":
+			var res *committeeservice.ConflictError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewWithdrawApplicationConflictResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
+		case "Forbidden":
+			var res *committeeservice.ForbiddenError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewWithdrawApplicationForbiddenResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusForbidden)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewWithdrawApplicationInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewWithdrawApplicationNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewWithdrawApplicationServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
 // EncodeJoinCommitteeResponse returns an encoder for responses returned by the
 // committee-service join-committee endpoint.
 func EncodeJoinCommitteeResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
@@ -4118,6 +4389,180 @@ func EncodeCreateCommitteeLinkError(encoder func(context.Context, http.ResponseW
 				body = formatter(ctx, res)
 			} else {
 				body = NewCreateCommitteeLinkServiceUnavailableResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return enc.Encode(body)
+		default:
+			return encodeError(ctx, w, v)
+		}
+	}
+}
+
+// EncodeUpdateCommitteeLinkResponse returns an encoder for responses returned
+// by the committee-service update-committee-link endpoint.
+func EncodeUpdateCommitteeLinkResponse(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder) func(context.Context, http.ResponseWriter, any) error {
+	return func(ctx context.Context, w http.ResponseWriter, v any) error {
+		res, _ := v.(*committeeservice.CommitteeLinkWithReadonlyAttributes)
+		enc := encoder(ctx, w)
+		body := NewUpdateCommitteeLinkResponseBody(res)
+		w.WriteHeader(http.StatusOK)
+		return enc.Encode(body)
+	}
+}
+
+// DecodeUpdateCommitteeLinkRequest returns a decoder for requests sent to the
+// committee-service update-committee-link endpoint.
+func DecodeUpdateCommitteeLinkRequest(mux goahttp.Muxer, decoder func(*http.Request) goahttp.Decoder) func(*http.Request) (*committeeservice.UpdateCommitteeLinkPayload, error) {
+	return func(r *http.Request) (*committeeservice.UpdateCommitteeLinkPayload, error) {
+		var (
+			body UpdateCommitteeLinkRequestBody
+			err  error
+		)
+		err = decoder(r).Decode(&body)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil, goa.MissingPayloadError()
+			}
+			var gerr *goa.ServiceError
+			if errors.As(err, &gerr) {
+				return nil, gerr
+			}
+			return nil, goa.DecodePayloadError(err.Error())
+		}
+		err = ValidateUpdateCommitteeLinkRequestBody(&body)
+		if err != nil {
+			return nil, err
+		}
+
+		var (
+			uid         string
+			linkUID     string
+			version     *string
+			bearerToken *string
+			ifMatch     *string
+			xSync       bool
+
+			params = mux.Vars(r)
+		)
+		uid = params["uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		linkUID = params["link_uid"]
+		err = goa.MergeErrors(err, goa.ValidateFormat("link_uid", linkUID, goa.FormatUUID))
+		versionRaw := r.URL.Query().Get("v")
+		if versionRaw != "" {
+			version = &versionRaw
+		}
+		if version != nil {
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+		}
+		bearerTokenRaw := r.Header.Get("Authorization")
+		if bearerTokenRaw != "" {
+			bearerToken = &bearerTokenRaw
+		}
+		ifMatchRaw := r.Header.Get("If-Match")
+		if ifMatchRaw != "" {
+			ifMatch = &ifMatchRaw
+		}
+		{
+			xSyncRaw := r.Header.Get("X-Sync")
+			if xSyncRaw != "" {
+				v, err2 := strconv.ParseBool(xSyncRaw)
+				if err2 != nil {
+					err = goa.MergeErrors(err, goa.InvalidFieldTypeError("x_sync", xSyncRaw, "boolean"))
+				}
+				xSync = v
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		payload := NewUpdateCommitteeLinkPayload(&body, uid, linkUID, version, bearerToken, ifMatch, xSync)
+		if payload.BearerToken != nil {
+			if strings.Contains(*payload.BearerToken, " ") {
+				// Remove authorization scheme prefix (e.g. "Bearer")
+				cred := strings.SplitN(*payload.BearerToken, " ", 2)[1]
+				payload.BearerToken = &cred
+			}
+		}
+
+		return payload, nil
+	}
+}
+
+// EncodeUpdateCommitteeLinkError returns an encoder for errors returned by the
+// update-committee-link committee-service endpoint.
+func EncodeUpdateCommitteeLinkError(encoder func(context.Context, http.ResponseWriter) goahttp.Encoder, formatter func(ctx context.Context, err error) goahttp.Statuser) func(context.Context, http.ResponseWriter, error) error {
+	encodeError := goahttp.ErrorEncoder(encoder, formatter)
+	return func(ctx context.Context, w http.ResponseWriter, v error) error {
+		var en goa.GoaErrorNamer
+		if !errors.As(v, &en) {
+			return encodeError(ctx, w, v)
+		}
+		switch en.GoaErrorName() {
+		case "BadRequest":
+			var res *committeeservice.BadRequestError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCommitteeLinkBadRequestResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusBadRequest)
+			return enc.Encode(body)
+		case "Conflict":
+			var res *committeeservice.ConflictError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCommitteeLinkConflictResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusConflict)
+			return enc.Encode(body)
+		case "InternalServerError":
+			var res *committeeservice.InternalServerError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCommitteeLinkInternalServerErrorResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusInternalServerError)
+			return enc.Encode(body)
+		case "NotFound":
+			var res *committeeservice.NotFoundError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCommitteeLinkNotFoundResponseBody(res)
+			}
+			w.Header().Set("goa-error", res.GoaErrorName())
+			w.WriteHeader(http.StatusNotFound)
+			return enc.Encode(body)
+		case "ServiceUnavailable":
+			var res *committeeservice.ServiceUnavailableError
+			errors.As(v, &res)
+			enc := encoder(ctx, w)
+			var body any
+			if formatter != nil {
+				body = formatter(ctx, res)
+			} else {
+				body = NewUpdateCommitteeLinkServiceUnavailableResponseBody(res)
 			}
 			w.Header().Set("goa-error", res.GoaErrorName())
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -6435,6 +6880,97 @@ func marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommittee
 		return nil
 	}
 	res := &CommitteeMemberFullWithReadonlyAttributesResponseBody{
+		UID:               v.UID,
+		CommitteeUID:      v.CommitteeUID,
+		CommitteeName:     v.CommitteeName,
+		CommitteeCategory: v.CommitteeCategory,
+		Username:          v.Username,
+		Email:             v.Email,
+		FirstName:         v.FirstName,
+		LastName:          v.LastName,
+		JobTitle:          v.JobTitle,
+		LinkedinProfile:   v.LinkedinProfile,
+		AppointedBy:       v.AppointedBy,
+		Status:            v.Status,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
+	}
+	if v.Role != nil {
+		res.Role = &struct {
+			// Committee role name
+			Name string `form:"name" json:"name" xml:"name"`
+			// Role start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Role end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Name:      v.Role.Name,
+			StartDate: v.Role.StartDate,
+			EndDate:   v.Role.EndDate,
+		}
+		{
+			var zero string
+			if res.Role.Name == zero {
+				res.Role.Name = "None"
+			}
+		}
+	}
+	{
+		var zero string
+		if res.AppointedBy == zero {
+			res.AppointedBy = "None"
+		}
+	}
+	{
+		var zero string
+		if res.Status == zero {
+			res.Status = "Active"
+		}
+	}
+	if v.Voting != nil {
+		res.Voting = &struct {
+			// Voting status
+			Status string `form:"status" json:"status" xml:"status"`
+			// Voting start date
+			StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+			// Voting end date
+			EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+		}{
+			Status:    v.Voting.Status,
+			StartDate: v.Voting.StartDate,
+			EndDate:   v.Voting.EndDate,
+		}
+		{
+			var zero string
+			if res.Voting.Status == zero {
+				res.Voting.Status = "None"
+			}
+		}
+	}
+	if v.Organization != nil {
+		res.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      v.Organization.ID,
+			Name:    v.Organization.Name,
+			Website: v.Organization.Website,
+		}
+	}
+
+	return res
+}
+
+// marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommitteeMemberFullWithReadonlyAttributesResponse
+// builds a value of type *CommitteeMemberFullWithReadonlyAttributesResponse
+// from a value of type
+// *committeeservice.CommitteeMemberFullWithReadonlyAttributes.
+func marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommitteeMemberFullWithReadonlyAttributesResponse(v *committeeservice.CommitteeMemberFullWithReadonlyAttributes) *CommitteeMemberFullWithReadonlyAttributesResponse {
+	res := &CommitteeMemberFullWithReadonlyAttributesResponse{
 		UID:               v.UID,
 		CommitteeUID:      v.CommitteeUID,
 		CommitteeName:     v.CommitteeName,

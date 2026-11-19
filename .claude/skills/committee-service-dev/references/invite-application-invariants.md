@@ -17,7 +17,7 @@ encodes the invariants — what must be true after each transition.
 Only the **entry-point** endpoints that create new committee membership (or
 self-serve joins) check `join_mode` before touching storage. State-transition
 endpoints for existing invites and applications (`accept`, `decline`, `revoke`,
-`approve`, `reject`) do **not** gate on `join_mode` — they operate on an
+`approve`, `reject`, `withdraw`) do **not** gate on `join_mode` — they operate on an
 already-created record regardless of the current mode.
 
 | Endpoint | Mode check | Behaviour when wrong mode |
@@ -30,6 +30,7 @@ already-created record regardless of the current mode.
 | `DELETE /invites/{uid}` | None | Operates on existing record |
 | `POST /applications/{uid}/approve` | None | Operates on existing record |
 | `POST /applications/{uid}/reject` | None | Operates on existing record |
+| `POST /applications/{uid}/withdraw` | None | Operates on existing record |
 | `POST /members` | None — FGA enforces admin-only | |
 
 When adding a new **entry-point** endpoint (one that creates a record from
@@ -46,6 +47,9 @@ pending  ──revoke──▶  revoked
 declined ──accept──▶  accepted
 declined ──revoke──▶  revoked
 revoked  ──POST /invites (same email)──▶ pending   (reinstate)
+declined ──POST /invites (same email)──▶ pending   (reinstate)
+pending  ──POST /invites (same email)──▶ pending   (reinstate, only once expired)
+accepted ──POST /invites (same email)──▶ pending   (reinstate, only when the member is gone)
 ```
 
 ### Invariants per transition
@@ -61,7 +65,7 @@ revoked  ──POST /invites (same email)──▶ pending   (reinstate)
 | `lfx.invite-service.send_invite` dispatched (best-effort) | Failure is logged, does not fail the API call |
 | `inviter` and `expires_at` set on the record | 30-day expiry from creation |
 
-**Conflict rule:** existing `pending`, `declined`, or `accepted` invite for the same email → `409`. Existing `revoked` invite → reinstate instead of creating a new record; refresh `inviter` and `expires_at`.
+**Conflict rule:** an existing `pending` invite that has not expired (a zero `expires_at` is a legacy record and never expires), or an `accepted` invite whose member is still in the committee, for the same email → `409`. An existing `revoked` or `declined` invite, a `pending` invite past its `expires_at`, or an `accepted` invite whose member is no longer in the committee → reinstate instead of creating a new record; refresh `inviter` and `expires_at`. The member check looks the members up by the invitee's email (as `AcceptInvite` does) and fails closed: if that lookup fails the invite is left as it was and the error is returned. The decision is taken on the stored invite, which is written back under the revision it was read at. No cooldown after a decline.
 
 #### Accept invite (`pending` or `declined`) → `accepted`
 
@@ -100,9 +104,11 @@ revoked  ──POST /invites (same email)──▶ pending   (reinstate)
 ## Application state machine
 
 ```text
-pending  ──approve──▶ approved
-pending  ──reject──▶  rejected
-rejected ──POST /applications (same email)──▶ pending  (reinstate)
+pending   ──approve──▶  approved
+pending   ──reject──▶   rejected
+pending   ──withdraw──▶ withdrawn
+rejected  ──POST /applications (same email)──▶ pending  (reinstate)
+withdrawn ──POST /applications (same email)──▶ pending  (reinstate)
 ```
 
 ### Invariants per transition
@@ -115,7 +121,7 @@ rejected ──POST /applications (same email)──▶ pending  (reinstate)
 | `lfx.index.committee_application` published | |
 | `lfx.committee-api.committee_application.submitted` published (domain event) | Consumed to notify LFID writers |
 
-**Conflict rule:** existing `pending` or `approved` application for same email → `409`. Existing `rejected` application → reinstate to `pending`; clear `reviewer_notes`, update `message` and `organization` if provided.
+**Conflict rule:** existing `pending` or `approved` application for same email → `409`. Existing `rejected` or `withdrawn` application → reinstate to `pending`; clear `reviewer_notes`, update `message` and `organization` if provided.
 
 #### Approve application (`pending`) → `approved`
 
@@ -128,6 +134,8 @@ rejected ──POST /applications (same email)──▶ pending  (reinstate)
 | `lfx.index.committee_member` published | |
 | `lfx.committee-api.committee_application.updated` published (domain event) | Consumed to send decision email to applicant |
 
+If the status write fails, re-read the application on a detached, bounded context. If it reads `approved` (write landed), keep the member. If the re-read fails, keep the member, log it at error level and return the original error. If it reads `pending` and the write error is not a revision conflict, the write may still land: keep the member. Otherwise delete the member just created; return `409` for `withdrawn`/`rejected`, the original error for `pending`, and `500` if the delete fails.
+
 #### Reject application (`pending`) → `rejected`
 
 | What must happen | Notes |
@@ -137,6 +145,18 @@ rejected ──POST /applications (same email)──▶ pending  (reinstate)
 | `lfx.committee-api.committee_application.updated` published | Consumed to send decision email to applicant |
 
 No FGA change on rejection — no member exists.
+
+#### Withdraw application (`pending`) → `withdrawn`
+
+| What must happen | Notes |
+|-----------------|-------|
+| `CommitteeApplication` status updated to `withdrawn` | Record kept, not deleted |
+| `lfx.index.committee_application` published | |
+| `lfx.fga-sync.update_access` published (`committee_application`) | Keeps the `applicant` tuple so the applicant can still view it |
+
+**Caller:** applicant only (resolved caller email must equal `applicant_email`, else `403`).
+Any status other than `pending` → `409`. No domain event, so no email.
+A withdraw racing an approve's member create makes approve's status write fail on revision; approve then deletes the member it created (see Approve above).
 
 ---
 

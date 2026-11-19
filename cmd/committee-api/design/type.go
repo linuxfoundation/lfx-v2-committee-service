@@ -1329,7 +1329,7 @@ var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application
 		dsl.Example("I would like to join the TSC to contribute my expertise.")
 	})
 	dsl.Attribute("status", dsl.String, "Application status", func() {
-		dsl.Enum("pending", "approved", "rejected")
+		dsl.Enum("pending", "approved", "rejected", "withdrawn")
 		dsl.Default("pending")
 		dsl.Example("pending")
 	})

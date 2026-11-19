@@ -28,6 +28,7 @@ type Client struct {
 	CreateCommitteeMemberEndpoint      goa.Endpoint
 	BulkCreateCommitteeMembersEndpoint goa.Endpoint
 	GetCommitteeMemberEndpoint         goa.Endpoint
+	ListCommitteeMembersEndpoint       goa.Endpoint
 	GetOrgCommitteeSeatsEndpoint       goa.Endpoint
 	ReassignOrgCommitteeSeatEndpoint   goa.Endpoint
 	UpdateCommitteeMemberEndpoint      goa.Endpoint
@@ -41,11 +42,13 @@ type Client struct {
 	SubmitApplicationEndpoint          goa.Endpoint
 	ApproveApplicationEndpoint         goa.Endpoint
 	RejectApplicationEndpoint          goa.Endpoint
+	WithdrawApplicationEndpoint        goa.Endpoint
 	JoinCommitteeEndpoint              goa.Endpoint
 	LeaveCommitteeEndpoint             goa.Endpoint
 	GetCommitteeLinkEndpoint           goa.Endpoint
 	ListCommitteeLinksEndpoint         goa.Endpoint
 	CreateCommitteeLinkEndpoint        goa.Endpoint
+	UpdateCommitteeLinkEndpoint        goa.Endpoint
 	DeleteCommitteeLinkEndpoint        goa.Endpoint
 	GetCommitteeLinkFolderEndpoint     goa.Endpoint
 	ListCommitteeLinkFoldersEndpoint   goa.Endpoint
@@ -64,7 +67,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, bulkCreateCommitteeMembers, getCommitteeMember, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, bulkCreateCommitteeMembers, getCommitteeMember, listCommitteeMembers, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, withdrawApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, updateCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:            createCommittee,
 		GetCommitteeBaseEndpoint:           getCommitteeBase,
@@ -77,6 +80,7 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		CreateCommitteeMemberEndpoint:      createCommitteeMember,
 		BulkCreateCommitteeMembersEndpoint: bulkCreateCommitteeMembers,
 		GetCommitteeMemberEndpoint:         getCommitteeMember,
+		ListCommitteeMembersEndpoint:       listCommitteeMembers,
 		GetOrgCommitteeSeatsEndpoint:       getOrgCommitteeSeats,
 		ReassignOrgCommitteeSeatEndpoint:   reassignOrgCommitteeSeat,
 		UpdateCommitteeMemberEndpoint:      updateCommitteeMember,
@@ -90,11 +94,13 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		SubmitApplicationEndpoint:          submitApplication,
 		ApproveApplicationEndpoint:         approveApplication,
 		RejectApplicationEndpoint:          rejectApplication,
+		WithdrawApplicationEndpoint:        withdrawApplication,
 		JoinCommitteeEndpoint:              joinCommittee,
 		LeaveCommitteeEndpoint:             leaveCommittee,
 		GetCommitteeLinkEndpoint:           getCommitteeLink,
 		ListCommitteeLinksEndpoint:         listCommitteeLinks,
 		CreateCommitteeLinkEndpoint:        createCommitteeLink,
+		UpdateCommitteeLinkEndpoint:        updateCommitteeLink,
 		DeleteCommitteeLinkEndpoint:        deleteCommitteeLink,
 		GetCommitteeLinkFolderEndpoint:     getCommitteeLinkFolder,
 		ListCommitteeLinkFoldersEndpoint:   listCommitteeLinkFolders,
@@ -285,6 +291,23 @@ func (c *Client) GetCommitteeMember(ctx context.Context, p *GetCommitteeMemberPa
 		return
 	}
 	return ires.(*GetCommitteeMemberResult), nil
+}
+
+// ListCommitteeMembers calls the "list-committee-members" endpoint of the
+// "committee-service" service.
+// ListCommitteeMembers may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Committee not found
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) ListCommitteeMembers(ctx context.Context, p *ListCommitteeMembersPayload) (res []*CommitteeMemberFullWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.ListCommitteeMembersEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.([]*CommitteeMemberFullWithReadonlyAttributes), nil
 }
 
 // GetOrgCommitteeSeats calls the "get-org-committee-seats" endpoint of the
@@ -510,6 +533,25 @@ func (c *Client) RejectApplication(ctx context.Context, p *RejectApplicationPayl
 	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
 }
 
+// WithdrawApplication calls the "withdraw-application" endpoint of the
+// "committee-service" service.
+// WithdrawApplication may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "Forbidden" (type *ForbiddenError): You are not the applicant for this application
+//   - "NotFound" (type *NotFoundError): Application not found
+//   - "Conflict" (type *ConflictError): Application already processed
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) WithdrawApplication(ctx context.Context, p *WithdrawApplicationPayload) (res *CommitteeApplicationWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.WithdrawApplicationEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeApplicationWithReadonlyAttributes), nil
+}
+
 // JoinCommittee calls the "join-committee" endpoint of the "committee-service"
 // service.
 // JoinCommittee may return the following errors:
@@ -586,6 +628,24 @@ func (c *Client) ListCommitteeLinks(ctx context.Context, p *ListCommitteeLinksPa
 func (c *Client) CreateCommitteeLink(ctx context.Context, p *CreateCommitteeLinkPayload) (res *CommitteeLinkWithReadonlyAttributes, err error) {
 	var ires any
 	ires, err = c.CreateCommitteeLinkEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeLinkWithReadonlyAttributes), nil
+}
+
+// UpdateCommitteeLink calls the "update-committee-link" endpoint of the
+// "committee-service" service.
+// UpdateCommitteeLink may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Conflict
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) UpdateCommitteeLink(ctx context.Context, p *UpdateCommitteeLinkPayload) (res *CommitteeLinkWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.UpdateCommitteeLinkEndpoint(ctx, p)
 	if err != nil {
 		return
 	}

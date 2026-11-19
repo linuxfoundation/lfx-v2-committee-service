@@ -127,6 +127,7 @@ func main() {
 	linkWriterUseCase := usecaseSvc.NewLinkWriterOrchestrator(
 		usecaseSvc.WithLinkWriter(linkStorage),
 		usecaseSvc.WithLinkReaderForWriter(linkStorage),
+		usecaseSvc.WithDocumentListerForWriter(service.CommitteeDocumentListerImpl(docStorage)),
 		usecaseSvc.WithLinkPublisher(committeePublisher),
 	)
 

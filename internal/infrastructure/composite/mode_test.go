@@ -61,6 +61,32 @@ func TestModeFromEnv(t *testing.T) {
 		mode, err = ModeFromEnv(env(map[string]string{"POSTGRES_URL": "postgres://user:password@localhost/db", "POSTGRES_ENABLED": "true"}))
 		require.NoError(t, err, "PostgreSQL being configured does not change the mode")
 		assert.Equal(t, ModeKV, mode)
+
+		mode, err = ModeFromEnv(env(map[string]string{"PGHOST": "db.example.com", "PGUSER": "first-last", "PGPASSWORD": "not-a-real-password", "PGDATABASE": "committee"}))
+		require.NoError(t, err, "PG* variables being present do not change the mode")
+		assert.Equal(t, ModeKV, mode)
+	})
+
+	t.Run("kv reads nothing but the mode: the PostgreSQL settings are never looked at", func(t *testing.T) {
+		values := map[string]string{
+			"POSTGRES_URL": "postgres://user:" + "not-a-real-password" + "@localhost/db",
+			"PGHOST":       "db.example.com",
+			"PGPORT":       "5432",
+			"PGUSER":       "first-last",
+			"PGPASSWORD":   "not-a-real-password",
+			"PGDATABASE":   "committee",
+		}
+		for _, raw := range []string{"", "kv"} {
+			var read []string
+			values[EnvStorageMode] = raw
+			mode, err := ModeFromEnv(func(key string) string {
+				read = append(read, key)
+				return values[key]
+			})
+			require.NoError(t, err, raw)
+			assert.Equal(t, ModeKV, mode, raw)
+			assert.Equal(t, []string{EnvStorageMode}, read, "in kv only %s is read, so no connection string is ever built: %q", EnvStorageMode, raw)
+		}
 	})
 
 	t.Run("kv set on purpose is kv", func(t *testing.T) {
@@ -80,6 +106,29 @@ func TestModeFromEnv(t *testing.T) {
 			require.ErrorContains(t, err, "POSTGRES_URL is not set", mode)
 			_, err = ModeFromEnv(env(map[string]string{EnvStorageMode: string(mode), "POSTGRES_URL": "  "}))
 			require.ErrorContains(t, err, "POSTGRES_URL is not set", "a blank one is not set", mode)
+		}
+	})
+
+	t.Run("the PG* variables are a connection too, and an incomplete set is not", func(t *testing.T) {
+		parts := map[string]string{
+			"PGHOST":     "db.example.com",
+			"PGUSER":     "first-last",
+			"PGPASSWORD": "not-a-real-password",
+			"PGDATABASE": "committee",
+		}
+		for _, mode := range []Mode{ModeDual, ModeDualPG, ModePostgres} {
+			values := map[string]string{EnvStorageMode: string(mode)}
+			for k, v := range parts {
+				values[k] = v
+			}
+			got, err := ModeFromEnv(env(values))
+			require.NoError(t, err, mode)
+			assert.Equal(t, mode, got)
+
+			delete(values, "PGUSER")
+			_, err = ModeFromEnv(env(values))
+			require.ErrorContains(t, err, "POSTGRES_URL is not set", mode)
+			assert.NotContains(t, err.Error(), "not-a-real-password", "the error never shows the credential")
 		}
 	})
 

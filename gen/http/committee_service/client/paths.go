@@ -67,6 +67,11 @@ func GetCommitteeMemberCommitteeServicePath(uid string, memberUID string) string
 	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)
 }
 
+// ListCommitteeMembersCommitteeServicePath returns the URL path to the committee-service service list-committee-members HTTP endpoint.
+func ListCommitteeMembersCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/members", uid)
+}
+
 // GetOrgCommitteeSeatsCommitteeServicePath returns the URL path to the committee-service service get-org-committee-seats HTTP endpoint.
 func GetOrgCommitteeSeatsCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/b2b-org/%v/seats", uid)
@@ -132,6 +137,11 @@ func RejectApplicationCommitteeServicePath(uid string, applicationUID string) st
 	return fmt.Sprintf("/committees/%v/applications/%v/reject", uid, applicationUID)
 }
 
+// WithdrawApplicationCommitteeServicePath returns the URL path to the committee-service service withdraw-application HTTP endpoint.
+func WithdrawApplicationCommitteeServicePath(uid string, applicationUID string) string {
+	return fmt.Sprintf("/committees/%v/applications/%v/withdraw", uid, applicationUID)
+}
+
 // JoinCommitteeCommitteeServicePath returns the URL path to the committee-service service join-committee HTTP endpoint.
 func JoinCommitteeCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/join", uid)
@@ -155,6 +165,11 @@ func ListCommitteeLinksCommitteeServicePath(uid string) string {
 // CreateCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service create-committee-link HTTP endpoint.
 func CreateCommitteeLinkCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/%v/links", uid)
+}
+
+// UpdateCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service update-committee-link HTTP endpoint.
+func UpdateCommitteeLinkCommitteeServicePath(uid string, linkUID string) string {
+	return fmt.Sprintf("/committees/%v/links/%v", uid, linkUID)
 }
 
 // DeleteCommitteeLinkCommitteeServicePath returns the URL path to the committee-service service delete-committee-link HTTP endpoint.

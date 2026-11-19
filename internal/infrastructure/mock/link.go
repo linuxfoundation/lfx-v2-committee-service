@@ -70,6 +70,25 @@ func (m *MockLinkRepository) ListLinks(ctx context.Context, committeeUID string)
 	return result, nil
 }
 
+// UpdateLink replaces the link found by its uid, like the real stores: a missing link is not found and a stale
+// revision is a conflict. The revision moves on, so the next update needs the new one.
+func (m *MockLinkRepository) UpdateLink(ctx context.Context, link *model.CommitteeLink, revision uint64) error {
+	if link == nil {
+		return errs.NewValidation("link cannot be nil")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.links[link.UID]; !ok {
+		return errs.NewNotFound("link not found", fmt.Errorf("link UID: %s", link.UID))
+	}
+	if m.linkRevisions[link.UID] != revision {
+		return errs.NewConflict("link has been modified since it was last read")
+	}
+	m.links[link.UID] = link
+	m.linkRevisions[link.UID] = revision + 1
+	return nil
+}
+
 func (m *MockLinkRepository) DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
