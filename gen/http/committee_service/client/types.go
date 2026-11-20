@@ -78,6 +78,9 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
 	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
@@ -158,6 +161,9 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
 	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
@@ -511,6 +517,9 @@ type CreateCommitteeResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -611,6 +620,9 @@ type UpdateCommitteeSettingsResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -3268,6 +3280,9 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -3716,27 +3731,28 @@ type GroupWeeklyBriefThrottleResponseBody struct {
 // of the "create-committee" endpoint of the "committee-service" service.
 func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *CreateCommitteeRequestBody {
 	body := &CreateCommitteeRequestBody{
-		ProjectUID:            p.ProjectUID,
-		Name:                  p.Name,
-		Category:              p.Category,
-		Description:           p.Description,
-		Website:               p.Website,
-		MailingList:           p.MailingList,
-		ChatChannel:           p.ChatChannel,
-		EnableVoting:          p.EnableVoting,
-		SsoGroupEnabled:       p.SsoGroupEnabled,
-		RequiresReview:        p.RequiresReview,
-		Public:                p.Public,
-		DisplayName:           p.DisplayName,
-		ParentUID:             p.ParentUID,
-		JoinMode:              p.JoinMode,
-		Repository:            p.Repository,
-		BusinessEmailRequired: p.BusinessEmailRequired,
-		LastReviewedAt:        p.LastReviewedAt,
-		LastReviewedBy:        p.LastReviewedBy,
-		MemberVisibility:      p.MemberVisibility,
-		ShowMeetingAttendees:  p.ShowMeetingAttendees,
-		ChatWebhookURL:        p.ChatWebhookURL,
+		ProjectUID:                    p.ProjectUID,
+		Name:                          p.Name,
+		Category:                      p.Category,
+		Description:                   p.Description,
+		Website:                       p.Website,
+		MailingList:                   p.MailingList,
+		ChatChannel:                   p.ChatChannel,
+		EnableVoting:                  p.EnableVoting,
+		SsoGroupEnabled:               p.SsoGroupEnabled,
+		RequiresReview:                p.RequiresReview,
+		Public:                        p.Public,
+		DisplayName:                   p.DisplayName,
+		ParentUID:                     p.ParentUID,
+		JoinMode:                      p.JoinMode,
+		Repository:                    p.Repository,
+		BusinessEmailRequired:         p.BusinessEmailRequired,
+		LastReviewedAt:                p.LastReviewedAt,
+		LastReviewedBy:                p.LastReviewedBy,
+		MemberVisibility:              p.MemberVisibility,
+		ShowMeetingAttendees:          p.ShowMeetingAttendees,
+		MembersCanViewSocialListening: p.MembersCanViewSocialListening,
+		ChatWebhookURL:                p.ChatWebhookURL,
 	}
 	{
 		var zero bool
@@ -3825,6 +3841,12 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if body.MembersCanViewSocialListening == zero {
+			body.MembersCanViewSocialListening = false
 		}
 	}
 	if p.Writers != nil {
@@ -3942,12 +3964,13 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 // "committee-service" service.
 func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSettingsPayload) *UpdateCommitteeSettingsRequestBody {
 	body := &UpdateCommitteeSettingsRequestBody{
-		BusinessEmailRequired: p.BusinessEmailRequired,
-		LastReviewedAt:        p.LastReviewedAt,
-		LastReviewedBy:        p.LastReviewedBy,
-		MemberVisibility:      p.MemberVisibility,
-		ShowMeetingAttendees:  p.ShowMeetingAttendees,
-		ChatWebhookURL:        p.ChatWebhookURL,
+		BusinessEmailRequired:         p.BusinessEmailRequired,
+		LastReviewedAt:                p.LastReviewedAt,
+		LastReviewedBy:                p.LastReviewedBy,
+		MemberVisibility:              p.MemberVisibility,
+		ShowMeetingAttendees:          p.ShowMeetingAttendees,
+		MembersCanViewSocialListening: p.MembersCanViewSocialListening,
+		ChatWebhookURL:                p.ChatWebhookURL,
 	}
 	{
 		var zero string
@@ -3959,6 +3982,12 @@ func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSe
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if body.MembersCanViewSocialListening == zero {
+			body.MembersCanViewSocialListening = false
 		}
 	}
 	if p.Writers != nil {
@@ -4436,6 +4465,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.HasMailingList != nil {
 		v.HasMailingList = *body.HasMailingList
 	}
@@ -4498,6 +4530,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
@@ -4923,6 +4958,9 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.HasChatWebhook != nil {
 		v.HasChatWebhook = *body.HasChatWebhook
 	}
@@ -4934,6 +4972,9 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
@@ -5008,6 +5049,9 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.HasChatWebhook != nil {
 		v.HasChatWebhook = *body.HasChatWebhook
 	}
@@ -5019,6 +5063,9 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
