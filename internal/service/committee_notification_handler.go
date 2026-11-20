@@ -507,6 +507,7 @@ func (h *committeeNotificationHandler) HandleCommitteeSettingsUpdated(ctx contex
 // TODO(LFXV2-2238): replace the full-scan with an email → [committee_uid] index lookup so we avoid
 // loading every committee's settings and listing all members on each acceptance event.
 func (h *committeeNotificationHandler) HandleInviteAccepted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	ctx = model.WithCommitteeSystemActor(ctx)
 	var event inviteapi.InviteServiceAcceptedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
 		slog.WarnContext(ctx, "failed to unmarshal invite_accepted event", "error", err)
@@ -765,7 +766,7 @@ func (h *committeeNotificationHandler) enrichInvitedCommitteeMember(ctx context.
 			member.LastName = e.lastName
 		}
 
-		updated, writeErr := h.committeeWriterOrchestrator.UpdateMember(e.writeCtx, member, revision, false, true)
+		updated, writeErr := h.committeeWriterOrchestrator.UpdateMember(model.WithCommitteeProjection(e.writeCtx), member, revision, false, true)
 		if writeErr != nil {
 			var conflictErr errors.Conflict
 			if stderrors.As(writeErr, &conflictErr) && attempt < maxRetries-1 {

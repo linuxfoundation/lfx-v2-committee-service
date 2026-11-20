@@ -145,7 +145,7 @@ This service follows clean architecture principles with clear separation of conc
 
 4. **Infrastructure Layer** (`internal/infrastructure/`)
    - NATS KV, Object Store, request/reply, event, and stream-consumer implementations (`nats/`)
-   - PostgreSQL schema migrations and their runner, and the connection pool (`postgres/`); the service only connects and migrates when `POSTGRES_ENABLED=true`, and reads and writes nothing else yet
+   - PostgreSQL schema migrations, connection pool and storage adapters (`postgres/`), selected by `STORAGE_MODE`; audited PostgreSQL-primary writes can retain immutable events transactionally
    - JWT authentication implementation (`auth/`)
    - Mock implementations for testing (`mock/`)
    - Messaging infrastructure
@@ -266,6 +266,26 @@ These tune the modes that write both stores (`dual` and `dual-pg`); they are not
 | `STORAGE_SECONDARY_WRITE_TIMEOUT` | `3s` | no | Bounds the copy of a write to the secondary store, which is made on the request's path: the most a degraded secondary store adds to a write. A failed or timed-out copy never fails the request; it is logged and counted (`committee.storage.secondary_write_failures`). |
 
 In `dual`, `dual-pg` and `postgres`, PostgreSQL is connected to and migrated at startup whether or not `POSTGRES_ENABLED` is set, and unlike the flag's fail-open behavior below, a failure stops the service: those modes cannot run without it. With `kv`, the default, `POSTGRES_ENABLED` is the only thing that connects to PostgreSQL and nothing reads or writes the database. See [docs/postgres-schema.md](../../docs/postgres-schema.md#selecting-a-storage-mode) for what each mode does, what to watch, and the rollout order.
+
+**Committee audit publisher** (disabled by default)
+
+The merged indexer attribution SDK is adopted: refs use exact principals, actor
+JWT evidence is optional, and the indexer owns retained identity/verification.
+Both flags stay off by default; see the [publisher contract](../../docs/committee-audit.md)
+for revision, retention and coordinated deployment prerequisites.
+
+| Environment Variable | Default | Required | Description |
+|---|---|---|---|
+| `COMMITTEE_AUDIT_ENABLED` | `false` | no | Transactional committee/settings/member capture; requires `postgres` or `dual-pg` and real JWT authentication. Fences legacy index messages for the adopted types. |
+| `COMMITTEE_AUDIT_OUTBOX_RETENTION` | — | for capture | Explicit positive policy duration; only confirmed-retired, broker-delivered records are pruned. Pending/PubAck-only records and revision lineage are retained. |
+| `COMMITTEE_AUDIT_DISPATCH_ENABLED` | `false` | no | Start the bounded outbox relay, independently of capture; retained events can drain with capture off while normal source writes are paused. Requires PostgreSQL, NATS and an explicit retention policy. Invalid static dispatch configuration fails startup; missing/expired credentials or transient JWKS failure pause only dispatch and retry retained events without blocking API startup. |
+| `COMMITTEE_AUDIT_TOKEN_FILE` | — | for dispatch | Private externally refreshed Heimdall service bearer file; read and validated for each delivery, never persisted in outbox events. |
+| `COMMITTEE_AUDIT_PRINCIPAL`, `COMMITTEE_AUDIT_AUDIENCE` | — | for dispatch | Approved relay `@clients` identity and the indexer's accepted audience. Signature verification uses `JWKS_URL`. |
+
+See [the audit contract and rollout runbook](../../docs/committee-audit.md) before
+enabling either flag. Source projection bootstrap, approved publisher schemas,
+private history permissions, credential refresh and reconciliation are rollout
+requirements; merge/deployment alone is not an audit coverage start date.
 
 **PostgreSQL** (off by default in `kv`; in the other modes it is the store, see above)
 

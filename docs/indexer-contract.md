@@ -8,7 +8,26 @@ This document is the authoritative reference for all data the committee service 
 
 ## Delivery
 
-All indexer messages are published fire-and-forget via `conn.Publish` (core NATS, not JetStream publish).
+The principal/JWT attribution revision from indexer PR #93 is implemented using
+SDK commit `d5f10dad0f624c83ec519308f9261b0437c61135`. Publisher profiles and
+verification/identity output fields are not sent; the indexer owns verification
+and retained username/email, and query-service owns live display metadata.
+Derived updates emit `reindex` without advancing authoritative audit revisions.
+See [the publisher contract](committee-audit.md) for evidence, separate row ETags,
+retirement/pruning and rollout gates. Capture and dispatch remain disabled by default.
+
+Version 2 audit adoption is opt-in (`COMMITTEE_AUDIT_ENABLED=true`) and requires
+PostgreSQL-primary storage. The [audit publisher contract](committee-audit.md)
+describes same-transaction source/outbox capture, original/effective attribution
+and optional actor evidence, projection-only bootstrap, relay/replay and rollout gates.
+During impersonation without the original user's token, that actor remains
+unverified by the indexer. Adopted
+committee/settings/member writes suppress their legacy index messages; the
+separately enabled relay uses JetStream PubAck with fresh service credentials.
+Default deployments and all other resource types keep the legacy behavior below.
+No actual history start date or deployed coverage is implied by these defaults.
+
+Legacy indexer messages are published fire-and-forget via `conn.Publish` (core NATS, not JetStream publish).
 `lfx-v2-indexer-service#68` migrated the indexer from a core NATS queue subscription to a JetStream
 durable consumer. Under JetStream with `AckExplicitPolicy`, `msg.Ack()` sends to the internal
 `$JS.ACK...` address — not the original publisher reply inbox — so `conn.Request()` callers would never
@@ -23,7 +42,11 @@ acknowledgement and does not confirm that the JetStream stream has accepted the 
 
 ### Committee delete
 
-Deleting a committee publishes `ActionDeleted` for the committee and its settings. The applications get one too,
+In audited PostgreSQL-primary mode, committee/settings/member deletes are frozen
+in the same transaction as their source deletion and delivered through the audit
+outbox with JetStream acknowledgments. Other child types retain legacy delivery.
+
+In legacy mode, deleting a committee publishes `ActionDeleted` for the committee and its settings. The applications get one too,
 and, when the store removes the committee's children itself (the PostgreSQL store's `DeleteCommitteeCascade`), so does
 every removed member, invite, link, link folder, document and group weekly brief, on its own subject with the uid as
 the data and no tags. They are published fire-and-forget, with at most 32 in flight. The KV store removes only the

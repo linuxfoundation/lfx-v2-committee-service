@@ -40,6 +40,10 @@ spec:
             allowPrivilegeEscalation: false
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            {{- if .Values.audit.authorizationSecretName }}
+            - name: COMMITTEE_AUDIT_TOKEN_FILE
+              value: /var/run/committee-audit/authorization
+            {{- end }}
           {{- range $name, $config := .Values.app.environment }}
             - name: {{ $name }}
               {{- /*
@@ -143,17 +147,35 @@ spec:
             periodSeconds: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if ne $promptDir "" }}
+          {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName }}
           volumeMounts:
+            {{- if .Values.audit.authorizationSecretName }}
+            - name: committee-audit-authorization
+              mountPath: /var/run/committee-audit
+              readOnly: true
+            {{- end }}
+            {{- if ne $promptDir "" }}
             - name: weekly-brief-prompts
               mountPath: {{ $promptDir | quote }}
               readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if ne $promptDir "" }}
+      {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName }}
       volumes:
+        {{- if .Values.audit.authorizationSecretName }}
+        - name: committee-audit-authorization
+          secret:
+            secretName: {{ .Values.audit.authorizationSecretName | quote }}
+            defaultMode: 0444
+            items:
+              - key: authorization
+                path: authorization
+        {{- end }}
+        {{- if ne $promptDir "" }}
         - name: weekly-brief-prompts
           configMap:
             name: {{ .Chart.Name }}-weekly-brief-prompts-{{ $promptHash }}
+        {{- end }}
       {{- end }}
       {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:

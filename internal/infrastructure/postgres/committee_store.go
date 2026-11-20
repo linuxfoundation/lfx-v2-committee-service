@@ -185,6 +185,9 @@ func (s *Store) Create(ctx context.Context, committee *model.Committee) error {
 	if committee == nil {
 		return errs.NewValidation("committee cannot be nil")
 	}
+	if s.capturesAudit() {
+		return s.captureAudit(ctx, auditTarget{kind: model.ResourceCommittee, uid: committee.CommitteeBase.UID, settings: committee.CommitteeSettings != nil}, func(tx *Store) error { return tx.Create(ctx, committee) })
+	}
 	values, err := committeeValues(&committee.CommitteeBase)
 	if err != nil {
 		return unexpected("failed to encode committee", err)
@@ -223,7 +226,7 @@ func (s *Store) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, 
 	if uid == "" {
 		return nil, 0, errs.NewValidation("committee UID cannot be empty")
 	}
-	base, revision, err := scanCommittee(s.pool.QueryRow(ctx, selectCommittee+" WHERE uid = $1", uid))
+	base, revision, err := scanCommittee(s.db().QueryRow(ctx, selectCommittee+" WHERE uid = $1", uid))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, 0, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 	}
@@ -235,7 +238,7 @@ func (s *Store) GetBase(ctx context.Context, uid string) (*model.CommitteeBase, 
 
 // ListAllUIDs returns the UID of every committee.
 func (s *Store) ListAllUIDs(ctx context.Context) ([]string, error) {
-	rows, err := s.pool.Query(ctx, "SELECT uid FROM committees ORDER BY uid")
+	rows, err := s.db().Query(ctx, "SELECT uid FROM committees ORDER BY uid")
 	if err != nil {
 		return nil, unexpected("failed to list committees", err)
 	}
@@ -249,7 +252,7 @@ func (s *Store) ListAllUIDs(ctx context.Context) ([]string, error) {
 // FindUIDByProjectAndName returns the UID of the committee with the name in the project.
 func (s *Store) FindUIDByProjectAndName(ctx context.Context, projectUID, name string) (string, error) {
 	var uid string
-	err := s.pool.QueryRow(ctx, "SELECT uid FROM committees WHERE project_uid = $1 AND name = $2", projectUID, name).Scan(&uid)
+	err := s.db().QueryRow(ctx, "SELECT uid FROM committees WHERE project_uid = $1 AND name = $2", projectUID, name).Scan(&uid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", errs.NewNotFound("committee not found for project and name")
 	}
@@ -264,7 +267,7 @@ func (s *Store) GetSettings(ctx context.Context, uid string) (*model.CommitteeSe
 	if uid == "" {
 		return nil, 0, errs.NewValidation("committee UID cannot be empty")
 	}
-	settings, revision, err := scanSettings(s.pool.QueryRow(ctx, selectSettings+" WHERE committee_uid = $1", uid))
+	settings, revision, err := scanSettings(s.db().QueryRow(ctx, selectSettings+" WHERE committee_uid = $1", uid))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, 0, errs.NewNotFound("committee settings not found", fmt.Errorf("committee UID: %s", uid))
 	}
@@ -281,6 +284,9 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 	if committee == nil {
 		return errs.NewValidation("committee cannot be nil")
 	}
+	if s.capturesAudit() {
+		return s.captureAudit(ctx, auditTarget{kind: model.ResourceCommittee, uid: committee.CommitteeBase.UID}, func(tx *Store) error { return tx.UpdateBase(ctx, committee, revision) })
+	}
 	values, err := committeeValues(&committee.CommitteeBase)
 	if err != nil {
 		return unexpected("failed to encode committee", err)
@@ -291,7 +297,7 @@ func (s *Store) UpdateBase(ctx context.Context, committee *model.Committee, revi
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateCommittee, withRevisionArg(ctx, primaryRevision, args)...)
+	tag, err := s.db().Exec(ctx, updateCommittee, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := committeeConflict(err); conflict != nil {
 			return conflict
@@ -309,6 +315,9 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	if settings == nil {
 		return errs.NewValidation("committee settings cannot be nil")
 	}
+	if s.capturesAudit() {
+		return s.captureAudit(ctx, auditTarget{kind: model.ResourceCommitteeSettings, uid: settings.UID}, func(tx *Store) error { return tx.UpdateSetting(ctx, settings, revision) })
+	}
 	values, err := settingsValues(settings)
 	if err != nil {
 		return unexpected("failed to encode committee settings", err)
@@ -318,7 +327,7 @@ func (s *Store) UpdateSetting(ctx context.Context, settings *model.CommitteeSett
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateSettings, withRevisionArg(ctx, primaryRevision, args)...)
+	tag, err := s.db().Exec(ctx, updateSettings, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		return unexpected("failed to update committee settings", err)
 	}
@@ -345,7 +354,7 @@ func (s *Store) missingOrStale(ctx context.Context, existsQuery, uidLabel, uid, 
 // that also scopes the record to its committee.
 func (s *Store) classifyRejected(ctx context.Context, existsQuery string, args []any, uidLabel, uid, notFound, stale string) error {
 	var exists bool
-	if err := s.pool.QueryRow(ctx, existsQuery, args...).Scan(&exists); err != nil {
+	if err := s.db().QueryRow(ctx, existsQuery, args...).Scan(&exists); err != nil {
 		return unexpected("failed to check the record after a rejected write", err)
 	}
 	if !exists {
@@ -390,12 +399,25 @@ func (s *Store) UpdateTotalMembers(ctx context.Context, uid string, totalMembers
 
 // updateCommitteeField runs one of the counter updates above.
 func (s *Store) updateCommitteeField(ctx context.Context, uid string, c counter, value any, failure string) (*model.CommitteeBase, bool, error) {
+	if s.capturesAudit() {
+		var base *model.CommitteeBase
+		var changed bool
+		err := s.captureAudit(ctx, auditTarget{kind: model.ResourceCommittee, uid: uid, projection: true}, func(tx *Store) error {
+			var err error
+			base, changed, err = tx.updateCommitteeField(ctx, uid, c, value, failure)
+			return err
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		return base, changed, nil
+	}
 	// A counter update has no revision to compare with, so an explicit one is checked against the
 	// committee's current revision for the same reason as in the guarded updates.
 	if explicit, ok := ctx.Value(primaryRevision).(int64); ok {
 		var current int64
 		var same bool
-		err := s.pool.QueryRow(ctx, c.state, uid, value).Scan(&current, &same)
+		err := s.db().QueryRow(ctx, c.state, uid, value).Scan(&current, &same)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, false, unexpected(failure, err)
 		}
@@ -403,7 +425,7 @@ func (s *Store) updateCommitteeField(ctx context.Context, uid string, c counter,
 			return nil, false, errs.NewValidation(errExplicitRevisionNotAbove)
 		}
 	}
-	base, _, err := scanCommittee(s.pool.QueryRow(ctx, c.update, uid, value, time.Now(), explicitRevision(ctx, primaryRevision)))
+	base, _, err := scanCommittee(s.db().QueryRow(ctx, c.update, uid, value, time.Now(), explicitRevision(ctx, primaryRevision)))
 	if err == nil {
 		return base, true, nil
 	}
@@ -421,7 +443,7 @@ func (s *Store) updateCommitteeField(ctx context.Context, uid string, c counter,
 func (s *Store) counterNotChanged(ctx context.Context, uid string, c counter, value any, failure string) (*model.CommitteeBase, bool, error) {
 	var current int64
 	var same bool
-	err := s.pool.QueryRow(ctx, c.state, uid, value).Scan(&current, &same)
+	err := s.db().QueryRow(ctx, c.state, uid, value).Scan(&current, &same)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, errs.NewNotFound("committee not found", fmt.Errorf("committee UID: %s", uid))
 	}
@@ -442,6 +464,9 @@ func (s *Store) counterNotChanged(ctx context.Context, uid string, c counter, va
 func (s *Store) Delete(ctx context.Context, uid string, revision uint64) error {
 	if uid == "" {
 		return errs.NewValidation("committee UID cannot be empty")
+	}
+	if s.capturesAudit() {
+		return s.captureAudit(ctx, auditTarget{kind: model.ResourceCommittee, uid: uid, settings: true}, func(tx *Store) error { return tx.Delete(ctx, uid, revision) })
 	}
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, "DELETE FROM committees WHERE uid = $1 AND revision = $2", uid, revisionArg(revision))
@@ -483,6 +508,18 @@ var childTables = []struct {
 func (s *Store) DeleteCommitteeCascade(ctx context.Context, uid string, revision uint64) (*model.CommitteeRemovedChildren, error) {
 	if uid == "" {
 		return nil, errs.NewValidation("committee UID cannot be empty")
+	}
+	if s.capturesAudit() {
+		var removed *model.CommitteeRemovedChildren
+		err := s.captureAudit(ctx, auditTarget{kind: model.ResourceCommittee, uid: uid, settings: true, cascade: true}, func(tx *Store) error {
+			var err error
+			removed, err = tx.DeleteCommitteeCascade(ctx, uid, revision)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return removed, nil
 	}
 	removed := &model.CommitteeRemovedChildren{}
 	err := s.withTx(ctx, func(tx pgx.Tx) error {

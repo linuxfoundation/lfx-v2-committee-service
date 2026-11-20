@@ -60,6 +60,7 @@ func emailMatches(deletedEmail, storedEmail string) bool {
 }
 
 func (h *userEventHandler) HandleUserDeleted(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	ctx = model.WithCommitteeSystemActor(ctx)
 	var event V1UserDeletedEvent
 	if err := json.Unmarshal(msg.Data(), &event); err != nil {
 		slog.ErrorContext(ctx, "failed to unmarshal V1UserDeletedEvent — discarding", "error", err)
@@ -82,6 +83,7 @@ func (h *userEventHandler) HandleUserDeleted(ctx context.Context, msg port.Trans
 }
 
 func (h *userEventHandler) scrubUsernameFromMembers(ctx context.Context, username, deletedEmail string) {
+	ctx = model.WithCommitteeProjection(ctx)
 	if h.committeeReader == nil || h.committeeWriterOrchestrator == nil {
 		slog.WarnContext(ctx, "committee reader/writer not configured — skipping member username scrub")
 		return
@@ -239,6 +241,7 @@ func (h *userEventHandler) scrubUsernameFromOneCommitteeSettings(ctx context.Con
 // Known email-change events also abort pending snapshots for the address, so stale
 // identity data cannot survive outside visible-member reconciliation. The caller owns ACK/NAK.
 func (h *userEventHandler) HandleUserEmailChanged(ctx context.Context, msg port.StreamMessenger) error {
+	ctx = model.WithCommitteeSystemActor(ctx)
 	subject := msg.Subject()
 
 	if subject != constants.UserEmailChangedSubject {
@@ -374,6 +377,7 @@ func (h *userEventHandler) reconcileUsernamesForEmail(ctx context.Context, email
 // that are already promoted or whose email no longer matches (index lag), and passes
 // skipEnrichment=true so UpdateMember does not re-run the auth lookup.
 func (h *userEventHandler) promoteEmailOnlyMemberUsername(writeCtx context.Context, committeeUID, memberUID, username, email string) error {
+	writeCtx = model.WithCommitteeProjection(writeCtx)
 	const maxRetries = 3
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
 
