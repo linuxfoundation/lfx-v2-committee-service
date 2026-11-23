@@ -5,11 +5,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/cmd/committee-cli/commands"
@@ -60,13 +63,13 @@ func run() error {
 					return nil
 				}
 			}
-			fmt.Fprintf(os.Stderr, "unknown command: %s %s\n\n", positionals[0], positionals[1])
+			// Unrecognized names are never echoed: a misplaced flag can turn its value,
+			// such as a private path or username, into a positional.
+			fmt.Fprint(os.Stderr, "unknown command\n\n")
 			printUsage(os.Stderr, registry)
-			return fmt.Errorf("unknown command: %s %s", positionals[0], positionals[1])
+			return errors.New("unknown command")
 		}
 	}
-
-	logging.InitStructureLogConfig()
 
 	if len(positionals) < 2 {
 		printUsage(os.Stderr, registry)
@@ -78,20 +81,34 @@ func run() error {
 	cmd, ok := registry[commandName]
 	if !ok {
 		printUsage(os.Stderr, registry)
-		return fmt.Errorf("unknown command: %s", commandName)
+		return errors.New("unknown command")
 	}
 
 	sub, ok := cmd.Subcommands()[subcommandName]
 	if !ok {
 		printUsage(os.Stderr, registry)
-		return fmt.Errorf("unknown subcommand: %s %s", commandName, subcommandName)
+		return fmt.Errorf("unknown subcommand for %s", commandName)
 	}
 
 	// Run invocations that need no infrastructure (e.g. --list-fields) before connecting to NATS,
 	// so they work when the broker is unreachable.
 	if offline, ok := sub.(commands.OfflineSubcommand); ok && offline.RunsOffline(parsed.SubArgs) {
-		return sub.Run(ctx, commands.RunContext{Args: parsed.SubArgs})
+		// Turn the first SIGINT/SIGTERM into cancellation so offline commands return
+		// through their cleanup (such as discarding a private draft). Stopping on
+		// cancellation restores the default, so a second signal exits immediately.
+		offlineCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		context.AfterFunc(offlineCtx, stop)
+		// With SIGPIPE delivered to a channel, writing to a closed stdout returns
+		// EPIPE instead of killing the process, so the command can clean up.
+		brokenPipe := make(chan os.Signal, 1)
+		signal.Notify(brokenPipe, syscall.SIGPIPE)
+		defer signal.Stop(brokenPipe)
+		return sub.Run(offlineCtx, commands.RunContext{Args: parsed.SubArgs})
 	}
+	// Offline reports write machine-readable stdout. Logger initialization emits
+	// its own configuration notice, so defer it until an online command is known.
+	logging.InitStructureLogConfig()
 
 	// A store mode that was set on purpose and cannot be used stops the command before anything connects; with
 	// STORAGE_MODE unset the mode is kv and the command is as it has always been.
