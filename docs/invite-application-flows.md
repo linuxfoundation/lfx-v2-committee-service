@@ -17,6 +17,23 @@ Committees support four membership modes, configured via the `join_mode` field o
 
 Only one mode is active at a time. Endpoints that don't match the active `join_mode` return `403 Forbidden`.
 
+### Member name validation
+
+Every new committee member must have a non-blank `first_name` and `last_name`
+after profile enrichment. Omitted, empty, and whitespace-only names are rejected
+before member persistence or downstream create events. Single-member creation,
+invite acceptance, application approval, self-join, and seat replacement return
+`400 Bad Request` with `first_name is required` or `last_name is required`;
+bulk creation reports the affected row as `failed` / `invalid` without stopping
+valid rows. Skipping enrichment does not bypass this validation.
+
+API callers may omit names when the verified account's profile supplies them.
+For a person without a complete profile, callers must supply both names; the
+service does not fabricate names. This prevents a v2 member from being stored
+when v1 would reject creating its user/contact. Existing incomplete members can
+still be updated without supplying names; this is a creation-time requirement.
+Failed invite acceptance or application approval leaves its status unchanged.
+
 ---
 
 ## Closed Mode

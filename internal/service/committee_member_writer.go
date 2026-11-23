@@ -200,7 +200,7 @@ func (uc *committeeWriterOrchestrator) createMemberIn(ctx context.Context, membe
 
 	// Step 2b: Validate member against committee requirements (domain validation)
 	fullCommittee := &model.Committee{CommitteeBase: *committee, CommitteeSettings: settings}
-	if errValidation := member.Validate(fullCommittee); errValidation != nil {
+	if errValidation := member.ValidateCreate(fullCommittee); errValidation != nil {
 		slog.WarnContext(ctx, "committee member validation failed",
 			"error", errValidation,
 			"member_uid", member.UID,

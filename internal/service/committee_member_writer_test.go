@@ -348,6 +348,57 @@ func (r *TestMockCommitteeReader) ListAllApplications(_ context.Context) ([]*mod
 }
 
 func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
+	t.Run("name validation precedes persistence and publication", func(t *testing.T) {
+		tests := []struct {
+			name          string
+			firstName     string
+			lastName      string
+			skipEnrich    bool
+			knownIdentity bool
+			expectedError string
+		}{
+			{name: "omitted names", expectedError: "first_name is required"},
+			{name: "missing first name", lastName: "Last", expectedError: "first_name is required"},
+			{name: "missing last name", firstName: "First", expectedError: "last_name is required"},
+			{name: "blank first name", firstName: " \t\u00a0", lastName: "Last", expectedError: "first_name is required"},
+			{name: "blank last name", firstName: "First", lastName: " \n\u2003", expectedError: "last_name is required"},
+			{name: "skip enrichment cannot bypass validation", skipEnrich: true, expectedError: "first_name is required"},
+			{name: "verified identity cannot bypass validation", knownIdentity: true, expectedError: "first_name is required"},
+			{name: "complete member", firstName: "First", lastName: "Last"},
+			{name: "complete verified member", firstName: "First", lastName: "Last", knownIdentity: true},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				f := newBulkFixture()
+				member := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+					CommitteeUID: f.committeeUID, Email: "first.last@example.com",
+					FirstName: tt.firstName, LastName: tt.lastName,
+				}}
+				if tt.knownIdentity {
+					member.IdentityLookup = model.NewIdentityLookup(member.Email, "first-last", nil)
+				}
+				created, err := f.orchestrator.CreateMember(context.Background(), member, false, tt.skipEnrich)
+				if tt.expectedError == "" {
+					require.NoError(t, err)
+					require.NotNil(t, created)
+					assert.EqualValues(t, 1, f.writer.writes.Load())
+					assert.NotEmpty(t, f.publisher.IndexerMessages)
+					return
+				}
+				require.Error(t, err)
+				var validation errs.Validation
+				require.ErrorAs(t, err, &validation)
+				assert.EqualError(t, err, tt.expectedError)
+				assert.Nil(t, created)
+				assert.Zero(t, f.writer.writes.Load())
+				assert.Empty(t, f.writer.members)
+				assert.Empty(t, f.publisher.IndexerMessages)
+				assert.Zero(t, f.publisher.MemberPutCallCount)
+				assert.Nil(t, f.publisher.LastEvent)
+			})
+		}
+	})
+
 	tests := []struct {
 		name           string
 		setupMock      func(*mock.MockRepository)
@@ -430,6 +481,8 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 					Username:     "testuser",
 					Organization: model.CommitteeMemberOrganization{Name: "Test Org"},
 					// Caller-supplied values that must be ignored in favor of the committee's.
+					FirstName:   "First",
+					LastName:    "Last",
 					ProjectUID:  "project-wrong",
 					ProjectSlug: "wrong-foundation",
 				},
@@ -473,6 +526,8 @@ func TestCommitteeWriterOrchestrator_CreateMember(t *testing.T) {
 					CommitteeUID: "committee-123",
 					Email:        "duplicate@example.com",
 					Username:     "testuser",
+					FirstName:    "First",
+					LastName:     "Last",
 					Organization: model.CommitteeMemberOrganization{
 						Name: "Test Org",
 					},
@@ -563,6 +618,8 @@ func TestCommitteeWriterOrchestrator_CreateMember_BusinessEmailValidation(t *tes
 			CommitteeUID: "committee-business-email",
 			Email:        "test@example.com",
 			Username:     "testuser",
+			FirstName:    "First",
+			LastName:     "Last",
 			Organization: model.CommitteeMemberOrganization{
 				Name:    "Test Org",
 				Website: "https://testorg.com",
@@ -731,6 +788,38 @@ func (r *flakyOldSeatReader) GetMember(ctx context.Context, uid string) (*model.
 	return r.CommitteeReader.GetMember(ctx, uid)
 }
 
+func TestCommitteeWriterOrchestrator_ReassignMember(t *testing.T) {
+	for _, tt := range []struct {
+		name, firstName, lastName, expectedError string
+	}{
+		{name: "missing first name", lastName: "Last", expectedError: "first_name is required"},
+		{name: "missing last name", firstName: "First", expectedError: "last_name is required"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newBulkFixture()
+			oldMember := testMember("old-member", f.committeeUID, "first.last+old@example.com", "first-last", "")
+			f.writer.members[oldMember.UID] = oldMember
+			f.repo.AddCommitteeMember(f.committeeUID, oldMember)
+			newMember := &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+				CommitteeUID: f.committeeUID, Email: "first.last@example.com",
+				FirstName: tt.firstName, LastName: tt.lastName,
+			}}
+
+			result, err := f.orchestrator.ReassignMember(context.Background(), oldMember.UID, 1, newMember, false)
+
+			var validation errs.Validation
+			require.ErrorAs(t, err, &validation)
+			assert.EqualError(t, err, tt.expectedError)
+			assert.Nil(t, result)
+			assert.Zero(t, f.writer.writes.Load())
+			assert.Empty(t, f.writer.deletedKeys)
+			assert.Same(t, oldMember, f.writer.members[oldMember.UID])
+			assert.Empty(t, f.publisher.IndexerMessages)
+			assert.Nil(t, f.publisher.LastEvent)
+		})
+	}
+}
+
 // TestReassignMember_UnconfirmedOldSeatRetainsNewSeat verifies that when the old-seat delete fails and
 // the confirming re-read also fails with a non-NotFound (transient) error, ReassignMember does NOT roll
 // back the freshly created seat: rolling back when the delete may already have committed would leave the
@@ -766,6 +855,8 @@ func TestReassignMember_UnconfirmedOldSeatRetainsNewSeat(t *testing.T) {
 			CommitteeUID: "committee-reassign-unconfirmed",
 			Email:        "new-holder@example.com",
 			Username:     "newholder",
+			FirstName:    "First",
+			LastName:     "Last",
 			Organization: model.CommitteeMemberOrganization{Name: "New Org"},
 		},
 	}
@@ -1415,6 +1506,8 @@ func TestCommitteeWriterOrchestrator_CreateMember_SettingsNotFound(t *testing.T)
 			CommitteeUID: "committee-no-settings",
 			Email:        "test@example.com",
 			Username:     "testuser",
+			FirstName:    "First",
+			LastName:     "Last",
 			Organization: model.CommitteeMemberOrganization{
 				Name: "Test Org",
 			},
@@ -1792,21 +1885,22 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 
 	t.Run("plain LFID overridden by username from email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, _ := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"alice@example.com": "alice"}}
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"first.last@example.com": "first-last"}}
 		addCommittee(mockRepo)
 
 		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				CommitteeUID: "c-1",
-				Email:        "alice@example.com",
+				Email:        "first.last@example.com",
 				Username:     "plain-lfid",
-				FirstName:    "Alice",
+				FirstName:    "First",
+				LastName:     "Last",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
 		}, false, false)
 
 		require.NoError(t, err)
-		assert.Equal(t, "alice", result.Username)
+		assert.Equal(t, "first-last", result.Username)
 	})
 
 	t.Run("username cleared when email present but lookup fails", func(t *testing.T) {
@@ -1817,9 +1911,10 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				CommitteeUID: "c-1",
-				Email:        "alice@example.com",
+				Email:        "first.last@example.com",
 				Username:     "plain-lfid",
-				FirstName:    "Alice",
+				FirstName:    "First",
+				LastName:     "Last",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
 		}, false, false)
@@ -1830,15 +1925,16 @@ func TestCommitteeWriterOrchestrator_CreateMember_UsernameResolution(t *testing.
 
 	t.Run("skip enrichment persists caller-supplied username without email lookup", func(t *testing.T) {
 		orchestrator, mockRepo, _ := setupMemberWriterTest()
-		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"alice@example.com": "other-lfid"}}
+		orchestrator.userReader = &writerTestUserReader{usernames: map[string]string{"first.last@example.com": "other-lfid"}}
 		addCommittee(mockRepo)
 
 		result, err := orchestrator.CreateMember(context.Background(), &model.CommitteeMember{
 			CommitteeMemberBase: model.CommitteeMemberBase{
 				CommitteeUID: "c-1",
-				Email:        "alice@example.com",
+				Email:        "first.last@example.com",
 				Username:     "sync-lfid",
-				FirstName:    "Alice",
+				FirstName:    "First",
+				LastName:     "Last",
 				Organization: model.CommitteeMemberOrganization{Name: "Org"},
 			},
 		}, false, true)
@@ -2488,6 +2584,8 @@ func testMember(uid, committeeUID, email, username, orgName string) *model.Commi
 		CommitteeUID: committeeUID,
 		Email:        email,
 		Username:     username,
+		FirstName:    "First",
+		LastName:     "Last",
 		Organization: model.CommitteeMemberOrganization{Name: orgName},
 	}}
 }

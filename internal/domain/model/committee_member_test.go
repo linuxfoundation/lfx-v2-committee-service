@@ -15,6 +15,45 @@ import (
 	errs "github.com/linuxfoundation/lfx-v2-committee-service/pkg/errors"
 )
 
+func TestCommitteeMember_ValidateCreate(t *testing.T) {
+	committee := &Committee{CommitteeBase: CommitteeBase{Category: "Other"}}
+	tests := []struct {
+		name          string
+		firstName     string
+		lastName      string
+		expectedError string
+	}{
+		{name: "omitted names", expectedError: "first_name is required"},
+		{name: "empty first name", lastName: "Last", expectedError: "first_name is required"},
+		{name: "empty last name", firstName: "First", expectedError: "last_name is required"},
+		{name: "whitespace first name", firstName: " \t\n\u00a0", lastName: "Last", expectedError: "first_name is required"},
+		{name: "whitespace last name", firstName: "First", lastName: " \t\n\u2003", expectedError: "last_name is required"},
+		{name: "valid names", firstName: "First", lastName: "Last"},
+		{name: "names with surrounding spaces", firstName: " First ", lastName: " Last "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			member := &CommitteeMember{CommitteeMemberBase: CommitteeMemberBase{
+				Email: "first.last@example.com", FirstName: tt.firstName, LastName: tt.lastName,
+			}}
+			err := member.ValidateCreate(committee)
+			if tt.expectedError == "" {
+				if err != nil {
+					t.Fatalf("ValidateCreate() error = %v", err)
+				}
+				return
+			}
+			var validation errs.Validation
+			if !errors.As(err, &validation) || err.Error() != tt.expectedError {
+				t.Fatalf("ValidateCreate() error = %v, want validation error %q", err, tt.expectedError)
+			}
+			if err := member.ValidateUpdate(committee, member); err != nil {
+				t.Fatalf("legacy member update should remain valid: %v", err)
+			}
+		})
+	}
+}
+
 func TestCommitteeMember_Validate(t *testing.T) {
 	// Create test committees
 	gacCommittee := &Committee{
