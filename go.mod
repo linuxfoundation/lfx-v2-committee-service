@@ -62,7 +62,8 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gohugoio/hashstructure v0.6.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
+	// GO-2026-6278: v1.5.3 is affected; d67f41855da4 restores crypto/rand mask keys.
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
