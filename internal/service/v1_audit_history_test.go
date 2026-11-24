@@ -10,7 +10,9 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
+	indexertypes "github.com/linuxfoundation/lfx-v2-indexer-service/pkg/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
@@ -41,7 +43,6 @@ func v1HistoryFixture(member bool, action string) (map[string]any, *V1AuditMappi
 	mappings := &V1AuditMappings{
 		Version: 1, Source: "fixture-v1", Projects: map[string]string{"project-1": "00000000-0000-4000-8000-000000000002"},
 		Committees: map[string]string{"committee-1": "00000000-0000-4000-8000-000000000001"}, Members: map[string]string{subID: "00000000-0000-4000-8000-000000000003"},
-		Revisions: map[string]uint64{v1HistoryEventID + "/committee": 1, v1HistoryEventID + "/committee_settings": 1, v1HistoryEventID + "/committee_member": 1},
 	}
 	if !member {
 		mappings.Members = nil
@@ -84,8 +85,19 @@ func TestPlanV1AuditHistory(t *testing.T) {
 						require.Len(t, events, 2)
 						require.NotEqual(t, events[0].EventID, events[1].EventID, "split resources need distinct source-derived identities")
 					}
+					occurred, err := time.Parse(time.RFC3339Nano, "2025-03-17T21:27:04.533187Z")
+					require.NoError(t, err)
+					var frozen []string
 					for _, event := range events {
 						require.Equal(t, "2025-03-17T21:27:04.533187Z", event.OccurredAt.Format("2006-01-02T15:04:05.999999999Z07:00"))
+						require.Equal(t, uint64(occurred.UnixMicro()), event.ResourceRevision, "revisions are the source time in microseconds")
+						message, err := RestoreV1AuditImportEvent(V1AuditImportEvent{ObjectType: string(event.ResourceType), Event: event.Frozen})
+						require.NoError(t, err, "the frozen event must pass the indexer SDK's restore preflight")
+						require.NotNil(t, message)
+						require.Contains(t, string(event.Frozen), `"origin":"historical_import"`)
+						require.Contains(t, string(event.Frozen), `"publisher":"`+V1AuditImportPublisher+`"`)
+						require.NotContains(t, string(event.Frozen), "private-marker", "unlisted source fields never reach the import")
+						frozen = append(frozen, string(event.Frozen))
 						require.Equal(t, "committee:"+mappings.Committees["committee-1"], event.HistoryCheckObject)
 						require.Equal(t, "auditor", event.HistoryCheckRelation)
 						require.Equal(t, "user:first-last", event.ActorRef)
@@ -106,6 +118,9 @@ func TestPlanV1AuditHistory(t *testing.T) {
 					events = nil
 					run()
 					require.Equal(t, first, v1HistoryJSON(t, events), "fresh previews cannot invent new identity, time or historical values")
+					for i, event := range events {
+						require.Equal(t, frozen[i], string(event.Frozen), "rebuilt import events must be byte-identical for the indexer fingerprint")
+					}
 				})
 			}
 		}
@@ -119,7 +134,8 @@ func TestPlanV1AuditHistory(t *testing.T) {
 			{"committee mapping", "missing_committee_mapping", false, func(_ map[string]any, m *V1AuditMappings) { m.Committees = nil }},
 			{"project mapping", "missing_project_mapping", false, func(_ map[string]any, m *V1AuditMappings) { m.Projects = nil }},
 			{"member mapping", "missing_member_mapping", false, func(_ map[string]any, m *V1AuditMappings) { m.Members = nil }},
-			{"revision", "missing_approved_revision", false, func(_ map[string]any, m *V1AuditMappings) { m.Revisions = nil }},
+			// Revisions are source times in microseconds, so pre-1970 times have none.
+			{"time before epoch", "historical_time_before_epoch", true, func(r map[string]any, _ *V1AuditMappings) { r["created_at"] = "1969-12-31T23:59:59Z" }},
 			{"missing project", "missing_historical_project_scope", false, func(r map[string]any, _ *V1AuditMappings) {
 				delete(r["old_record"].(map[string]any), "project_name__c")
 				delete(r["new_record"].(map[string]any), "project_name__c")
@@ -158,10 +174,10 @@ func TestPlanV1AuditHistory(t *testing.T) {
 			{"", "actor-1", "", "legacy:fixture-v1/actor-1"},
 			{"first-last", "actor-1", "user:current-placeholder", "user:current-placeholder"},
 			{"", "actor-1", "service:client-1", "service:client-1"},
-			// A literal ID shaped like the old hashed form stays literal.
+			// A literal ID shaped like a derived ref stays in the recorded namespace.
 			{"", "sha256-actor", "", "legacy:fixture-v1/sha256-actor"},
-			{"", "actor 1", "", "legacy:fixture-v1/sha256:" + v1AuditHash([]byte("actor 1"))},
-			{"", "", "", "legacy:fixture-v1/event:" + v1AuditHash([]byte("fixture-v1\x00"+v1HistoryEventID))},
+			{"", "actor 1", "", "legacy:fixture-v1_sha256/" + v1AuditHash([]byte("actor 1"))},
+			{"", "", "", "legacy:fixture-v1_event/" + v1AuditHash([]byte("fixture-v1\x00"+v1HistoryEventID))},
 		} {
 			t.Run(tc.want, func(t *testing.T) {
 				row, mappings := v1HistoryFixture(true, "DELETE")
@@ -177,11 +193,13 @@ func TestPlanV1AuditHistory(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, events, 1)
 				require.Equal(t, tc.want, events[0].ActorRef)
+				require.True(t, indexertypes.ValidAuditActorRef(tc.want), "the indexer must accept the actor ref")
+				require.NotEmpty(t, events[0].Frozen)
 			})
 		}
 	})
 	t.Run("duplicates and bounds", func(t *testing.T) {
-		for _, scenario := range []string{"duplicate", "source conflict", "revision conflict", "limit", "limit then oversized", "limit then blank", "limit then unicode blank", "scope", "scoped source conflict", "no manifest"} {
+		for _, scenario := range []string{"duplicate", "source conflict", "same instant", "limit", "limit then oversized", "limit then blank", "limit then unicode blank", "scope", "scoped source conflict", "no manifest"} {
 			t.Run(scenario, func(t *testing.T) {
 				row, mappings := v1HistoryFixture(true, "UPDATE")
 				first := v1HistoryJSON(t, row)
@@ -189,9 +207,9 @@ func TestPlanV1AuditHistory(t *testing.T) {
 				switch scenario {
 				case "source conflict":
 					row["new_record"].(map[string]any)["role__c"] = "Other"
-				case "revision conflict":
+				case "same instant":
+					// A different source event at the same instant derives the same revision.
 					row["id"] = "00000000-0000-4000-8000-000000000011"
-					mappings.Revisions[row["id"].(string)+"/committee_member"] = 1
 				case "limit", "limit then oversized", "limit then blank", "limit then unicode blank":
 					options.MaxRecords = 1
 				case "scope":
@@ -220,8 +238,11 @@ func TestPlanV1AuditHistory(t *testing.T) {
 					require.Equal(t, 1, report.Reasons["duplicate_source_record"])
 				case "source conflict":
 					require.Equal(t, 1, report.Reasons["conflicting_source_identity"])
-				case "revision conflict":
-					require.Equal(t, 1, report.Reasons["conflicting_resource_revision"])
+				case "same instant":
+					// Both distinct events import with the same revision; the tie is reported.
+					require.Equal(t, 2, report.Importable)
+					require.Zero(t, report.Invalid)
+					require.Equal(t, 1, report.SameInstantEvents)
 				case "limit", "limit then oversized":
 					require.Equal(t, 1, report.Rows)
 					require.Equal(t, 1, report.Importable)
@@ -411,6 +432,12 @@ func TestDecodeV1AuditMappings(t *testing.T) {
 		strings.Replace(valid, mappings.Members["member-record-1"], "private-marker", 1),
 		valid + " {}", strings.Repeat(" ", v1AuditMaxBytes+1),
 		strings.Replace(valid, `"project-1"`, `"project-\ud800"`, 1),
+		// Revisions are derived from source time; the old manifest map is rejected.
+		strings.Replace(valid, `"version":1`, `"revisions":{},"version":1`, 1),
+		// Derived actor namespaces reserve these source suffixes, and sources stay within the indexer's limit.
+		strings.Replace(valid, `"source":"fixture-v1"`, `"source":"fixture-v1_sha256"`, 1),
+		strings.Replace(valid, `"source":"fixture-v1"`, `"source":"fixture-v1_event"`, 1),
+		strings.Replace(valid, `"source":"fixture-v1"`, `"source":"`+strings.Repeat("a", 58)+`"`, 1),
 		// A cutover needs v2-origin actors, a full RFC 3339 time, and unique non-empty actors.
 		strings.Replace(valid, `"version":1`, `"native_history_since":"2025-03-17T00:00:00Z","version":1`, 1),
 		strings.Replace(valid, `"version":1`, `"v2_origin_actors":["actor-1"],"native_history_since":"2025-03-17","version":1`, 1),

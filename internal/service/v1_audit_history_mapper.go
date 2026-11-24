@@ -6,6 +6,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -118,10 +119,14 @@ func planV1AuditRow(row *v1AuditRow, mappings *V1AuditMappings) ([]model.V1Audit
 				return nil, status, reason
 			}
 		}
-		revision := mappings.Revisions[row.ID+"/"+string(resource)]
-		if revision == 0 {
-			return nil, "skipped", "missing_approved_revision"
+		// The revision is the source occurrence time in microseconds: source-owned,
+		// stable across retries and ordered in time. Imports never touch live
+		// revision lineage, so it only has to keep this meaning.
+		micros := row.CreatedAt.UnixMicro()
+		if micros < 1 {
+			return nil, "invalid", "historical_time_before_epoch"
 		}
+		revision := uint64(micros)
 		current := newSnapshot
 		if current == nil {
 			current = oldSnapshot
@@ -139,13 +144,17 @@ func planV1AuditRow(row *v1AuditRow, mappings *V1AuditMappings) ([]model.V1Audit
 		if newSnapshot != nil {
 			event.ScopeAfter = []string{"project:" + newSnapshot.ProjectUID, "committee:" + newSnapshot.CommitteeUID}
 		}
-		encoded, err := json.Marshal(event)
-		if err != nil {
+		if _, err := json.Marshal(event); err != nil {
 			return nil, "invalid", "historical_draft_not_encodable"
 		}
-		if len(encoded) > v1AuditMaxBytes {
+		built, err := BuildV1AuditImportEvent(event)
+		if errors.Is(err, errV1AuditImportTooLarge) {
 			return nil, "invalid", "historical_draft_exceeds_size_limit"
 		}
+		if err != nil {
+			return nil, "invalid", "indexer_import_rejected"
+		}
+		event.Frozen = built.Event
 		events = append(events, event)
 	}
 	if len(events) == 0 {
@@ -191,6 +200,14 @@ func v1AuditSnapshot(row *v1AuditRow, resource model.ResourceType, image, fields
 	return snapshot, "", ""
 }
 
+// Suffixes of the derived legacy actor namespaces: a recorded ID that cannot be
+// used as-is is hashed, and an event without a recorded actor is identified by
+// its source event.
+const (
+	v1AuditHashedActorSuffix = "_sha256"
+	v1AuditEventActorSuffix  = "_event"
+)
+
 func v1AuditActor(row *v1AuditRow, mappings *V1AuditMappings) string {
 	if actor, ok := mappings.Actors[row.CreatedBy]; ok && row.CreatedBy != "" {
 		return actor
@@ -202,14 +219,15 @@ func v1AuditActor(row *v1AuditRow, mappings *V1AuditMappings) string {
 	if v1AuditOpaqueID(username) {
 		return "user:" + username
 	}
-	// Literal IDs never contain ':' (see v1AuditOpaqueID), so the "event:" and
-	// "sha256:" forms cannot collide with a recorded ID or with each other.
+	// The indexer forbids ':' inside a legacy actor ID, so derived refs use their
+	// own source namespaces. Manifest sources may not end in these suffixes (see
+	// v1AuditSourceValid), so a derived ref can never equal a recorded one.
 	id := row.CreatedBy
 	if id == "" {
-		return "legacy:" + mappings.Source + "/event:" + v1AuditHash([]byte(mappings.Source+"\x00"+row.ID))
+		return "legacy:" + mappings.Source + v1AuditEventActorSuffix + "/" + v1AuditHash([]byte(mappings.Source+"\x00"+row.ID))
 	}
 	if !v1AuditOpaqueID(id) || len(id)+len(mappings.Source)+1 > 256 {
-		id = "sha256:" + v1AuditHash([]byte(id))
+		return "legacy:" + mappings.Source + v1AuditHashedActorSuffix + "/" + v1AuditHash([]byte(id))
 	}
 	return "legacy:" + mappings.Source + "/" + id
 }

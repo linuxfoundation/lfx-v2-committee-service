@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"io"
 	"maps"
-	"math"
 	"regexp"
 	"slices"
 	"strings"
@@ -28,10 +27,20 @@ import (
 
 const v1AuditMaxBytes = 1 << 20
 
-var v1AuditSourcePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
+// v1AuditSourcePattern leaves room for the _sha256/_event suffixes of derived
+// legacy actor namespaces within the indexer's 64-character source limit.
+var v1AuditSourcePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,56}$`)
+
+// v1AuditSourceValid reports whether a source namespace is usable. Names ending in
+// a derived-namespace suffix are reserved so derived actor refs cannot collide.
+func v1AuditSourceValid(source string) bool {
+	return v1AuditSourcePattern.MatchString(source) &&
+		!strings.HasSuffix(source, v1AuditHashedActorSuffix) && !strings.HasSuffix(source, v1AuditEventActorSuffix)
+}
 
 // V1AuditMappings is a fixed offline mapping manifest. No current-resource or
-// directory lookup is performed. Revision keys are <source-event-uuid>/<type>.
+// directory lookup is performed. Resource revisions are not supplied here: each
+// event's revision is derived from its source occurrence time (see planV1AuditRow).
 //
 // V2OriginActors lists the recorded v1 actor IDs that the v2-to-v1 sync writes
 // with, so changes made in v2 can be recognized. NativeHistorySince (RFC 3339 in
@@ -47,7 +56,6 @@ type V1AuditMappings struct {
 	Committees         map[string]string `json:"committees"`
 	Members            map[string]string `json:"members"`
 	Actors             map[string]string `json:"actors"`
-	Revisions          map[string]uint64 `json:"revisions"`
 	V2OriginActors     []string          `json:"v2_origin_actors,omitempty"`
 	NativeHistorySince string            `json:"native_history_since,omitempty"`
 }
@@ -70,16 +78,21 @@ type V1AuditIssue struct {
 // V1AuditReport contains only counts and fixed reason codes, never personal audit
 // payloads. Importable means locally planned, not approved for dispatch.
 type V1AuditReport struct {
-	DryRun          bool           `json:"dry_run"`
-	Rows            int            `json:"rows"`
-	Importable      int            `json:"importable"`
-	Skipped         int            `json:"skipped"`
-	Invalid         int            `json:"invalid"`
-	Events          int            `json:"events"`
-	Limited         bool           `json:"limited"`
-	Reasons         map[string]int `json:"reasons"`
-	Issues          []V1AuditIssue `json:"issues"`
-	ActorCandidates map[string]int `json:"actor_candidates"`
+	DryRun     bool `json:"dry_run"`
+	Rows       int  `json:"rows"`
+	Importable int  `json:"importable"`
+	Skipped    int  `json:"skipped"`
+	Invalid    int  `json:"invalid"`
+	Events     int  `json:"events"`
+	Limited    bool `json:"limited"`
+	// SameInstantEvents counts planned events that share a resource and source
+	// microsecond, and so a revision, with an earlier distinct event. Both are
+	// imported: the indexer keeps both, and history is read in occurred_at,
+	// publisher and event_id order. Review them before dispatch.
+	SameInstantEvents int            `json:"same_instant_events"`
+	Reasons           map[string]int `json:"reasons"`
+	Issues            []V1AuditIssue `json:"issues"`
+	ActorCandidates   map[string]int `json:"actor_candidates"`
 }
 
 // DecodeV1AuditMappings validates a bounded, closed manifest without echoing its
@@ -90,7 +103,7 @@ func DecodeV1AuditMappings(input io.Reader) (*V1AuditMappings, error) {
 		return nil, errs.NewValidation("cannot read bounded audit mapping manifest")
 	}
 	var mappings V1AuditMappings
-	if !strictV1AuditJSON(data) || !v1AuditKnownKeys(data, "version", "source", "projects", "committees", "members", "actors", "revisions",
+	if !strictV1AuditJSON(data) || !v1AuditKnownKeys(data, "version", "source", "projects", "committees", "members", "actors",
 		"v2_origin_actors", "native_history_since") ||
 		decodeV1AuditJSON(data, &mappings) != nil {
 		return nil, errs.NewValidation("invalid audit mapping manifest")
@@ -103,7 +116,7 @@ func DecodeV1AuditMappings(input io.Reader) (*V1AuditMappings, error) {
 
 // validateV1AuditMappings checks decoded and direct-caller manifests alike.
 func validateV1AuditMappings(mappings *V1AuditMappings) error {
-	if mappings.Version != 1 || !v1AuditSourcePattern.MatchString(mappings.Source) {
+	if mappings.Version != 1 || !v1AuditSourceValid(mappings.Source) {
 		return errs.NewValidation("invalid audit mapping manifest")
 	}
 	for _, mapping := range []map[string]string{mappings.Projects, mappings.Committees, mappings.Members} {
@@ -118,13 +131,6 @@ func validateV1AuditMappings(mappings *V1AuditMappings) error {
 		kind, id, ok := strings.Cut(ref, ":")
 		if !v1AuditMappingKey(source) || !ok || (kind != "user" && kind != "service") || !v1AuditOpaqueID(id) {
 			return errs.NewValidation("invalid audit actor mapping")
-		}
-	}
-	for key, revision := range mappings.Revisions {
-		id, resource, ok := strings.Cut(key, "/")
-		parsed, err := uuid.Parse(id)
-		if !ok || err != nil || parsed == uuid.Nil || parsed.String() != id || model.V1AuditSchema(model.ResourceType(resource)) == "" || revision == 0 || revision > math.MaxInt64 {
-			return errs.NewValidation("invalid audit revision mapping")
 		}
 	}
 	seenActors := make(map[string]bool, len(mappings.V2OriginActors))
@@ -161,15 +167,16 @@ func v1AuditMappingKey(source string) bool {
 	return source != "" && len(source) <= 256 && utf8.ValidString(source)
 }
 
-// PlanV1AuditHistory reads NDJSON and emits only private draft plans through the
-// optional sink. It has no infrastructure ports, publisher or mutation capability.
-// The caller must protect personal draft output and discard it after any error or
-// invalid/conflicting record. No revisions are allocated or state advanced here.
+// PlanV1AuditHistory reads NDJSON and emits planned events, each carrying its
+// frozen indexer import message, through the optional sink. It has no
+// infrastructure ports, publisher or mutation capability. The caller must protect
+// that personal output and discard it after any error or invalid/conflicting
+// record. No live revisions are allocated or state advanced here.
 func PlanV1AuditHistory(ctx context.Context, input io.Reader, options V1AuditOptions, emit func(model.V1AuditPlanEvent) error) (*V1AuditReport, error) {
 	if options.MaxRecords == 0 {
 		options.MaxRecords = 10000
 	}
-	if input == nil || !v1AuditSourcePattern.MatchString(options.Source) || options.MaxRecords < 1 || options.MaxRecords > 100000 {
+	if input == nil || !v1AuditSourceValid(options.Source) || options.MaxRecords < 1 || options.MaxRecords > 100000 {
 		return nil, errs.NewValidation("invalid offline audit preview options")
 	}
 	mappings := &V1AuditMappings{Version: 1, Source: options.Source}
@@ -180,7 +187,7 @@ func PlanV1AuditHistory(ctx context.Context, input io.Reader, options V1AuditOpt
 			Version: options.Mappings.Version, Source: options.Mappings.Source,
 			Projects: maps.Clone(options.Mappings.Projects), Committees: maps.Clone(options.Mappings.Committees),
 			Members: maps.Clone(options.Mappings.Members), Actors: maps.Clone(options.Mappings.Actors),
-			Revisions: maps.Clone(options.Mappings.Revisions), V2OriginActors: slices.Clone(options.Mappings.V2OriginActors),
+			V2OriginActors:     slices.Clone(options.Mappings.V2OriginActors),
 			NativeHistorySince: options.Mappings.NativeHistorySince,
 		}
 	}
@@ -268,19 +275,12 @@ func PlanV1AuditHistory(ctx context.Context, input io.Reader, options V1AuditOpt
 			report.record(line, status, reason)
 			continue
 		}
-		conflict := false
 		for _, event := range events {
 			key := v1AuditRevisionKey(event)
 			if previous, exists := revisions[key]; exists && previous != event.EventID {
-				conflict = true
+				report.SameInstantEvents++
 			}
-		}
-		if conflict {
-			report.record(line, "invalid", "conflicting_resource_revision")
-			continue
-		}
-		for _, event := range events {
-			revisions[v1AuditRevisionKey(event)] = event.EventID
+			revisions[key] = event.EventID
 			if emit != nil && emit(event) != nil {
 				return report, errs.NewUnexpected("cannot write private audit draft")
 			}

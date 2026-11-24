@@ -24,7 +24,7 @@ import (
 
 const v1PreviewRow = `{"id":"00000000-0000-4000-8000-000000000010","record_id":"committee-1","record_type":"COMMITTEE","action":"INSERT","created_at":"2025-03-17T21:27:04.533187Z","created_by":"actor-1","created_by_username":"first-last","new_record":{"sfid":"committee-1","project_name__c":"project-1","mailing_list__c":"Committee example","chat_webhook_url":"private-marker"}}`
 
-const v1PreviewMappings = `{"version":1,"source":"fixture-v1","projects":{"project-1":"00000000-0000-4000-8000-000000000002"},"committees":{"committee-1":"00000000-0000-4000-8000-000000000001"},"revisions":{"00000000-0000-4000-8000-000000000010/committee":1}}`
+const v1PreviewMappings = `{"version":1,"source":"fixture-v1","projects":{"project-1":"00000000-0000-4000-8000-000000000002"},"committees":{"committee-1":"00000000-0000-4000-8000-000000000001"}}`
 
 func TestV1AuditHistorySubcommand_Run(t *testing.T) {
 	for _, scenario := range []string{
@@ -171,6 +171,27 @@ type v1CancelingWriter struct {
 func (w *v1CancelingWriter) Write(p []byte) (int, error) {
 	w.cancel()
 	return w.Writer.Write(p)
+}
+
+func TestV1AuditHistorySubcommand_PrintIndexerPolicy(t *testing.T) {
+	var output bytes.Buffer
+	command := &v1AuditHistorySubcommand{output: &output}
+	require.True(t, command.RunsOffline([]string{"--print-indexer-policy", "client-1@clients"}))
+	require.NoError(t, command.Run(context.Background(), commands.RunContext{Args: []string{"--print-indexer-policy", "client-1@clients"}}))
+	require.Contains(t, output.String(), `"publisher": "committee-v1-import"`)
+	require.Contains(t, output.String(), `"historical_import"`)
+	require.Contains(t, output.String(), `"committee_member.legacy.v1"`)
+
+	for _, args := range [][]string{
+		{"--print-indexer-policy", "private-marker"},
+		{"--print-indexer-policy", "client-1@clients", "--source", "fixture-v1"},
+	} {
+		output.Reset()
+		err := command.Run(context.Background(), commands.RunContext{Args: args})
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), "private-marker")
+		require.Empty(t, output.String())
+	}
 }
 
 func TestCancelableV1AuditReader(t *testing.T) {

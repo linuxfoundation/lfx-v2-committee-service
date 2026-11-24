@@ -32,24 +32,29 @@ committee-cli <command> <subcommand> [subcommand flags]
 
 #### `report v1-audit-history`
 
-Always-offline, dry-run-only preview of raw V1 committee audit NDJSON and an
-optional fixed ID/revision mapping manifest. It runs before infrastructure
-initialization and never writes resources, publishes, looks up users or imports
-history. Stdout contains only counts and safe line-number/reason diagnostics.
-Optional `--plan-output` creates a new 0600 private draft file; it is not an
-indexer envelope. See [the complete schema/mapping and safety runbook](../../docs/v1-audit-history.md).
+Always-offline, dry-run-only planner for raw V1 committee audit NDJSON and an
+optional fixed ID mapping manifest. It runs before infrastructure initialization
+and never writes resources, publishes, looks up users or imports history. Stdout
+contains only counts and safe line-number/reason diagnostics. Optional
+`--plan-output` creates a new 0600 private file of frozen indexer
+`historical_import` events (no credentials); this command never sends them. See
+[the complete schema/mapping and safety runbook](../../docs/v1-audit-history.md).
 
 ```bash
 committee-cli report v1-audit-history \
   --input ~/scratch/v1-committee-audit.ndjson --source dev-v1
 ```
 
-Use `--mappings <file>` for explicit IDs and reviewed per-resource revisions,
-`--committee-id` for legacy committee scope, and `--max-records` for a bounded
-preview. Missing mappings/revisions are reported, never invented. Exit 1 indicates
-invalid input or a processing/output failure; exit 0 does not mean all source
-rows were importable. No dispatch/resume/checkpoint or environment enablement is
-provided in this slice.
+Use `--mappings <file>` for explicit IDs, `--committee-id` for legacy committee
+scope, and `--max-records` for a bounded preview. Missing mappings are reported,
+never invented; each event's revision is its source time in microseconds. Exit 1
+indicates invalid input or a processing/output failure; exit 0 does not mean all
+source rows were importable. Dispatch, resume and reconciliation are not part of
+this command.
+
+`--print-indexer-policy <client>@clients` prints the indexer audit policy entry
+that admits the import publisher (`committee-v1-import`) for that machine client,
+approved only for `historical_import`, and exits.
 
 #### `sync total-members-attribute`
 

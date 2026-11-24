@@ -25,9 +25,9 @@ type V1AuditSnapshot struct {
 	Fields       map[string]json.RawMessage `json:"fields"`
 }
 
-// V1AuditPlanEvent is a private, offline review artifact, NOT an indexer wire
-// envelope or a dispatchable outbox event. Revision/anchor approval and SDK
-// preflight remain required before any later publishing implementation.
+// V1AuditPlanEvent is one planned historical event. Frozen holds the validated
+// indexer version 2 historical_import message built from it (without transport
+// headers); the private draft file stores that message, not this struct.
 type V1AuditPlanEvent struct {
 	EventID              string           `json:"event_id"`
 	ResourceType         ResourceType     `json:"resource_type"`
@@ -43,6 +43,7 @@ type V1AuditPlanEvent struct {
 	Schema               string           `json:"schema"`
 	Before               *V1AuditSnapshot `json:"before,omitempty"`
 	After                *V1AuditSnapshot `json:"after,omitempty"`
+	Frozen               json.RawMessage  `json:"-"`
 }
 
 // V1AuditSchema names immutable, committee-owned historical snapshot shapes.
@@ -74,6 +75,25 @@ var v1AuditFields = map[ResourceType]map[string]byte{
 		"start_date__c": 's', "end_date__c": 's', "voting_status__c": 's',
 		"votind_start_date__c": 's', "voting_end_date__c": 's',
 	},
+}
+
+// V1AuditFieldTypes returns the closed field inventory of a historical snapshot
+// schema as JSON value types ("string" or "boolean"), for publishing the matching
+// indexer schema policy. It returns nil for an unsupported resource.
+func V1AuditFieldTypes(resource ResourceType) map[string]string {
+	allowed, ok := v1AuditFields[resource]
+	if !ok {
+		return nil
+	}
+	types := make(map[string]string, len(allowed))
+	for key, kind := range allowed {
+		if kind == 'b' {
+			types[key] = "boolean"
+		} else {
+			types[key] = "string"
+		}
+	}
+	return types
 }
 
 // V1AuditFields selects and canonicalizes the closed historical field inventory.

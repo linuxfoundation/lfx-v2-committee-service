@@ -38,11 +38,12 @@ func (s *v1AuditHistorySubcommand) Run(ctx context.Context, rc commands.RunConte
 	fs.SetOutput(io.Discard)
 	inputPath := fs.String("input", "", "raw platform.committee_audit_log NDJSON file")
 	source := fs.String("source", "", "stable environment/source namespace, such as dev-v1")
-	mappingPath := fs.String("mappings", "", "offline JSON mapping/revision manifest; absent means inventory only")
+	mappingPath := fs.String("mappings", "", "offline JSON ID mapping manifest; absent means inventory only")
 	committeeID := fs.String("committee-id", "", "limit to one legacy committee record ID")
 	limit := fs.Int("max-records", 10000, "maximum nonempty records read (1..100000)")
 	dryRun := fs.Bool("dry-run", true, "must remain true; publishing is not implemented")
-	planPath := fs.String("plan-output", "", "optional NEW private draft NDJSON file (contains personal audit data; mode 0600)")
+	planPath := fs.String("plan-output", "", "optional NEW private draft NDJSON file of frozen indexer import events (contains personal audit data; mode 0600)")
+	policyPrincipal := fs.String("print-indexer-policy", "", "print the indexer audit policy entry for the import publisher bound to this <client>@clients principal, then exit")
 	if err := fs.Parse(rc.Args); err != nil {
 		if err == flag.ErrHelp {
 			_, _ = fmt.Fprintln(out, "usage: committee-cli report v1-audit-history --input <file> --source <namespace> [flags]")
@@ -51,6 +52,19 @@ func (s *v1AuditHistorySubcommand) Run(ctx context.Context, rc commands.RunConte
 			return nil
 		}
 		return errs.NewValidation("invalid offline audit preview arguments")
+	}
+	if *policyPrincipal != "" {
+		if fs.NFlag() != 1 || fs.NArg() != 0 {
+			return errs.NewValidation("--print-indexer-policy cannot be combined with other arguments")
+		}
+		policy, err := service.V1AuditImportPolicy(*policyPrincipal)
+		if err != nil {
+			return err
+		}
+		if _, err := out.Write(policy); err != nil {
+			return errs.NewUnexpected("cannot write the indexer import policy")
+		}
+		return nil
 	}
 	if !*dryRun || *inputPath == "" || *source == "" || *limit < 1 || *limit > 100000 || fs.NArg() != 0 {
 		return errs.NewValidation("offline audit preview requires input, source and dry-run mode")
@@ -106,7 +120,9 @@ func (s *v1AuditHistorySubcommand) Run(ctx context.Context, rc commands.RunConte
 			}
 		}()
 		encoder := json.NewEncoder(plan)
-		emit = func(event model.V1AuditPlanEvent) error { return encoder.Encode(event) }
+		emit = func(event model.V1AuditPlanEvent) error {
+			return encoder.Encode(service.V1AuditImportEvent{ObjectType: string(event.ResourceType), Event: event.Frozen})
+		}
 	}
 	report, err := service.PlanV1AuditHistory(ctx, inputReader, options, emit)
 	if err != nil {
