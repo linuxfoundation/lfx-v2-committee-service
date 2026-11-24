@@ -5844,12 +5844,8 @@ func (c *Client) BuildUpdateCommitteeLinkFolderRequest(ctx context.Context, v an
 		if !ok {
 			return nil, goahttp.ErrInvalidType("committee-service", "update-committee-link-folder", "*committeeservice.UpdateCommitteeLinkFolderPayload", v)
 		}
-		if p.UID != nil {
-			uid = *p.UID
-		}
-		if p.FolderUID != nil {
-			folderUID = *p.FolderUID
-		}
+		uid = p.UID
+		folderUID = p.FolderUID
 	}
 	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: UpdateCommitteeLinkFolderCommitteeServicePath(uid, folderUID)}
 	req, err := http.NewRequest("PUT", u.String(), nil)
@@ -5879,8 +5875,8 @@ func EncodeUpdateCommitteeLinkFolderRequest(encoder func(*http.Request) goahttp.
 				req.Header.Set("Authorization", head)
 			}
 		}
-		if p.IfMatch != nil {
-			head := *p.IfMatch
+		{
+			head := p.IfMatch
 			req.Header.Set("If-Match", head)
 		}
 		{

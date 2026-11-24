@@ -686,7 +686,12 @@ func TestUpdateLinkFolder_Rename(t *testing.T) {
 		t.Helper()
 		key := fmt.Sprintf(constants.KVLookupFolderPrefix, (&model.CommitteeLinkFolder{CommitteeUID: committee, Name: name}).BuildIndexKey(ctx))
 		_, err := client.kvStore[constants.KVBucketNameCommitteeFolders].Get(ctx, key)
-		return err == nil
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return false
+		}
+		// Only a not-found read says the key is gone; any other error says nothing, so it must not pass as "released".
+		require.NoError(t, err)
+		return true
 	}
 	// setup creates the folder "Legal" and, when wrap is given, wraps the folders bucket so that the folder's next update
 	// fails as the case says.

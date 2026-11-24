@@ -2989,7 +2989,7 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 func (s *committeeServicesrvc) UpdateCommitteeLinkFolder(ctx context.Context, p *committeeservice.UpdateCommitteeLinkFolderPayload) (res *committeeservice.CommitteeLinkFolderWithReadonlyAttributes, err error) {
 	slog.DebugContext(ctx, "committeeService.update-committee-link-folder", "committee_uid", p.UID, "folder_uid", p.FolderUID)
 
-	parsedRevision, err := etagValidator(p.IfMatch)
+	parsedRevision, err := etagValidator(&p.IfMatch)
 	if err != nil {
 		slog.ErrorContext(ctx, "invalid ETag", "error", err, "etag", p.IfMatch, "folder_uid", p.FolderUID)
 		return nil, wrapError(ctx, err)
@@ -3001,8 +3001,8 @@ func (s *committeeServicesrvc) UpdateCommitteeLinkFolder(ctx context.Context, p 
 	}
 
 	folder := &model.CommitteeLinkFolder{
-		UID:          *p.FolderUID,
-		CommitteeUID: *p.UID,
+		UID:          p.FolderUID,
+		CommitteeUID: p.UID,
 		Name:         p.Name,
 		UpdatedBy:    updatedBy,
 	}

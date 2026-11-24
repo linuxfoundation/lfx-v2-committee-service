@@ -1803,11 +1803,11 @@ type UpdateCommitteeLinkFolderPayload struct {
 	// Version of the API
 	Version *string
 	// If-Match header value for conditional requests
-	IfMatch *string
+	IfMatch string
 	// Committee UID -- v2 uid, not related to v1 id directly
-	UID *string
+	UID string
 	// Committee folder UID
-	FolderUID *string
+	FolderUID string
 	// Folder name
 	Name string
 	// Requests synchronous processing for applicable downstream operations.

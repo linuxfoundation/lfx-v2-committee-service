@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/model"
+	"github.com/linuxfoundation/lfx-v2-committee-service/internal/domain/port"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/infrastructure/mock"
 	"github.com/linuxfoundation/lfx-v2-committee-service/internal/service"
 	"github.com/linuxfoundation/lfx-v2-committee-service/pkg/constants"
@@ -630,6 +631,24 @@ func TestUpdateLinkFolder(t *testing.T) {
 		assert.Empty(t, publisher.IndexerMessages)
 	})
 
+	t.Run("a folder read back at another revision than the caller's is a conflict before anything is copied", func(t *testing.T) {
+		repo, publisher, _, revision := setup(t)
+		// A reader whose snapshot is one revision behind the store: what a lagging replica returns. The store's own
+		// check would accept the caller's revision, so only the comparison here stops the older folder being copied.
+		orch := service.NewLinkWriterOrchestrator(
+			service.WithLinkWriter(repo),
+			service.WithLinkReaderForWriter(&staleFolderReader{CommitteeLinkReader: repo}),
+			service.WithDocumentListerForWriter(&fakeDocumentLister{}),
+			service.WithLinkPublisher(publisher),
+		)
+
+		_, err := orch.UpdateLinkFolder(ctx, request(nil), revision, false)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		requireUnchanged(t, repo, publisher, revision)
+	})
+
 	t.Run("a folder that is missing or belongs to another committee is not found", func(t *testing.T) {
 		for _, tc := range []struct{ name, committee, uid string }{
 			{"missing", committeeUID, "no-such-folder"},
@@ -671,4 +690,17 @@ func TestUpdateLinkFolder(t *testing.T) {
 		var validation errs.Validation
 		require.ErrorAs(t, err, &validation, "a nil folder is invalid")
 	})
+}
+
+// staleFolderReader reports every folder one revision older than it is, as a read from a replica behind the leader does.
+type staleFolderReader struct {
+	port.CommitteeLinkReader
+}
+
+func (r *staleFolderReader) GetLinkFolder(ctx context.Context, committeeUID, folderUID string) (*model.CommitteeLinkFolder, uint64, error) {
+	folder, revision, err := r.CommitteeLinkReader.GetLinkFolder(ctx, committeeUID, folderUID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return folder, revision - 1, nil
 }

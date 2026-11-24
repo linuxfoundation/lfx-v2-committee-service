@@ -291,7 +291,7 @@ func ParseEndpoint(
 		committeeServiceUpdateCommitteeLinkFolderFolderUIDFlag   = committeeServiceUpdateCommitteeLinkFolderFlags.String("folder-uid", "REQUIRED", "Committee folder UID")
 		committeeServiceUpdateCommitteeLinkFolderVersionFlag     = committeeServiceUpdateCommitteeLinkFolderFlags.String("version", "", "")
 		committeeServiceUpdateCommitteeLinkFolderBearerTokenFlag = committeeServiceUpdateCommitteeLinkFolderFlags.String("bearer-token", "", "")
-		committeeServiceUpdateCommitteeLinkFolderIfMatchFlag     = committeeServiceUpdateCommitteeLinkFolderFlags.String("if-match", "", "")
+		committeeServiceUpdateCommitteeLinkFolderIfMatchFlag     = committeeServiceUpdateCommitteeLinkFolderFlags.String("if-match", "REQUIRED", "")
 		committeeServiceUpdateCommitteeLinkFolderXSyncFlag       = committeeServiceUpdateCommitteeLinkFolderFlags.String("x-sync", "", "")
 
 		committeeServiceDeleteCommitteeLinkFolderFlags           = flag.NewFlagSet("delete-committee-link-folder", flag.ExitOnError)

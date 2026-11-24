@@ -5158,7 +5158,7 @@ func DecodeUpdateCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 			folderUID   string
 			version     *string
 			bearerToken *string
-			ifMatch     *string
+			ifMatch     string
 			xSync       bool
 
 			params = mux.Vars(r)
@@ -5180,9 +5180,9 @@ func DecodeUpdateCommitteeLinkFolderRequest(mux goahttp.Muxer, decoder func(*htt
 		if bearerTokenRaw != "" {
 			bearerToken = &bearerTokenRaw
 		}
-		ifMatchRaw := r.Header.Get("If-Match")
-		if ifMatchRaw != "" {
-			ifMatch = &ifMatchRaw
+		ifMatch = r.Header.Get("If-Match")
+		if ifMatch == "" {
+			err = goa.MergeErrors(err, goa.MissingFieldError("if_match", "header"))
 		}
 		{
 			xSyncRaw := r.Header.Get("X-Sync")

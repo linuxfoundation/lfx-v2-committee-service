@@ -8591,12 +8591,12 @@ func NewCreateCommitteeLinkFolderPayload(body *CreateCommitteeLinkFolderRequestB
 
 // NewUpdateCommitteeLinkFolderPayload builds a committee-service service
 // update-committee-link-folder endpoint payload.
-func NewUpdateCommitteeLinkFolderPayload(body *UpdateCommitteeLinkFolderRequestBody, uid string, folderUID string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeLinkFolderPayload {
+func NewUpdateCommitteeLinkFolderPayload(body *UpdateCommitteeLinkFolderRequestBody, uid string, folderUID string, version *string, bearerToken *string, ifMatch string, xSync bool) *committeeservice.UpdateCommitteeLinkFolderPayload {
 	v := &committeeservice.UpdateCommitteeLinkFolderPayload{
 		Name: *body.Name,
 	}
-	v.UID = &uid
-	v.FolderUID = &folderUID
+	v.UID = uid
+	v.FolderUID = folderUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch

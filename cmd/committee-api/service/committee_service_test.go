@@ -5137,9 +5137,9 @@ func setupUpdateFolderService(t *testing.T) (*committeeServicesrvc, *mock.MockLi
 func TestUpdateCommitteeLinkFolder(t *testing.T) {
 	newPayload := func(mutate func(*committeeservice.UpdateCommitteeLinkFolderPayload)) *committeeservice.UpdateCommitteeLinkFolderPayload {
 		p := &committeeservice.UpdateCommitteeLinkFolderPayload{
-			IfMatch:   strPtr("1"),
-			UID:       strPtr("committee-1"),
-			FolderUID: strPtr("folder-aaa"),
+			IfMatch:   "1",
+			UID:       "committee-1",
+			FolderUID: "folder-aaa",
 			Name:      "Governance 2026",
 		}
 		if mutate != nil {
@@ -5175,13 +5175,13 @@ func TestUpdateCommitteeLinkFolder(t *testing.T) {
 			mutate   func(*committeeservice.UpdateCommitteeLinkFolderPayload)
 			wantType string
 		}{
-			{name: "no If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.IfMatch = nil }, wantType: "bad request"},
-			{name: "an If-Match that is not a revision", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.IfMatch = strPtr("not-a-revision") }, wantType: "bad request"},
+			{name: "no If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.IfMatch = "" }, wantType: "bad request"},
+			{name: "an If-Match that is not a revision", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.IfMatch = "not-a-revision" }, wantType: "bad request"},
 			{name: "no identity in the token", ctx: context.Background(), mutate: nil, wantType: "bad request"},
 			{name: "an empty name", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.Name = "" }, wantType: "bad request"},
-			{name: "a folder that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.FolderUID = strPtr("no-such-folder") }, wantType: "not found"},
-			{name: "a folder of another committee", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.UID = strPtr("committee-2") }, wantType: "not found"},
-			{name: "a stale If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.IfMatch = strPtr("7") }, wantType: "conflict"},
+			{name: "a folder that does not exist", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.FolderUID = "no-such-folder" }, wantType: "not found"},
+			{name: "a folder of another committee", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.UID = "committee-2" }, wantType: "not found"},
+			{name: "a stale If-Match", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.IfMatch = "7" }, wantType: "conflict"},
 			{name: "a name another folder holds", ctx: testCtx("first-last"), mutate: func(p *committeeservice.UpdateCommitteeLinkFolderPayload) { p.Name = "Archive" }, wantType: "conflict"},
 		}
 		for _, tt := range tests {

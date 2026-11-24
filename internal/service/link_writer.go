@@ -246,9 +246,15 @@ func (o *linkWriterOrchestrator) UpdateLinkFolder(ctx context.Context, folder *m
 
 	// Found through the committee first: a folder of another committee is not found, which is what lets the store
 	// replace it by uid alone, and what is not editable (identity, creator, creation time) is taken from it.
-	existing, _, err := o.linkReader.GetLinkFolder(ctx, folder.CommitteeUID, folder.UID)
+	existing, existingRevision, err := o.linkReader.GetLinkFolder(ctx, folder.CommitteeUID, folder.UID)
 	if err != nil {
 		return nil, err
+	}
+	// What is copied below must be the folder as the caller saw it. A read that comes back at another revision is
+	// either a concurrent change or a stale replica snapshot, and replacing the folder from it could undo a newer
+	// write (an audit backfill's) that the store's own revision check would not notice.
+	if existingRevision != revision {
+		return nil, errs.NewConflict("folder has been modified since it was last read")
 	}
 
 	updated := *existing

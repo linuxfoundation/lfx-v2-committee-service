@@ -2947,11 +2947,9 @@ func BuildUpdateCommitteeLinkFolderPayload(committeeServiceUpdateCommitteeLinkFo
 			bearerToken = &committeeServiceUpdateCommitteeLinkFolderBearerToken
 		}
 	}
-	var ifMatch *string
+	var ifMatch string
 	{
-		if committeeServiceUpdateCommitteeLinkFolderIfMatch != "" {
-			ifMatch = &committeeServiceUpdateCommitteeLinkFolderIfMatch
-		}
+		ifMatch = committeeServiceUpdateCommitteeLinkFolderIfMatch
 	}
 	var xSync bool
 	{
@@ -2965,8 +2963,8 @@ func BuildUpdateCommitteeLinkFolderPayload(committeeServiceUpdateCommitteeLinkFo
 	v := &committeeservice.UpdateCommitteeLinkFolderPayload{
 		Name: body.Name,
 	}
-	v.UID = &uid
-	v.FolderUID = &folderUID
+	v.UID = uid
+	v.FolderUID = folderUID
 	v.Version = version
 	v.BearerToken = bearerToken
 	v.IfMatch = ifMatch

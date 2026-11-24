@@ -78,10 +78,12 @@ the old name's key and its revision, then reserve the new name first, so a name 
 changes nothing. The reservation's value is the record uid and a token only that call knows (`<uid>#<token>`; the delete
 and the old-name release accept the bare uid too). The record's revision is read again after the old key, so a key that
 another rename of the record has since reserved is never taken for the name the caller saw. A request that has ended by
-the time the name is reserved never sends the write, so the name is released at once. The record is then written with the
-caller's revision, and the old name is released only once the write has landed, by the revision it had before, so a key
-that was released and taken again in between is left alone. A revision that is no longer current is a conflict before
-anything is reserved, and a write the server refuses outright releases the name it reserved.
+the time the name is reserved never sends the write, so the name is released at once, on a context detached from the
+request. That release is best-effort: if the purge itself times out the name stays reserved, it is logged, and a retry
+conflicts until the key is removed. The record is then written with the caller's revision, and the old name is released
+only once the write has landed, by the revision it had before, so a key that was released and taken again in between is
+left alone. A revision found stale before anything is reserved is a conflict that reserves nothing. One that goes stale
+after the name is reserved is refused by the write, and the name it reserved is released, guarded by its revision.
 
 An error that is not a refusal (a client that disconnects mid-write is the usual cause) is settled on a context detached
 from the request:
@@ -103,11 +105,20 @@ from the request:
   same reason, and logged the same way. An older read is a stale read from a lagging replica: the record was read at that
   revision before the write was sent and revisions only grow, so it says nothing about whether the write can still land.
 
+These steps assume that reads reflect writes: a record or key read earlier in the same call does not later read as missing
+from a replica that never saw it. The KV API has no authoritative read to confirm that, and the chart's buckets default to
+one replica (`replicas: 1`), where reads cannot lag. With more replicas and reads served by a follower, a stale read can
+break the steps in two ways. A name can stay reserved: an old-name read that misses its key leaves it reserved after a
+rename, and a recovery read that misses a stored reservation leaves it unreported until the key is removed. Or, if the
+read-back after a write that landed wrongly reports the record as missing, the new name's key is released while a live
+record holds it, which could let another record take the name.
+
 An update that keeps the name reserves no key, so a write error is settled by the same read-back: stored bytes equal to
 the bytes written are reported as done, and anything else is an error.
 
-A crash between reserving the new name and writing the record leaves the same lock. This is what the PostgreSQL store's
-unique index does in one statement, so a rename behaves the same in every storage mode.
+A crash between reserving the new name and writing the record leaves the same lock. The PostgreSQL store's unique index
+does the check in the same statement that writes the record, so it cannot leave a separate reservation behind; the two
+stores agree on which renames succeed and which names conflict.
 
 Document upload pre-checks the name before storing the file, removes the stored file if metadata
 creation fails (unless the metadata is found to exist), and treats the metadata create as the

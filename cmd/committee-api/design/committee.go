@@ -1491,7 +1491,7 @@ var _ = dsl.Service("committee-service", func() {
 				dsl.Example("Meeting Notes")
 			})
 			XSyncAttribute()
-			dsl.Required("name")
+			dsl.Required("uid", "folder_uid", "name", "if_match")
 		})
 
 		dsl.Result(CommitteeLinkFolderWithReadonlyAttributes)

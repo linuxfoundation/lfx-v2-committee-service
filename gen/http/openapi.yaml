@@ -1269,7 +1269,7 @@ paths:
                 - name: If-Match
                   in: header
                   description: If-Match header value for conditional requests
-                  required: false
+                  required: true
                   type: string
                 - name: X-Sync
                   in: header
