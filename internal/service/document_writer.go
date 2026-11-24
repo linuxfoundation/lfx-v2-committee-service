@@ -21,6 +21,10 @@ import (
 // CommitteeDocumentDataWriter defines use case operations for writing documents.
 type CommitteeDocumentDataWriter interface {
 	UploadDocument(ctx context.Context, doc *model.CommitteeDocument, fileData []byte, sync bool) (*model.CommitteeDocument, error)
+	// UpdateDocument replaces the document's name, description and folder, guarded by the revision. An absent folder
+	// moves the document to the root. The file and who uploaded it are kept; a name another document in the committee
+	// holds is errs.Conflict.
+	UpdateDocument(ctx context.Context, doc *model.CommitteeDocument, revision uint64, sync bool) (*model.CommitteeDocument, error)
 	DeleteDocument(ctx context.Context, committeeUID, documentUID string, revision uint64, sync bool) error
 }
 
@@ -166,6 +170,54 @@ func (o *documentWriterOrchestrator) removeUnreferencedFile(ctx context.Context,
 			"error", errCleanup,
 		)
 	}
+}
+
+func (o *documentWriterOrchestrator) UpdateDocument(ctx context.Context, doc *model.CommitteeDocument, revision uint64, sync bool) (*model.CommitteeDocument, error) {
+	if doc == nil {
+		return nil, errs.NewValidation("document is required")
+	}
+	if doc.UID == "" {
+		return nil, errs.NewValidation("document UID is required")
+	}
+	if doc.CommitteeUID == "" {
+		return nil, errs.NewValidation("committee UID is required")
+	}
+	if doc.Name == "" {
+		return nil, errs.NewValidation("document name is required")
+	}
+
+	// Found through the committee first: a document of another committee is not found, which is what lets the store
+	// replace it by uid alone, and what is not editable (the file, its uid, committee, uploader and upload time) is
+	// taken from it.
+	existing, _, err := o.docReader.GetDocumentMetadata(ctx, doc.CommitteeUID, doc.UID)
+	if err != nil {
+		return nil, err
+	}
+
+	updated := *existing
+	updated.Name = doc.Name
+	updated.Description = doc.Description
+	updated.FolderUID = nil
+	if doc.FolderUID != nil && *doc.FolderUID != "" {
+		updated.FolderUID = doc.FolderUID
+	}
+	if doc.UpdatedBy != nil {
+		updated.UpdatedBy = doc.UpdatedBy
+	}
+	updated.UpdatedAt = time.Now().UTC()
+
+	if err := o.docWriter.UpdateDocumentMetadata(ctx, &updated, revision); err != nil {
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "updated committee document",
+		"document_uid", updated.UID,
+		"committee_uid", updated.CommitteeUID,
+	)
+
+	o.publishDocumentIndexerMessage(ctx, model.ActionUpdated, &updated, sync)
+
+	return &updated, nil
 }
 
 func (o *documentWriterOrchestrator) DeleteDocument(ctx context.Context, committeeUID, documentUID string, revision uint64, sync bool) error {

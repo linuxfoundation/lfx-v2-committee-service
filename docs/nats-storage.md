@@ -72,6 +72,39 @@ the email or name is not left locked. If the write error is ambiguous (the recor
 stored), the key is kept, which blocks re-creation instead of allowing a duplicate. Deleting a folder,
 document, or application releases its key. Callers never see or build these keys.
 
+Renaming a document moves its key. `UpdateDocumentMetadata` reads the old name's key and its revision, then reserves the
+new name first, so a name another document holds is a conflict that changes nothing. The reservation's value is the
+document uid and a token only that call knows (`<uid>#<token>`; the delete and the old-name release accept the bare uid
+too). The record's revision is read again after the old key, so a key that another rename of the document has since
+reserved is never taken for the name the caller saw. The record is then written with the caller's revision, and the old
+name is released only once the write has landed, by the revision it had before, so a key that was released and taken
+again in between is left alone. A revision that is no longer current is a conflict before anything is reserved, and a
+write the server refuses outright releases the name it reserved.
+
+An error that is not a refusal (a client that disconnects mid-write is the usual cause) is settled on a context detached
+from the request:
+
+- **Reservation reply lost.** The new name's key is read back; it is released only when it holds this call's token, so a
+  key another attempt made is left alone.
+- **Write error, record now holds the new name.** The write landed: the old name is released, and when the stored bytes
+  are exactly the bytes written the update is reported as done and indexed as usual. A record changed since (the audit
+  backfill rewrites the users and leaves `updated_at`) is not reported as done.
+- **Write error, record deleted.** The write can no longer apply, and the delete released only the name the record held
+  when it read it, so the old name's key and the new name's key are both released.
+- **Write error, record has left both names, or holds the old name at a later revision.** The write can no longer
+  apply, since it needs the revision it was sent at, so the new name's key is released, and the old name's key too when
+  the record has left it.
+- **Write error, record still holds the old name at the revision the write was sent at.** The write may still land, and
+  a key released now could be taken by another document first, so the new name's key is kept and logged at critical
+  priority. It stays locked until it is removed, and a retry of the same rename conflicts with it until then.
+- **Record cannot be read back.** Both keys are kept, for the same reason, and logged the same way.
+
+An update that keeps the name reserves no key, so a write error is settled by the same read-back: stored bytes equal to
+the bytes written are reported as done, and anything else is an error.
+
+A crash between reserving the new name and writing the record leaves the same lock. This is what the PostgreSQL store's
+unique index does in one statement, so a rename behaves the same in every storage mode.
+
 Document upload pre-checks the name before storing the file, removes the stored file if metadata
 creation fails (unless the metadata is found to exist), and treats the metadata create as the
 authoritative uniqueness check.

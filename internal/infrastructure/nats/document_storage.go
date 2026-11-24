@@ -171,6 +171,14 @@ func (ds *documentStorage) ListAllDocuments(ctx context.Context, committeeUID st
 	return (&storage{client: ds.client}).ListAllDocuments(ctx, committeeUID)
 }
 
+// UpdateDocumentMetadata replaces the metadata when the revision is still current, moving the name lookup key when the
+// name changes. It is the update the audit sync uses (see storage.UpdateDocumentMetadata), exposed here because in kv
+// mode this adapter is the whole document store: the document update serves its request through it. The stored file is
+// not touched.
+func (ds *documentStorage) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
+	return (&storage{client: ds.client}).UpdateDocumentMetadata(ctx, doc, revision)
+}
+
 // DeleteDocumentFile removes the file from the object store. A missing file is not an error.
 func (ds *documentStorage) DeleteDocumentFile(ctx context.Context, documentUID string) error {
 	if errDel := ds.client.objStore[constants.ObjectStoreNameCommitteeDocuments].Delete(ctx, documentUID); errDel != nil {

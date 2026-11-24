@@ -228,9 +228,12 @@ Weekly briefs and their throttle entries (get by window, put, index keys) follow
   the link through its committee before replacing it, and `UpdateLinkFolder` is still only for the audit-sync tooling. `ListAllLinks` and
   `ListAllLinkFolders` return every record when the committee is empty.
 - **Document metadata** is found by uid within its committee for get and delete, like links; `UpdateDocumentMetadata`
-  matches on the uid and revision alone, as KV does, for the audit-sync tooling. A document name is unique per committee and
-  case-sensitive, and `UpdateDocumentMetadata` checks a changed name against the unique index, where KV keeps the lookup
-  key of the original name. `DocumentNameExists` is the same query the unique index answers. The file bytes stay in the
+  matches on the uid and revision alone, as KV does, so a request path has to check the committee first: the document
+  update (`PUT /committees/{uid}/documents/{document_uid}`) loads the document through its committee before replacing it.
+  A document name is unique per committee and case-sensitive, and `UpdateDocumentMetadata` checks a changed name against
+  the unique index; KV does the same by moving the name lookup key (the new name is reserved first, so a name another
+  document holds is a conflict that changes nothing, and the old name is released once the update has landed), so a
+  rename behaves the same in every mode. `DocumentNameExists` is the same query the unique index answers. The file bytes stay in the
   NATS Object Store, keyed by the document uid: the store implements no file method (`GetDocumentFile`, `PutDocumentFile`,
   `DeleteDocumentFile`), so the composite store keeps calling the object store and deletes the file after the metadata.
 - **Weekly briefs and throttle entries** are found by committee and the UTC day of `window_start`, the KV key

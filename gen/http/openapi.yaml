@@ -816,6 +816,94 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+        put:
+            tags:
+                - committee-service
+            summary: update-committee-document committee-service
+            description: Replace a committee document's name, description and folder (requires the complete set of mutable fields); the uploaded file is not changed
+            operationId: committee-service#update-committee-document
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: false
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: document_uid
+                  in: path
+                  description: Committee document UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+                - name: If-Match
+                  in: header
+                  description: If-Match header value for conditional requests
+                  required: true
+                  type: string
+                - name: X-Sync
+                  in: header
+                  description: Requests synchronous processing for applicable downstream operations. Indexer messages are always published fire-and-forget regardless of this flag (see indexer-contract.md); this header no longer affects indexer delivery. FGA update_access, delete_access, member_put, and member_remove publications remain asynchronous and do not wait for FGA processing or OpenFGA convergence.
+                  required: false
+                  type: boolean
+                  default: false
+                - name: Update-Committee-DocumentRequestBody
+                  in: body
+                  required: true
+                  schema:
+                    $ref: '#/definitions/CommitteeServiceUpdateCommitteeDocumentRequestBody'
+                    required:
+                        - name
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/CommitteeDocumentWithReadonlyAttributes'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
         delete:
             tags:
                 - committee-service
@@ -3517,7 +3605,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: eli
+                    example: ytw
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3619,7 +3707,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: j0s
+                    example: i8v
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -3849,7 +3937,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: 4ps
+                    example: sd5
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3968,7 +4056,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: xd7
+                    example: sfo
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -4857,50 +4945,30 @@ definitions:
                         end_date: "2024-12-31"
                         start_date: "2023-01-01"
                         status: Voting Rep
-                    - appointed_by: Community
-                      email: first.last@example.com
-                      first_name: First
-                      job_title: Chief Technology Officer
-                      last_name: Last
-                      linkedin_profile: https://www.linkedin.com/in/first-last
-                      organization:
-                        id: org-123456
-                        name: The Linux Foundation
-                        website: https://linuxfoundation.org
-                      role:
-                        end_date: "2024-12-31"
-                        name: Chair
-                        start_date: "2023-01-01"
-                      status: Active
-                      username: first-last
-                      voting:
-                        end_date: "2024-12-31"
-                        start_date: "2023-01-01"
-                        status: Voting Rep
-                    - appointed_by: Community
-                      email: first.last@example.com
-                      first_name: First
-                      job_title: Chief Technology Officer
-                      last_name: Last
-                      linkedin_profile: https://www.linkedin.com/in/first-last
-                      organization:
-                        id: org-123456
-                        name: The Linux Foundation
-                        website: https://linuxfoundation.org
-                      role:
-                        end_date: "2024-12-31"
-                        name: Chair
-                        start_date: "2023-01-01"
-                      status: Active
-                      username: first-last
-                      voting:
-                        end_date: "2024-12-31"
-                        start_date: "2023-01-01"
-                        status: Voting Rep
                 minItems: 1
                 maxItems: 100
         example:
             members:
+                - appointed_by: Community
+                  email: first.last@example.com
+                  first_name: First
+                  job_title: Chief Technology Officer
+                  last_name: Last
+                  linkedin_profile: https://www.linkedin.com/in/first-last
+                  organization:
+                    id: org-123456
+                    name: The Linux Foundation
+                    website: https://linuxfoundation.org
+                  role:
+                    end_date: "2024-12-31"
+                    name: Chair
+                    start_date: "2023-01-01"
+                  status: Active
+                  username: first-last
+                  voting:
+                    end_date: "2024-12-31"
+                    start_date: "2023-01-01"
+                    status: Voting Rep
                 - appointed_by: Community
                   email: first.last@example.com
                   first_name: First
@@ -4963,12 +5031,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: xrt
+                example: soc
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: af562d4d-859f-4c40-ab7d-87276e54764b
+                example: 49a7f23a-c321-4c85-9bf2-38e82505f74c
                 format: uuid
             name:
                 type: string
@@ -4983,8 +5051,8 @@ definitions:
                 pattern: ^https?://[^\s/$.?#][^\s]*$
                 maxLength: 2048
         example:
-            description: dgs
-            folder_uid: b2f69321-8269-4b17-94c1-385c05d443f1
+            description: c2z
+            folder_uid: 38fa566b-a0d8-46b6-9436-b399dd073230
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -5231,14 +5299,14 @@ definitions:
             chat_webhook_url:
                 type: string
                 description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                example: pys
+                example: nrj
                 pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                 maxLength: 500
             deliverables:
                 type: array
                 items:
                     type: string
-                    example: 5rc
+                    example: szx
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -5352,7 +5420,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: ojs
+                    example: cyp
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -5398,7 +5466,7 @@ definitions:
             charter:
                 url: https://example.org/governance/charter.pdf
             chat_channel: https://slack.example.org/channels/tsc
-            chat_webhook_url: xjn
+            chat_webhook_url: ste
             deliverables:
                 - Quarterly technical roadmap
                 - Annual governance review
@@ -5675,7 +5743,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: w7s
+                    example: 10k
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -5767,7 +5835,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: vuy
+                    example: shn
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -5823,6 +5891,31 @@ definitions:
             - name
             - category
             - project_uid
+    CommitteeServiceUpdateCommitteeDocumentRequestBody:
+        title: CommitteeServiceUpdateCommitteeDocumentRequestBody
+        type: object
+        properties:
+            description:
+                type: string
+                description: Optional description; omit to clear it
+                example: asq
+                maxLength: 2000
+            folder_uid:
+                type: string
+                description: Folder UID to place this document in; omit to move it to the root
+                example: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                format: uuid
+            name:
+                type: string
+                description: Display name for the document; unique within the committee
+                example: Architecture Decision Record
+                maxLength: 500
+        example:
+            description: eij
+            folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+            name: Architecture Decision Record
+        required:
+            - name
     CommitteeServiceUpdateCommitteeLinkRequestBody:
         title: CommitteeServiceUpdateCommitteeLinkRequestBody
         type: object
@@ -5830,12 +5923,12 @@ definitions:
             description:
                 type: string
                 description: Optional description; omit to clear it
-                example: 8b8
+                example: qrr
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Folder UID to place this link in; omit to move it to the root
-                example: 52c94723-f416-4512-bb0e-5d2a211363e4
+                example: 2dd27bf5-b7dd-4756-be9d-4156f5c5c74d
                 format: uuid
             name:
                 type: string
@@ -5850,8 +5943,8 @@ definitions:
                 pattern: ^https?://[^\s/$.?#][^\s]*$
                 maxLength: 2048
         example:
-            description: dtd
-            folder_uid: b64e7bab-b20b-4718-93d8-40ddfe96692c
+            description: 3v0
+            folder_uid: f7136f79-ce65-456c-9a39-e384daae9bcf
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -6054,7 +6147,7 @@ definitions:
             chat_webhook_url:
                 type: string
                 description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                example: nl1
+                example: bib
                 pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                 maxLength: 500
             last_reviewed_at:
@@ -6101,7 +6194,7 @@ definitions:
                   name: John Doe
                   username: auditor_user_id1
             business_email_required: false
-            chat_webhook_url: k4b
+            chat_webhook_url: hc0
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
@@ -6148,32 +6241,58 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Perspiciatis expedita.
+                example: Atque ex perspiciatis numquam ut dignissimos.
             description:
                 type: string
                 description: Optional description
-                example: 7st
+                example: aek
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 80
-                    - 108
-                    - 97
-                    - 99
-                    - 101
-                    - 97
+                    - 65
+                    - 117
                     - 116
                     - 32
+                    - 108
+                    - 97
+                    - 98
+                    - 111
+                    - 114
+                    - 105
+                    - 111
+                    - 115
+                    - 97
+                    - 109
+                    - 32
+                    - 100
                     - 101
+                    - 115
+                    - 101
+                    - 114
+                    - 117
+                    - 110
+                    - 116
+                    - 32
+                    - 115
+                    - 101
+                    - 100
+                    - 32
+                    - 97
+                    - 117
+                    - 116
+                    - 101
+                    - 109
+                    - 32
+                    - 117
                     - 116
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Non eius culpa quod.
+                example: Expedita ratione placeat et adipisci.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -6185,21 +6304,30 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Deserunt sed autem ut voluptatum.
-            description: e6x
+            content_type: Consectetur omnis aliquam.
+            description: 1nm
             file:
                 - 69
-                - 120
+                - 110
+                - 105
+                - 109
                 - 32
-                - 100
+                - 118
+                - 101
+                - 108
+                - 32
+                - 118
                 - 111
                 - 108
-                - 111
-                - 114
+                - 117
+                - 112
+                - 116
+                - 97
+                - 116
                 - 101
-                - 115
+                - 109
                 - 46
-            file_name: Numquam ut dignissimos excepturi aut.
+            file_name: Sapiente maiores nemo nam.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -6521,15 +6649,15 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: d0i
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: d0i
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: d0i
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -6579,7 +6707,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: 12w
+                example: 01w
                 maxLength: 5000
             id:
                 type: string
@@ -6595,7 +6723,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: cxk
+            excerpt: 6oh
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -6700,7 +6828,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: pci
+                example: yb9
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -6755,15 +6883,15 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: d0i
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: d0i
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: d0i
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -6888,11 +7016,11 @@ definitions:
             message:
                 type: string
                 description: Human-readable description
-                example: Perferendis autem expedita.
+                example: Quo inventore ipsa perspiciatis.
         description: No chat webhook URL is configured for this committee
         example:
             code: no_chat_webhook
-            message: Inventore consequuntur.
+            message: Porro iusto.
         required:
             - code
             - message
@@ -7156,6 +7284,42 @@ definitions:
         example:
             page_token: eyJvIjoxMDB9
             seats:
+                - appointed_by: Community
+                  avatar: https://example.com/avatar.png
+                  committee_category: Board
+                  committee_name: Technical Steering Committee
+                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  email: user@example.com
+                  first_name: John
+                  is_org_editable: true
+                  job_title: Chief Technology Officer
+                  last_name: Doe
+                  organization_id: 001B000000IqhSLIAZ
+                  project_slug: example-foundation
+                  project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  reason: This seat is foundation-controlled.
+                  role_name: Chair
+                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  username: user123
+                  voting_status: Voting Rep
+                - appointed_by: Community
+                  avatar: https://example.com/avatar.png
+                  committee_category: Board
+                  committee_name: Technical Steering Committee
+                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  email: user@example.com
+                  first_name: John
+                  is_org_editable: true
+                  job_title: Chief Technology Officer
+                  last_name: Doe
+                  organization_id: 001B000000IqhSLIAZ
+                  project_slug: example-foundation
+                  project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                  reason: This seat is foundation-controlled.
+                  role_name: Chair
+                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                  username: user123
+                  voting_status: Voting Rep
                 - appointed_by: Community
                   avatar: https://example.com/avatar.png
                   committee_category: Board

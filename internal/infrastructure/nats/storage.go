@@ -2416,6 +2416,12 @@ func purgeLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey string
 	}
 }
 
+// lookupHeldBy reports whether a lookup key's value says uid holds it: the bare uid, or the uid followed by the
+// per-attempt token a document rename adds to its reservation (see storage.UpdateDocumentMetadata).
+func lookupHeldBy(value, uid string) bool {
+	return value == uid || strings.HasPrefix(value, uid+"#")
+}
+
 // purgeOwnedLookupKey purges a uniqueness lookup key after its record was deleted, only while the key
 // still holds the record's uid and by the revision it was read at: a key that another record now holds
 // is left alone. A key already gone is fine; a failed purge is logged.
@@ -2431,7 +2437,7 @@ func purgeOwnedLookupKey(ctx context.Context, kv jetstream.KeyValue, lookupKey, 
 		}
 		return
 	}
-	if string(entry.Value()) != ownerUID {
+	if !lookupHeldBy(string(entry.Value()), ownerUID) {
 		return
 	}
 	purgeLookupKey(ctx, kv, lookupKey, nil, []any{"key", lookupKey, "owner_uid", ownerUID}, jetstream.LastRevision(entry.Revision()))

@@ -57,6 +57,7 @@ type Client struct {
 	UploadCommitteeDocumentEndpoint    goa.Endpoint
 	GetCommitteeDocumentEndpoint       goa.Endpoint
 	DownloadCommitteeDocumentEndpoint  goa.Endpoint
+	UpdateCommitteeDocumentEndpoint    goa.Endpoint
 	DeleteCommitteeDocumentEndpoint    goa.Endpoint
 	GetCurrentWeeklyBriefEndpoint      goa.Endpoint
 	GenerateWeeklyBriefEndpoint        goa.Endpoint
@@ -67,7 +68,7 @@ type Client struct {
 
 // NewClient initializes a "committee-service" service client given the
 // endpoints.
-func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, bulkCreateCommitteeMembers, getCommitteeMember, listCommitteeMembers, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, withdrawApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, updateCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
+func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCommittee, getCommitteeSettings, updateCommitteeSettings, readyz, livez, createCommitteeMember, bulkCreateCommitteeMembers, getCommitteeMember, listCommitteeMembers, getOrgCommitteeSeats, reassignOrgCommitteeSeat, updateCommitteeMember, deleteCommitteeMember, getInvite, createInvite, revokeInvite, acceptInvite, declineInvite, getApplication, submitApplication, approveApplication, rejectApplication, withdrawApplication, joinCommittee, leaveCommittee, getCommitteeLink, listCommitteeLinks, createCommitteeLink, updateCommitteeLink, deleteCommitteeLink, getCommitteeLinkFolder, listCommitteeLinkFolders, createCommitteeLinkFolder, deleteCommitteeLinkFolder, uploadCommitteeDocument, getCommitteeDocument, downloadCommitteeDocument, updateCommitteeDocument, deleteCommitteeDocument, getCurrentWeeklyBrief, generateWeeklyBrief, previewGenerateWeeklyBrief, updateCurrentWeeklyBrief, shareWeeklyBriefToChat goa.Endpoint) *Client {
 	return &Client{
 		CreateCommitteeEndpoint:            createCommittee,
 		GetCommitteeBaseEndpoint:           getCommitteeBase,
@@ -109,6 +110,7 @@ func NewClient(createCommittee, getCommitteeBase, updateCommitteeBase, deleteCom
 		UploadCommitteeDocumentEndpoint:    uploadCommitteeDocument,
 		GetCommitteeDocumentEndpoint:       getCommitteeDocument,
 		DownloadCommitteeDocumentEndpoint:  downloadCommitteeDocument,
+		UpdateCommitteeDocumentEndpoint:    updateCommitteeDocument,
 		DeleteCommitteeDocumentEndpoint:    deleteCommitteeDocument,
 		GetCurrentWeeklyBriefEndpoint:      getCurrentWeeklyBrief,
 		GenerateWeeklyBriefEndpoint:        generateWeeklyBrief,
@@ -779,6 +781,24 @@ func (c *Client) DownloadCommitteeDocument(ctx context.Context, p *DownloadCommi
 	}
 	o := ires.(*DownloadCommitteeDocumentResponseData)
 	return o.Body, nil
+}
+
+// UpdateCommitteeDocument calls the "update-committee-document" endpoint of
+// the "committee-service" service.
+// UpdateCommitteeDocument may return the following errors:
+//   - "BadRequest" (type *BadRequestError): Bad request
+//   - "NotFound" (type *NotFoundError): Resource not found
+//   - "Conflict" (type *ConflictError): Document name already exists, or the revision is stale
+//   - "InternalServerError" (type *InternalServerError): Internal server error
+//   - "ServiceUnavailable" (type *ServiceUnavailableError): Service unavailable
+//   - error: internal error
+func (c *Client) UpdateCommitteeDocument(ctx context.Context, p *UpdateCommitteeDocumentPayload) (res *CommitteeDocumentWithReadonlyAttributes, err error) {
+	var ires any
+	ires, err = c.UpdateCommitteeDocumentEndpoint(ctx, p)
+	if err != nil {
+		return
+	}
+	return ires.(*CommitteeDocumentWithReadonlyAttributes), nil
 }
 
 // DeleteCommitteeDocument calls the "delete-committee-document" endpoint of

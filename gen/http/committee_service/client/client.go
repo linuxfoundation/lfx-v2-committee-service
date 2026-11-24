@@ -178,6 +178,10 @@ type Client struct {
 	// the download-committee-document endpoint.
 	DownloadCommitteeDocumentDoer goahttp.Doer
 
+	// UpdateCommitteeDocument Doer is the HTTP client used to make requests to the
+	// update-committee-document endpoint.
+	UpdateCommitteeDocumentDoer goahttp.Doer
+
 	// DeleteCommitteeDocument Doer is the HTTP client used to make requests to the
 	// delete-committee-document endpoint.
 	DeleteCommitteeDocumentDoer goahttp.Doer
@@ -268,6 +272,7 @@ func NewClient(
 		UploadCommitteeDocumentDoer:    doer,
 		GetCommitteeDocumentDoer:       doer,
 		DownloadCommitteeDocumentDoer:  doer,
+		UpdateCommitteeDocumentDoer:    doer,
 		DeleteCommitteeDocumentDoer:    doer,
 		GetCurrentWeeklyBriefDoer:      doer,
 		GenerateWeeklyBriefDoer:        doer,
@@ -1234,6 +1239,30 @@ func (c *Client) DownloadCommitteeDocument() goa.Endpoint {
 			return nil, err
 		}
 		return &committeeservice.DownloadCommitteeDocumentResponseData{Body: resp.Body}, nil
+	}
+}
+
+// UpdateCommitteeDocument returns an endpoint that makes HTTP requests to the
+// committee-service service update-committee-document server.
+func (c *Client) UpdateCommitteeDocument() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeUpdateCommitteeDocumentRequest(c.encoder)
+		decodeResponse = DecodeUpdateCommitteeDocumentResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildUpdateCommitteeDocumentRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.UpdateCommitteeDocumentDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "update-committee-document", err)
+		}
+		return decodeResponse(resp)
 	}
 }
 
