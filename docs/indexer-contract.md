@@ -202,10 +202,17 @@ Same tag set as the parent [Committee](#committee).
 
 | Field | Value |
 |---|---|
-| `access_check_object` | `committee_settings:{uid}` |
+| `access_check_object` | `committee:{uid}` |
 | `access_check_relation` | `auditor` |
-| `history_check_object` | `committee_settings:{uid}` |
+| `history_check_object` | `committee:{uid}` |
 | `history_check_relation` | `auditor` |
+
+Settings are checked against the parent committee's `auditor` relation, the same
+guard the API uses for `GET /committees/{uid}/settings`. A settings record shares its
+committee's UID, and the OpenFGA model has no `committee_settings` type. Documents
+indexed before this anchor was adopted used `committee_settings:{uid}`, which no
+caller can satisfy; `committee-cli sync repair-settings-index` re-anchors them and
+removes settings documents whose settings record no longer exists.
 
 ### Search Behavior
 

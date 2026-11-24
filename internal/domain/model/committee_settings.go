@@ -36,16 +36,18 @@ func (s *CommitteeSettings) GetAuditors() []CommitteeUser {
 
 // IndexingConfig returns the indexer access-control configuration for a committee_settings document.
 // Settings are always indexed as non-public regardless of the parent committee's visibility,
-// because they carry writer/auditor emails and are gated by the auditor relation at the API layer.
+// because they carry writer/auditor emails. Access and history are checked against the parent
+// committee's auditor relation, matching the API's GET /committees/{uid}/settings guard; the
+// OpenFGA model has no committee_settings type. A settings record shares its committee's UID.
 // tags should be the parent committee's Tags() output so search facets stay consistent.
 // Precondition: s.UID must be set (populated by storage on create/read) before calling this method.
 func (s *CommitteeSettings) IndexingConfig(tags []string) *indexerTypes.IndexingConfig {
 	notPublic := false
 	return &indexerTypes.IndexingConfig{
 		ObjectID:             s.UID,
-		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", s.UID),
+		AccessCheckObject:    fmt.Sprintf("committee:%s", s.UID),
 		AccessCheckRelation:  "auditor",
-		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", s.UID),
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", s.UID),
 		HistoryCheckRelation: "auditor",
 		Tags:                 tags,
 		Public:               &notPublic,

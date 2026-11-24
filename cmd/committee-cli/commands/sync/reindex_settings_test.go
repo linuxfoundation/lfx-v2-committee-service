@@ -124,9 +124,9 @@ func TestReindexSettings_SingleUID_Flag(t *testing.T) {
 	msg := pub.indexerMsgs[0].(*model.CommitteeIndexerMessage)
 	assert.Equal(t, &indexerTypes.IndexingConfig{
 		ObjectID:             "c1",
-		AccessCheckObject:    "committee_settings:c1",
+		AccessCheckObject:    "committee:c1",
 		AccessCheckRelation:  "auditor",
-		HistoryCheckObject:   "committee_settings:c1",
+		HistoryCheckObject:   "committee:c1",
 		HistoryCheckRelation: "auditor",
 		Tags:                 msg.IndexingConfig.Tags, // tags vary; just confirm they're present
 		Public:               msg.IndexingConfig.Public,
