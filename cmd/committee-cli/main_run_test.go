@@ -4,10 +4,16 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +46,94 @@ func TestRun_ListFieldsNeedsNoNATS(t *testing.T) {
 
 	require.NoError(t, err, "--list-fields is a static catalog and must not need a NATS connection")
 	assert.Contains(t, out, "Fields supported by committee-fields")
+}
+
+func TestRun_V1AuditHistoryIsOffline(t *testing.T) {
+	t.Setenv("STORAGE_MODE", "invalid-mode")
+	input := filepath.Join(t.TempDir(), "audit.ndjson")
+	require.NoError(t, os.WriteFile(input, nil, 0600))
+	out, err := runWithArgs(t, "report", "v1-audit-history", "--source=fixture-v1", "--input="+input)
+	require.NoError(t, err, "offline preview must run before NATS/storage configuration and connections")
+	require.Contains(t, out, `"dry_run": true`)
+	require.Contains(t, out, `"rows": 0`)
+	var report map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out), &report), "stdout must be one JSON report, not mixed initialization logs")
+}
+
+func TestRun_UnknownCommandDoesNotEchoPrivateArguments(t *testing.T) {
+	const private = "/private/first.last@example.com/audit.ndjson"
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		// A misplaced value-taking flag turns its value into the subcommand positional.
+		{"misplaced flag", []string{"report", "--input", private, "v1-audit-history"}},
+		{"misplaced flag with help", []string{"report", "--input", private, "v1-audit-history", "--help"}},
+		{"unknown command", []string{private, "v1-audit-history"}},
+		{"unknown command with help", []string{private, "v1-audit-history", "--help"}},
+		// A value that looks like a command name is not echoed either.
+		{"misplaced username", []string{"report", "--committee-id", "first-last", "v1-audit-history"}},
+		{"misplaced username with help", []string{"report", "--committee-id", "first-last", "v1-audit-history", "--help"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oldStderr := os.Stderr
+			reader, writer, err := os.Pipe()
+			require.NoError(t, err)
+			os.Stderr = writer
+			t.Cleanup(func() { os.Stderr = oldStderr })
+
+			out, runErr := runWithArgs(t, tc.args...)
+
+			require.NoError(t, writer.Close())
+			stderr, err := io.ReadAll(reader)
+			require.NoError(t, err)
+			require.Error(t, runErr)
+			assert.Contains(t, runErr.Error(), "unknown")
+			for _, output := range []string{runErr.Error(), out, string(stderr)} {
+				assert.NotContains(t, output, "first.last@example.com")
+				assert.NotContains(t, output, "first-last")
+			}
+		})
+	}
+}
+
+func TestRun_V1AuditHistoryBrokenStdoutDiscardsDraft(t *testing.T) {
+	if raw := os.Getenv("COMMITTEE_CLI_TEST_ARGS"); raw != "" {
+		// Child process: run the CLI with stdout already broken.
+		var args []string
+		require.NoError(t, json.Unmarshal([]byte(raw), &args))
+		os.Args = append([]string{"committee-cli"}, args...)
+		if run() != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("SIGPIPE is a unix signal")
+	}
+	dir := t.TempDir()
+	input, plan := filepath.Join(dir, "audit.ndjson"), filepath.Join(dir, "draft.ndjson")
+	require.NoError(t, os.WriteFile(input, nil, 0600))
+	args, err := json.Marshal([]string{"report", "v1-audit-history", "--source=fixture-v1", "--input=" + input, "--plan-output=" + plan})
+	require.NoError(t, err)
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+	require.NoError(t, reader.Close(), "a stdout pipe with no reader breaks on the first write")
+	defer func() { _ = writer.Close() }()
+
+	// A stuck child is killed rather than hanging the package until its timeout.
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestRun_V1AuditHistoryBrokenStdoutDiscardsDraft$")
+	child.Env = append(os.Environ(), "COMMITTEE_CLI_TEST_ARGS="+string(args))
+	child.Stdout = writer
+	runErr := child.Run()
+
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, runErr, &exitErr)
+	require.Equal(t, 1, exitErr.ExitCode(), "the summary write must fail with an error, not kill the process with SIGPIPE")
+	_, statErr := os.Stat(plan)
+	require.True(t, os.IsNotExist(statErr), "the draft must be removed")
 }
 
 func TestRun_CommitteeFieldsStillNeedsNATSToDoRealWork(t *testing.T) {

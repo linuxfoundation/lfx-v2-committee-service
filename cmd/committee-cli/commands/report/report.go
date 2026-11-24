@@ -19,7 +19,8 @@ func (c *command) Help() string {
 
 func (c *command) Subcommands() map[string]commands.Subcommand {
 	return map[string]commands.Subcommand{
-		"board-seats": &boardSeatsSubcommand{},
+		"board-seats":      &boardSeatsSubcommand{},
+		"v1-audit-history": &v1AuditHistorySubcommand{},
 	}
 }
 

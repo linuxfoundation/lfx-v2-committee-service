@@ -30,6 +30,27 @@ committee-cli <command> <subcommand> [subcommand flags]
 
 ### Commands
 
+#### `report v1-audit-history`
+
+Always-offline, dry-run-only preview of raw V1 committee audit NDJSON and an
+optional fixed ID/revision mapping manifest. It runs before infrastructure
+initialization and never writes resources, publishes, looks up users or imports
+history. Stdout contains only counts and safe line-number/reason diagnostics.
+Optional `--plan-output` creates a new 0600 private draft file; it is not an
+indexer envelope. See [the complete schema/mapping and safety runbook](../../docs/v1-audit-history.md).
+
+```bash
+committee-cli report v1-audit-history \
+  --input ~/scratch/v1-committee-audit.ndjson --source dev-v1
+```
+
+Use `--mappings <file>` for explicit IDs and reviewed per-resource revisions,
+`--committee-id` for legacy committee scope, and `--max-records` for a bounded
+preview. Missing mappings/revisions are reported, never invented. Exit 1 indicates
+invalid input or a processing/output failure; exit 0 does not mean all source
+rows were importable. No dispatch/resume/checkpoint or environment enablement is
+provided in this slice.
+
 #### `sync total-members-attribute`
 
 Reconciles `CommitteeBase.TotalMembers` against the actual member count in the KV store. Drift can occur when a member event is missed or a consumer is lagged.

@@ -8,6 +8,13 @@ This document is the authoritative reference for all data the committee service 
 
 ## Delivery
 
+The [V1 historical audit preview](v1-audit-history.md) defines separate,
+committee-owned `*.legacy.v1` draft snapshot schemas and an offline mapper. It
+does not publish indexer messages, change this delivery path or register a
+production audit policy. Its private draft plans are not wire envelopes. Future
+dispatch must use the generic indexer-owned historical-import contract and SDK
+preflight, never the projection-only `backfill` origin.
+
 All indexer messages are published fire-and-forget via `conn.Publish` (core NATS, not JetStream publish).
 `lfx-v2-indexer-service#68` migrated the indexer from a core NATS queue subscription to a JetStream
 durable consumer. Under JetStream with `AckExplicitPolicy`, `msg.Ack()` sends to the internal
