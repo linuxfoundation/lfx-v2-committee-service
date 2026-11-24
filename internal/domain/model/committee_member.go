@@ -289,6 +289,22 @@ func (cm *CommitteeMember) Validate(committee *Committee) error {
 	return cm.validate(committee, "")
 }
 
+// ValidateCreate validates a new member after profile enrichment. Both names must
+// be present before persistence so a downstream v1 sync can create a contact.
+// Updates use ValidateUpdate so incomplete legacy members remain editable.
+func (cm *CommitteeMember) ValidateCreate(committee *Committee) error {
+	if err := cm.Validate(committee); err != nil {
+		return err
+	}
+	if strings.TrimSpace(cm.FirstName) == "" {
+		return errs.NewValidation("first_name is required")
+	}
+	if strings.TrimSpace(cm.LastName) == "" {
+		return errs.NewValidation("last_name is required")
+	}
+	return nil
+}
+
 // ValidateUpdate runs all of the same checks as Validate and additionally
 // applies the legacy-None exemption: if the existing member already carries
 // voting_status "None" (a v1 migration artifact), the incoming update may keep

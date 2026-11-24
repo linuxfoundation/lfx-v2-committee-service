@@ -286,6 +286,22 @@ type applicationHookStore struct {
 	updateErr error
 }
 
+type membershipStatusWriteSpy struct {
+	port.CommitteeReaderWriter
+	inviteUpdates      int
+	applicationUpdates int
+}
+
+func (s *membershipStatusWriteSpy) UpdateInvite(ctx context.Context, invite *model.CommitteeInvite, revision uint64) error {
+	s.inviteUpdates++
+	return s.CommitteeReaderWriter.UpdateInvite(ctx, invite, revision)
+}
+
+func (s *membershipStatusWriteSpy) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
+	s.applicationUpdates++
+	return s.CommitteeReaderWriter.UpdateApplication(ctx, application, revision)
+}
+
 func (h *applicationHookStore) UpdateApplication(ctx context.Context, application *model.CommitteeApplication, revision uint64) error {
 	if h.updateErr != nil {
 		return h.updateErr
@@ -1976,6 +1992,41 @@ func TestRevokeInvite_NotFound(t *testing.T) {
 }
 
 func TestAcceptInvite(t *testing.T) {
+	for _, status := range []string{"pending", "declined"} {
+		t.Run("incomplete profile leaves invite "+status, func(t *testing.T) {
+			svc, orch, repo := setupServiceTestWithRepo()
+			svc.userReader = mockReaderForPrincipalEmail("first-last", "first.last@example.com").
+				withUsernames("first.last@example.com", "first-last").
+				withMetadata("first-last", &model.UserMetadata{GivenName: "First"})
+			store := &membershipStatusWriteSpy{CommitteeReaderWriter: svc.storage}
+			svc.storage = store
+			invite := &model.CommitteeInvite{
+				UID: "invite-incomplete-name-" + status, CommitteeUID: "committee-name-validation",
+				InviteeEmail: "first.last@example.com", Status: status,
+			}
+			repo.AddCommitteeInvite(invite)
+			orch.createMemberValidator = func(member *model.CommitteeMember) error {
+				return member.ValidateCreate(&model.Committee{})
+			}
+
+			result, err := svc.AcceptInvite(testCtx("first-last"), &committeeservice.AcceptInvitePayload{
+				UID: invite.CommitteeUID, InviteUID: invite.UID,
+			})
+
+			var badRequest *committeeservice.BadRequestError
+			require.ErrorAs(t, err, &badRequest)
+			assert.Equal(t, "last_name is required", badRequest.Message)
+			assert.Nil(t, result)
+			require.Len(t, orch.createMemberCalls, 1)
+			assert.Equal(t, "First", orch.createMemberCalls[0].FirstName)
+			assert.Zero(t, store.inviteUpdates)
+			stored, _, getErr := store.GetInvite(context.Background(), invite.UID)
+			require.NoError(t, getErr)
+			assert.Equal(t, status, stored.Status)
+			assert.Empty(t, orch.deleteCalls)
+		})
+	}
+
 	tests := []struct {
 		name                     string
 		seedStatus               string
@@ -2723,6 +2774,39 @@ func TestSubmitApplication_NonRejectedDuplicateRejected(t *testing.T) {
 }
 
 func TestApproveApplication(t *testing.T) {
+	t.Run("incomplete profile leaves application pending", func(t *testing.T) {
+		svc, orch, repo := setupServiceTestWithRepo()
+		svc.userReader = newMockUserReader().
+			withUsernames("first.last@example.com", "first-last").
+			withMetadata("first-last", &model.UserMetadata{GivenName: "First"})
+		store := &membershipStatusWriteSpy{CommitteeReaderWriter: svc.storage}
+		svc.storage = store
+		application := &model.CommitteeApplication{
+			UID: "application-incomplete-name", CommitteeUID: "committee-name-validation",
+			ApplicantEmail: "first.last@example.com", Status: "pending",
+		}
+		repo.AddCommitteeApplication(application)
+		orch.createMemberValidator = func(member *model.CommitteeMember) error {
+			return member.ValidateCreate(&model.Committee{})
+		}
+
+		result, err := svc.ApproveApplication(context.Background(), &committeeservice.ApproveApplicationPayload{
+			UID: application.CommitteeUID, ApplicationUID: application.UID,
+		})
+
+		var badRequest *committeeservice.BadRequestError
+		require.ErrorAs(t, err, &badRequest)
+		assert.Equal(t, "last_name is required", badRequest.Message)
+		assert.Nil(t, result)
+		require.Len(t, orch.createMemberCalls, 1)
+		assert.Equal(t, "First", orch.createMemberCalls[0].FirstName)
+		assert.Zero(t, store.applicationUpdates)
+		stored, _, getErr := store.GetApplication(context.Background(), application.UID)
+		require.NoError(t, getErr)
+		assert.Equal(t, "pending", stored.Status)
+		assert.Empty(t, orch.deleteCalls)
+	})
+
 	tests := []struct {
 		name        string
 		seedStatus  string
@@ -4035,6 +4119,63 @@ func TestEnrichAllRoleFields_M2MClientUsernamePreserved(t *testing.T) {
 
 	err = validateIdentityFields(writers, nil)
 	require.NoError(t, err, "M2M username-only entry must pass validateIdentityFields")
+}
+
+func TestCreateCommitteeMember_NameValidation(t *testing.T) {
+	first, last, blank, empty := "First", "Last", " \t\u00a0", ""
+	tests := []struct {
+		name           string
+		firstName      *string
+		lastName       *string
+		profile        *model.UserMetadata
+		skipEnrichment bool
+		expectedError  string
+	}{
+		{name: "omitted names", expectedError: "first_name is required"},
+		{name: "empty first name", firstName: &empty, lastName: &last, expectedError: "first_name is required"},
+		{name: "empty last name", firstName: &first, lastName: &empty, expectedError: "last_name is required"},
+		{name: "blank first name", firstName: &blank, lastName: &last, expectedError: "first_name is required"},
+		{name: "blank last name", firstName: &first, lastName: &blank, expectedError: "last_name is required"},
+		{name: "supplied names", firstName: &first, lastName: &last},
+		{name: "profile supplies omitted names", profile: &model.UserMetadata{GivenName: first, FamilyName: last}},
+		{name: "profile supplies missing last name", firstName: &first, profile: &model.UserMetadata{FamilyName: last}},
+		{name: "incomplete profile", profile: &model.UserMetadata{GivenName: first}, expectedError: "last_name is required"},
+		{name: "blank profile name", profile: &model.UserMetadata{GivenName: first, FamilyName: blank}, expectedError: "last_name is required"},
+		{name: "skip enrichment does not bypass names", profile: &model.UserMetadata{GivenName: first, FamilyName: last}, skipEnrichment: true, expectedError: "first_name is required"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, orch := setupServiceTest()
+			reader := newMockUserReader()
+			if tt.profile != nil {
+				reader.withUsernames("first.last@example.com", "first-last")
+				reader.withMetadata("first-last", tt.profile)
+			}
+			svc.userReader = reader
+			orch.createMemberValidator = func(member *model.CommitteeMember) error {
+				return member.ValidateCreate(&model.Committee{})
+			}
+			orch.createMember = &model.CommitteeMember{CommitteeMemberBase: model.CommitteeMemberBase{
+				UID: "member-1", CommitteeUID: "committee-1", Email: "first.last@example.com", FirstName: first, LastName: last,
+			}}
+			result, err := svc.CreateCommitteeMember(context.Background(), &committeeservice.CreateCommitteeMemberPayload{
+				UID: "committee-1", Email: "first.last@example.com", FirstName: tt.firstName, LastName: tt.lastName,
+				SkipEnrichment: tt.skipEnrichment,
+			})
+			if tt.expectedError != "" {
+				var badRequest *committeeservice.BadRequestError
+				require.ErrorAs(t, err, &badRequest)
+				assert.Equal(t, tt.expectedError, badRequest.Message)
+				assert.Nil(t, result)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Len(t, orch.createMemberCalls, 1)
+			assert.Equal(t, first, orch.createMemberCalls[0].FirstName)
+			assert.Equal(t, last, orch.createMemberCalls[0].LastName)
+		})
+	}
 }
 
 func TestCreateCommitteeMember_IdentityLookup(t *testing.T) {

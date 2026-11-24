@@ -2229,8 +2229,9 @@ func (s *committeeServicesrvc) enrichAllRoleFields(ctx context.Context, slices .
 // enrichMember resolves the LFID username and profile metadata for a member from their email
 // address. When email is present the auth-service lookup always runs, overriding any
 // caller-supplied plain LFID so only registered usernames are persisted.
-// All lookups are best-effort: failures log a warning and leave the field unchanged so the
-// caller's write is never blocked by an enrichment error.
+// Lookups are best-effort: failures log a warning and leave profile fields unchanged.
+// Creation still requires complete names after enrichment; an incomplete profile does
+// not bypass the orchestrator's validation before persistence.
 // FirstName and LastName are only overwritten when the auth service returns a non-empty value
 // and the caller did not supply them, so caller-provided display names are preserved.
 func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.CommitteeMember) {
@@ -2245,16 +2246,15 @@ func (s *committeeServicesrvc) enrichMember(ctx context.Context, member *model.C
 	// Clear any caller-supplied value so a failed lookup never leaves a plain LFID at rest.
 	member.Username = ""
 
-	// enrichMember is intentionally best-effort: transport errors warn and continue rather than
-	// failing the request. Individual member writes (create/update/approve) should not be blocked
-	// by a transient auth-service outage — the member is stored without an enriched LFID.
+	// Transport errors warn and return without enrichment. The orchestrator still validates
+	// required create fields, so a caller must supply names if the profile cannot supply them.
 	username, err := s.userReader.UsernameByEmail(ctx, email)
 	// Record the outcome so the orchestrator reuses a confirmed result instead of asking again.
 	member.IdentityLookup = model.NewIdentityLookup(email, username, err)
 	if err != nil {
 		var notFound errors.NotFound
 		if !stderrors.As(err, &notFound) {
-			slog.WarnContext(ctx, "username lookup failed; member will be stored without LFID",
+			slog.WarnContext(ctx, "username lookup failed; member identity will not be enriched",
 				"email", redaction.RedactEmail(email), "error", err)
 		}
 		return

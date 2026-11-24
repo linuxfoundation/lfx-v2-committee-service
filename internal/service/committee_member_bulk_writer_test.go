@@ -169,6 +169,31 @@ func TestCommitteeWriterOrchestrator_CreateMembers(t *testing.T) {
 		check  func(t *testing.T, f *bulkFixture, rows []*model.CommitteeMember, results []*model.BulkMemberResult, err error)
 	}{
 		{
+			name: "fails missing or blank names per row without writing or halting valid rows",
+			rows: func() []*model.CommitteeMember {
+				rows := bulkTestMembers(5)
+				rows[0].FirstName, rows[0].LastName = "", ""
+				rows[1].FirstName = " \t\u00a0"
+				rows[2].LastName = ""
+				rows[3].LastName = " \n\u2003"
+				return rows
+			},
+			check: func(t *testing.T, f *bulkFixture, _ []*model.CommitteeMember, results []*model.BulkMemberResult, err error) {
+				require.NoError(t, err)
+				for i, message := range []string{"first_name is required", "first_name is required", "last_name is required", "last_name is required"} {
+					assert.Equal(t, model.BulkMemberFailed, results[i].Status)
+					assert.Equal(t, model.BulkReasonInvalid, results[i].Reason)
+					assert.Equal(t, message, results[i].Message)
+					assert.False(t, results[i].Retryable)
+					assert.Nil(t, results[i].Member)
+					assert.Empty(t, results[i].MemberUID)
+				}
+				assert.Equal(t, model.BulkMemberAdded, results[4].Status)
+				assert.EqualValues(t, 1, f.writer.writes.Load())
+				assert.Len(t, f.publisher.IndexerMessages, 1)
+			},
+		},
+		{
 			name: "adds every row once, resolving found and absent identities",
 			rows: func() []*model.CommitteeMember { return bulkTestMembers(3) },
 			setup: func(f *bulkFixture) {
