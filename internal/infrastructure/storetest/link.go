@@ -321,6 +321,57 @@ func runFolderContract(t *testing.T, newStore LinkFactory) {
 		requireValidation(t, store.UpdateLinkFolder(ctx, nil, 1))
 	})
 
+	t.Run("UpdateLinkFolder renames: the new name is held and the old one is free again", func(t *testing.T) {
+		store := seed(t)
+		folder, revision, err := store.GetLinkFolder(ctx, "committee-1", "f-1")
+		require.NoError(t, err)
+		folder.Name = "Legal 2026"
+		require.NoError(t, store.UpdateLinkFolder(ctx, folder, revision))
+
+		got, _, err := store.GetLinkFolder(ctx, "committee-1", "f-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Legal 2026", got.Name)
+		// The new name is taken, and the old one can be used again. Another committee's folder of the old name is untouched.
+		requireConflict(t, store.CreateLinkFolder(ctx, NewFolder("f-dup", "committee-1", "Legal 2026")))
+		require.NoError(t, store.CreateLinkFolder(ctx, NewFolder("f-reuse", "committee-1", "Legal")))
+		requireConflict(t, store.CreateLinkFolder(ctx, NewFolder("f-dup-2", "committee-2", "Legal")))
+	})
+
+	t.Run("UpdateLinkFolder renaming to a name another folder holds is a conflict and changes nothing", func(t *testing.T) {
+		store := seed(t)
+		folder, revision, err := store.GetLinkFolder(ctx, "committee-1", "f-1")
+		require.NoError(t, err)
+		folder.Name = "Meetings" // held by f-2
+		requireConflict(t, store.UpdateLinkFolder(ctx, folder, revision))
+
+		got, gotRevision, err := store.GetLinkFolder(ctx, "committee-1", "f-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Legal", got.Name)
+		assert.Equal(t, revision, gotRevision, "a refused rename must not move the revision")
+		requireConflict(t, store.CreateLinkFolder(ctx, NewFolder("f-dup", "committee-1", "Legal")))
+		requireConflict(t, store.CreateLinkFolder(ctx, NewFolder("f-dup-2", "committee-1", "Meetings")))
+
+		// The refused attempt reserved nothing, so a rename the folder is allowed to make still works.
+		folder.Name = "Legal 2026"
+		require.NoError(t, store.UpdateLinkFolder(ctx, folder, revision))
+	})
+
+	t.Run("UpdateLinkFolder renaming with a stale revision fails without reserving the new name", func(t *testing.T) {
+		store := seed(t)
+		folder, revision, err := store.GetLinkFolder(ctx, "committee-1", "f-2")
+		require.NoError(t, err)
+		winner := *folder
+		winner.UpdatedBy = &model.CommitteeUser{Name: "First Last", Username: "first-last-first", Email: "first.last2@example.com"}
+		require.NoError(t, store.UpdateLinkFolder(ctx, &winner, revision))
+
+		stale := *folder
+		stale.Name = "Meetings 2"
+		requireConflict(t, store.UpdateLinkFolder(ctx, &stale, revision))
+
+		require.NoError(t, store.CreateLinkFolder(ctx, NewFolder("f-free", "committee-1", "Meetings 2")), "a rename that lost must not leave its name locked")
+		requireConflict(t, store.CreateLinkFolder(ctx, NewFolder("f-dup", "committee-1", "Meetings")))
+	})
+
 	t.Run("DeleteLinkFolder removes the folder within its committee, frees its name, and leaves its links", func(t *testing.T) {
 		store := seed(t)
 		require.NoError(t, store.CreateLink(ctx, NewLink("l-in-folder", "committee-1")))

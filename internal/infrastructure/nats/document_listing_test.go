@@ -316,6 +316,24 @@ func TestUpdateDocumentMetadata_WriteError(t *testing.T) {
 		require.ErrorAs(t, err, &conflict, "another document still cannot take the name")
 	})
 
+	t.Run("recovery does not release an old name that another document has taken since", func(t *testing.T) {
+		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+		oldKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, (&model.CommitteeDocument{CommitteeUID: "committee-1", Name: "Minutes"}).BuildIndexKey(ctx))
+		failing.beforeReadBack = func() {
+			// The old name's key is freed and another document takes it before the recovery gets to release it.
+			require.NoError(t, failing.Purge(ctx, oldKey))
+			_, err := failing.Create(ctx, oldKey, []byte("d-2"))
+			require.NoError(t, err)
+		}
+
+		doc.Name = "Minutes 2026"
+		require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision), "the write landed")
+
+		entry, err := failing.KeyValue.Get(ctx, oldKey)
+		require.NoError(t, err, "the other document's key must survive the recovery")
+		assert.Equal(t, "d-2", string(entry.Value()))
+	})
+
 	t.Run("a write the server refuses outright releases the reserved name and changes nothing", func(t *testing.T) {
 		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.err = fmt.Errorf("update: %w", jetstream.ErrKeyExists) })
 
@@ -565,4 +583,226 @@ func TestDeleteDocumentMetadata_ReleasesRenamedName(t *testing.T) {
 	exists, err := docs.DocumentNameExists(ctx, "committee-1", "Minutes 2026")
 	require.NoError(t, err)
 	assert.False(t, exists, "a deleted document must not leave its renamed name locked")
+}
+
+// cancelAfterCreateKV ends the request right after a lookup key has been created: what a client that goes away between
+// reserving a name and writing the record looks like.
+type cancelAfterCreateKV struct {
+	jetstream.KeyValue
+	cancel func()
+}
+
+func (k *cancelAfterCreateKV) Create(ctx context.Context, key string, value []byte, opts ...jetstream.KVCreateOpt) (uint64, error) {
+	rev, err := k.KeyValue.Create(ctx, key, value, opts...)
+	k.cancel()
+	return rev, err
+}
+
+// staleReadKV serves an older snapshot of one record once its failing write has been attempted: a read that went to a
+// replica behind the leader.
+type staleReadKV struct {
+	jetstream.KeyValue
+	failing   *renameWriteKV
+	recordKey string
+	stale     jetstream.KeyValueEntry
+}
+
+func (k *staleReadKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if key == k.recordKey && k.failing.attempted {
+		return k.stale, nil
+	}
+	return k.KeyValue.Get(ctx, key)
+}
+
+// A rename whose request ends after the new name was reserved never sends the write, so nothing can land: the name is
+// released at once and a retry is not blocked.
+func TestUpdateDocumentMetadata_RequestEnded(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	docs := NewDocumentStorage(client)
+	require.NoError(t, docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "committee-1", "Minutes")))
+	doc, revision, err := docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+	require.NoError(t, err)
+
+	real := client.kvStore[constants.KVBucketNameCommitteeDocuments]
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	client.kvStore[constants.KVBucketNameCommitteeDocuments] = &cancelAfterCreateKV{KeyValue: real, cancel: cancel}
+	t.Cleanup(func() { client.kvStore[constants.KVBucketNameCommitteeDocuments] = real })
+
+	doc.Name = "Minutes 2026"
+	require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(cancelCtx, doc, revision))
+
+	got, _, getErr := docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+	require.NoError(t, getErr)
+	assert.Equal(t, "Minutes", got.Name, "no write was sent")
+	exists, err := docs.DocumentNameExists(ctx, "committee-1", "Minutes 2026")
+	require.NoError(t, err)
+	assert.False(t, exists, "the reservation is nobody's, so it is released")
+	client.kvStore[constants.KVBucketNameCommitteeDocuments] = real
+	require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision), "a retry is not blocked by the earlier attempt")
+}
+
+// A read-back older than the revision the write was sent at is a stale read from a lagging replica, so it says nothing
+// about whether the write can still land: both names are kept.
+func TestUpdateDocumentMetadata_StaleReadBack(t *testing.T) {
+	ctx := context.Background()
+	client := newKVClient(t)
+	docs := NewDocumentStorage(client)
+	require.NoError(t, docs.CreateDocumentMetadata(ctx, storetest.NewDocument("d-1", "committee-1", "Minutes")))
+	real := client.kvStore[constants.KVBucketNameCommitteeDocuments]
+	oldEntry, err := real.Get(ctx, "d-1")
+	require.NoError(t, err)
+	// Another edit moves the record on, so the rename below is sent at a later revision than the snapshot.
+	latest, rev, err := docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+	require.NoError(t, err)
+	latest.Description = "edited"
+	require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, latest, rev))
+	doc, revision, err := docs.GetDocumentMetadata(ctx, "committee-1", "d-1")
+	require.NoError(t, err)
+
+	failing := &renameWriteKV{KeyValue: real, recordKey: "d-1", err: context.DeadlineExceeded}
+	client.kvStore[constants.KVBucketNameCommitteeDocuments] = &staleReadKV{KeyValue: failing, failing: failing, recordKey: "d-1", stale: oldEntry}
+	t.Cleanup(func() { client.kvStore[constants.KVBucketNameCommitteeDocuments] = real })
+
+	doc.Name = "Minutes 2026"
+	require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+
+	client.kvStore[constants.KVBucketNameCommitteeDocuments] = real
+	for _, name := range []string{"Minutes", "Minutes 2026"} {
+		exists, err := docs.DocumentNameExists(ctx, "committee-1", name)
+		require.NoError(t, err)
+		assert.True(t, exists, "%q stays reserved: the older record says nothing about the pending write", name)
+	}
+}
+
+// The folder rename shares its implementation with the document rename, which the document tests exercise in depth;
+// these cover what is specific to folders and the main failure cases.
+func TestUpdateLinkFolder_Rename(t *testing.T) {
+	ctx := context.Background()
+	const committee = "committee-1"
+
+	nameHeld := func(t *testing.T, client *NATSClient, name string) bool {
+		t.Helper()
+		key := fmt.Sprintf(constants.KVLookupFolderPrefix, (&model.CommitteeLinkFolder{CommitteeUID: committee, Name: name}).BuildIndexKey(ctx))
+		_, err := client.kvStore[constants.KVBucketNameCommitteeFolders].Get(ctx, key)
+		if errors.Is(err, jetstream.ErrKeyNotFound) {
+			return false
+		}
+		// Only a not-found read says the key is gone; any other error says nothing, so it must not pass as "released".
+		require.NoError(t, err)
+		return true
+	}
+	// setup creates the folder "Legal" and, when wrap is given, wraps the folders bucket so that the folder's next update
+	// fails as the case says.
+	setup := func(t *testing.T, wrap func(*renameWriteKV)) (*NATSClient, *model.CommitteeLinkFolder, uint64, *renameWriteKV) {
+		t.Helper()
+		client := newKVClient(t)
+		store := NewStorageBackend(client)
+		require.NoError(t, store.CreateLinkFolder(ctx, storetest.NewFolder("f-1", committee, "Legal")))
+		folder, revision, err := store.GetLinkFolder(ctx, committee, "f-1")
+		require.NoError(t, err)
+		var failing *renameWriteKV
+		if wrap != nil {
+			real := client.kvStore[constants.KVBucketNameCommitteeFolders]
+			failing = &renameWriteKV{KeyValue: real, recordKey: "f-1"}
+			wrap(failing)
+			client.kvStore[constants.KVBucketNameCommitteeFolders] = failing
+			t.Cleanup(func() { client.kvStore[constants.KVBucketNameCommitteeFolders] = real })
+		}
+		return client, folder, revision, failing
+	}
+	stored := func(t *testing.T, client *NATSClient) *model.CommitteeLinkFolder {
+		t.Helper()
+		got, _, err := NewStorageBackend(client).GetLinkFolder(ctx, committee, "f-1")
+		require.NoError(t, err)
+		return got
+	}
+
+	t.Run("a rename moves the name: the new one is held and the old one is free again", func(t *testing.T) {
+		client, folder, revision, _ := setup(t, nil)
+
+		folder.Name = "Legal 2026"
+		require.NoError(t, NewStorageBackend(client).UpdateLinkFolder(ctx, folder, revision))
+
+		assert.Equal(t, "Legal 2026", stored(t, client).Name)
+		assert.True(t, nameHeld(t, client, "Legal 2026"))
+		assert.False(t, nameHeld(t, client, "Legal"))
+		require.NoError(t, NewStorageBackend(client).CreateLinkFolder(ctx, storetest.NewFolder("f-2", committee, "Legal")), "the old name is free again")
+	})
+
+	t.Run("a name another folder holds is a conflict that changes nothing", func(t *testing.T) {
+		client, folder, revision, _ := setup(t, nil)
+		require.NoError(t, NewStorageBackend(client).CreateLinkFolder(ctx, storetest.NewFolder("f-2", committee, "Archive")))
+
+		folder.Name = "Archive"
+		err := NewStorageBackend(client).UpdateLinkFolder(ctx, folder, revision)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict)
+		assert.Equal(t, "Legal", stored(t, client).Name)
+		assert.True(t, nameHeld(t, client, "Legal"))
+	})
+
+	t.Run("a write that landed but was reported as failed is a success that releases the old name", func(t *testing.T) {
+		client, folder, revision, _ := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+
+		folder.Name = "Legal 2026"
+		require.NoError(t, NewStorageBackend(client).UpdateLinkFolder(ctx, folder, revision), "a landed write is reported as done, so the update is indexed")
+
+		assert.Equal(t, "Legal 2026", stored(t, client).Name)
+		assert.True(t, nameHeld(t, client, "Legal 2026"))
+		assert.False(t, nameHeld(t, client, "Legal"))
+	})
+
+	t.Run("a write that may still land keeps the name reserved for it", func(t *testing.T) {
+		client, folder, revision, _ := setup(t, func(k *renameWriteKV) { k.err = context.DeadlineExceeded })
+
+		folder.Name = "Legal 2026"
+		require.Error(t, NewStorageBackend(client).UpdateLinkFolder(ctx, folder, revision))
+
+		assert.Equal(t, "Legal", stored(t, client).Name)
+		assert.True(t, nameHeld(t, client, "Legal"))
+		assert.True(t, nameHeld(t, client, "Legal 2026"), "the name stays reserved while the write may still land")
+	})
+
+	t.Run("a rename is not reported as done when only the audit users changed afterwards", func(t *testing.T) {
+		client, folder, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+		failing.beforeReadBack = func() {
+			store := NewStorageBackend(client)
+			latest, rev, err := store.GetLinkFolder(ctx, committee, "f-1")
+			require.NoError(t, err)
+			latest.UpdatedBy = &model.CommitteeUser{Username: "backfilled"}
+			// Through the real bucket, as another request on its own connection would.
+			real := failing.KeyValue
+			data, err := json.Marshal(latest)
+			require.NoError(t, err)
+			_, err = real.Update(ctx, "f-1", data, rev)
+			require.NoError(t, err)
+		}
+
+		folder.Name = "Legal 2026"
+		require.Error(t, NewStorageBackend(client).UpdateLinkFolder(ctx, folder, revision), "reporting this write as the outcome would index the older audit users")
+
+		assert.True(t, nameHeld(t, client, "Legal 2026"))
+		assert.False(t, nameHeld(t, client, "Legal"), "the old name is released, as the write did land")
+	})
+
+	for _, applied := range []bool{true, false} {
+		t.Run(fmt.Sprintf("a folder deleted before the read-back leaves no name locked (write applied: %t)", applied), func(t *testing.T) {
+			client, folder, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = applied, context.DeadlineExceeded })
+			failing.beforeReadBack = func() {
+				other := NewStorageBackend(client)
+				_, rev, err := other.GetLinkFolder(ctx, committee, "f-1")
+				require.NoError(t, err)
+				require.NoError(t, other.DeleteLinkFolder(ctx, committee, "f-1", rev))
+			}
+
+			folder.Name = "Legal 2026"
+			require.Error(t, NewStorageBackend(client).UpdateLinkFolder(ctx, folder, revision))
+
+			assert.False(t, nameHeld(t, client, "Legal"))
+			assert.False(t, nameHeld(t, client, "Legal 2026"))
+		})
+	}
 }

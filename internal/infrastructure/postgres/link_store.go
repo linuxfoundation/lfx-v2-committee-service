@@ -262,8 +262,10 @@ func (s *Store) CreateLinkFolder(ctx context.Context, folder *model.CommitteeLin
 	return nil
 }
 
-// UpdateLinkFolder replaces the folder when the revision is still current. Unlike KV, which keeps
-// the lookup key of the name the folder was created with, a changed name is checked against the unique index.
+// UpdateLinkFolder replaces the folder when the revision is still current. A changed name is checked against the
+// unique index in the statement that writes the folder, as KV checks it by moving the name lookup key. The two agree on
+// which renames succeed and which names conflict; unlike KV, an interrupted rename cannot leave a separate reservation
+// behind.
 func (s *Store) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, revision uint64) error {
 	if folder == nil {
 		return errs.NewValidation("folder cannot be nil")

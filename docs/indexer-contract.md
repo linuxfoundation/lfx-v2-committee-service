@@ -580,7 +580,7 @@ The `viewer` relation on `committee_application:{uid}` resolves to the applicant
 
 **Source struct:** `internal/domain/model/committee_link.go` — `CommitteeLinkFolder`
 
-**Indexed on:** create and delete of a committee link folder. There is no link-folder update endpoint today. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
+**Indexed on:** create, update (rename) and delete of a committee link folder. `PUT /committees/{uid}/folders/{folder_uid}` publishes `ActionUpdated` with the whole folder, so the `name` and sort name change with it; links and documents refer to a folder by uid, so none of them is republished. Also `ActionDeleted` when the parent committee is deleted, only when the store removes the committee's children itself (the PostgreSQL store; see [Committee delete](#committee-delete)).
 
 ### Data Schema
 

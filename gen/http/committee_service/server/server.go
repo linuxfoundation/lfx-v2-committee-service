@@ -60,6 +60,7 @@ type Server struct {
 	GetCommitteeLinkFolder     http.Handler
 	ListCommitteeLinkFolders   http.Handler
 	CreateCommitteeLinkFolder  http.Handler
+	UpdateCommitteeLinkFolder  http.Handler
 	DeleteCommitteeLinkFolder  http.Handler
 	UploadCommitteeDocument    http.Handler
 	GetCommitteeDocument       http.Handler
@@ -166,6 +167,7 @@ func New(
 			{"GetCommitteeLinkFolder", "GET", "/committees/{uid}/folders/{folder_uid}"},
 			{"ListCommitteeLinkFolders", "GET", "/committees/{uid}/folders"},
 			{"CreateCommitteeLinkFolder", "POST", "/committees/{uid}/folders"},
+			{"UpdateCommitteeLinkFolder", "PUT", "/committees/{uid}/folders/{folder_uid}"},
 			{"DeleteCommitteeLinkFolder", "DELETE", "/committees/{uid}/folders/{folder_uid}"},
 			{"UploadCommitteeDocument", "POST", "/committees/{uid}/documents"},
 			{"GetCommitteeDocument", "GET", "/committees/{uid}/documents/{document_uid}"},
@@ -218,6 +220,7 @@ func New(
 		GetCommitteeLinkFolder:     NewGetCommitteeLinkFolderHandler(e.GetCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
 		ListCommitteeLinkFolders:   NewListCommitteeLinkFoldersHandler(e.ListCommitteeLinkFolders, mux, decoder, encoder, errhandler, formatter),
 		CreateCommitteeLinkFolder:  NewCreateCommitteeLinkFolderHandler(e.CreateCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
+		UpdateCommitteeLinkFolder:  NewUpdateCommitteeLinkFolderHandler(e.UpdateCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
 		DeleteCommitteeLinkFolder:  NewDeleteCommitteeLinkFolderHandler(e.DeleteCommitteeLinkFolder, mux, decoder, encoder, errhandler, formatter),
 		UploadCommitteeDocument:    NewUploadCommitteeDocumentHandler(e.UploadCommitteeDocument, mux, NewCommitteeServiceUploadCommitteeDocumentDecoder(mux, committeeServiceUploadCommitteeDocumentDecoderFn), encoder, errhandler, formatter),
 		GetCommitteeDocument:       NewGetCommitteeDocumentHandler(e.GetCommitteeDocument, mux, decoder, encoder, errhandler, formatter),
@@ -277,6 +280,7 @@ func (s *Server) Use(m func(http.Handler) http.Handler) {
 	s.GetCommitteeLinkFolder = m(s.GetCommitteeLinkFolder)
 	s.ListCommitteeLinkFolders = m(s.ListCommitteeLinkFolders)
 	s.CreateCommitteeLinkFolder = m(s.CreateCommitteeLinkFolder)
+	s.UpdateCommitteeLinkFolder = m(s.UpdateCommitteeLinkFolder)
 	s.DeleteCommitteeLinkFolder = m(s.DeleteCommitteeLinkFolder)
 	s.UploadCommitteeDocument = m(s.UploadCommitteeDocument)
 	s.GetCommitteeDocument = m(s.GetCommitteeDocument)
@@ -331,6 +335,7 @@ func Mount(mux goahttp.Muxer, h *Server) {
 	MountGetCommitteeLinkFolderHandler(mux, h.GetCommitteeLinkFolder)
 	MountListCommitteeLinkFoldersHandler(mux, h.ListCommitteeLinkFolders)
 	MountCreateCommitteeLinkFolderHandler(mux, h.CreateCommitteeLinkFolder)
+	MountUpdateCommitteeLinkFolderHandler(mux, h.UpdateCommitteeLinkFolder)
 	MountDeleteCommitteeLinkFolderHandler(mux, h.DeleteCommitteeLinkFolder)
 	MountUploadCommitteeDocumentHandler(mux, h.UploadCommitteeDocument)
 	MountGetCommitteeDocumentHandler(mux, h.GetCommitteeDocument)
@@ -2250,6 +2255,60 @@ func NewCreateCommitteeLinkFolderHandler(
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
 		ctx = context.WithValue(ctx, goa.MethodKey, "create-committee-link-folder")
+		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
+		payload, err := decodeRequest(r)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		res, err := endpoint(ctx, payload)
+		if err != nil {
+			if err := encodeError(ctx, w, err); err != nil && errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+			return
+		}
+		if err := encodeResponse(ctx, w, res); err != nil {
+			if errhandler != nil {
+				errhandler(ctx, w, err)
+			}
+		}
+	})
+}
+
+// MountUpdateCommitteeLinkFolderHandler configures the mux to serve the
+// "committee-service" service "update-committee-link-folder" endpoint.
+func MountUpdateCommitteeLinkFolderHandler(mux goahttp.Muxer, h http.Handler) {
+	f, ok := h.(http.HandlerFunc)
+	if !ok {
+		f = func(w http.ResponseWriter, r *http.Request) {
+			h.ServeHTTP(w, r)
+		}
+	}
+	mux.Handle("PUT", "/committees/{uid}/folders/{folder_uid}", f)
+}
+
+// NewUpdateCommitteeLinkFolderHandler creates a HTTP handler which loads the
+// HTTP request and calls the "committee-service" service
+// "update-committee-link-folder" endpoint.
+func NewUpdateCommitteeLinkFolderHandler(
+	endpoint goa.Endpoint,
+	mux goahttp.Muxer,
+	decoder func(*http.Request) goahttp.Decoder,
+	encoder func(context.Context, http.ResponseWriter) goahttp.Encoder,
+	errhandler func(context.Context, http.ResponseWriter, error),
+	formatter func(ctx context.Context, err error) goahttp.Statuser,
+) http.Handler {
+	var (
+		decodeRequest  = DecodeUpdateCommitteeLinkFolderRequest(mux, decoder)
+		encodeResponse = EncodeUpdateCommitteeLinkFolderResponse(encoder)
+		encodeError    = EncodeUpdateCommitteeLinkFolderError(encoder, formatter)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), goahttp.AcceptTypeKey, r.Header.Get("Accept"))
+		ctx = context.WithValue(ctx, goa.MethodKey, "update-committee-link-folder")
 		ctx = context.WithValue(ctx, goa.ServiceKey, "committee-service")
 		payload, err := decodeRequest(r)
 		if err != nil {

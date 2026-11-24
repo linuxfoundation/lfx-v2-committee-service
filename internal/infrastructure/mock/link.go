@@ -112,10 +112,25 @@ func (m *MockLinkRepository) CreateLinkFolder(ctx context.Context, folder *model
 	if _, exists := m.folderNameKeys[nameKey]; exists {
 		return errs.NewConflict("folder with the same name already exists for this committee")
 	}
-	m.folders[folder.UID] = folder
+	m.folders[folder.UID] = copyFolder(folder)
 	m.folderRevisions[folder.UID] = 1
 	m.folderNameKeys[nameKey] = folder.UID
 	return nil
+}
+
+// copyFolder returns a detached copy, audit users included, so that what a caller does to a folder it was given or
+// handed back never reaches the stored one before the store has checked it, as with a real store.
+func copyFolder(f *model.CommitteeLinkFolder) *model.CommitteeLinkFolder {
+	c := *f
+	if f.CreatedBy != nil {
+		user := *f.CreatedBy
+		c.CreatedBy = &user
+	}
+	if f.UpdatedBy != nil {
+		user := *f.UpdatedBy
+		c.UpdatedBy = &user
+	}
+	return &c
 }
 
 func (m *MockLinkRepository) GetLinkFolder(ctx context.Context, committeeUID, folderUID string) (*model.CommitteeLinkFolder, uint64, error) {
@@ -128,7 +143,7 @@ func (m *MockLinkRepository) GetLinkFolder(ctx context.Context, committeeUID, fo
 	if !ok || folder.CommitteeUID != committeeUID {
 		return nil, 0, errs.NewNotFound("folder not found", fmt.Errorf("folder UID: %s", folderUID))
 	}
-	return folder, m.folderRevisions[folderUID], nil
+	return copyFolder(folder), m.folderRevisions[folderUID], nil
 }
 
 func (m *MockLinkRepository) ListLinkFolders(ctx context.Context, committeeUID string) ([]*model.CommitteeLinkFolder, error) {
@@ -137,10 +152,37 @@ func (m *MockLinkRepository) ListLinkFolders(ctx context.Context, committeeUID s
 	var result []*model.CommitteeLinkFolder
 	for _, f := range m.folders {
 		if f.CommitteeUID == committeeUID {
-			result = append(result, f)
+			result = append(result, copyFolder(f))
 		}
 	}
 	return result, nil
+}
+
+func (m *MockLinkRepository) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, revision uint64) error {
+	if folder == nil {
+		return errs.NewValidation("folder cannot be nil")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current, ok := m.folders[folder.UID]
+	if !ok {
+		return errs.NewNotFound("folder not found", fmt.Errorf("folder UID: %s", folder.UID))
+	}
+	if m.folderRevisions[folder.UID] != revision {
+		return errs.NewConflict("folder has been modified since it was last read")
+	}
+	oldKey := fmt.Sprintf("%s|%s", current.CommitteeUID, current.Name)
+	newKey := fmt.Sprintf("%s|%s", folder.CommitteeUID, folder.Name)
+	if newKey != oldKey {
+		if _, taken := m.folderNameKeys[newKey]; taken {
+			return errs.NewConflict("folder with the same name already exists for this committee")
+		}
+		delete(m.folderNameKeys, oldKey)
+		m.folderNameKeys[newKey] = folder.UID
+	}
+	m.folders[folder.UID] = copyFolder(folder)
+	m.folderRevisions[folder.UID] = revision + 1
+	return nil
 }
 
 func (m *MockLinkRepository) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64) error {

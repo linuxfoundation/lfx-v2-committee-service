@@ -1475,6 +1475,50 @@ var _ = dsl.Service("committee-service", func() {
 		})
 	})
 
+	dsl.Method("update-committee-link-folder", func() {
+		dsl.Description("Rename a committee link folder. The name must be unique within the committee; links and documents refer to the folder by UID, so none of them changes.")
+
+		dsl.Security(JWTAuth)
+
+		dsl.Payload(func() {
+			BearerTokenAttribute()
+			VersionAttribute()
+			IfMatchAttribute()
+			CommitteeUIDAttribute()
+			FolderUIDAttribute()
+			dsl.Attribute("name", dsl.String, "Folder name", func() {
+				dsl.MaxLength(200)
+				dsl.Example("Meeting Notes")
+			})
+			XSyncAttribute()
+			dsl.Required("uid", "folder_uid", "name", "if_match")
+		})
+
+		dsl.Result(CommitteeLinkFolderWithReadonlyAttributes)
+
+		dsl.Error("BadRequest", BadRequestError, "Bad request")
+		dsl.Error("NotFound", NotFoundError, "Resource not found")
+		dsl.Error("Conflict", ConflictError, "Folder name already exists, or the revision is stale")
+		dsl.Error("InternalServerError", InternalServerError, "Internal server error")
+		dsl.Error("ServiceUnavailable", ServiceUnavailableError, "Service unavailable")
+
+		dsl.HTTP(func() {
+			dsl.PUT("/committees/{uid}/folders/{folder_uid}")
+			dsl.Param("version:v")
+			dsl.Param("uid")
+			dsl.Param("folder_uid")
+			dsl.Header("bearer_token:Authorization")
+			dsl.Header("if_match:If-Match")
+			dsl.Header("x_sync:X-Sync")
+			dsl.Response(dsl.StatusOK)
+			dsl.Response("BadRequest", dsl.StatusBadRequest)
+			dsl.Response("NotFound", dsl.StatusNotFound)
+			dsl.Response("Conflict", dsl.StatusConflict)
+			dsl.Response("InternalServerError", dsl.StatusInternalServerError)
+			dsl.Response("ServiceUnavailable", dsl.StatusServiceUnavailable)
+		})
+	})
+
 	dsl.Method("delete-committee-link-folder", func() {
 		dsl.Description("Delete a folder from a committee. Returns BadRequest if the folder contains links or documents.")
 
