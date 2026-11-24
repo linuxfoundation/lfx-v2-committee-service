@@ -4,6 +4,7 @@
 package nats
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -158,8 +159,10 @@ func (s *storage) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeL
 //
 // Each reservation carries a token only this call knows, so a read-back can tell the key it created from one that
 // merely holds the same document uid. The old name's key is read before the write and released by the revision it had
-// then, so a key that was released and taken again in the meantime is left alone. A write that returned an error but
-// is found to have landed is a success: the caller gets the record and the index is updated as after any update.
+// then, so a key that was released and taken again in the meantime is left alone. The record's revision is checked
+// again after that read, so the key read is known to belong to the record as the caller saw it. A write that returned an
+// error but is found, byte for byte, to have landed is a success, for a rename and for an update that keeps the name:
+// the caller gets the record and the index is updated as after any update.
 func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.CommitteeDocument, revision uint64) error {
 	if doc == nil {
 		return errs.NewValidation("document cannot be nil")
@@ -202,6 +205,19 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 		case !errors.Is(errOld, jetstream.ErrKeyNotFound):
 			return errs.NewUnexpected("failed to read the document's current name key before update", errOld)
 		}
+		// Another rename of this document may have changed the key since the record was read, and a reservation of
+		// its own can hold the document's uid too. A record still at the caller's revision means the key was read
+		// while it held the name the caller saw; otherwise nothing has been reserved and the caller retries.
+		recheck, errRecheck := kv.Get(ctx, doc.UID)
+		if errRecheck != nil {
+			if errors.Is(errRecheck, jetstream.ErrKeyNotFound) {
+				return errs.NewNotFound("document not found", fmt.Errorf("document UID: %s", doc.UID))
+			}
+			return errs.NewUnexpected("failed to read document before reserving its new name", errRecheck)
+		}
+		if recheck.Revision() != revision {
+			return errs.NewConflict("document has been modified since it was last read")
+		}
 
 		reservation = fmt.Sprintf("%s#%s", doc.UID, uuid.NewString())
 		rev, errReserve := kv.Create(ctx, newKey, []byte(reservation))
@@ -219,12 +235,17 @@ func (s *storage) UpdateDocumentMetadata(ctx context.Context, doc *model.Committ
 	}
 
 	if _, errUpdate := kv.Update(ctx, doc.UID, docBytes, revision); errUpdate != nil {
-		if renamed {
+		if !renamed {
+			// No key was reserved, so there is nothing to settle but the outcome itself.
+			if !isJetStreamCASConflict(errUpdate) && documentWriteLanded(ctx, kv, doc, docBytes, errUpdate) {
+				return nil
+			}
+		} else {
 			if isJetStreamCASConflict(errUpdate) {
 				// Refused outright, so the record keeps its old name and the one reserved for it is nobody's. It is
 				// released by the revision it was reserved at, so a key another writer took over is left alone.
 				releaseLookupKey(ctx, kv, newKey, reserved, errUpdate, attrs...)
-			} else if settleDocumentRename(ctx, kv, doc, revision, oldKey, newKey, oldRev, reserved, errUpdate) {
+			} else if settleDocumentRename(ctx, kv, doc, docBytes, revision, oldKey, newKey, oldRev, reserved, errUpdate) {
 				return nil
 			}
 		}
@@ -271,8 +292,10 @@ func settleDocumentReservation(ctx context.Context, kv jetstream.KeyValue, newKe
 // settleDocumentRename resolves a rename whose write returned an error that is not a refusal, so it is not known
 // whether the record now holds the new name. The record is read back on a context detached from the request, and the
 // lookup keys follow what it holds:
-//   - the new name: the write landed, so the old name is released (a record that is exactly what was written is a
+//   - the new name: the write landed, so the old name is released (a record that is byte for byte what was written is a
 //     success, which is returned so the caller completes the update; one changed since is not);
+//   - deleted: the write can no longer apply, and the delete released only the name the record held when it read it, so
+//     the old name's key and the new name's key are both released;
 //   - neither name, or the old name at a later revision: the write can no longer land, since it needs the revision it
 //     was sent at, so the new name's key is released by its revision, and the old name's key too when the record has left it;
 //   - the old name at the revision it was sent at: the write may still be on its way, and a key released now could be
@@ -281,12 +304,19 @@ func settleDocumentReservation(ctx context.Context, kv jetstream.KeyValue, newKe
 //
 // Every release is guarded by the revision the key had, so a key that changed hands is left alone. A crash between
 // reserving the new name and writing the record leaves the same lock, and nothing here can settle it.
-func settleDocumentRename(ctx context.Context, kv jetstream.KeyValue, doc *model.CommitteeDocument, revision uint64, oldKey, newKey string, oldRev, reserved uint64, writeErr error) bool {
+func settleDocumentRename(ctx context.Context, kv jetstream.KeyValue, doc *model.CommitteeDocument, docBytes []byte, revision uint64, oldKey, newKey string, oldRev, reserved uint64, writeErr error) bool {
 	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
 	defer cancel()
 	attrs := []any{"document_uid", doc.UID, "committee_uid", doc.CommitteeUID}
 
 	entry, errGet := kv.Get(ctx, doc.UID)
+	if errors.Is(errGet, jetstream.ErrKeyNotFound) {
+		// A deleted record can never take the write: it needs the revision it was sent at, and the delete moved the key
+		// past it. The delete released only the name the record held when it read it, so both captured keys are released.
+		releaseOldDocumentName(ctx, kv, oldKey, oldRev, attrs)
+		releaseLookupKey(ctx, kv, newKey, reserved, writeErr, attrs...)
+		return false
+	}
 	if errGet != nil {
 		slog.ErrorContext(ctx, "could not read the document back after a rename write error; keeping both name keys, and the one the record does not use stays locked until it is removed",
 			append([]any{"error", errGet, "write_error", writeErr, log.PriorityCritical()}, attrs...)...)
@@ -303,7 +333,7 @@ func settleDocumentRename(ctx context.Context, kv jetstream.KeyValue, doc *model
 	switch {
 	case storedKey == newKey:
 		releaseOldDocumentName(ctx, kv, oldKey, oldRev, attrs)
-		return sameDocumentRecord(stored, doc)
+		return bytes.Equal(entry.Value(), docBytes)
 	case storedKey == oldKey && entry.Revision() == revision:
 		slog.ErrorContext(ctx, "a rename write errored and the record still holds the old name; keeping the new name's key because the write may still land, and it stays locked until it is removed",
 			append([]any{"write_error", writeErr, "new_key", newKey, log.PriorityCritical()}, attrs...)...)
@@ -317,17 +347,20 @@ func settleDocumentRename(ctx context.Context, kv jetstream.KeyValue, doc *model
 	}
 }
 
-// sameDocumentRecord reports whether the stored record is what a rename wrote: the fields an update changes, and the
-// time it stamped.
-func sameDocumentRecord(stored, written *model.CommitteeDocument) bool {
-	folder := func(d *model.CommitteeDocument) string {
-		if d.FolderUID == nil {
-			return ""
-		}
-		return *d.FolderUID
+// documentWriteLanded reports whether the record holds exactly the bytes a write sent, which is the case only when that
+// write landed: the stored value is what was sent, so a record changed since (an audit backfill changes users without
+// touching updated_at) is not mistaken for it. A record that cannot be read is not reported as landed.
+func documentWriteLanded(ctx context.Context, kv jetstream.KeyValue, doc *model.CommitteeDocument, docBytes []byte, writeErr error) bool {
+	ctx, cancel := recoveryCtx(ctx, rollbackTimeout)
+	defer cancel()
+
+	entry, errGet := kv.Get(ctx, doc.UID)
+	if errGet != nil {
+		slog.WarnContext(ctx, "could not read the document back after an update write error; the write is reported as failed",
+			"error", errGet, "write_error", writeErr, "document_uid", doc.UID, "committee_uid", doc.CommitteeUID)
+		return false
 	}
-	return stored.Name == written.Name && stored.Description == written.Description &&
-		folder(stored) == folder(written) && stored.UpdatedAt.Equal(written.UpdatedAt)
+	return bytes.Equal(entry.Value(), docBytes)
 }
 
 // Compile-time check that storage implements DocumentAuditSyncStorage.

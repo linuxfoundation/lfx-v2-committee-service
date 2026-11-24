@@ -5363,8 +5363,8 @@ func TestUpdateCommitteeDocument(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Nil(t, res)
-		var badRequest *committeeservice.BadRequestError
-		assert.False(t, stderrors.As(err, &badRequest), "a storage failure must not be reported as a bad request")
+		var internalServerError *committeeservice.InternalServerError
+		assert.ErrorAs(t, err, &internalServerError, "a storage failure is a server error, not a client error")
 		stored, _, getErr := docRepo.GetDocumentMetadata(context.Background(), "committee-1", "doc-1")
 		require.NoError(t, getErr)
 		assert.Equal(t, "Minutes", stored.Name)

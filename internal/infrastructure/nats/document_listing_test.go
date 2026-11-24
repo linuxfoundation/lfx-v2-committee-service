@@ -193,9 +193,10 @@ func (k *renameWriteKV) Get(ctx context.Context, key string) (jetstream.KeyValue
 	return k.KeyValue.Get(ctx, key)
 }
 
-// A rename whose write comes back with an error that is not a refusal (a client that disconnects mid-write is the usual
-// cause) must not leave a name locked: the record is read back, and the keys follow what it holds.
-func TestUpdateDocumentMetadata_RenameWriteError(t *testing.T) {
+// An update whose write comes back with an error that is not a refusal (a client that disconnects mid-write is the usual
+// cause) must not leave a name locked or a landed write unreported: the record is read back, and the keys follow what it
+// holds.
+func TestUpdateDocumentMetadata_WriteError(t *testing.T) {
 	ctx := context.Background()
 
 	// setup creates the document "Minutes" and wraps the documents bucket so that its next update fails as the case says.
@@ -339,6 +340,122 @@ func TestUpdateDocumentMetadata_RenameWriteError(t *testing.T) {
 		assert.True(t, nameHeld(t, client, "Minutes"))
 		assert.True(t, nameHeld(t, client, "Minutes 2026"))
 	})
+
+	t.Run("an update that keeps the name and landed despite the error is a success", func(t *testing.T) {
+		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+
+		doc.Description = "edited"
+		require.NoError(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision), "a landed write is reported as done, so the update is indexed")
+
+		got, _, getErr := NewDocumentStorage(client).GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, getErr)
+		assert.Equal(t, "edited", got.Description)
+		assert.True(t, nameHeld(t, client, "Minutes"), "no name key moves when the name is kept")
+	})
+
+	t.Run("an update that keeps the name and did not land is an error", func(t *testing.T) {
+		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.err = context.DeadlineExceeded })
+
+		doc.Description = "edited"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+
+		got, _, getErr := NewDocumentStorage(client).GetDocumentMetadata(ctx, "committee-1", "d-1")
+		require.NoError(t, getErr)
+		assert.Equal(t, "Meeting minutes", got.Description)
+	})
+
+	t.Run("an update that keeps the name is not reported as done when the record was changed afterwards", func(t *testing.T) {
+		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+		other := otherStorage(t, client)
+		failing.beforeReadBack = func() {
+			latest, rev, err := other.GetDocumentMetadata(ctx, "committee-1", "d-1")
+			require.NoError(t, err)
+			latest.Description = "someone else's edit"
+			require.NoError(t, other.UpdateDocumentMetadata(ctx, latest, rev))
+		}
+
+		doc.Description = "edited"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision), "the record is no longer what this write stored")
+	})
+
+	t.Run("a rename is not reported as done when only the audit users changed afterwards", func(t *testing.T) {
+		client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = true, context.DeadlineExceeded })
+		other := otherStorage(t, client)
+		failing.beforeReadBack = func() {
+			// The audit backfill rewrites the users and leaves updated_at as it was.
+			latest, rev, err := other.GetDocumentMetadata(ctx, "committee-1", "d-1")
+			require.NoError(t, err)
+			latest.UpdatedBy = &model.CommitteeUser{Username: "backfilled"}
+			require.NoError(t, other.UpdateDocumentMetadata(ctx, latest, rev))
+		}
+
+		doc.Name = "Minutes 2026"
+		require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision), "reporting this write as the outcome would index the older audit users")
+
+		assert.True(t, nameHeld(t, client, "Minutes 2026"), "the record holds the new name")
+		assert.False(t, nameHeld(t, client, "Minutes"), "the old name is released, as the write did land")
+	})
+
+	for _, applied := range []bool{true, false} {
+		t.Run(fmt.Sprintf("a document deleted before the read-back leaves no name locked (write applied: %t)", applied), func(t *testing.T) {
+			client, doc, revision, failing := setup(t, func(k *renameWriteKV) { k.applied, k.err = applied, context.DeadlineExceeded })
+			other := otherStorage(t, client)
+			failing.beforeReadBack = func() {
+				_, rev, err := other.GetDocumentMetadata(ctx, "committee-1", "d-1")
+				require.NoError(t, err)
+				require.NoError(t, other.DeleteDocumentMetadata(ctx, "committee-1", "d-1", rev))
+			}
+
+			doc.Name = "Minutes 2026"
+			require.Error(t, NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision))
+
+			// The delete released only the name the record held when it read it; the other key is settled here.
+			assert.False(t, nameHeld(t, client, "Minutes"))
+			assert.False(t, nameHeld(t, client, "Minutes 2026"))
+		})
+	}
+
+	t.Run("a rename does not release a name another rename of the same document is reserving", func(t *testing.T) {
+		client, doc, revision, _ := setup(t, func(k *renameWriteKV) { k.err = context.Canceled })
+		other := otherStorage(t, client)
+		bucket := client.kvStore[constants.KVBucketNameCommitteeDocuments]
+		oldKey := fmt.Sprintf(constants.KVLookupDocumentPrefix, doc.BuildIndexKey(ctx))
+		client.kvStore[constants.KVBucketNameCommitteeDocuments] = &getHookKV{KeyValue: bucket, key: oldKey, hook: func() {
+			// While this request is paused before reading the old name's key, the document is renamed away, and a
+			// rename back to the old name has reserved it without having written the record yet.
+			latest, rev, err := other.GetDocumentMetadata(ctx, "committee-1", "d-1")
+			require.NoError(t, err)
+			latest.Name = "Minutes Final"
+			require.NoError(t, other.UpdateDocumentMetadata(ctx, latest, rev))
+			_, err = bucket.Create(ctx, oldKey, []byte("d-1#another-attempt"))
+			require.NoError(t, err)
+		}}
+		t.Cleanup(func() { client.kvStore[constants.KVBucketNameCommitteeDocuments] = bucket })
+
+		doc.Name = "Minutes 2026"
+		err := NewStorageBackend(client).UpdateDocumentMetadata(ctx, doc, revision)
+
+		var conflict errs.Conflict
+		require.ErrorAs(t, err, &conflict, "the record changed after it was read, so nothing is reserved and the caller retries")
+		assert.True(t, nameHeld(t, client, "Minutes"), "the other rename's reservation must survive")
+		assert.False(t, nameHeld(t, client, "Minutes 2026"), "nothing was reserved for the stale rename")
+	})
+}
+
+// getHookKV runs a hook once, just before one key is read: what another request does while this one is paused there.
+type getHookKV struct {
+	jetstream.KeyValue
+	key  string
+	hook func()
+}
+
+func (k *getHookKV) Get(ctx context.Context, key string) (jetstream.KeyValueEntry, error) {
+	if key == k.key && k.hook != nil {
+		hook := k.hook
+		k.hook = nil
+		hook()
+	}
+	return k.KeyValue.Get(ctx, key)
 }
 
 // otherDocs is a second connection to the same server, for the requests that run while a faulted one is mid-flight.
