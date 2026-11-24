@@ -24,7 +24,7 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|bulk-create-committee-members|get-committee-member|list-committee-members|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|withdraw-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|update-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|update-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief|preview-generate-weekly-brief|update-current-weekly-brief|share-weekly-brief-to-chat)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|bulk-create-committee-members|get-committee-member|list-committee-members|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|withdraw-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|update-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|update-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|update-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief|preview-generate-weekly-brief|update-current-weekly-brief|share-weekly-brief-to-chat)",
 	}
 }
 
@@ -285,6 +285,15 @@ func ParseEndpoint(
 		committeeServiceCreateCommitteeLinkFolderBearerTokenFlag = committeeServiceCreateCommitteeLinkFolderFlags.String("bearer-token", "", "")
 		committeeServiceCreateCommitteeLinkFolderXSyncFlag       = committeeServiceCreateCommitteeLinkFolderFlags.String("x-sync", "", "")
 
+		committeeServiceUpdateCommitteeLinkFolderFlags           = flag.NewFlagSet("update-committee-link-folder", flag.ExitOnError)
+		committeeServiceUpdateCommitteeLinkFolderBodyFlag        = committeeServiceUpdateCommitteeLinkFolderFlags.String("body", "REQUIRED", "")
+		committeeServiceUpdateCommitteeLinkFolderUIDFlag         = committeeServiceUpdateCommitteeLinkFolderFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceUpdateCommitteeLinkFolderFolderUIDFlag   = committeeServiceUpdateCommitteeLinkFolderFlags.String("folder-uid", "REQUIRED", "Committee folder UID")
+		committeeServiceUpdateCommitteeLinkFolderVersionFlag     = committeeServiceUpdateCommitteeLinkFolderFlags.String("version", "", "")
+		committeeServiceUpdateCommitteeLinkFolderBearerTokenFlag = committeeServiceUpdateCommitteeLinkFolderFlags.String("bearer-token", "", "")
+		committeeServiceUpdateCommitteeLinkFolderIfMatchFlag     = committeeServiceUpdateCommitteeLinkFolderFlags.String("if-match", "", "")
+		committeeServiceUpdateCommitteeLinkFolderXSyncFlag       = committeeServiceUpdateCommitteeLinkFolderFlags.String("x-sync", "", "")
+
 		committeeServiceDeleteCommitteeLinkFolderFlags           = flag.NewFlagSet("delete-committee-link-folder", flag.ExitOnError)
 		committeeServiceDeleteCommitteeLinkFolderUIDFlag         = committeeServiceDeleteCommitteeLinkFolderFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
 		committeeServiceDeleteCommitteeLinkFolderFolderUIDFlag   = committeeServiceDeleteCommitteeLinkFolderFlags.String("folder-uid", "REQUIRED", "Committee folder UID")
@@ -394,6 +403,7 @@ func ParseEndpoint(
 	committeeServiceGetCommitteeLinkFolderFlags.Usage = committeeServiceGetCommitteeLinkFolderUsage
 	committeeServiceListCommitteeLinkFoldersFlags.Usage = committeeServiceListCommitteeLinkFoldersUsage
 	committeeServiceCreateCommitteeLinkFolderFlags.Usage = committeeServiceCreateCommitteeLinkFolderUsage
+	committeeServiceUpdateCommitteeLinkFolderFlags.Usage = committeeServiceUpdateCommitteeLinkFolderUsage
 	committeeServiceDeleteCommitteeLinkFolderFlags.Usage = committeeServiceDeleteCommitteeLinkFolderUsage
 	committeeServiceUploadCommitteeDocumentFlags.Usage = committeeServiceUploadCommitteeDocumentUsage
 	committeeServiceGetCommitteeDocumentFlags.Usage = committeeServiceGetCommitteeDocumentUsage
@@ -547,6 +557,9 @@ func ParseEndpoint(
 
 			case "create-committee-link-folder":
 				epf = committeeServiceCreateCommitteeLinkFolderFlags
+
+			case "update-committee-link-folder":
+				epf = committeeServiceUpdateCommitteeLinkFolderFlags
 
 			case "delete-committee-link-folder":
 				epf = committeeServiceDeleteCommitteeLinkFolderFlags
@@ -712,6 +725,9 @@ func ParseEndpoint(
 			case "create-committee-link-folder":
 				endpoint = c.CreateCommitteeLinkFolder()
 				data, err = committeeservicec.BuildCreateCommitteeLinkFolderPayload(*committeeServiceCreateCommitteeLinkFolderBodyFlag, *committeeServiceCreateCommitteeLinkFolderUIDFlag, *committeeServiceCreateCommitteeLinkFolderVersionFlag, *committeeServiceCreateCommitteeLinkFolderBearerTokenFlag, *committeeServiceCreateCommitteeLinkFolderXSyncFlag)
+			case "update-committee-link-folder":
+				endpoint = c.UpdateCommitteeLinkFolder()
+				data, err = committeeservicec.BuildUpdateCommitteeLinkFolderPayload(*committeeServiceUpdateCommitteeLinkFolderBodyFlag, *committeeServiceUpdateCommitteeLinkFolderUIDFlag, *committeeServiceUpdateCommitteeLinkFolderFolderUIDFlag, *committeeServiceUpdateCommitteeLinkFolderVersionFlag, *committeeServiceUpdateCommitteeLinkFolderBearerTokenFlag, *committeeServiceUpdateCommitteeLinkFolderIfMatchFlag, *committeeServiceUpdateCommitteeLinkFolderXSyncFlag)
 			case "delete-committee-link-folder":
 				endpoint = c.DeleteCommitteeLinkFolder()
 				data, err = committeeservicec.BuildDeleteCommitteeLinkFolderPayload(*committeeServiceDeleteCommitteeLinkFolderUIDFlag, *committeeServiceDeleteCommitteeLinkFolderFolderUIDFlag, *committeeServiceDeleteCommitteeLinkFolderVersionFlag, *committeeServiceDeleteCommitteeLinkFolderBearerTokenFlag, *committeeServiceDeleteCommitteeLinkFolderIfMatchFlag, *committeeServiceDeleteCommitteeLinkFolderXSyncFlag)
@@ -797,6 +813,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    get-committee-link-folder: Get a single folder for a committee`)
 	fmt.Fprintln(os.Stderr, `    list-committee-link-folders: List all folders for a committee`)
 	fmt.Fprintln(os.Stderr, `    create-committee-link-folder: Create a folder to organize committee links`)
+	fmt.Fprintln(os.Stderr, `    update-committee-link-folder: Rename a committee link folder. The name must be unique within the committee; links and documents refer to the folder by UID, so none of them changes.`)
 	fmt.Fprintln(os.Stderr, `    delete-committee-link-folder: Delete a folder from a committee. Returns BadRequest if the folder contains links or documents.`)
 	fmt.Fprintln(os.Stderr, `    upload-committee-document: Upload a file document to a committee`)
 	fmt.Fprintln(os.Stderr, `    get-committee-document: Get metadata for a single committee document`)
@@ -1718,6 +1735,36 @@ func committeeServiceCreateCommitteeLinkFolderUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link-folder --body '{\n      \"name\": \"Meeting Notes\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+}
+
+func committeeServiceUpdateCommitteeLinkFolderUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service update-committee-link-folder", os.Args[0])
+	fmt.Fprint(os.Stderr, " -body JSON")
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -folder-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprint(os.Stderr, " -if-match STRING")
+	fmt.Fprint(os.Stderr, " -x-sync BOOL")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Rename a committee link folder. The name must be unique within the committee; links and documents refer to the folder by UID, so none of them changes.`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -body JSON: `)
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -folder-uid STRING: Committee folder UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+	fmt.Fprintln(os.Stderr, `    -if-match STRING: `)
+	fmt.Fprintln(os.Stderr, `    -x-sync BOOL: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-link-folder --body '{\n      \"name\": \"Meeting Notes\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --folder-uid \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
 }
 
 func committeeServiceDeleteCommitteeLinkFolderUsage() {

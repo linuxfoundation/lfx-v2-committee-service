@@ -2896,6 +2896,85 @@ func BuildCreateCommitteeLinkFolderPayload(committeeServiceCreateCommitteeLinkFo
 	return v, nil
 }
 
+// BuildUpdateCommitteeLinkFolderPayload builds the payload for the
+// committee-service update-committee-link-folder endpoint from CLI flags.
+func BuildUpdateCommitteeLinkFolderPayload(committeeServiceUpdateCommitteeLinkFolderBody string, committeeServiceUpdateCommitteeLinkFolderUID string, committeeServiceUpdateCommitteeLinkFolderFolderUID string, committeeServiceUpdateCommitteeLinkFolderVersion string, committeeServiceUpdateCommitteeLinkFolderBearerToken string, committeeServiceUpdateCommitteeLinkFolderIfMatch string, committeeServiceUpdateCommitteeLinkFolderXSync string) (*committeeservice.UpdateCommitteeLinkFolderPayload, error) {
+	var err error
+	var body UpdateCommitteeLinkFolderRequestBody
+	{
+		err = json.Unmarshal([]byte(committeeServiceUpdateCommitteeLinkFolderBody), &body)
+		if err != nil {
+			return nil, fmt.Errorf("invalid JSON for body, \nerror: %s, \nexample of valid JSON:\n%s", err, "'{\n      \"name\": \"Meeting Notes\"\n   }'")
+		}
+		if utf8.RuneCountInString(body.Name) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", body.Name, utf8.RuneCountInString(body.Name), 200, false))
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	var uid string
+	{
+		uid = committeeServiceUpdateCommitteeLinkFolderUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("uid", uid, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var folderUID string
+	{
+		folderUID = committeeServiceUpdateCommitteeLinkFolderFolderUID
+		err = goa.MergeErrors(err, goa.ValidateFormat("folder_uid", folderUID, goa.FormatUUID))
+		if err != nil {
+			return nil, err
+		}
+	}
+	var version *string
+	{
+		if committeeServiceUpdateCommitteeLinkFolderVersion != "" {
+			version = &committeeServiceUpdateCommitteeLinkFolderVersion
+			if !(*version == "1") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("version", *version, []any{"1"}))
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	var bearerToken *string
+	{
+		if committeeServiceUpdateCommitteeLinkFolderBearerToken != "" {
+			bearerToken = &committeeServiceUpdateCommitteeLinkFolderBearerToken
+		}
+	}
+	var ifMatch *string
+	{
+		if committeeServiceUpdateCommitteeLinkFolderIfMatch != "" {
+			ifMatch = &committeeServiceUpdateCommitteeLinkFolderIfMatch
+		}
+	}
+	var xSync bool
+	{
+		if committeeServiceUpdateCommitteeLinkFolderXSync != "" {
+			xSync, err = strconv.ParseBool(committeeServiceUpdateCommitteeLinkFolderXSync)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value for xSync, must be BOOL")
+			}
+		}
+	}
+	v := &committeeservice.UpdateCommitteeLinkFolderPayload{
+		Name: body.Name,
+	}
+	v.UID = &uid
+	v.FolderUID = &folderUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+	v.XSync = xSync
+
+	return v, nil
+}
+
 // BuildDeleteCommitteeLinkFolderPayload builds the payload for the
 // committee-service delete-committee-link-folder endpoint from CLI flags.
 func BuildDeleteCommitteeLinkFolderPayload(committeeServiceDeleteCommitteeLinkFolderUID string, committeeServiceDeleteCommitteeLinkFolderFolderUID string, committeeServiceDeleteCommitteeLinkFolderVersion string, committeeServiceDeleteCommitteeLinkFolderBearerToken string, committeeServiceDeleteCommitteeLinkFolderIfMatch string, committeeServiceDeleteCommitteeLinkFolderXSync string) (*committeeservice.DeleteCommitteeLinkFolderPayload, error) {

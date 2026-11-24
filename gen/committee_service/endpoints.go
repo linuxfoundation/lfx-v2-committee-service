@@ -54,6 +54,7 @@ type Endpoints struct {
 	GetCommitteeLinkFolder     goa.Endpoint
 	ListCommitteeLinkFolders   goa.Endpoint
 	CreateCommitteeLinkFolder  goa.Endpoint
+	UpdateCommitteeLinkFolder  goa.Endpoint
 	DeleteCommitteeLinkFolder  goa.Endpoint
 	UploadCommitteeDocument    goa.Endpoint
 	GetCommitteeDocument       goa.Endpoint
@@ -116,6 +117,7 @@ func NewEndpoints(s Service) *Endpoints {
 		GetCommitteeLinkFolder:     NewGetCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		ListCommitteeLinkFolders:   NewListCommitteeLinkFoldersEndpoint(s, a.JWTAuth),
 		CreateCommitteeLinkFolder:  NewCreateCommitteeLinkFolderEndpoint(s, a.JWTAuth),
+		UpdateCommitteeLinkFolder:  NewUpdateCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		DeleteCommitteeLinkFolder:  NewDeleteCommitteeLinkFolderEndpoint(s, a.JWTAuth),
 		UploadCommitteeDocument:    NewUploadCommitteeDocumentEndpoint(s, a.JWTAuth),
 		GetCommitteeDocument:       NewGetCommitteeDocumentEndpoint(s, a.JWTAuth),
@@ -169,6 +171,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.GetCommitteeLinkFolder = m(e.GetCommitteeLinkFolder)
 	e.ListCommitteeLinkFolders = m(e.ListCommitteeLinkFolders)
 	e.CreateCommitteeLinkFolder = m(e.CreateCommitteeLinkFolder)
+	e.UpdateCommitteeLinkFolder = m(e.UpdateCommitteeLinkFolder)
 	e.DeleteCommitteeLinkFolder = m(e.DeleteCommitteeLinkFolder)
 	e.UploadCommitteeDocument = m(e.UploadCommitteeDocument)
 	e.GetCommitteeDocument = m(e.GetCommitteeDocument)
@@ -978,6 +981,29 @@ func NewCreateCommitteeLinkFolderEndpoint(s Service, authJWTFn security.AuthJWTF
 			return nil, err
 		}
 		return s.CreateCommitteeLinkFolder(ctx, p)
+	}
+}
+
+// NewUpdateCommitteeLinkFolderEndpoint returns an endpoint function that calls
+// the method "update-committee-link-folder" of service "committee-service".
+func NewUpdateCommitteeLinkFolderEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*UpdateCommitteeLinkFolderPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.UpdateCommitteeLinkFolder(ctx, p)
 	}
 }
 

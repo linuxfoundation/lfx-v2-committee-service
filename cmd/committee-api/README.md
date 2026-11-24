@@ -57,6 +57,7 @@ This service contains the following API endpoints:
   - `GET`: list committee link folders
   - `POST`: create a committee link folder
   - `GET /{folder_uid}`: retrieve a committee link folder
+  - `PUT /{folder_uid}`: rename a committee link folder; `If-Match` required. The name must be unique within the committee, and links and documents refer to the folder by UID, so none of them changes
   - `DELETE /{folder_uid}`: delete a committee link folder
 
 - `/committees/{uid}/documents`

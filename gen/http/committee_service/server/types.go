@@ -408,6 +408,13 @@ type CreateCommitteeLinkFolderRequestBody struct {
 	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
 }
 
+// UpdateCommitteeLinkFolderRequestBody is the type of the "committee-service"
+// service "update-committee-link-folder" endpoint HTTP request body.
+type UpdateCommitteeLinkFolderRequestBody struct {
+	// Folder name
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+}
+
 // UploadCommitteeDocumentRequestBody is the type of the "committee-service"
 // service "upload-committee-document" endpoint HTTP request body.
 type UploadCommitteeDocumentRequestBody struct {
@@ -1308,6 +1315,25 @@ type ListCommitteeLinkFoldersResponseBody []*CommitteeLinkFolderWithReadonlyAttr
 // CreateCommitteeLinkFolderResponseBody is the type of the "committee-service"
 // service "create-committee-link-folder" endpoint HTTP response body.
 type CreateCommitteeLinkFolderResponseBody struct {
+	// Folder UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Folder name
+	Name *string `form:"name,omitempty" json:"name,omitempty" xml:"name,omitempty"`
+	// User who created this resource
+	CreatedBy *PublicAuditUserResponseBody `form:"created_by,omitempty" json:"created_by,omitempty" xml:"created_by,omitempty"`
+	// User who last updated this resource
+	UpdatedBy *PublicAuditUserResponseBody `form:"updated_by,omitempty" json:"updated_by,omitempty" xml:"updated_by,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// UpdateCommitteeLinkFolderResponseBody is the type of the "committee-service"
+// service "update-committee-link-folder" endpoint HTTP response body.
+type UpdateCommitteeLinkFolderResponseBody struct {
 	// Folder UID
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
@@ -2697,6 +2723,46 @@ type CreateCommitteeLinkFolderNotFoundResponseBody struct {
 // "committee-service" service "create-committee-link-folder" endpoint HTTP
 // response body for the "ServiceUnavailable" error.
 type CreateCommitteeLinkFolderServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkFolderBadRequestResponseBody is the type of the
+// "committee-service" service "update-committee-link-folder" endpoint HTTP
+// response body for the "BadRequest" error.
+type UpdateCommitteeLinkFolderBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkFolderConflictResponseBody is the type of the
+// "committee-service" service "update-committee-link-folder" endpoint HTTP
+// response body for the "Conflict" error.
+type UpdateCommitteeLinkFolderConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkFolderInternalServerErrorResponseBody is the type of the
+// "committee-service" service "update-committee-link-folder" endpoint HTTP
+// response body for the "InternalServerError" error.
+type UpdateCommitteeLinkFolderInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkFolderNotFoundResponseBody is the type of the
+// "committee-service" service "update-committee-link-folder" endpoint HTTP
+// response body for the "NotFound" error.
+type UpdateCommitteeLinkFolderNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// UpdateCommitteeLinkFolderServiceUnavailableResponseBody is the type of the
+// "committee-service" service "update-committee-link-folder" endpoint HTTP
+// response body for the "ServiceUnavailable" error.
+type UpdateCommitteeLinkFolderServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -5292,6 +5358,26 @@ func NewCreateCommitteeLinkFolderResponseBody(res *committeeservice.CommitteeLin
 	return body
 }
 
+// NewUpdateCommitteeLinkFolderResponseBody builds the HTTP response body from
+// the result of the "update-committee-link-folder" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkFolderResponseBody(res *committeeservice.CommitteeLinkFolderWithReadonlyAttributes) *UpdateCommitteeLinkFolderResponseBody {
+	body := &UpdateCommitteeLinkFolderResponseBody{
+		UID:          res.UID,
+		CommitteeUID: res.CommitteeUID,
+		Name:         res.Name,
+		CreatedAt:    res.CreatedAt,
+		UpdatedAt:    res.UpdatedAt,
+	}
+	if res.CreatedBy != nil {
+		body.CreatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(res.CreatedBy)
+	}
+	if res.UpdatedBy != nil {
+		body.UpdatedBy = marshalCommitteeservicePublicAuditUserToPublicAuditUserResponseBody(res.UpdatedBy)
+	}
+	return body
+}
+
 // NewUploadCommitteeDocumentResponseBody builds the HTTP response body from
 // the result of the "upload-committee-document" endpoint of the
 // "committee-service" service.
@@ -6976,6 +7062,56 @@ func NewCreateCommitteeLinkFolderServiceUnavailableResponseBody(res *committeese
 	return body
 }
 
+// NewUpdateCommitteeLinkFolderBadRequestResponseBody builds the HTTP response
+// body from the result of the "update-committee-link-folder" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkFolderBadRequestResponseBody(res *committeeservice.BadRequestError) *UpdateCommitteeLinkFolderBadRequestResponseBody {
+	body := &UpdateCommitteeLinkFolderBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkFolderConflictResponseBody builds the HTTP response
+// body from the result of the "update-committee-link-folder" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkFolderConflictResponseBody(res *committeeservice.ConflictError) *UpdateCommitteeLinkFolderConflictResponseBody {
+	body := &UpdateCommitteeLinkFolderConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkFolderInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "update-committee-link-folder" endpoint
+// of the "committee-service" service.
+func NewUpdateCommitteeLinkFolderInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *UpdateCommitteeLinkFolderInternalServerErrorResponseBody {
+	body := &UpdateCommitteeLinkFolderInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkFolderNotFoundResponseBody builds the HTTP response
+// body from the result of the "update-committee-link-folder" endpoint of the
+// "committee-service" service.
+func NewUpdateCommitteeLinkFolderNotFoundResponseBody(res *committeeservice.NotFoundError) *UpdateCommitteeLinkFolderNotFoundResponseBody {
+	body := &UpdateCommitteeLinkFolderNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewUpdateCommitteeLinkFolderServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "update-committee-link-folder" endpoint
+// of the "committee-service" service.
+func NewUpdateCommitteeLinkFolderServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *UpdateCommitteeLinkFolderServiceUnavailableResponseBody {
+	body := &UpdateCommitteeLinkFolderServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewDeleteCommitteeLinkFolderBadRequestResponseBody builds the HTTP response
 // body from the result of the "delete-committee-link-folder" endpoint of the
 // "committee-service" service.
@@ -8453,6 +8589,22 @@ func NewCreateCommitteeLinkFolderPayload(body *CreateCommitteeLinkFolderRequestB
 	return v
 }
 
+// NewUpdateCommitteeLinkFolderPayload builds a committee-service service
+// update-committee-link-folder endpoint payload.
+func NewUpdateCommitteeLinkFolderPayload(body *UpdateCommitteeLinkFolderRequestBody, uid string, folderUID string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.UpdateCommitteeLinkFolderPayload {
+	v := &committeeservice.UpdateCommitteeLinkFolderPayload{
+		Name: *body.Name,
+	}
+	v.UID = &uid
+	v.FolderUID = &folderUID
+	v.Version = version
+	v.BearerToken = bearerToken
+	v.IfMatch = ifMatch
+	v.XSync = xSync
+
+	return v
+}
+
 // NewDeleteCommitteeLinkFolderPayload builds a committee-service service
 // delete-committee-link-folder endpoint payload.
 func NewDeleteCommitteeLinkFolderPayload(uid string, folderUID string, version *string, bearerToken *string, ifMatch *string, xSync bool) *committeeservice.DeleteCommitteeLinkFolderPayload {
@@ -9305,6 +9457,20 @@ func ValidateUpdateCommitteeLinkRequestBody(body *UpdateCommitteeLinkRequestBody
 // ValidateCreateCommitteeLinkFolderRequestBody runs the validations defined on
 // Create-Committee-Link-FolderRequestBody
 func ValidateCreateCommitteeLinkFolderRequestBody(body *CreateCommitteeLinkFolderRequestBody) (err error) {
+	if body.Name == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
+	}
+	if body.Name != nil {
+		if utf8.RuneCountInString(*body.Name) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.name", *body.Name, utf8.RuneCountInString(*body.Name), 200, false))
+		}
+	}
+	return
+}
+
+// ValidateUpdateCommitteeLinkFolderRequestBody runs the validations defined on
+// Update-Committee-Link-FolderRequestBody
+func ValidateUpdateCommitteeLinkFolderRequestBody(body *UpdateCommitteeLinkFolderRequestBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}

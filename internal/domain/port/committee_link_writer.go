@@ -26,6 +26,12 @@ type CommitteeLinkWriter interface {
 	// another folder already holds. A nil folder, or one without a UID or a CommitteeUID, returns
 	// errs.Validation.
 	CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder) error
+	// UpdateLinkFolder replaces the folder when the revision is still current: a stale revision returns
+	// errs.Conflict, a missing folder errs.NotFound, and a nil folder errs.Validation. A changed name moves the
+	// per-committee name uniqueness with it: a name another folder holds returns errs.Conflict and changes nothing,
+	// and the old name is free again once the update has landed. The record is found by its uid alone, so the
+	// caller must already have checked that it belongs to folder.CommitteeUID.
+	UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, revision uint64) error
 	// DeleteLinkFolder removes the folder when the revision is still current: a stale revision returns
 	// errs.Conflict, and a folder that is missing or belongs to another committee errs.NotFound. Its
 	// name is free again; the links in it are left alone.

@@ -2985,6 +2985,37 @@ func (s *committeeServicesrvc) CreateCommitteeLinkFolder(ctx context.Context, p 
 	return domainFolderToGoa(created), nil
 }
 
+// UpdateCommitteeLinkFolder renames a link folder. The name must stay unique within the committee.
+func (s *committeeServicesrvc) UpdateCommitteeLinkFolder(ctx context.Context, p *committeeservice.UpdateCommitteeLinkFolderPayload) (res *committeeservice.CommitteeLinkFolderWithReadonlyAttributes, err error) {
+	slog.DebugContext(ctx, "committeeService.update-committee-link-folder", "committee_uid", p.UID, "folder_uid", p.FolderUID)
+
+	parsedRevision, err := etagValidator(p.IfMatch)
+	if err != nil {
+		slog.ErrorContext(ctx, "invalid ETag", "error", err, "etag", p.IfMatch, "folder_uid", p.FolderUID)
+		return nil, wrapError(ctx, err)
+	}
+
+	_, updatedBy := s.stampAuditUsers(ctx)
+	if updatedBy == nil {
+		return nil, wrapError(ctx, errors.NewValidation("unable to determine user identity from token"))
+	}
+
+	folder := &model.CommitteeLinkFolder{
+		UID:          *p.FolderUID,
+		CommitteeUID: *p.UID,
+		Name:         p.Name,
+		UpdatedBy:    updatedBy,
+	}
+
+	updated, err := s.linkWriter.UpdateLinkFolder(ctx, folder, parsedRevision, p.XSync)
+	if err != nil {
+		return nil, wrapError(ctx, err)
+	}
+
+	updated.CreatedBy, updated.UpdatedBy = s.normalizeAuditUsers(ctx, updated.CreatedBy, updated.UpdatedBy, "", "")
+	return domainFolderToGoa(updated), nil
+}
+
 // DeleteCommitteeLinkFolder removes a link folder from a committee.
 func (s *committeeServicesrvc) DeleteCommitteeLinkFolder(ctx context.Context, p *committeeservice.DeleteCommitteeLinkFolderPayload) (err error) {
 	slog.DebugContext(ctx, "committeeService.delete-committee-link-folder", "committee_uid", p.UID, "folder_uid", p.FolderUID)

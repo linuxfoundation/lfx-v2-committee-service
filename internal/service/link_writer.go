@@ -26,6 +26,10 @@ type CommitteeLinkDataWriter interface {
 	UpdateLink(ctx context.Context, link *model.CommitteeLink, revision uint64, sync bool) (*model.CommitteeLink, error)
 	DeleteLink(ctx context.Context, committeeUID, linkUID string, revision uint64, sync bool) error
 	CreateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, sync bool) (*model.CommitteeLinkFolder, error)
+	// UpdateLinkFolder renames the folder, guarded by the revision. The name must stay unique within the committee.
+	// Links and documents refer to a folder by uid, so none of them changes. The folder's identity and who created it
+	// are kept.
+	UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, revision uint64, sync bool) (*model.CommitteeLinkFolder, error)
 	DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64, sync bool) error
 }
 
@@ -224,6 +228,48 @@ func (o *linkWriterOrchestrator) CreateLinkFolder(ctx context.Context, folder *m
 	o.publishLinkFolderIndexerMessage(ctx, model.ActionCreated, folder, sync)
 
 	return folder, nil
+}
+
+func (o *linkWriterOrchestrator) UpdateLinkFolder(ctx context.Context, folder *model.CommitteeLinkFolder, revision uint64, sync bool) (*model.CommitteeLinkFolder, error) {
+	if folder == nil {
+		return nil, errs.NewValidation("folder is required")
+	}
+	if folder.UID == "" {
+		return nil, errs.NewValidation("folder UID is required")
+	}
+	if folder.CommitteeUID == "" {
+		return nil, errs.NewValidation("committee UID is required")
+	}
+	if folder.Name == "" {
+		return nil, errs.NewValidation("folder name is required")
+	}
+
+	// Found through the committee first: a folder of another committee is not found, which is what lets the store
+	// replace it by uid alone, and what is not editable (identity, creator, creation time) is taken from it.
+	existing, _, err := o.linkReader.GetLinkFolder(ctx, folder.CommitteeUID, folder.UID)
+	if err != nil {
+		return nil, err
+	}
+
+	updated := *existing
+	updated.Name = folder.Name
+	if folder.UpdatedBy != nil {
+		updated.UpdatedBy = folder.UpdatedBy
+	}
+	updated.UpdatedAt = time.Now().UTC()
+
+	if err := o.linkWriter.UpdateLinkFolder(ctx, &updated, revision); err != nil {
+		return nil, err
+	}
+
+	slog.DebugContext(ctx, "updated committee link folder",
+		"folder_uid", updated.UID,
+		"committee_uid", updated.CommitteeUID,
+	)
+
+	o.publishLinkFolderIndexerMessage(ctx, model.ActionUpdated, &updated, sync)
+
+	return &updated, nil
 }
 
 func (o *linkWriterOrchestrator) DeleteLinkFolder(ctx context.Context, committeeUID, folderUID string, revision uint64, sync bool) error {
