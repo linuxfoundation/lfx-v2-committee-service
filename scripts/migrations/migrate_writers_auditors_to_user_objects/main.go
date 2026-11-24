@@ -340,25 +340,33 @@ func processRecord(ctx context.Context, settingsKV jetstream.KeyValue, baseKV je
 
 // buildIndexerMessage constructs the full indexer message envelope for a settings record,
 // including tags and IndexingConfig derived from the committee base record.
-// This mirrors what buildCommitteeSettingsIndexingConfig does in the service layer.
+// This mirrors model.CommitteeSettings.IndexingConfig in the service layer.
 func buildIndexerMessage(ctx context.Context, uid string, settingsMap map[string]interface{}, baseKV jetstream.KeyValue) (*indexerMessage, error) {
 	tags := buildTags(ctx, uid, baseKV)
 
 	falseVal := false
 	cfg := &indexerTypes.IndexingConfig{
 		ObjectID:             uid,
-		AccessCheckObject:    fmt.Sprintf("committee_settings:%s", uid),
+		AccessCheckObject:    fmt.Sprintf("committee:%s", uid),
 		AccessCheckRelation:  "auditor",
-		HistoryCheckObject:   fmt.Sprintf("committee_settings:%s", uid),
-		HistoryCheckRelation: "writer",
+		HistoryCheckObject:   fmt.Sprintf("committee:%s", uid),
+		HistoryCheckRelation: "auditor",
 		Tags:                 tags,
 		Public:               &falseVal,
 	}
 
+	// The webhook URL is a bearer credential: committee auditors can read indexed settings, and the
+	// regular publishers strip it too. Copy the map so the stored record is not changed.
+	data := make(map[string]interface{}, len(settingsMap))
+	for key, value := range settingsMap {
+		data[key] = value
+	}
+	delete(data, "chat_webhook_url")
+
 	return &indexerMessage{
 		Action:         "updated",
 		Headers:        map[string]string{constants.AuthorizationHeader: authToken},
-		Data:           settingsMap,
+		Data:           data,
 		IndexingConfig: cfg,
 	}, nil
 }

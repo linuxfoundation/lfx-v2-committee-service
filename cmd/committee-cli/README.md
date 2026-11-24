@@ -560,6 +560,46 @@ NATS_URL=nats://localhost:4222 \
   committee-cli sync reindex-settings --committee-uid=abc-123
 ```
 
+#### `sync repair-settings-index`
+
+Brings every committee settings document in OpenSearch onto the `committee:<uid>#auditor` access and history anchor with `public=false`, and removes settings documents whose settings record no longer exists. Settings used to be indexed against `committee_settings:<uid>`, an OpenFGA type that does not exist, so no caller could see them through the query service. Some were also indexed as public. A dry run unless `--apply` is given.
+
+- **Pass 1** re-publishes the settings of every committee in storage, like `reindex-settings` (which also uses the new anchor).
+- **Pass 2** lists current (`latest`) settings documents in OpenSearch that pass 1 did not cover. A document is deleted when storage reports its settings as not found and its committee read either succeeds or is also not found; the settings record is the source of its document. Any other read error counts as a failure and the document is kept. A document whose settings still exist is reported as `unresolved`, kept, and makes the run exit `1` so it is reviewed.
+- **`--verify`** only reads OpenSearch. It counts every current document that is not yet on `committee:<object_id>#auditor` for access and history, or is public, with one exact query, so duplicate `latest` copies are counted too. It lists up to 1000 of them and exits `1` while any remain. Run it after the indexer has processed the messages.
+
+Every search refuses partial results: a response that timed out, ended early or lost shards fails the run instead of being read as complete.
+
+Logs carry committee UIDs and counts only, never settings data.
+
+**Subcommand flags**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--apply` | `false` | Publish index updates and deletes; without it the run only reports |
+| `--verify` | `false` | Only read the index and report documents that still need repair (cannot be combined with `--apply`) |
+| `--committee-uid` | `""` | Limit both passes to one committee |
+| `--sleep` | `0` | Wait between each publish (e.g. `200ms`, `1s`) |
+| `--opensearch-url` | `$OPENSEARCH_URL` | Override the OpenSearch base URL |
+| `--opensearch-index` | `$OPENSEARCH_INDEX` | Override the resources index |
+
+**Exit code:** `0` on success; `1` if any document failed or was left unresolved, if OpenSearch returned incomplete results, or, with `--verify`, while any document still needs repair.
+
+**When to run:** in each environment, after deploying the service version that anchors settings on the committee. Run a dry run first, then `--apply`, then `--verify` until it passes. Prefer a period of low write traffic: like `reindex-settings`, pass 1 publishes the settings it has just read, so a settings update landing in that instant could be overtaken until the committee's next settings change. Re-running the command is safe.
+
+**Examples**
+
+```sh
+NATS_URL=nats://localhost:4222 OPENSEARCH_URL=http://localhost:9200 LOG_LEVEL=info \
+  committee-cli sync repair-settings-index
+
+NATS_URL=nats://localhost:4222 OPENSEARCH_URL=http://localhost:9200 \
+  committee-cli sync repair-settings-index --apply --sleep=200ms
+
+OPENSEARCH_URL=http://localhost:9200 \
+  committee-cli sync repair-settings-index --verify
+```
+
 #### `sync committee-fields`
 
 Reconciles chosen fields of chosen committees between LFX v1 and v2, in the direction you pick with `--from`. It is one command for all committee field drift, so there is no per-field command. Dry-run by default.

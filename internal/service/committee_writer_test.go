@@ -3231,7 +3231,9 @@ func TestBuildCommitteeSettingsIndexingConfig(t *testing.T) {
 			require.NotNil(t, cfg.Public, "Public must be set (not nil) to prevent indexer defaulting to public")
 			assert.False(t, *cfg.Public, "committee_settings must never be indexed as public — writer/auditor emails would be exposed")
 			assert.Equal(t, "auditor", cfg.AccessCheckRelation)
-			assert.Equal(t, fmt.Sprintf("committee_settings:%s", tc.committeeBase.UID), cfg.AccessCheckObject)
+			assert.Equal(t, fmt.Sprintf("committee:%s", tc.committeeBase.UID), cfg.AccessCheckObject)
+			assert.Equal(t, fmt.Sprintf("committee:%s", tc.committeeBase.UID), cfg.HistoryCheckObject)
+			assert.Equal(t, "auditor", cfg.HistoryCheckRelation)
 		})
 	}
 }

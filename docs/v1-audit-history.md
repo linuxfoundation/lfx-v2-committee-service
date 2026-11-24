@@ -192,14 +192,12 @@ display enrichment. A delete's recorded actor may be the previous last modifier,
 not the deleter; this tool does not strengthen that source attribution claim.
 
 Candidate history metadata uses the mapped `committee:<uid>#auditor` anchor,
-including settings/member deletes, with captured project/committee scope. This is
-the preview's **provisional** anchor. Native settings documents use
-`committee_settings:<uid>#auditor` (see [the indexer contract](indexer-contract.md)),
-but the OpenFGA model currently defines no `committee_settings` type, so the anchor
-for imported settings history needs a policy decision before any dispatch. Until
-then, do not switch it, and never substitute a project grant. This is **metadata
-validation, not a live FGA check**: it creates no grants, and deleted committees
-may be unreadable when their tuples are gone.
+including settings/member deletes, with captured project/committee scope. This
+matches native settings documents, which are also checked against
+`committee:<uid>#auditor` (see [the indexer contract](indexer-contract.md)); the
+OpenFGA model has no `committee_settings` type. Never substitute a project grant.
+This is **metadata validation, not a live FGA check**: it creates no grants, and
+deleted committees may be unreadable when their tuples are gone.
 
 ## Commands, output and failure handling
 
