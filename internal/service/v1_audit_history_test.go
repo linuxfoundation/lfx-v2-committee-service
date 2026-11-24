@@ -339,6 +339,53 @@ func TestPlanV1AuditHistory(t *testing.T) {
 			})
 		}
 	})
+	t.Run("v2-origin rows", func(t *testing.T) {
+		// The fixture row is recorded by actor-1 at 2025-03-17T21:27:04.533187Z.
+		for _, tc := range []struct {
+			name, action, since string
+			actors              []string
+			skipped             bool
+		}{
+			{"after the cutover", "UPDATE", "2025-03-17T00:00:00Z", []string{"actor-1"}, true},
+			{"insert after the cutover", "INSERT", "2025-03-17T00:00:00Z", []string{"actor-1"}, true},
+			{"at the cutover", "UPDATE", "2025-03-17T21:27:04.533187Z", []string{"actor-1"}, true},
+			{"before the cutover", "UPDATE", "2025-03-17T21:27:04.533188Z", []string{"actor-1"}, false},
+			{"no cutover", "UPDATE", "", []string{"actor-1"}, false},
+			{"other actor", "UPDATE", "2025-03-17T00:00:00Z", []string{"other-actor"}, false},
+			// A delete's actor is the previous last modifier, so it is never skipped.
+			{"delete after the cutover", "DELETE", "2025-03-17T00:00:00Z", []string{"actor-1"}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				row, mappings := v1HistoryFixture(true, tc.action)
+				mappings.V2OriginActors, mappings.NativeHistorySince = tc.actors, tc.since
+				calls := 0
+				report, err := PlanV1AuditHistory(context.Background(), strings.NewReader(v1HistoryJSON(t, row)), V1AuditOptions{Source: mappings.Source, Mappings: mappings}, func(model.V1AuditPlanEvent) error {
+					calls++
+					return nil
+				})
+				require.NoError(t, err)
+				if tc.skipped {
+					require.Equal(t, 1, report.Reasons["recorded_natively_in_v2"])
+					require.Zero(t, report.Importable)
+					require.Zero(t, calls, "a skipped row writes no draft events")
+				} else {
+					require.Equal(t, 1, report.Importable)
+					require.Equal(t, 1, calls)
+				}
+			})
+		}
+	})
+	t.Run("v2-origin rows keep action validation", func(t *testing.T) {
+		// An unsupported action from a listed actor after the cutover is still invalid.
+		row, mappings := v1HistoryFixture(true, "UPDATE")
+		row["action"] = "other"
+		mappings.V2OriginActors, mappings.NativeHistorySince = []string{"actor-1"}, "2025-03-17T00:00:00Z"
+		report, err := PlanV1AuditHistory(context.Background(), strings.NewReader(v1HistoryJSON(t, row)), V1AuditOptions{Source: mappings.Source, Mappings: mappings}, nil)
+		require.NoError(t, err)
+		require.Equal(t, 1, report.Invalid)
+		require.Equal(t, 1, report.Reasons["unsupported_source_action"])
+		require.Zero(t, report.Reasons["recorded_natively_in_v2"])
+	})
 	t.Run("direct caller mappings", func(t *testing.T) {
 		row, mappings := v1HistoryFixture(true, "DELETE")
 		// Keys that JSON re-encoding would expand past the manifest bound stay valid.
@@ -364,11 +411,25 @@ func TestDecodeV1AuditMappings(t *testing.T) {
 		strings.Replace(valid, mappings.Members["member-record-1"], "private-marker", 1),
 		valid + " {}", strings.Repeat(" ", v1AuditMaxBytes+1),
 		strings.Replace(valid, `"project-1"`, `"project-\ud800"`, 1),
+		// A cutover needs v2-origin actors, a full RFC 3339 time, and unique non-empty actors.
+		strings.Replace(valid, `"version":1`, `"native_history_since":"2025-03-17T00:00:00Z","version":1`, 1),
+		strings.Replace(valid, `"version":1`, `"v2_origin_actors":["actor-1"],"native_history_since":"2025-03-17","version":1`, 1),
+		// Only UTC is accepted; time.Parse would read +24:00 as a day earlier.
+		strings.Replace(valid, `"version":1`, `"v2_origin_actors":["actor-1"],"native_history_since":"2025-03-18T00:00:00+24:00","version":1`, 1),
+		strings.Replace(valid, `"version":1`, `"v2_origin_actors":["actor-1"],"native_history_since":"2025-03-17T14:27:04-07:00","version":1`, 1),
+		strings.Replace(valid, `"version":1`, `"v2_origin_actors":["actor-1"],"native_history_since":"2025-03-17T21:27:04+00:00","version":1`, 1),
+		strings.Replace(valid, `"version":1`, `"v2_origin_actors":["actor-1","actor-1"],"version":1`, 1),
+		strings.Replace(valid, `"version":1`, `"v2_origin_actors":[""],"version":1`, 1),
+		strings.Replace(valid, `"version":1`, `"v2_origin_actors":"actor-1","version":1`, 1),
 	} {
 		_, err := DecodeV1AuditMappings(strings.NewReader(data))
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), "private-marker")
 	}
+	decoded, err := DecodeV1AuditMappings(strings.NewReader(strings.Replace(valid, `"version":1`, `"v2_origin_actors":["actor-1"],"native_history_since":"2025-03-17T00:00:00Z","version":1`, 1)))
+	require.NoError(t, err)
+	require.Equal(t, []string{"actor-1"}, decoded.V2OriginActors)
+	require.Equal(t, "2025-03-17T00:00:00Z", decoded.NativeHistorySince)
 }
 
 // v1CancelAtEOFReader cancels its context when the underlying input is exhausted.
