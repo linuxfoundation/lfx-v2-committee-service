@@ -24,13 +24,13 @@ import (
 //	command (subcommand1|subcommand2|...)
 func UsageCommands() []string {
 	return []string{
-		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|bulk-create-committee-members|get-committee-member|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|update-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|update-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief|preview-generate-weekly-brief|update-current-weekly-brief|share-weekly-brief-to-chat)",
+		"committee-service (create-committee|get-committee-base|update-committee-base|delete-committee|get-committee-settings|update-committee-settings|readyz|livez|create-committee-member|bulk-create-committee-members|get-committee-member|list-committee-members|get-org-committee-seats|reassign-org-committee-seat|update-committee-member|delete-committee-member|get-invite|create-invite|revoke-invite|accept-invite|decline-invite|get-application|submit-application|approve-application|reject-application|withdraw-application|join-committee|leave-committee|get-committee-link|list-committee-links|create-committee-link|update-committee-link|delete-committee-link|get-committee-link-folder|list-committee-link-folders|create-committee-link-folder|delete-committee-link-folder|upload-committee-document|get-committee-document|download-committee-document|update-committee-document|delete-committee-document|get-current-weekly-brief|generate-weekly-brief|preview-generate-weekly-brief|update-current-weekly-brief|share-weekly-brief-to-chat)",
 	}
 }
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + " " + "committee-service create-committee --body '{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"charter\": {\n         \"url\": \"https://example.org/governance/charter.pdf\"\n      },\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"chat_webhook_url\": \"aov\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true" + "\n" +
+	return os.Args[0] + " " + "committee-service create-committee --body '{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"charter\": {\n         \"url\": \"https://example.org/governance/charter.pdf\"\n      },\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"chat_webhook_url\": \"hhi\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"members_can_view_social_listening\": false,\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true" + "\n" +
 		""
 }
 
@@ -113,6 +113,11 @@ func ParseEndpoint(
 		committeeServiceGetCommitteeMemberMemberUIDFlag   = committeeServiceGetCommitteeMemberFlags.String("member-uid", "REQUIRED", "Committee member UID -- v2 uid, not related to v1 id directly")
 		committeeServiceGetCommitteeMemberVersionFlag     = committeeServiceGetCommitteeMemberFlags.String("version", "REQUIRED", "")
 		committeeServiceGetCommitteeMemberBearerTokenFlag = committeeServiceGetCommitteeMemberFlags.String("bearer-token", "", "")
+
+		committeeServiceListCommitteeMembersFlags           = flag.NewFlagSet("list-committee-members", flag.ExitOnError)
+		committeeServiceListCommitteeMembersUIDFlag         = committeeServiceListCommitteeMembersFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceListCommitteeMembersVersionFlag     = committeeServiceListCommitteeMembersFlags.String("version", "REQUIRED", "")
+		committeeServiceListCommitteeMembersBearerTokenFlag = committeeServiceListCommitteeMembersFlags.String("bearer-token", "", "")
 
 		committeeServiceGetOrgCommitteeSeatsFlags           = flag.NewFlagSet("get-org-committee-seats", flag.ExitOnError)
 		committeeServiceGetOrgCommitteeSeatsUIDFlag         = committeeServiceGetOrgCommitteeSeatsFlags.String("uid", "REQUIRED", "B2B organization UID — the 18-char Salesforce Account SFID (canonical b2b_org uid)")
@@ -206,6 +211,12 @@ func ParseEndpoint(
 		committeeServiceRejectApplicationApplicationUIDFlag = committeeServiceRejectApplicationFlags.String("application-uid", "REQUIRED", "Committee application UID")
 		committeeServiceRejectApplicationVersionFlag        = committeeServiceRejectApplicationFlags.String("version", "REQUIRED", "")
 		committeeServiceRejectApplicationBearerTokenFlag    = committeeServiceRejectApplicationFlags.String("bearer-token", "", "")
+
+		committeeServiceWithdrawApplicationFlags              = flag.NewFlagSet("withdraw-application", flag.ExitOnError)
+		committeeServiceWithdrawApplicationUIDFlag            = committeeServiceWithdrawApplicationFlags.String("uid", "REQUIRED", "Committee UID -- v2 uid, not related to v1 id directly")
+		committeeServiceWithdrawApplicationApplicationUIDFlag = committeeServiceWithdrawApplicationFlags.String("application-uid", "REQUIRED", "Committee application UID")
+		committeeServiceWithdrawApplicationVersionFlag        = committeeServiceWithdrawApplicationFlags.String("version", "REQUIRED", "")
+		committeeServiceWithdrawApplicationBearerTokenFlag    = committeeServiceWithdrawApplicationFlags.String("bearer-token", "", "")
 
 		committeeServiceJoinCommitteeFlags           = flag.NewFlagSet("join-committee", flag.ExitOnError)
 		committeeServiceJoinCommitteeBodyFlag        = committeeServiceJoinCommitteeFlags.String("body", "REQUIRED", "")
@@ -358,6 +369,7 @@ func ParseEndpoint(
 	committeeServiceCreateCommitteeMemberFlags.Usage = committeeServiceCreateCommitteeMemberUsage
 	committeeServiceBulkCreateCommitteeMembersFlags.Usage = committeeServiceBulkCreateCommitteeMembersUsage
 	committeeServiceGetCommitteeMemberFlags.Usage = committeeServiceGetCommitteeMemberUsage
+	committeeServiceListCommitteeMembersFlags.Usage = committeeServiceListCommitteeMembersUsage
 	committeeServiceGetOrgCommitteeSeatsFlags.Usage = committeeServiceGetOrgCommitteeSeatsUsage
 	committeeServiceReassignOrgCommitteeSeatFlags.Usage = committeeServiceReassignOrgCommitteeSeatUsage
 	committeeServiceUpdateCommitteeMemberFlags.Usage = committeeServiceUpdateCommitteeMemberUsage
@@ -371,6 +383,7 @@ func ParseEndpoint(
 	committeeServiceSubmitApplicationFlags.Usage = committeeServiceSubmitApplicationUsage
 	committeeServiceApproveApplicationFlags.Usage = committeeServiceApproveApplicationUsage
 	committeeServiceRejectApplicationFlags.Usage = committeeServiceRejectApplicationUsage
+	committeeServiceWithdrawApplicationFlags.Usage = committeeServiceWithdrawApplicationUsage
 	committeeServiceJoinCommitteeFlags.Usage = committeeServiceJoinCommitteeUsage
 	committeeServiceLeaveCommitteeFlags.Usage = committeeServiceLeaveCommitteeUsage
 	committeeServiceGetCommitteeLinkFlags.Usage = committeeServiceGetCommitteeLinkUsage
@@ -460,6 +473,9 @@ func ParseEndpoint(
 			case "get-committee-member":
 				epf = committeeServiceGetCommitteeMemberFlags
 
+			case "list-committee-members":
+				epf = committeeServiceListCommitteeMembersFlags
+
 			case "get-org-committee-seats":
 				epf = committeeServiceGetOrgCommitteeSeatsFlags
 
@@ -498,6 +514,9 @@ func ParseEndpoint(
 
 			case "reject-application":
 				epf = committeeServiceRejectApplicationFlags
+
+			case "withdraw-application":
+				epf = committeeServiceWithdrawApplicationFlags
 
 			case "join-committee":
 				epf = committeeServiceJoinCommitteeFlags
@@ -618,6 +637,9 @@ func ParseEndpoint(
 			case "get-committee-member":
 				endpoint = c.GetCommitteeMember()
 				data, err = committeeservicec.BuildGetCommitteeMemberPayload(*committeeServiceGetCommitteeMemberUIDFlag, *committeeServiceGetCommitteeMemberMemberUIDFlag, *committeeServiceGetCommitteeMemberVersionFlag, *committeeServiceGetCommitteeMemberBearerTokenFlag)
+			case "list-committee-members":
+				endpoint = c.ListCommitteeMembers()
+				data, err = committeeservicec.BuildListCommitteeMembersPayload(*committeeServiceListCommitteeMembersUIDFlag, *committeeServiceListCommitteeMembersVersionFlag, *committeeServiceListCommitteeMembersBearerTokenFlag)
 			case "get-org-committee-seats":
 				endpoint = c.GetOrgCommitteeSeats()
 				data, err = committeeservicec.BuildGetOrgCommitteeSeatsPayload(*committeeServiceGetOrgCommitteeSeatsUIDFlag, *committeeServiceGetOrgCommitteeSeatsVersionFlag, *committeeServiceGetOrgCommitteeSeatsProjectUidsFlag, *committeeServiceGetOrgCommitteeSeatsPageSizeFlag, *committeeServiceGetOrgCommitteeSeatsPageTokenFlag, *committeeServiceGetOrgCommitteeSeatsBearerTokenFlag)
@@ -657,6 +679,9 @@ func ParseEndpoint(
 			case "reject-application":
 				endpoint = c.RejectApplication()
 				data, err = committeeservicec.BuildRejectApplicationPayload(*committeeServiceRejectApplicationBodyFlag, *committeeServiceRejectApplicationUIDFlag, *committeeServiceRejectApplicationApplicationUIDFlag, *committeeServiceRejectApplicationVersionFlag, *committeeServiceRejectApplicationBearerTokenFlag)
+			case "withdraw-application":
+				endpoint = c.WithdrawApplication()
+				data, err = committeeservicec.BuildWithdrawApplicationPayload(*committeeServiceWithdrawApplicationUIDFlag, *committeeServiceWithdrawApplicationApplicationUIDFlag, *committeeServiceWithdrawApplicationVersionFlag, *committeeServiceWithdrawApplicationBearerTokenFlag)
 			case "join-committee":
 				endpoint = c.JoinCommittee()
 				data, err = committeeservicec.BuildJoinCommitteePayload(*committeeServiceJoinCommitteeBodyFlag, *committeeServiceJoinCommitteeUIDFlag, *committeeServiceJoinCommitteeVersionFlag, *committeeServiceJoinCommitteeBearerTokenFlag, *committeeServiceJoinCommitteeXSyncFlag)
@@ -747,6 +772,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    create-committee-member: Add a new member to a committee`)
 	fmt.Fprintln(os.Stderr, `    bulk-create-committee-members: Add up to 100 members to a committee in one request. Every submitted row gets an added, skipped, or failed result; the request succeeds with 200 even when some rows are skipped or fail.`)
 	fmt.Fprintln(os.Stderr, `    get-committee-member: Get a specific committee member by UID`)
+	fmt.Fprintln(os.Stderr, `    list-committee-members: List all members of a committee`)
 	fmt.Fprintln(os.Stderr, `    get-org-committee-seats: List a B2B organization's committee seats across the membership project family (Org Lens Board & Committee tab)`)
 	fmt.Fprintln(os.Stderr, `    reassign-org-committee-seat: Reassign a Membership-Entitlement committee seat to a new holder (Org Lens Board & Committee tab)`)
 	fmt.Fprintln(os.Stderr, `    update-committee-member: Replace an existing committee member (requires complete resource)`)
@@ -760,6 +786,7 @@ func committeeServiceUsage() {
 	fmt.Fprintln(os.Stderr, `    submit-application: Submit an application to join a committee`)
 	fmt.Fprintln(os.Stderr, `    approve-application: Approve a pending application`)
 	fmt.Fprintln(os.Stderr, `    reject-application: Reject a pending application`)
+	fmt.Fprintln(os.Stderr, `    withdraw-application: Withdraw your own pending application`)
 	fmt.Fprintln(os.Stderr, `    join-committee: Self-join a committee (only works when join_mode is open)`)
 	fmt.Fprintln(os.Stderr, `    leave-committee: Leave a committee`)
 	fmt.Fprintln(os.Stderr, `    get-committee-link: Get a single link for a committee`)
@@ -806,7 +833,7 @@ func committeeServiceCreateCommitteeUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee --body '{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"charter\": {\n         \"url\": \"https://example.org/governance/charter.pdf\"\n      },\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"chat_webhook_url\": \"aov\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee --body '{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"calendar\": {\n         \"public\": true\n      },\n      \"category\": \"Technical Steering Committee\",\n      \"charter\": {\n         \"url\": \"https://example.org/governance/charter.pdf\"\n      },\n      \"chat_channel\": \"https://slack.example.org/channels/tsc\",\n      \"chat_webhook_url\": \"hhi\",\n      \"deliverables\": [\n         \"Quarterly technical roadmap\",\n         \"Annual governance review\"\n      ],\n      \"description\": \"Main technical oversight committee for the project\",\n      \"display_name\": \"TSC Committee Calendar\",\n      \"enable_voting\": true,\n      \"external_sources\": [\n         {\n            \"entity_type\": \"group\",\n            \"label\": \"CNCF Meetup - San Francisco\",\n            \"provider\": \"ocg\",\n            \"url\": \"https://community.cncf.io/cncf-meetup-san-francisco/\"\n         }\n      ],\n      \"join_mode\": \"open\",\n      \"key_dates\": [\n         {\n            \"date\": \"2026-04\",\n            \"label\": \"Charter renewal\"\n         }\n      ],\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"mailing_list\": \"tsc@lists.example.org\",\n      \"member_visibility\": \"hidden\",\n      \"members_can_view_social_listening\": false,\n      \"name\": \"Technical Steering Committee\",\n      \"parent_uid\": \"90b147f2-7cdd-157a-a2f4-9d4a567123fc\",\n      \"project_uid\": \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\",\n      \"public\": true,\n      \"repository\": \"https://github.com/example/repo\",\n      \"requires_review\": true,\n      \"scope\": [\n         \"Define governance for the project\",\n         \"Review and approve major architectural changes\"\n      ],\n      \"show_meeting_attendees\": false,\n      \"sso_group_enabled\": true,\n      \"website\": \"https://committee.example.org\",\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }' --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceGetCommitteeBaseUsage() {
@@ -932,7 +959,7 @@ func committeeServiceUpdateCommitteeSettingsUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-settings --body '{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"chat_webhook_url\": \"iez\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-settings --body '{\n      \"auditors\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"john@example.com\",\n            \"name\": \"John Doe\",\n            \"username\": \"auditor_user_id1\"\n         }\n      ],\n      \"business_email_required\": false,\n      \"chat_webhook_url\": \"2b5\",\n      \"last_reviewed_at\": \"2025-08-04T09:00:00Z\",\n      \"last_reviewed_by\": \"user_id_12345\",\n      \"member_visibility\": \"hidden\",\n      \"members_can_view_social_listening\": false,\n      \"show_meeting_attendees\": false,\n      \"writers\": [\n         {\n            \"avatar\": \"https://example.com/avatar.png\",\n            \"email\": \"alice@example.com\",\n            \"name\": \"Alice Johnson\",\n            \"username\": \"manager_user_id1\"\n         }\n      ]\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
 }
 
 func committeeServiceReadyzUsage() {
@@ -1049,6 +1076,28 @@ func committeeServiceGetCommitteeMemberUsage() {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service get-committee-member --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --member-uid \"2200b646-fbb2-4de7-ad80-fd195a874baf\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
+func committeeServiceListCommitteeMembersUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service list-committee-members", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `List all members of a committee`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-members --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceGetOrgCommitteeSeatsUsage() {
@@ -1393,6 +1442,30 @@ func committeeServiceRejectApplicationUsage() {
 	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service reject-application --body '{\n      \"notify\": false,\n      \"reviewer_notes\": \"Does not meet current requirements.\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
 }
 
+func committeeServiceWithdrawApplicationUsage() {
+	// Header with flags
+	fmt.Fprintf(os.Stderr, "%s [flags] committee-service withdraw-application", os.Args[0])
+	fmt.Fprint(os.Stderr, " -uid STRING")
+	fmt.Fprint(os.Stderr, " -application-uid STRING")
+	fmt.Fprint(os.Stderr, " -version STRING")
+	fmt.Fprint(os.Stderr, " -bearer-token STRING")
+	fmt.Fprintln(os.Stderr)
+
+	// Description
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, `Withdraw your own pending application`)
+
+	// Flags list
+	fmt.Fprintln(os.Stderr, `    -uid STRING: Committee UID -- v2 uid, not related to v1 id directly`)
+	fmt.Fprintln(os.Stderr, `    -application-uid STRING: Committee application UID`)
+	fmt.Fprintln(os.Stderr, `    -version STRING: `)
+	fmt.Fprintln(os.Stderr, `    -bearer-token STRING: `)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "Example:")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service withdraw-application --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --application-uid \"b2c3d4e5-f6a7-8901-bcde-f12345678901\" --version \"1\" --bearer-token \"eyJhbGci...\"")
+}
+
 func committeeServiceJoinCommitteeUsage() {
 	// Header with flags
 	fmt.Fprintf(os.Stderr, "%s [flags] committee-service join-committee", os.Args[0])
@@ -1488,7 +1561,7 @@ func committeeServiceListCommitteeLinksUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"80ef9a78-90ba-4f5d-b26e-578ed311a303\" --bearer-token \"eyJhbGci...\"")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service list-committee-links --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --folder-uid \"f0d3c6a4-06e0-4a24-9c23-6ac4580d6b17\" --bearer-token \"eyJhbGci...\"")
 }
 
 func committeeServiceCreateCommitteeLinkUsage() {
@@ -1514,7 +1587,7 @@ func committeeServiceCreateCommitteeLinkUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"description\": \"fiq\",\n      \"folder_uid\": \"53cd4f68-72fd-4492-8e2b-ec115fa7c5c6\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service create-committee-link --body '{\n      \"description\": \"sub\",\n      \"folder_uid\": \"e82b7800-e5fe-4a94-a9db-76aee64d5727\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceUpdateCommitteeLinkUsage() {
@@ -1544,7 +1617,7 @@ func committeeServiceUpdateCommitteeLinkUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-link --body '{\n      \"description\": \"5s1\",\n      \"folder_uid\": \"3b920028-9aec-4614-a3f2-75b65bf31e3e\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --link-uid \"c1d2e3f4-a5b6-7890-cdef-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-link --body '{\n      \"description\": \"lo2\",\n      \"folder_uid\": \"921d5285-ce33-4fbb-b95b-db01df87864b\",\n      \"name\": \"Technical Architecture Decision Records\",\n      \"url\": \"https://confluence.example.com/architecture-decisions\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --link-uid \"c1d2e3f4-a5b6-7890-cdef-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
 }
 
 func committeeServiceDeleteCommitteeLinkUsage() {
@@ -1698,7 +1771,7 @@ func committeeServiceUploadCommitteeDocumentUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Atque quo et qui itaque omnis aliquam.\",\n      \"description\": \"ucj\",\n      \"file\": \"UXVpZGVtIHBlcnNwaWNpYXRpcy4=\",\n      \"file_name\": \"Mollitia aperiam labore.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service upload-committee-document --body '{\n      \"content_type\": \"Ut eaque eum placeat soluta facere doloribus.\",\n      \"description\": \"pn8\",\n      \"file\": \"RWxpZ2VuZGkgYWRpcGlzY2kgbmlzaSB0b3RhbS4=\",\n      \"file_name\": \"Perspiciatis excepturi sint qui.\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --version \"1\" --bearer-token \"eyJhbGci...\" --x-sync true")
 }
 
 func committeeServiceGetCommitteeDocumentUsage() {
@@ -1776,7 +1849,7 @@ func committeeServiceUpdateCommitteeDocumentUsage() {
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Example:")
-	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-document --body '{\n      \"description\": \"bzo\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --document-uid \"d1e2f3a4-b5c6-7890-defa-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
+	fmt.Fprintf(os.Stderr, "    %s %s\n", os.Args[0], "committee-service update-committee-document --body '{\n      \"description\": \"6z3\",\n      \"folder_uid\": \"f1e2d3c4-b5a6-7890-fedc-ba9876543210\",\n      \"name\": \"Architecture Decision Record\"\n   }' --uid \"7cad5a8d-19d0-41a4-81a6-043453daf9ee\" --document-uid \"d1e2f3a4-b5c6-7890-defa-123456789012\" --version \"1\" --bearer-token \"eyJhbGci...\" --if-match \"123\" --x-sync true")
 }
 
 func committeeServiceDeleteCommitteeDocumentUsage() {

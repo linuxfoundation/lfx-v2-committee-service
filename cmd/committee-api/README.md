@@ -27,6 +27,7 @@ This service contains the following API endpoints:
 - `/committees/{uid}/members`
   - `POST`: add a new member to a committee (requires email and other member details)
   - `POST /bulk`: add up to 100 members in one request; every submitted row gets an added, skipped, or failed result
+  - `GET`: list all members of a committee
   - `GET /{member_uid}`: retrieve a specific committee member by member UID
   - `PUT /{member_uid}`: replace an existing committee member (requires complete resource with all fields)
   - `DELETE /{member_uid}`: remove a member from a committee
@@ -39,10 +40,11 @@ This service contains the following API endpoints:
   - `DELETE /{invite_uid}`: revoke a pending or declined invite
 
 - `/committees/{uid}/applications`
-  - `POST`: submit an application, or reinstate a rejected application
+  - `POST`: submit an application, or reinstate a rejected or withdrawn application
   - `GET /{application_uid}`: retrieve an application
   - `POST /{application_uid}/approve`: approve a pending application and create the member
   - `POST /{application_uid}/reject`: reject a pending application
+  - `POST /{application_uid}/withdraw`: withdraw your own pending application
 
 - `/committees/{uid}/links`
   - `GET`: list committee links
@@ -390,7 +392,8 @@ In `dual`, `dual-pg` and `postgres`, PostgreSQL is connected to and migrated at 
 
    ```bash
    # From the root of the directory, run megalinter (https://megalinter.io/latest/mega-linter-runner/) to ensure the code passes the linter checks. The CI/CD has a check that uses megalinter.
-   npx mega-linter-runner .
+   # GOTOOLCHAIN=auto lets the Go linters fetch the go.mod toolchain, as in CI.
+   npx mega-linter-runner --env GOTOOLCHAIN=auto .
    ```
 
 7. **Docker build + K8**

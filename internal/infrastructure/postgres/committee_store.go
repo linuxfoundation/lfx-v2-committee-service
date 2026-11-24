@@ -39,7 +39,7 @@ var committeeColumns = []string{
 var settingsColumns = []string{
 	"committee_uid", "business_email_required", "show_meeting_attendees", "member_visibility",
 	"chat_webhook_url", "has_chat_webhook", "last_reviewed_at", "last_reviewed_by", "writers",
-	"auditors", "created_at", "updated_at",
+	"auditors", "created_at", "updated_at", "members_can_view_social_listening",
 }
 
 var (
@@ -134,7 +134,7 @@ func settingsValues(s *model.CommitteeSettings) ([]any, error) {
 	return []any{
 		s.UID, s.BusinessEmailRequired, s.ShowMeetingAttendees, s.MemberVisibility,
 		s.ChatWebhookURL, s.HasChatWebhook, s.LastReviewedAt, s.LastReviewedBy, writers,
-		auditors, s.CreatedAt, s.UpdatedAt,
+		auditors, s.CreatedAt, s.UpdatedAt, s.MembersCanViewSocialListening,
 	}, nil
 }
 
@@ -146,7 +146,7 @@ func scanSettings(row pgx.Row) (*model.CommitteeSettings, uint64, error) {
 	if err := row.Scan(
 		&s.UID, &s.BusinessEmailRequired, &s.ShowMeetingAttendees, &s.MemberVisibility,
 		&s.ChatWebhookURL, &s.HasChatWebhook, &s.LastReviewedAt, &s.LastReviewedBy, &writers,
-		&auditors, &s.CreatedAt, &s.UpdatedAt,
+		&auditors, &s.CreatedAt, &s.UpdatedAt, &s.MembersCanViewSocialListening,
 		&revision,
 	); err != nil {
 		return nil, 0, err

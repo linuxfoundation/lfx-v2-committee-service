@@ -29,6 +29,7 @@ type Endpoints struct {
 	CreateCommitteeMember      goa.Endpoint
 	BulkCreateCommitteeMembers goa.Endpoint
 	GetCommitteeMember         goa.Endpoint
+	ListCommitteeMembers       goa.Endpoint
 	GetOrgCommitteeSeats       goa.Endpoint
 	ReassignOrgCommitteeSeat   goa.Endpoint
 	UpdateCommitteeMember      goa.Endpoint
@@ -42,6 +43,7 @@ type Endpoints struct {
 	SubmitApplication          goa.Endpoint
 	ApproveApplication         goa.Endpoint
 	RejectApplication          goa.Endpoint
+	WithdrawApplication        goa.Endpoint
 	JoinCommittee              goa.Endpoint
 	LeaveCommittee             goa.Endpoint
 	GetCommitteeLink           goa.Endpoint
@@ -89,6 +91,7 @@ func NewEndpoints(s Service) *Endpoints {
 		CreateCommitteeMember:      NewCreateCommitteeMemberEndpoint(s, a.JWTAuth),
 		BulkCreateCommitteeMembers: NewBulkCreateCommitteeMembersEndpoint(s, a.JWTAuth),
 		GetCommitteeMember:         NewGetCommitteeMemberEndpoint(s, a.JWTAuth),
+		ListCommitteeMembers:       NewListCommitteeMembersEndpoint(s, a.JWTAuth),
 		GetOrgCommitteeSeats:       NewGetOrgCommitteeSeatsEndpoint(s, a.JWTAuth),
 		ReassignOrgCommitteeSeat:   NewReassignOrgCommitteeSeatEndpoint(s, a.JWTAuth),
 		UpdateCommitteeMember:      NewUpdateCommitteeMemberEndpoint(s, a.JWTAuth),
@@ -102,6 +105,7 @@ func NewEndpoints(s Service) *Endpoints {
 		SubmitApplication:          NewSubmitApplicationEndpoint(s, a.JWTAuth),
 		ApproveApplication:         NewApproveApplicationEndpoint(s, a.JWTAuth),
 		RejectApplication:          NewRejectApplicationEndpoint(s, a.JWTAuth),
+		WithdrawApplication:        NewWithdrawApplicationEndpoint(s, a.JWTAuth),
 		JoinCommittee:              NewJoinCommitteeEndpoint(s, a.JWTAuth),
 		LeaveCommittee:             NewLeaveCommitteeEndpoint(s, a.JWTAuth),
 		GetCommitteeLink:           NewGetCommitteeLinkEndpoint(s, a.JWTAuth),
@@ -140,6 +144,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.CreateCommitteeMember = m(e.CreateCommitteeMember)
 	e.BulkCreateCommitteeMembers = m(e.BulkCreateCommitteeMembers)
 	e.GetCommitteeMember = m(e.GetCommitteeMember)
+	e.ListCommitteeMembers = m(e.ListCommitteeMembers)
 	e.GetOrgCommitteeSeats = m(e.GetOrgCommitteeSeats)
 	e.ReassignOrgCommitteeSeat = m(e.ReassignOrgCommitteeSeat)
 	e.UpdateCommitteeMember = m(e.UpdateCommitteeMember)
@@ -153,6 +158,7 @@ func (e *Endpoints) Use(m func(goa.Endpoint) goa.Endpoint) {
 	e.SubmitApplication = m(e.SubmitApplication)
 	e.ApproveApplication = m(e.ApproveApplication)
 	e.RejectApplication = m(e.RejectApplication)
+	e.WithdrawApplication = m(e.WithdrawApplication)
 	e.JoinCommittee = m(e.JoinCommittee)
 	e.LeaveCommittee = m(e.LeaveCommittee)
 	e.GetCommitteeLink = m(e.GetCommitteeLink)
@@ -397,6 +403,29 @@ func NewGetCommitteeMemberEndpoint(s Service, authJWTFn security.AuthJWTFunc) go
 			return nil, err
 		}
 		return s.GetCommitteeMember(ctx, p)
+	}
+}
+
+// NewListCommitteeMembersEndpoint returns an endpoint function that calls the
+// method "list-committee-members" of service "committee-service".
+func NewListCommitteeMembersEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*ListCommitteeMembersPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.ListCommitteeMembers(ctx, p)
 	}
 }
 
@@ -696,6 +725,29 @@ func NewRejectApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa
 			return nil, err
 		}
 		return s.RejectApplication(ctx, p)
+	}
+}
+
+// NewWithdrawApplicationEndpoint returns an endpoint function that calls the
+// method "withdraw-application" of service "committee-service".
+func NewWithdrawApplicationEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
+	return func(ctx context.Context, req any) (any, error) {
+		p := req.(*WithdrawApplicationPayload)
+		var err error
+		sc := security.JWTScheme{
+			Name:           "jwt",
+			Scopes:         []string{},
+			RequiredScopes: []string{},
+		}
+		var token string
+		if p.BearerToken != nil {
+			token = *p.BearerToken
+		}
+		ctx, err = authJWTFn(ctx, token, &sc)
+		if err != nil {
+			return nil, err
+		}
+		return s.WithdrawApplication(ctx, p)
 	}
 }
 

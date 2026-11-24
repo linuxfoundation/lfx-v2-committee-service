@@ -54,7 +54,7 @@ paths:
                             charter:
                                 url: https://example.org/governance/charter.pdf
                             chat_channel: https://slack.example.org/channels/tsc
-                            chat_webhook_url: aov
+                            chat_webhook_url: hhi
                             deliverables:
                                 - Quarterly technical roadmap
                                 - Annual governance review
@@ -74,6 +74,7 @@ paths:
                             last_reviewed_by: user_id_12345
                             mailing_list: tsc@lists.example.org
                             member_visibility: hidden
+                            members_can_view_social_listening: false
                             name: Technical Steering Committee
                             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -137,6 +138,7 @@ paths:
                                 last_reviewed_by: user_id_12345
                                 mailing_list: tsc@lists.example.org
                                 member_visibility: hidden
+                                members_can_view_social_listening: false
                                 name: Technical Steering Committee
                                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -1032,6 +1034,115 @@ paths:
                                 message: The service is unavailable.
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/applications/{application_uid}/withdraw:
+        post:
+            tags:
+                - committee-service
+            summary: withdraw-application committee-service
+            description: Withdraw your own pending application
+            operationId: committee-service#withdraw-application
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                - name: application_uid
+                  in: path
+                  description: Committee application UID
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee application UID
+                    example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    format: uuid
+                  example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CommitteeApplicationWithReadonlyAttributes'
+                            example:
+                                applicant_email: user@example.com
+                                committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                created_at: "2023-01-15T10:30:00Z"
+                                message: I would like to join the TSC to contribute my expertise.
+                                organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                reviewer_notes: Approved based on contribution history.
+                                status: pending
+                                uid: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "403":
+                    description: 'Forbidden: You are not the applicant for this application'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ForbiddenError'
+                            example:
+                                message: You do not have permission to perform this action.
+                "404":
+                    description: 'NotFound: Application not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "409":
+                    description: 'Conflict: Application already processed'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConflictError'
+                            example:
+                                message: The resource already exists.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/documents:
         post:
             tags:
@@ -1078,30 +1189,39 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UploadCommitteeDocumentRequestBody'
                         example:
-                            content_type: Atque quo et qui itaque omnis aliquam.
-                            description: ucj
+                            content_type: Ut eaque eum placeat soluta facere doloribus.
+                            description: pn8
                             file:
-                                - 81
-                                - 117
+                                - 69
+                                - 108
                                 - 105
+                                - 103
+                                - 101
+                                - 110
                                 - 100
-                                - 101
-                                - 109
+                                - 105
                                 - 32
-                                - 112
-                                - 101
-                                - 114
-                                - 115
+                                - 97
+                                - 100
+                                - 105
                                 - 112
                                 - 105
+                                - 115
                                 - 99
                                 - 105
-                                - 97
-                                - 116
+                                - 32
+                                - 110
                                 - 105
                                 - 115
+                                - 105
+                                - 32
+                                - 116
+                                - 111
+                                - 116
+                                - 97
+                                - 109
                                 - 46
-                            file_name: Mollitia aperiam labore.
+                            file_name: Perspiciatis excepturi sint qui.
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -1439,7 +1559,7 @@ paths:
                         schema:
                             $ref: '#/components/schemas/UpdateCommitteeDocumentRequestBody'
                         example:
-                            description: bzo
+                            description: 6z3
                             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                             name: Architecture Decision Record
             responses:
@@ -1648,7 +1768,33 @@ paths:
                                         avatar: https://example.com/avatar.png
                                         name: First Last
                                         username: first-last
+                                    - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      created_by:
+                                        avatar: https://example.com/avatar.png
+                                        name: First Last
+                                        username: first-last
+                                      name: Meeting Notes
+                                      uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      updated_by:
+                                        avatar: https://example.com/avatar.png
+                                        name: First Last
+                                        username: first-last
                             example:
+                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  created_by:
+                                    avatar: https://example.com/avatar.png
+                                    name: First Last
+                                    username: first-last
+                                  name: Meeting Notes
+                                  uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  updated_by:
+                                    avatar: https://example.com/avatar.png
+                                    name: First Last
+                                    username: first-last
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
@@ -2812,9 +2958,9 @@ paths:
                   schema:
                     type: string
                     description: Filter links to those inside a specific folder; omit to return all links
-                    example: 425eeb9f-52ad-421f-b213-08730fdd3a28
+                    example: 04b471b4-c018-46a1-b243-0b48595130c4
                     format: uuid
-                  example: 7c278c18-44ef-4aa6-857b-229e1e753236
+                  example: 220c33ef-31f2-422d-a8bb-97cabc9d740a
             responses:
                 "200":
                     description: OK response.
@@ -2874,22 +3020,6 @@ paths:
                                         username: first-last
                                       url: https://confluence.example.com/architecture-decisions
                             example:
-                                - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                  created_at: "2023-01-15T10:30:00Z"
-                                  created_by:
-                                    avatar: https://example.com/avatar.png
-                                    name: First Last
-                                    username: first-last
-                                  description: Confluence wiki — architecture decisions log
-                                  folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
-                                  name: Technical Architecture Decision Records
-                                  uid: c1d2e3f4-a5b6-7890-cdef-123456789012
-                                  updated_at: "2023-06-20T14:45:30Z"
-                                  updated_by:
-                                    avatar: https://example.com/avatar.png
-                                    name: First Last
-                                    username: first-last
-                                  url: https://confluence.example.com/architecture-decisions
                                 - committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                   created_at: "2023-01-15T10:30:00Z"
                                   created_by:
@@ -2993,8 +3123,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: fiq
-                            folder_uid: 53cd4f68-72fd-4492-8e2b-ec115fa7c5c6
+                            description: sub
+                            folder_uid: e82b7800-e5fe-4a94-a9db-76aee64d5727
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3318,8 +3448,8 @@ paths:
                         schema:
                             $ref: '#/components/schemas/CreateCommitteeLinkRequestBody'
                         example:
-                            description: 5s1
-                            folder_uid: 3b920028-9aec-4614-a3f2-75b65bf31e3e
+                            description: lo2
+                            folder_uid: 921d5285-ce33-4fbb-b95b-db01df87864b
                             name: Technical Architecture Decision Records
                             url: https://confluence.example.com/architecture-decisions
             responses:
@@ -3389,6 +3519,262 @@ paths:
             security:
                 - jwt_header_Authorization: []
     /committees/{uid}/members:
+        get:
+            tags:
+                - committee-service
+            summary: list-committee-members committee-service
+            description: List all members of a committee
+            operationId: committee-service#list-committee-members
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  allowEmptyValue: true
+                  required: true
+                  schema:
+                    type: string
+                    description: Version of the API
+                    example: "1"
+                    enum:
+                        - "1"
+                  example: "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  schema:
+                    type: string
+                    description: Committee UID -- v2 uid, not related to v1 id directly
+                    example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                    format: uuid
+                  example: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+            responses:
+                "200":
+                    description: OK response.
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/CommitteeMemberFullWithReadonlyAttributes'
+                                example:
+                                    - appointed_by: Community
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      email: user@example.com
+                                      first_name: John
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      linkedin_profile: https://www.linkedin.com/in/johndoe
+                                      organization:
+                                        id: org-123456
+                                        name: The Linux Foundation
+                                        website: https://linuxfoundation.org
+                                      role:
+                                        end_date: "2024-12-31"
+                                        name: Chair
+                                        start_date: "2023-01-01"
+                                      status: Active
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      username: user123
+                                      voting:
+                                        end_date: "2024-12-31"
+                                        start_date: "2023-01-01"
+                                        status: Voting Rep
+                                    - appointed_by: Community
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      email: user@example.com
+                                      first_name: John
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      linkedin_profile: https://www.linkedin.com/in/johndoe
+                                      organization:
+                                        id: org-123456
+                                        name: The Linux Foundation
+                                        website: https://linuxfoundation.org
+                                      role:
+                                        end_date: "2024-12-31"
+                                        name: Chair
+                                        start_date: "2023-01-01"
+                                      status: Active
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      username: user123
+                                      voting:
+                                        end_date: "2024-12-31"
+                                        start_date: "2023-01-01"
+                                        status: Voting Rep
+                                    - appointed_by: Community
+                                      committee_category: Board
+                                      committee_name: Technical Steering Committee
+                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                      created_at: "2023-01-15T10:30:00Z"
+                                      email: user@example.com
+                                      first_name: John
+                                      job_title: Chief Technology Officer
+                                      last_name: Doe
+                                      linkedin_profile: https://www.linkedin.com/in/johndoe
+                                      organization:
+                                        id: org-123456
+                                        name: The Linux Foundation
+                                        website: https://linuxfoundation.org
+                                      role:
+                                        end_date: "2024-12-31"
+                                        name: Chair
+                                        start_date: "2023-01-01"
+                                      status: Active
+                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                      updated_at: "2023-06-20T14:45:30Z"
+                                      username: user123
+                                      voting:
+                                        end_date: "2024-12-31"
+                                        start_date: "2023-01-01"
+                                        status: Voting Rep
+                            example:
+                                - appointed_by: Community
+                                  committee_category: Board
+                                  committee_name: Technical Steering Committee
+                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  email: user@example.com
+                                  first_name: John
+                                  job_title: Chief Technology Officer
+                                  last_name: Doe
+                                  linkedin_profile: https://www.linkedin.com/in/johndoe
+                                  organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                  role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                  status: Active
+                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  username: user123
+                                  voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                                - appointed_by: Community
+                                  committee_category: Board
+                                  committee_name: Technical Steering Committee
+                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  email: user@example.com
+                                  first_name: John
+                                  job_title: Chief Technology Officer
+                                  last_name: Doe
+                                  linkedin_profile: https://www.linkedin.com/in/johndoe
+                                  organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                  role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                  status: Active
+                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  username: user123
+                                  voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                                - appointed_by: Community
+                                  committee_category: Board
+                                  committee_name: Technical Steering Committee
+                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  email: user@example.com
+                                  first_name: John
+                                  job_title: Chief Technology Officer
+                                  last_name: Doe
+                                  linkedin_profile: https://www.linkedin.com/in/johndoe
+                                  organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                  role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                  status: Active
+                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  username: user123
+                                  voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                                - appointed_by: Community
+                                  committee_category: Board
+                                  committee_name: Technical Steering Committee
+                                  committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                                  created_at: "2023-01-15T10:30:00Z"
+                                  email: user@example.com
+                                  first_name: John
+                                  job_title: Chief Technology Officer
+                                  last_name: Doe
+                                  linkedin_profile: https://www.linkedin.com/in/johndoe
+                                  organization:
+                                    id: org-123456
+                                    name: The Linux Foundation
+                                    website: https://linuxfoundation.org
+                                  role:
+                                    end_date: "2024-12-31"
+                                    name: Chair
+                                    start_date: "2023-01-01"
+                                  status: Active
+                                  uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                                  updated_at: "2023-06-20T14:45:30Z"
+                                  username: user123
+                                  voting:
+                                    end_date: "2024-12-31"
+                                    start_date: "2023-01-01"
+                                    status: Voting Rep
+                "400":
+                    description: 'BadRequest: Bad request'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BadRequestError'
+                            example:
+                                message: The request was invalid.
+                "404":
+                    description: 'NotFound: Committee not found'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/NotFoundError'
+                            example:
+                                message: The resource was not found.
+                "500":
+                    description: 'InternalServerError: Internal server error'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/InternalServerError'
+                            example:
+                                message: An internal server error occurred.
+                "503":
+                    description: 'ServiceUnavailable: Service unavailable'
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ServiceUnavailableError'
+                            example:
+                                message: The service is unavailable.
+            security:
+                - jwt_header_Authorization: []
         post:
             tags:
                 - committee-service
@@ -4165,6 +4551,7 @@ paths:
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
+                                members_can_view_social_listening: false
                                 show_meeting_attendees: false
                                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 updated_at: "2023-06-20T14:45:30Z"
@@ -4259,10 +4646,11 @@ paths:
                                   name: John Doe
                                   username: auditor_user_id1
                             business_email_required: false
-                            chat_webhook_url: iez
+                            chat_webhook_url: 2b5
                             last_reviewed_at: "2025-08-04T09:00:00Z"
                             last_reviewed_by: user_id_12345
                             member_visibility: hidden
+                            members_can_view_social_listening: false
                             show_meeting_attendees: false
                             writers:
                                 - avatar: https://example.com/avatar.png
@@ -4288,6 +4676,7 @@ paths:
                                 last_reviewed_at: "2025-08-04T09:00:00Z"
                                 last_reviewed_by: user_id_12345
                                 member_visibility: hidden
+                                members_can_view_social_listening: false
                                 show_meeting_attendees: false
                                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                                 updated_at: "2023-06-20T14:45:30Z"
@@ -4840,7 +5229,7 @@ paths:
                                 $ref: '#/components/schemas/NoChatWebhookError'
                             example:
                                 code: no_chat_webhook
-                                message: Provident veniam assumenda quidem facere adipisci architecto.
+                                message: Odit dolor temporibus eius.
                 "500":
                     description: 'InternalServerError: Internal server error'
                     content:
@@ -4897,7 +5286,7 @@ paths:
                     type: array
                     items:
                         type: string
-                        example: Ea dignissimos sequi aperiam ex vero.
+                        example: Qui dolorum tempore voluptatibus ea dolorem aut.
                     description: Resolved project-family UIDs (foundation root + descendants) the BFF scopes seats to
                     example:
                         - 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4934,24 +5323,6 @@ paths:
                             example:
                                 page_token: eyJvIjoxMDB9
                                 seats:
-                                    - appointed_by: Community
-                                      avatar: https://example.com/avatar.png
-                                      committee_category: Board
-                                      committee_name: Technical Steering Committee
-                                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      email: user@example.com
-                                      first_name: John
-                                      is_org_editable: true
-                                      job_title: Chief Technology Officer
-                                      last_name: Doe
-                                      organization_id: 001B000000IqhSLIAZ
-                                      project_slug: example-foundation
-                                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                                      reason: This seat is foundation-controlled.
-                                      role_name: Chair
-                                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                                      username: user123
-                                      voting_status: Voting Rep
                                     - appointed_by: Community
                                       avatar: https://example.com/avatar.png
                                       committee_category: Board
@@ -5231,46 +5602,6 @@ components:
                             end_date: "2024-12-31"
                             start_date: "2023-01-01"
                             status: Voting Rep
-                        - appointed_by: Community
-                          email: first.last@example.com
-                          first_name: First
-                          job_title: Chief Technology Officer
-                          last_name: Last
-                          linkedin_profile: https://www.linkedin.com/in/first-last
-                          organization:
-                            id: org-123456
-                            name: The Linux Foundation
-                            website: https://linuxfoundation.org
-                          role:
-                            end_date: "2024-12-31"
-                            name: Chair
-                            start_date: "2023-01-01"
-                          status: Active
-                          username: first-last
-                          voting:
-                            end_date: "2024-12-31"
-                            start_date: "2023-01-01"
-                            status: Voting Rep
-                        - appointed_by: Community
-                          email: first.last@example.com
-                          first_name: First
-                          job_title: Chief Technology Officer
-                          last_name: Last
-                          linkedin_profile: https://www.linkedin.com/in/first-last
-                          organization:
-                            id: org-123456
-                            name: The Linux Foundation
-                            website: https://linuxfoundation.org
-                          role:
-                            end_date: "2024-12-31"
-                            name: Chair
-                            start_date: "2023-01-01"
-                          status: Active
-                          username: first-last
-                          voting:
-                            end_date: "2024-12-31"
-                            start_date: "2023-01-01"
-                            status: Voting Rep
                     minItems: 1
                     maxItems: 100
             example:
@@ -5445,6 +5776,7 @@ components:
                         - pending
                         - approved
                         - rejected
+                        - withdrawn
                 uid:
                     type: string
                     description: Application UID
@@ -5512,7 +5844,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 9vg
+                        example: b5f
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5604,7 +5936,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: hms
+                        example: 81k
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -5706,7 +6038,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: j0y
+                        example: 0um
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -5808,7 +6140,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: b5f
+                        example: znw
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -6035,7 +6367,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 81k
+                        example: 6qv
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -6109,6 +6441,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: When true, members of this committee can view Social Listening for the committee's foundation
+                    default: false
+                    example: false
                 name:
                     type: string
                     description: The name of the committee
@@ -6144,7 +6481,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 52t
+                        example: j0y
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -6208,6 +6545,7 @@ components:
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -6291,7 +6629,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: znw
+                        example: 8ne
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -6370,6 +6708,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: When true, members of this committee can view Social Listening for the committee's foundation
+                    default: false
+                    example: false
                 name:
                     type: string
                     description: The name of the committee
@@ -6405,7 +6748,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 6qv
+                        example: jrg
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -6499,6 +6842,7 @@ components:
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -6919,6 +7263,20 @@ components:
                         $ref: '#/components/schemas/CommitteeMemberBulkCreateRowResult'
                     description: One result per submitted row, in submission order
                     example:
+                        - email: first.last@example.com
+                          index: 0
+                          member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          message: member already exists in the committee
+                          reason: already_member
+                          retryable: false
+                          status: skipped
+                        - email: first.last@example.com
+                          index: 0
+                          member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                          message: member already exists in the committee
+                          reason: already_member
+                          retryable: false
+                          status: skipped
                         - email: first.last@example.com
                           index: 0
                           member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -7614,6 +7972,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: When true, members of this committee can view Social Listening for the committee's foundation
+                    default: false
+                    example: false
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -7625,6 +7988,7 @@ components:
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 show_meeting_attendees: false
         CommitteeSettingsWithReadonlyAttributes:
             type: object
@@ -7671,6 +8035,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: When true, members of this committee can view Social Listening for the committee's foundation
+                    default: false
+                    example: false
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -7709,6 +8078,7 @@ components:
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 show_meeting_attendees: false
                 uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
                 updated_at: "2023-06-20T14:45:30Z"
@@ -7772,12 +8142,12 @@ components:
                 description:
                     type: string
                     description: Optional description
-                    example: t75
+                    example: inx
                     maxLength: 2000
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this link in
-                    example: 69d254c6-0caf-491d-9b6b-af3fd13e21ac
+                    example: 8a01b486-fd14-4c47-95e4-7534b8b141d8
                     format: uuid
                 name:
                     type: string
@@ -7792,8 +8162,8 @@ components:
                     pattern: ^https?://[^\s/$.?#][^\s]*$
                     maxLength: 2048
             example:
-                description: gci
-                folder_uid: 3259b00c-922c-42c8-a676-91858adff783
+                description: 3ax
+                folder_uid: 17333052-ec27-4d2e-a694-54336666892f
                 name: Technical Architecture Decision Records
                 url: https://confluence.example.com/architecture-decisions
             required:
@@ -7864,14 +8234,14 @@ components:
                 chat_webhook_url:
                     type: string
                     description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: ovv
+                    example: mce
                     pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 deliverables:
                     type: array
                     items:
                         type: string
-                        example: j8k
+                        example: a6z
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -7945,6 +8315,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: When true, members of this committee can view Social Listening for the committee's foundation
+                    default: false
+                    example: false
                 name:
                     type: string
                     description: The name of the committee
@@ -7980,7 +8355,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: bwj
+                        example: vvf
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -8026,7 +8401,7 @@ components:
                 charter:
                     url: https://example.org/governance/charter.pdf
                 chat_channel: https://slack.example.org/channels/tsc
-                chat_webhook_url: 8a6
+                chat_webhook_url: 5ik
                 deliverables:
                     - Quarterly technical roadmap
                     - Annual governance review
@@ -8046,6 +8421,7 @@ components:
                 last_reviewed_by: user_id_12345
                 mailing_list: tsc@lists.example.org
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 name: Technical Steering Committee
                 parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
                 project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -8293,11 +8669,15 @@ components:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
-                        - excerpt: 0zf
+                        - excerpt: 8au
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 0zf
+                        - excerpt: 8au
+                          id: https://meet.example.org/abc123
+                          kind: meeting
+                          title: 2026-05-12 weekly sync
+                        - excerpt: 8au
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -8346,7 +8726,7 @@ components:
                 excerpt:
                     type: string
                     description: Excerpt consumed by the generator
-                    example: ajr
+                    example: w0z
                     maxLength: 5000
                 id:
                     type: string
@@ -8362,7 +8742,7 @@ components:
                     example: 2026-05-12 weekly sync
             description: Reference to a source document considered by the weekly-brief generator.
             example:
-                excerpt: q8n
+                excerpt: lfc
                 id: https://meet.example.org/abc123
                 kind: meeting
                 title: 2026-05-12 weekly sync
@@ -8464,7 +8844,7 @@ components:
                 brief_text:
                     type: string
                     description: Brief body markdown text
-                    example: cbh
+                    example: t25
                     maxLength: 20000
                 committee_uid:
                     type: string
@@ -8519,11 +8899,11 @@ components:
                         $ref: '#/components/schemas/GroupWeeklyBriefSourceRef'
                     description: Sources considered by the generator
                     example:
-                        - excerpt: 0zf
+                        - excerpt: 8au
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
-                        - excerpt: 0zf
+                        - excerpt: 8au
                           id: https://meet.example.org/abc123
                           kind: meeting
                           title: 2026-05-12 weekly sync
@@ -8643,11 +9023,11 @@ components:
                 message:
                     type: string
                     description: Human-readable description
-                    example: Maiores ab laborum aut voluptatum ipsam esse.
+                    example: Possimus est autem.
             description: Returned when share-to-chat is attempted but no chat webhook URL is configured for the committee.
             example:
                 code: no_chat_webhook
-                message: Rerum dolorem in consequuntur possimus est.
+                message: Dolor incidunt laudantium laborum assumenda qui voluptatem.
             required:
                 - code
                 - message
@@ -8868,46 +9248,46 @@ components:
                           uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
                           username: user123
                           voting_status: Voting Rep
-                        - appointed_by: Community
-                          avatar: https://example.com/avatar.png
-                          committee_category: Board
-                          committee_name: Technical Steering Committee
-                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          email: user@example.com
-                          first_name: John
-                          is_org_editable: true
-                          job_title: Chief Technology Officer
-                          last_name: Doe
-                          organization_id: 001B000000IqhSLIAZ
-                          project_slug: example-foundation
-                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          reason: This seat is foundation-controlled.
-                          role_name: Chair
-                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                          username: user123
-                          voting_status: Voting Rep
-                        - appointed_by: Community
-                          avatar: https://example.com/avatar.png
-                          committee_category: Board
-                          committee_name: Technical Steering Committee
-                          committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          email: user@example.com
-                          first_name: John
-                          is_org_editable: true
-                          job_title: Chief Technology Officer
-                          last_name: Doe
-                          organization_id: 001B000000IqhSLIAZ
-                          project_slug: example-foundation
-                          project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                          reason: This seat is foundation-controlled.
-                          role_name: Chair
-                          uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
-                          username: user123
-                          voting_status: Voting Rep
             description: A page of an organization's committee seats with an optional next-page cursor.
             example:
                 page_token: eyJvIjoxMDB9
                 seats:
+                    - appointed_by: Community
+                      avatar: https://example.com/avatar.png
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
+                      voting_status: Voting Rep
+                    - appointed_by: Community
+                      avatar: https://example.com/avatar.png
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
+                      voting_status: Voting Rep
                     - appointed_by: Community
                       avatar: https://example.com/avatar.png
                       committee_category: Board
@@ -9118,7 +9498,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: f5i
+                        example: 2k5
                         maxLength: 500
                     description: The deliverables of the committee, as a list of bullet points
                     example:
@@ -9210,7 +9590,7 @@ components:
                     type: array
                     items:
                         type: string
-                        example: 8mc
+                        example: l2p
                         maxLength: 500
                     description: The scope of the committee, as a list of bullet points
                     example:
@@ -9272,7 +9652,7 @@ components:
                 description:
                     type: string
                     description: Optional description; omit to clear it
-                    example: b3k
+                    example: 44u
                     maxLength: 2000
                 folder_uid:
                     type: string
@@ -9285,7 +9665,7 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                description: 6gn
+                description: mmj
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:
@@ -9311,7 +9691,7 @@ components:
                 chat_webhook_url:
                     type: string
                     description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                    example: al2
+                    example: p9t
                     pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                     maxLength: 500
                 last_reviewed_at:
@@ -9331,6 +9711,11 @@ components:
                     enum:
                         - hidden
                         - basic_profile
+                members_can_view_social_listening:
+                    type: boolean
+                    description: When true, members of this committee can view Social Listening for the committee's foundation
+                    default: false
+                    example: false
                 show_meeting_attendees:
                     type: boolean
                     description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -9353,10 +9738,11 @@ components:
                       name: John Doe
                       username: auditor_user_id1
                 business_email_required: false
-                chat_webhook_url: t2k
+                chat_webhook_url: 5et
                 last_reviewed_at: "2025-08-04T09:00:00Z"
                 last_reviewed_by: user_id_12345
                 member_visibility: hidden
+                members_can_view_social_listening: false
                 show_meeting_attendees: false
                 writers:
                     - avatar: https://example.com/avatar.png
@@ -9397,61 +9783,52 @@ components:
                 content_type:
                     type: string
                     description: MIME type of the uploaded file
-                    example: Et sint provident debitis illum.
+                    example: Eius exercitationem est possimus voluptates.
                 description:
                     type: string
                     description: Optional description
-                    example: wym
+                    example: 0j3
                     maxLength: 2000
                 file:
                     type: string
                     description: File content
                     example:
-                        - 81
-                        - 117
-                        - 105
-                        - 97
-                        - 32
-                        - 116
-                        - 101
-                        - 109
+                        - 73
                         - 112
-                        - 111
-                        - 114
-                        - 101
-                        - 32
-                        - 101
-                        - 120
-                        - 32
-                        - 97
-                        - 117
-                        - 116
-                        - 32
-                        - 101
-                        - 105
-                        - 117
                         - 115
+                        - 97
                         - 32
-                        - 101
-                        - 120
-                        - 101
-                        - 114
-                        - 99
-                        - 105
+                        - 118
+                        - 111
+                        - 108
+                        - 117
+                        - 112
                         - 116
                         - 97
                         - 116
-                        - 105
-                        - 111
-                        - 110
                         - 101
-                        - 109
+                        - 32
+                        - 113
+                        - 117
+                        - 105
+                        - 97
+                        - 32
+                        - 113
+                        - 117
+                        - 105
+                        - 32
+                        - 108
+                        - 97
+                        - 98
+                        - 111
+                        - 114
+                        - 101
                         - 46
                     format: binary
                 file_name:
                     type: string
                     description: Original file name (from the uploaded file part)
-                    example: Sed ut sed maiores eos.
+                    example: Omnis quia tempore ex.
                 folder_uid:
                     type: string
                     description: Optional folder UID to place this document in
@@ -9463,30 +9840,50 @@ components:
                     example: Architecture Decision Record
                     maxLength: 500
             example:
-                content_type: Ad repellendus eos soluta.
-                description: 2h8
+                content_type: Aut sunt laudantium hic minus ratione molestiae.
+                description: fuo
                 file:
-                    - 68
-                    - 111
-                    - 108
-                    - 111
-                    - 114
-                    - 101
-                    - 32
-                    - 105
-                    - 100
-                    - 32
-                    - 97
+                    - 79
+                    - 109
                     - 110
                     - 105
+                    - 115
+                    - 32
                     - 109
+                    - 111
+                    - 100
+                    - 105
+                    - 32
+                    - 101
+                    - 97
+                    - 32
+                    - 100
+                    - 105
+                    - 103
+                    - 110
+                    - 105
+                    - 115
+                    - 115
+                    - 105
+                    - 109
+                    - 111
+                    - 115
+                    - 32
+                    - 115
+                    - 101
+                    - 113
+                    - 117
                     - 105
                     - 32
                     - 97
-                    - 117
-                    - 116
+                    - 112
+                    - 101
+                    - 114
+                    - 105
+                    - 97
+                    - 109
                     - 46
-                file_name: Voluptate quia qui labore maxime perferendis.
+                file_name: Eos soluta quia dolore id.
                 folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
                 name: Architecture Decision Record
             required:

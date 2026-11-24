@@ -142,6 +142,34 @@ To contribute to this repository:
 
 For detailed development instructions, including local setup, testing, and API development guidelines, see the [Committee API README](cmd/committee-api/README.md).
 
+## Dependency vulnerability scanning
+
+MegaLinter's OSV scan remains blocking. Its bundled Go 1.26-era analyzer cannot
+load this service's Go 1.27 module, so vulnerability findings fall back to version
+matching. Upgrading that analyzer is tracked in
+[lfx-self-serve#6097](https://github.com/linuxfoundation/lfx-self-serve/issues/6097);
+do not disable scanning or downgrade the service's Go minor to work around it.
+
+When a scanner table appears to report an installed version as already fixed,
+inspect the complete affected ranges in its JSON output and the source advisory:
+
+```bash
+osv-scanner scan source --format json \
+  --experimental-exclude .git --experimental-exclude gen \
+  --experimental-exclude megalinter-reports --experimental-exclude templates \
+  --recursive .
+```
+
+The [verified GO-2026-6278 record][websocket-advisory] at Go vulnerability-database
+revision `0db6d52` (2026-11-23) includes a reintroduced range starting at WebSocket
+`v1.5.3`, fixed at `v1.5.4-0.20240701034025-d67f41855da4`. The
+[upstream fix][websocket-mask-fix] postdates the `v1.5.3` tag, so this module pins
+that exact fix commit rather than suppressing the advisory. A single fixed-version
+table cell or stale lookup response is not evidence that a package is unaffected.
+
+[websocket-advisory]: https://raw.githubusercontent.com/golang/vulndb/0db6d52dd97bd2ece1030efae06302b118182e83/data/osv/GO-2026-6278.json
+[websocket-mask-fix]: https://github.com/gorilla/websocket/commit/d67f41855da42d7bccd9ef050c49f7e54e783b95
+
 ## License
 
 Copyright The Linux Foundation and each contributor to LFX.

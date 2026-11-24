@@ -1074,6 +1074,9 @@ func (w *MockCommitteeWriter) UpdateApplication(ctx context.Context, application
 	if _, exists := w.mock.committeeApplications[application.UID]; !exists {
 		return errors.NewNotFound(fmt.Sprintf("application with UID %s not found", application.UID))
 	}
+	if current := w.mock.applicationRevisions[application.UID]; current != 0 && current != revision {
+		return errors.NewConflict(fmt.Sprintf("application with UID %s has been modified", application.UID))
+	}
 
 	w.mock.committeeApplications[application.UID] = application
 	w.mock.applicationIndexKeys[application.BuildIndexKey(ctx)] = application

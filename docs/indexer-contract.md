@@ -167,6 +167,7 @@ These fields are indexed and queryable via `filters` or `cel_filter` in the quer
 | `uid` | string | Committee UID (same as the parent committee) |
 | `business_email_required` | bool | Whether a business email is required to join |
 | `show_meeting_attendees` | bool | Whether meeting attendees are visible |
+| `members_can_view_social_listening` | bool | Whether members of this committee can view Social Listening for the committee's foundation. Defaults to `false`. Records written before this field was introduced read as `false` from the API, but their indexed documents lack the field until the settings are re-indexed (`committee-cli sync reindex-settings`), so filter on `true`, not on `false`. This indexed copy is not an authorization source: consumers deciding access must read the live setting from `GET /committees/{uid}/settings`. |
 | `member_visibility` | string | Who can see members |
 | `has_chat_webhook` | bool | Whether a Slack Incoming Webhook URL is configured. Computed from `chat_webhook_url` at write time; the raw URL is never indexed. Records written before this field was introduced will have `false` regardless of whether a webhook was set. |
 | `last_reviewed_at` | string (optional) | RFC3339 timestamp of the last membership review |
@@ -440,7 +441,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 
 **Source struct:** `internal/domain/model/committee_application.go` — `CommitteeApplication`
 
-**Indexed on:** create and status updates of a committee application (reapply, approve, reject), and cascade `ActionDeleted` (plus KV record deletion) when the parent committee is deleted.
+**Indexed on:** create and status updates of a committee application (reapply, approve, reject, withdraw), and cascade `ActionDeleted` (plus KV record deletion) when the parent committee is deleted.
 
 ### Data Schema
 
@@ -451,7 +452,7 @@ Bulk member recovery resumes the original member inputs/UID and missing storage 
 | `applicant_email` | string | Email address of the applicant |
 | `applicant_username` | string (optional) | LFID username of the applicant (omitted for email-only applicants) |
 | `message` | string | Application message from the applicant |
-| `status` | string | Application status (e.g., `pending`, `approved`, `rejected`) |
+| `status` | string | Application status (`pending`, `approved`, `rejected`, `withdrawn`) |
 | `reviewer_notes` | string | Notes left by the reviewer |
 | `organization` | object (optional) | Organization confirmed by the applicant at submission time |
 | `organization.id` | string (optional) | Organization ID |

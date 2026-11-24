@@ -593,6 +593,83 @@ paths:
                 - http
             security:
                 - jwt_header_Authorization: []
+    /committees/{uid}/applications/{application_uid}/withdraw:
+        post:
+            tags:
+                - committee-service
+            summary: withdraw-application committee-service
+            description: Withdraw your own pending application
+            operationId: committee-service#withdraw-application
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: true
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: application_uid
+                  in: path
+                  description: Committee application UID
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        $ref: '#/definitions/CommitteeApplicationWithReadonlyAttributes'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "403":
+                    description: Forbidden response.
+                    schema:
+                        $ref: '#/definitions/ForbiddenError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "409":
+                    description: Conflict response.
+                    schema:
+                        $ref: '#/definitions/ConflictError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
     /committees/{uid}/documents:
         post:
             tags:
@@ -2119,6 +2196,66 @@ paths:
             security:
                 - jwt_header_Authorization: []
     /committees/{uid}/members:
+        get:
+            tags:
+                - committee-service
+            summary: list-committee-members committee-service
+            description: List all members of a committee
+            operationId: committee-service#list-committee-members
+            parameters:
+                - name: v
+                  in: query
+                  description: Version of the API
+                  required: true
+                  type: string
+                  enum:
+                    - "1"
+                - name: uid
+                  in: path
+                  description: Committee UID -- v2 uid, not related to v1 id directly
+                  required: true
+                  type: string
+                  format: uuid
+                - name: Authorization
+                  in: header
+                  description: JWT token issued by Heimdall
+                  required: false
+                  type: string
+            responses:
+                "200":
+                    description: OK response.
+                    schema:
+                        type: array
+                        items:
+                            $ref: '#/definitions/CommitteeMemberFullWithReadonlyAttributes'
+                "400":
+                    description: Bad Request response.
+                    schema:
+                        $ref: '#/definitions/BadRequestError'
+                        required:
+                            - message
+                "404":
+                    description: Not Found response.
+                    schema:
+                        $ref: '#/definitions/NotFoundError'
+                        required:
+                            - message
+                "500":
+                    description: Internal Server Error response.
+                    schema:
+                        $ref: '#/definitions/InternalServerError'
+                        required:
+                            - message
+                "503":
+                    description: Service Unavailable response.
+                    schema:
+                        $ref: '#/definitions/ServiceUnavailableError'
+                        required:
+                            - message
+            schemes:
+                - http
+            security:
+                - jwt_header_Authorization: []
         post:
             tags:
                 - committee-service
@@ -3398,6 +3535,7 @@ definitions:
                     - pending
                     - approved
                     - rejected
+                    - withdrawn
             uid:
                 type: string
                 description: Application UID
@@ -3467,7 +3605,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: rj0
+                    example: ytw
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3569,7 +3707,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: zxj
+                    example: i8v
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -3799,7 +3937,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: lxd
+                    example: sd5
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -3878,6 +4016,11 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+            members_can_view_social_listening:
+                type: boolean
+                description: When true, members of this committee can view Social Listening for the committee's foundation
+                default: false
+                example: false
             name:
                 type: string
                 description: The name of the committee
@@ -3913,7 +4056,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: ldn
+                    example: sfo
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -4006,6 +4149,7 @@ definitions:
             last_reviewed_by: user_id_12345
             mailing_list: tsc@lists.example.org
             member_visibility: hidden
+            members_can_view_social_listening: false
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4256,13 +4400,6 @@ definitions:
                     $ref: '#/definitions/CommitteeMemberBulkCreateRowResult'
                 description: One result per submitted row, in submission order
                 example:
-                    - email: first.last@example.com
-                      index: 0
-                      member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
-                      message: member already exists in the committee
-                      reason: already_member
-                      retryable: false
-                      status: skipped
                     - email: first.last@example.com
                       index: 0
                       member_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -4894,12 +5031,12 @@ definitions:
             description:
                 type: string
                 description: Optional description
-                example: bjh
+                example: soc
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Optional folder UID to place this link in
-                example: 4d29c7f2-8dce-4812-9a77-75471dea45e6
+                example: 49a7f23a-c321-4c85-9bf2-38e82505f74c
                 format: uuid
             name:
                 type: string
@@ -4914,8 +5051,8 @@ definitions:
                 pattern: ^https?://[^\s/$.?#][^\s]*$
                 maxLength: 2048
         example:
-            description: sd9
-            folder_uid: c7cf73d9-8296-43cd-bcce-f38b45a8cd5e
+            description: c2z
+            folder_uid: 38fa566b-a0d8-46b6-9436-b399dd073230
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -5162,14 +5299,14 @@ definitions:
             chat_webhook_url:
                 type: string
                 description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                example: d5r
+                example: nrj
                 pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                 maxLength: 500
             deliverables:
                 type: array
                 items:
                     type: string
-                    example: foj
+                    example: szx
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -5243,6 +5380,11 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+            members_can_view_social_listening:
+                type: boolean
+                description: When true, members of this committee can view Social Listening for the committee's foundation
+                default: false
+                example: false
             name:
                 type: string
                 description: The name of the committee
@@ -5278,7 +5420,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: m4p
+                    example: cyp
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -5324,7 +5466,7 @@ definitions:
             charter:
                 url: https://example.org/governance/charter.pdf
             chat_channel: https://slack.example.org/channels/tsc
-            chat_webhook_url: ypy
+            chat_webhook_url: ste
             deliverables:
                 - Quarterly technical roadmap
                 - Annual governance review
@@ -5344,6 +5486,7 @@ definitions:
             last_reviewed_by: user_id_12345
             mailing_list: tsc@lists.example.org
             member_visibility: hidden
+            members_can_view_social_listening: false
             name: Technical Steering Committee
             parent_uid: 90b147f2-7cdd-157a-a2f4-9d4a567123fc
             project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
@@ -5600,7 +5743,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: 8vu
+                    example: 10k
                     maxLength: 500
                 description: The deliverables of the committee, as a list of bullet points
                 example:
@@ -5692,7 +5835,7 @@ definitions:
                 type: array
                 items:
                     type: string
-                    example: tel
+                    example: shn
                     maxLength: 500
                 description: The scope of the committee, as a list of bullet points
                 example:
@@ -5755,7 +5898,7 @@ definitions:
             description:
                 type: string
                 description: Optional description; omit to clear it
-                example: pci
+                example: asq
                 maxLength: 2000
             folder_uid:
                 type: string
@@ -5768,7 +5911,7 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            description: 12w
+            description: eij
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -5780,12 +5923,12 @@ definitions:
             description:
                 type: string
                 description: Optional description; omit to clear it
-                example: nm7
+                example: qrr
                 maxLength: 2000
             folder_uid:
                 type: string
                 description: Folder UID to place this link in; omit to move it to the root
-                example: e31fd78e-4acb-457d-9169-0eef4a71f335
+                example: 2dd27bf5-b7dd-4756-be9d-4156f5c5c74d
                 format: uuid
             name:
                 type: string
@@ -5800,8 +5943,8 @@ definitions:
                 pattern: ^https?://[^\s/$.?#][^\s]*$
                 maxLength: 2048
         example:
-            description: icw
-            folder_uid: 6f7cb324-f7cd-4f13-a752-0b0ef8e31989
+            description: 3v0
+            folder_uid: f7136f79-ce65-456c-9a39-e384daae9bcf
             name: Technical Architecture Decision Records
             url: https://confluence.example.com/architecture-decisions
         required:
@@ -6004,7 +6147,7 @@ definitions:
             chat_webhook_url:
                 type: string
                 description: 'Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel. Write-only: never returned from GET. Only Slack Incoming Webhooks (https://hooks.slack.com/...) are currently accepted; other chat platforms are not supported. Send an empty string to clear a previously stored value; omit the field (or send null) to preserve the existing value.'
-                example: tw7
+                example: bib
                 pattern: ^$|^https://hooks\.slack\.com/[^\s]*$
                 maxLength: 500
             last_reviewed_at:
@@ -6024,6 +6167,11 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+            members_can_view_social_listening:
+                type: boolean
+                description: When true, members of this committee can view Social Listening for the committee's foundation
+                default: false
+                example: false
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -6046,10 +6194,11 @@ definitions:
                   name: John Doe
                   username: auditor_user_id1
             business_email_required: false
-            chat_webhook_url: hnl
+            chat_webhook_url: hc0
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
+            members_can_view_social_listening: false
             show_meeting_attendees: false
             writers:
                 - avatar: https://example.com/avatar.png
@@ -6092,43 +6241,58 @@ definitions:
             content_type:
                 type: string
                 description: MIME type of the uploaded file
-                example: Non eius culpa quod.
+                example: Atque ex perspiciatis numquam ut dignissimos.
             description:
                 type: string
                 description: Optional description
-                example: 0bm
+                example: aek
                 maxLength: 2000
             file:
                 type: string
                 description: File content
                 example:
-                    - 80
+                    - 65
+                    - 117
+                    - 116
+                    - 32
+                    - 108
+                    - 97
+                    - 98
+                    - 111
+                    - 114
+                    - 105
+                    - 111
+                    - 115
+                    - 97
+                    - 109
+                    - 32
+                    - 100
+                    - 101
+                    - 115
                     - 101
                     - 114
-                    - 115
-                    - 112
-                    - 105
-                    - 99
-                    - 105
-                    - 97
+                    - 117
+                    - 110
                     - 116
-                    - 105
-                    - 115
                     - 32
-                    - 101
-                    - 120
-                    - 112
+                    - 115
                     - 101
                     - 100
-                    - 105
-                    - 116
+                    - 32
                     - 97
+                    - 117
+                    - 116
+                    - 101
+                    - 109
+                    - 32
+                    - 117
+                    - 116
                     - 46
                 format: byte
             file_name:
                 type: string
                 description: Original file name (from the uploaded file part)
-                example: Minima quos officia officia ut non.
+                example: Expedita ratione placeat et adipisci.
             folder_uid:
                 type: string
                 description: Optional folder UID to place this document in
@@ -6140,27 +6304,30 @@ definitions:
                 example: Architecture Decision Record
                 maxLength: 500
         example:
-            content_type: Aut laboriosam deserunt sed autem ut.
-            description: 9z3
+            content_type: Consectetur omnis aliquam.
+            description: 1nm
             file:
-                - 68
+                - 69
+                - 110
                 - 105
-                - 99
-                - 116
-                - 97
+                - 109
                 - 32
+                - 118
                 - 101
-                - 120
+                - 108
                 - 32
-                - 100
+                - 118
                 - 111
                 - 108
-                - 111
-                - 114
+                - 117
+                - 112
+                - 116
+                - 97
+                - 116
                 - 101
-                - 115
+                - 109
                 - 46
-            file_name: Atque ex perspiciatis numquam ut dignissimos.
+            file_name: Sapiente maiores nemo nam.
             folder_uid: f1e2d3c4-b5a6-7890-fedc-ba9876543210
             name: Architecture Decision Record
         required:
@@ -6214,6 +6381,11 @@ definitions:
                 enum:
                     - hidden
                     - basic_profile
+            members_can_view_social_listening:
+                type: boolean
+                description: When true, members of this committee can view Social Listening for the committee's foundation
+                default: false
+                example: false
             show_meeting_attendees:
                 type: boolean
                 description: Determines the default show_meeting_attendees setting on meetings this committee is connected to
@@ -6252,6 +6424,7 @@ definitions:
             last_reviewed_at: "2025-08-04T09:00:00Z"
             last_reviewed_by: user_id_12345
             member_visibility: hidden
+            members_can_view_social_listening: false
             show_meeting_attendees: false
             uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
             updated_at: "2023-06-20T14:45:30Z"
@@ -6476,11 +6649,15 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: tp6
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: tp6
+                    - excerpt: 1ec
+                      id: https://meet.example.org/abc123
+                      kind: meeting
+                      title: 2026-05-12 weekly sync
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -6530,7 +6707,7 @@ definitions:
             excerpt:
                 type: string
                 description: Excerpt consumed by the generator
-                example: 7as
+                example: 01w
                 maxLength: 5000
             id:
                 type: string
@@ -6546,7 +6723,7 @@ definitions:
                 example: 2026-05-12 weekly sync
         description: Reference to a source document considered by the weekly-brief generator.
         example:
-            excerpt: fei
+            excerpt: 6oh
             id: https://meet.example.org/abc123
             kind: meeting
             title: 2026-05-12 weekly sync
@@ -6651,7 +6828,7 @@ definitions:
             brief_text:
                 type: string
                 description: Brief body markdown text
-                example: cxk
+                example: yb9
                 maxLength: 20000
             committee_uid:
                 type: string
@@ -6706,15 +6883,15 @@ definitions:
                     $ref: '#/definitions/GroupWeeklyBriefSourceRef'
                 description: Sources considered by the generator
                 example:
-                    - excerpt: tp6
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: tp6
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
-                    - excerpt: tp6
+                    - excerpt: 1ec
                       id: https://meet.example.org/abc123
                       kind: meeting
                       title: 2026-05-12 weekly sync
@@ -6839,11 +7016,11 @@ definitions:
             message:
                 type: string
                 description: Human-readable description
-                example: Officia voluptas unde dolor.
+                example: Quo inventore ipsa perspiciatis.
         description: No chat webhook URL is configured for this committee
         example:
             code: no_chat_webhook
-            message: Ullam maiores saepe.
+            message: Porro iusto.
         required:
             - code
             - message
@@ -7032,6 +7209,24 @@ definitions:
                     $ref: '#/definitions/OrgCommitteeSeat'
                 description: The committee seats in this page
                 example:
+                    - appointed_by: Community
+                      avatar: https://example.com/avatar.png
+                      committee_category: Board
+                      committee_name: Technical Steering Committee
+                      committee_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      email: user@example.com
+                      first_name: John
+                      is_org_editable: true
+                      job_title: Chief Technology Officer
+                      last_name: Doe
+                      organization_id: 001B000000IqhSLIAZ
+                      project_slug: example-foundation
+                      project_uid: 7cad5a8d-19d0-41a4-81a6-043453daf9ee
+                      reason: This seat is foundation-controlled.
+                      role_name: Chair
+                      uid: 2200b646-fbb2-4de7-ad80-fd195a874baf
+                      username: user123
+                      voting_status: Voting Rep
                     - appointed_by: Community
                       avatar: https://example.com/avatar.png
                       committee_category: Board

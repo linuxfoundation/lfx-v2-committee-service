@@ -53,6 +53,7 @@ func CommitteeSettingsAttributes() {
 	LastReviewedByAttribute()
 	MemberVisibilityAttribute()
 	ShowMeetingAttendeesAttribute()
+	MembersCanViewSocialListeningAttribute()
 }
 
 // CommitteeFull is the DSL type for a committee full.
@@ -1179,6 +1180,14 @@ func ShowMeetingAttendeesAttribute() {
 	})
 }
 
+// MembersCanViewSocialListeningAttribute is the DSL attribute for the group's Social Listening access setting.
+func MembersCanViewSocialListeningAttribute() {
+	dsl.Attribute("members_can_view_social_listening", dsl.Boolean, "When true, members of this committee can view Social Listening for the committee's foundation", func() {
+		dsl.Default(false)
+		dsl.Example(false)
+	})
+}
+
 // JoinModeAttribute is the DSL attribute for committee join mode.
 func JoinModeAttribute() {
 	dsl.Attribute("join_mode", dsl.String, "How new members can join this committee", func() {
@@ -1320,7 +1329,7 @@ var CommitteeApplicationWithReadonlyAttributes = dsl.Type("committee-application
 		dsl.Example("I would like to join the TSC to contribute my expertise.")
 	})
 	dsl.Attribute("status", dsl.String, "Application status", func() {
-		dsl.Enum("pending", "approved", "rejected")
+		dsl.Enum("pending", "approved", "rejected", "withdrawn")
 		dsl.Default("pending")
 		dsl.Example("pending")
 	})

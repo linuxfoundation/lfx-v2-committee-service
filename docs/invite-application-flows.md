@@ -116,19 +116,22 @@ accepted ──re-invite──▶ pending  (only when the member is no longer in
 ### Statuses
 
 ```
-pending  ──approve──▶ approved
-pending  ──reject──▶  rejected
-rejected ──reapply──▶ pending  (reinstates existing record)
+pending   ──approve──▶  approved
+pending   ──reject──▶   rejected
+pending   ──withdraw──▶ withdrawn
+rejected  ──reapply──▶  pending  (reinstates existing record)
+withdrawn ──reapply──▶  pending  (reinstates existing record)
 ```
 
 ### Endpoints
 
 | Method | Path | Actor | Description |
 | -------- | ------ | ------- | ------------- |
-| `POST` | `/committees/{uid}/applications` | Applicant | Submit an application (or reinstate a rejected one) |
+| `POST` | `/committees/{uid}/applications` | Applicant | Submit an application (or reinstate a rejected or withdrawn one) |
 | `GET` | `/committees/{uid}/applications/{application_uid}` | Admin / Applicant | Retrieve an application |
 | `POST` | `/committees/{uid}/applications/{application_uid}/approve` | Reviewer | Approve a pending application |
 | `POST` | `/committees/{uid}/applications/{application_uid}/reject` | Reviewer | Reject a pending application |
+| `POST` | `/committees/{uid}/applications/{application_uid}/withdraw` | Applicant | Withdraw their own pending application |
 
 ### Rules
 
@@ -139,13 +142,13 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 - Creates a new application with `status: pending`.
 - Optional body field `organization` (`id`, `name`, `website`) stores the applicant's confirmed organization on the application record when provided. This is the organization the applicant selected in the join dialog.
 - If an application for the same email already exists in this committee:
-  - `status: rejected` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared, `message` is updated if provided, and `organization` is **replaced** with the new payload value if one is supplied.
+  - `status: rejected` or `status: withdrawn` — the existing application is reinstated to `pending` (no new record created); `reviewer_notes` are cleared, `message` is updated if provided, and `organization` is **replaced** with the new payload value if one is supplied.
   - Any other status (`pending`, `approved`) — returns `409 Conflict`.
 
 **Approving an application** (`POST .../approve`):
 
 - Only allowed when `status: pending`.
-- On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry.
+- On success: creates a committee member and marks the application `approved`. Member creation runs first — if it fails, the application stays `pending` so the reviewer can safely retry. If the status write then fails, approve re-reads the application and either keeps or deletes the member just created; the rules are under Withdrawing an application below.
 - The stored `organization` from the application record is seeded onto the new committee member record. This preserves the organization the applicant confirmed at submission time and takes precedence over profile-metadata enrichment (which only fills `name`, not `id`/`website`). When no organization was stored on the application, the member's organization is populated only by the normal `enrichMember` path.
 - Returns the created committee member.
 
@@ -155,9 +158,17 @@ rejected ──reapply──▶ pending  (reinstates existing record)
 - Optionally accepts `reviewer_notes`.
 - A rejected application can be resubmitted by the applicant (see above).
 
+**Withdrawing an application** (`POST .../withdraw`):
+
+- Only the applicant can withdraw. The caller's email is resolved via [Identity Resolution](#identity-resolution) and compared to `applicant_email` without regard to case; a mismatch returns `403 Forbidden`.
+- Only allowed when `status: pending`; any other status returns `409 Conflict`.
+- Marks the application `withdrawn` and keeps the record, so the applicant can still view it and can resubmit later (see above).
+- Publishes the indexer update and the `update_access` message like reject. No domain event is published, so no email is sent.
+- If a withdraw lands while a reviewer's approve is creating the member, the approve's status write fails its revision check. The approve then re-reads the application. It deletes the member it created (no removal email) when the re-read shows `withdrawn` or `rejected`, or shows `pending` and the write was refused on its revision (for example, withdrawn and resubmitted). It keeps the member when the re-read shows `approved` (the write landed despite the error) or shows `pending` after any other write error, since a timed-out write may still land. It returns `409 Conflict` when the application was withdrawn or rejected, and the original error otherwise. If the delete fails, it returns `500` and logs at error level, and the member must be removed by hand. If the re-read itself fails, the outcome is unknown, so the member is kept, the original error is returned and an error-level log names the member for manual reconciliation. The re-read and delete run on a context detached from the request, bounded to 10 seconds.
+
 **Email notifications (opt-in via `notify` request field, default `false`):**
 
-- **Submitted / reinstated** — when `SubmitApplication` is called with `notify: true` and the call succeeds (both fresh-create and rejected→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. If the committee has no eligible writers, it falls back to the project-level writers (settings keyed by `committee.ProjectUID`). Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email includes the project name alongside the committee name, and links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
+- **Submitted / reinstated** — when `SubmitApplication` is called with `notify: true` and the call succeeds (both fresh-create and rejected/withdrawn→pending reinstatement paths), a `lfx.committee-api.committee_application.submitted` event is published. The notification handler fans out an email to all committee writers who have an LFID and a known email address. If the committee has no eligible writers, it falls back to the project-level writers (settings keyed by `committee.ProjectUID`). Fan-out uses `errgroup` with a concurrency limit of 5; individual send failures are logged but do not fail the API call. The email includes the project name alongside the committee name, and links to the committee page (`buildCommitteeURL`, `/project/groups/{uid}`) — not an applications-specific deep link.
 - **Approved** — when `ApproveApplication` is called with `notify: true` and succeeds, a `lfx.committee-api.committee_application.updated` event is published. The notification handler sends a single accepted email to the applicant's email address. The generic member-added role notification is suppressed for LFID applicants when `notify: true` (the application-accepted email covers the same intent); email-only applicants still receive the invite-service invite.
 - **Rejected** — when `RejectApplication` is called with `notify: true` and succeeds, the same updated event is published. The handler sends a single rejected email to the applicant, including `reviewer_notes` if set.
 - Writers without an LFID (no `Username`) or without a known email address are skipped — both are required for a direct email.
@@ -198,7 +209,7 @@ The service uses `primary_email` from the auth-service response (primary path) o
 Both the invite and application flows are designed so transient failures during the terminal step do not leave records in an unrecoverable state:
 
 - **Member creation happens before the invite/application is marked terminal.** If member creation succeeds but the status update fails, the invite/application remains in its pre-terminal state and the caller can safely retry. Duplicate member creation is handled by the member uniqueness check.
-- **Revoked, declined and expired invites, accepted invites whose member is gone, and rejected applications are reinstateable**, so admin workflows that re-invite someone, or reviewer workflows that reject-then-reconsider, do not require manual record cleanup or a revoke first.
+- **Revoked, declined and expired invites, accepted invites whose member is gone, and rejected or withdrawn applications are reinstateable**, so admin workflows that re-invite someone, or reviewer workflows that reject-then-reconsider, do not require manual record cleanup or a revoke first.
 
 ---
 

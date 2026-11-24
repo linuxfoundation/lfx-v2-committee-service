@@ -78,6 +78,9 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
 	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
@@ -158,6 +161,9 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
 	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
@@ -522,6 +528,9 @@ type CreateCommitteeResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -622,6 +631,9 @@ type UpdateCommitteeSettingsResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -713,6 +725,10 @@ type BulkCreateCommitteeMembersResponseBody struct {
 // GetCommitteeMemberResponseBody is the type of the "committee-service"
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesResponseBody
+
+// ListCommitteeMembersResponseBody is the type of the "committee-service"
+// service "list-committee-members" endpoint HTTP response body.
+type ListCommitteeMembersResponseBody []*CommitteeMemberFullWithReadonlyAttributesResponse
 
 // GetOrgCommitteeSeatsResponseBody is the type of the "committee-service"
 // service "get-org-committee-seats" endpoint HTTP response body.
@@ -1110,6 +1126,34 @@ type ApproveApplicationResponseBody struct {
 // RejectApplicationResponseBody is the type of the "committee-service" service
 // "reject-application" endpoint HTTP response body.
 type RejectApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// WithdrawApplicationResponseBody is the type of the "committee-service"
+// service "withdraw-application" endpoint HTTP response body.
+type WithdrawApplicationResponseBody struct {
 	// Application UID
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
@@ -1744,6 +1788,38 @@ type GetCommitteeMemberServiceUnavailableResponseBody struct {
 	Message string `form:"message" json:"message" xml:"message"`
 }
 
+// ListCommitteeMembersBadRequestResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "BadRequest" error.
+type ListCommitteeMembersBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ListCommitteeMembersInternalServerErrorResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "InternalServerError" error.
+type ListCommitteeMembersInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ListCommitteeMembersNotFoundResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "NotFound" error.
+type ListCommitteeMembersNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// ListCommitteeMembersServiceUnavailableResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type ListCommitteeMembersServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
 // GetOrgCommitteeSeatsBadRequestResponseBody is the type of the
 // "committee-service" service "get-org-committee-seats" endpoint HTTP response
 // body for the "BadRequest" error.
@@ -2237,6 +2313,54 @@ type RejectApplicationNotFoundResponseBody struct {
 // "committee-service" service "reject-application" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
 type RejectApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "BadRequest" error.
+type WithdrawApplicationBadRequestResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationConflictResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Conflict" error.
+type WithdrawApplicationConflictResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationForbiddenResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Forbidden" error.
+type WithdrawApplicationForbiddenResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "InternalServerError" error.
+type WithdrawApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationNotFoundResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "NotFound" error.
+type WithdrawApplicationNotFoundResponseBody struct {
+	// Error message
+	Message string `form:"message" json:"message" xml:"message"`
+}
+
+// WithdrawApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type WithdrawApplicationServiceUnavailableResponseBody struct {
 	// Error message
 	Message string `form:"message" json:"message" xml:"message"`
 }
@@ -3189,6 +3313,9 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -3227,6 +3354,66 @@ type CommitteeMemberBulkCreateRowResultResponseBody struct {
 // CommitteeMemberFullWithReadonlyAttributesResponseBody is used to define
 // fields on response body types.
 type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy string `form:"appointed_by" json:"appointed_by" xml:"appointed_by"`
+	// Member status
+	Status string `form:"status" json:"status" xml:"status"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeMemberFullWithReadonlyAttributesResponse is used to define fields
+// on response body types.
+type CommitteeMemberFullWithReadonlyAttributesResponse struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
@@ -3624,31 +3811,32 @@ type CommitteeMemberBulkCreateRowRequestBody struct {
 // of the "create-committee" endpoint of the "committee-service" service.
 func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReadonlyAttributes) *CreateCommitteeResponseBody {
 	body := &CreateCommitteeResponseBody{
-		UID:                   res.UID,
-		ProjectUID:            res.ProjectUID,
-		Name:                  res.Name,
-		Category:              res.Category,
-		Description:           res.Description,
-		Website:               res.Website,
-		MailingList:           res.MailingList,
-		ChatChannel:           res.ChatChannel,
-		EnableVoting:          res.EnableVoting,
-		SsoGroupEnabled:       res.SsoGroupEnabled,
-		RequiresReview:        res.RequiresReview,
-		Public:                res.Public,
-		DisplayName:           res.DisplayName,
-		ParentUID:             res.ParentUID,
-		JoinMode:              res.JoinMode,
-		Repository:            res.Repository,
-		SsoGroupName:          res.SsoGroupName,
-		TotalMembers:          res.TotalMembers,
-		TotalVotingRepos:      res.TotalVotingRepos,
-		BusinessEmailRequired: res.BusinessEmailRequired,
-		LastReviewedAt:        res.LastReviewedAt,
-		LastReviewedBy:        res.LastReviewedBy,
-		MemberVisibility:      res.MemberVisibility,
-		ShowMeetingAttendees:  res.ShowMeetingAttendees,
-		HasMailingList:        res.HasMailingList,
+		UID:                           res.UID,
+		ProjectUID:                    res.ProjectUID,
+		Name:                          res.Name,
+		Category:                      res.Category,
+		Description:                   res.Description,
+		Website:                       res.Website,
+		MailingList:                   res.MailingList,
+		ChatChannel:                   res.ChatChannel,
+		EnableVoting:                  res.EnableVoting,
+		SsoGroupEnabled:               res.SsoGroupEnabled,
+		RequiresReview:                res.RequiresReview,
+		Public:                        res.Public,
+		DisplayName:                   res.DisplayName,
+		ParentUID:                     res.ParentUID,
+		JoinMode:                      res.JoinMode,
+		Repository:                    res.Repository,
+		SsoGroupName:                  res.SsoGroupName,
+		TotalMembers:                  res.TotalMembers,
+		TotalVotingRepos:              res.TotalVotingRepos,
+		BusinessEmailRequired:         res.BusinessEmailRequired,
+		LastReviewedAt:                res.LastReviewedAt,
+		LastReviewedBy:                res.LastReviewedBy,
+		MemberVisibility:              res.MemberVisibility,
+		ShowMeetingAttendees:          res.ShowMeetingAttendees,
+		MembersCanViewSocialListening: res.MembersCanViewSocialListening,
+		HasMailingList:                res.HasMailingList,
 	}
 	{
 		var zero bool
@@ -3734,6 +3922,12 @@ func NewCreateCommitteeResponseBody(res *committeeservice.CommitteeFullWithReado
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if body.MembersCanViewSocialListening == zero {
+			body.MembersCanViewSocialListening = false
 		}
 	}
 	if res.Writers != nil {
@@ -3979,15 +4173,16 @@ func NewUpdateCommitteeBaseResponseBody(res *committeeservice.CommitteeBaseWithR
 // service.
 func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSettingsResult) *GetCommitteeSettingsResponseBody {
 	body := &GetCommitteeSettingsResponseBody{
-		UID:                   res.CommitteeSettings.UID,
-		BusinessEmailRequired: res.CommitteeSettings.BusinessEmailRequired,
-		LastReviewedAt:        res.CommitteeSettings.LastReviewedAt,
-		LastReviewedBy:        res.CommitteeSettings.LastReviewedBy,
-		MemberVisibility:      res.CommitteeSettings.MemberVisibility,
-		ShowMeetingAttendees:  res.CommitteeSettings.ShowMeetingAttendees,
-		HasChatWebhook:        res.CommitteeSettings.HasChatWebhook,
-		CreatedAt:             res.CommitteeSettings.CreatedAt,
-		UpdatedAt:             res.CommitteeSettings.UpdatedAt,
+		UID:                           res.CommitteeSettings.UID,
+		BusinessEmailRequired:         res.CommitteeSettings.BusinessEmailRequired,
+		LastReviewedAt:                res.CommitteeSettings.LastReviewedAt,
+		LastReviewedBy:                res.CommitteeSettings.LastReviewedBy,
+		MemberVisibility:              res.CommitteeSettings.MemberVisibility,
+		ShowMeetingAttendees:          res.CommitteeSettings.ShowMeetingAttendees,
+		MembersCanViewSocialListening: res.CommitteeSettings.MembersCanViewSocialListening,
+		HasChatWebhook:                res.CommitteeSettings.HasChatWebhook,
+		CreatedAt:                     res.CommitteeSettings.CreatedAt,
+		UpdatedAt:                     res.CommitteeSettings.UpdatedAt,
 	}
 	{
 		var zero bool
@@ -4005,6 +4200,12 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if body.MembersCanViewSocialListening == zero {
+			body.MembersCanViewSocialListening = false
 		}
 	}
 	if res.CommitteeSettings.Writers != nil {
@@ -4033,15 +4234,16 @@ func NewGetCommitteeSettingsResponseBody(res *committeeservice.GetCommitteeSetti
 // "committee-service" service.
 func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSettingsWithReadonlyAttributes) *UpdateCommitteeSettingsResponseBody {
 	body := &UpdateCommitteeSettingsResponseBody{
-		UID:                   res.UID,
-		BusinessEmailRequired: res.BusinessEmailRequired,
-		LastReviewedAt:        res.LastReviewedAt,
-		LastReviewedBy:        res.LastReviewedBy,
-		MemberVisibility:      res.MemberVisibility,
-		ShowMeetingAttendees:  res.ShowMeetingAttendees,
-		HasChatWebhook:        res.HasChatWebhook,
-		CreatedAt:             res.CreatedAt,
-		UpdatedAt:             res.UpdatedAt,
+		UID:                           res.UID,
+		BusinessEmailRequired:         res.BusinessEmailRequired,
+		LastReviewedAt:                res.LastReviewedAt,
+		LastReviewedBy:                res.LastReviewedBy,
+		MemberVisibility:              res.MemberVisibility,
+		ShowMeetingAttendees:          res.ShowMeetingAttendees,
+		MembersCanViewSocialListening: res.MembersCanViewSocialListening,
+		HasChatWebhook:                res.HasChatWebhook,
+		CreatedAt:                     res.CreatedAt,
+		UpdatedAt:                     res.UpdatedAt,
 	}
 	{
 		var zero bool
@@ -4059,6 +4261,12 @@ func NewUpdateCommitteeSettingsResponseBody(res *committeeservice.CommitteeSetti
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if body.MembersCanViewSocialListening == zero {
+			body.MembersCanViewSocialListening = false
 		}
 	}
 	if res.Writers != nil {
@@ -4276,6 +4484,17 @@ func NewGetCommitteeMemberResponseBody(res *committeeservice.GetCommitteeMemberR
 			Name:    res.Member.Organization.Name,
 			Website: res.Member.Organization.Website,
 		}
+	}
+	return body
+}
+
+// NewListCommitteeMembersResponseBody builds the HTTP response body from the
+// result of the "list-committee-members" endpoint of the "committee-service"
+// service.
+func NewListCommitteeMembersResponseBody(res []*committeeservice.CommitteeMemberFullWithReadonlyAttributes) ListCommitteeMembersResponseBody {
+	body := make([]*CommitteeMemberFullWithReadonlyAttributesResponse, len(res))
+	for i, val := range res {
+		body[i] = marshalCommitteeserviceCommitteeMemberFullWithReadonlyAttributesToCommitteeMemberFullWithReadonlyAttributesResponse(val)
 	}
 	return body
 }
@@ -4787,6 +5006,42 @@ func NewApproveApplicationResponseBody(res *committeeservice.CommitteeMemberFull
 // service.
 func NewRejectApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *RejectApplicationResponseBody {
 	body := &RejectApplicationResponseBody{
+		UID:            res.UID,
+		CommitteeUID:   res.CommitteeUID,
+		ApplicantEmail: res.ApplicantEmail,
+		Message:        res.Message,
+		Status:         res.Status,
+		ReviewerNotes:  res.ReviewerNotes,
+		CreatedAt:      res.CreatedAt,
+	}
+	{
+		var zero string
+		if body.Status == zero {
+			body.Status = "pending"
+		}
+	}
+	if res.Organization != nil {
+		body.Organization = &struct {
+			// Organization ID
+			ID *string `form:"id" json:"id" xml:"id"`
+			// Organization name
+			Name *string `form:"name" json:"name" xml:"name"`
+			// Organization website URL
+			Website *string `form:"website" json:"website" xml:"website"`
+		}{
+			ID:      res.Organization.ID,
+			Name:    res.Organization.Name,
+			Website: res.Organization.Website,
+		}
+	}
+	return body
+}
+
+// NewWithdrawApplicationResponseBody builds the HTTP response body from the
+// result of the "withdraw-application" endpoint of the "committee-service"
+// service.
+func NewWithdrawApplicationResponseBody(res *committeeservice.CommitteeApplicationWithReadonlyAttributes) *WithdrawApplicationResponseBody {
+	body := &WithdrawApplicationResponseBody{
 		UID:            res.UID,
 		CommitteeUID:   res.CommitteeUID,
 		ApplicantEmail: res.ApplicantEmail,
@@ -5591,6 +5846,46 @@ func NewGetCommitteeMemberServiceUnavailableResponseBody(res *committeeservice.S
 	return body
 }
 
+// NewListCommitteeMembersBadRequestResponseBody builds the HTTP response body
+// from the result of the "list-committee-members" endpoint of the
+// "committee-service" service.
+func NewListCommitteeMembersBadRequestResponseBody(res *committeeservice.BadRequestError) *ListCommitteeMembersBadRequestResponseBody {
+	body := &ListCommitteeMembersBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewListCommitteeMembersInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "list-committee-members" endpoint of
+// the "committee-service" service.
+func NewListCommitteeMembersInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *ListCommitteeMembersInternalServerErrorResponseBody {
+	body := &ListCommitteeMembersInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewListCommitteeMembersNotFoundResponseBody builds the HTTP response body
+// from the result of the "list-committee-members" endpoint of the
+// "committee-service" service.
+func NewListCommitteeMembersNotFoundResponseBody(res *committeeservice.NotFoundError) *ListCommitteeMembersNotFoundResponseBody {
+	body := &ListCommitteeMembersNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewListCommitteeMembersServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "list-committee-members" endpoint of
+// the "committee-service" service.
+func NewListCommitteeMembersServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *ListCommitteeMembersServiceUnavailableResponseBody {
+	body := &ListCommitteeMembersServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
 // NewGetOrgCommitteeSeatsBadRequestResponseBody builds the HTTP response body
 // from the result of the "get-org-committee-seats" endpoint of the
 // "committee-service" service.
@@ -6201,6 +6496,66 @@ func NewRejectApplicationNotFoundResponseBody(res *committeeservice.NotFoundErro
 // "committee-service" service.
 func NewRejectApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *RejectApplicationServiceUnavailableResponseBody {
 	body := &RejectApplicationServiceUnavailableResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationBadRequestResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationBadRequestResponseBody(res *committeeservice.BadRequestError) *WithdrawApplicationBadRequestResponseBody {
+	body := &WithdrawApplicationBadRequestResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationConflictResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationConflictResponseBody(res *committeeservice.ConflictError) *WithdrawApplicationConflictResponseBody {
+	body := &WithdrawApplicationConflictResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationForbiddenResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationForbiddenResponseBody(res *committeeservice.ForbiddenError) *WithdrawApplicationForbiddenResponseBody {
+	body := &WithdrawApplicationForbiddenResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationInternalServerErrorResponseBody builds the HTTP
+// response body from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationInternalServerErrorResponseBody(res *committeeservice.InternalServerError) *WithdrawApplicationInternalServerErrorResponseBody {
+	body := &WithdrawApplicationInternalServerErrorResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationNotFoundResponseBody builds the HTTP response body
+// from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationNotFoundResponseBody(res *committeeservice.NotFoundError) *WithdrawApplicationNotFoundResponseBody {
+	body := &WithdrawApplicationNotFoundResponseBody{
+		Message: res.Message,
+	}
+	return body
+}
+
+// NewWithdrawApplicationServiceUnavailableResponseBody builds the HTTP
+// response body from the result of the "withdraw-application" endpoint of the
+// "committee-service" service.
+func NewWithdrawApplicationServiceUnavailableResponseBody(res *committeeservice.ServiceUnavailableError) *WithdrawApplicationServiceUnavailableResponseBody {
+	body := &WithdrawApplicationServiceUnavailableResponseBody{
 		Message: res.Message,
 	}
 	return body
@@ -7232,6 +7587,9 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.EnableVoting == nil {
 		v.EnableVoting = false
 	}
@@ -7294,6 +7652,9 @@ func NewCreateCommitteePayload(body *CreateCommitteeRequestBody, version *string
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
@@ -7457,11 +7818,17 @@ func NewUpdateCommitteeSettingsPayload(body *UpdateCommitteeSettingsRequestBody,
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.MemberVisibility == nil {
 		v.MemberVisibility = "hidden"
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
@@ -7593,6 +7960,17 @@ func NewGetCommitteeMemberPayload(uid string, memberUID string, version string, 
 	v := &committeeservice.GetCommitteeMemberPayload{}
 	v.UID = uid
 	v.MemberUID = memberUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewListCommitteeMembersPayload builds a committee-service service
+// list-committee-members endpoint payload.
+func NewListCommitteeMembersPayload(uid string, version string, bearerToken *string) *committeeservice.ListCommitteeMembersPayload {
+	v := &committeeservice.ListCommitteeMembersPayload{}
+	v.UID = uid
 	v.Version = version
 	v.BearerToken = bearerToken
 
@@ -7903,6 +8281,18 @@ func NewRejectApplicationPayload(body *RejectApplicationRequestBody, uid string,
 	if body.Notify == nil {
 		v.Notify = false
 	}
+	v.UID = uid
+	v.ApplicationUID = applicationUID
+	v.Version = version
+	v.BearerToken = bearerToken
+
+	return v
+}
+
+// NewWithdrawApplicationPayload builds a committee-service service
+// withdraw-application endpoint payload.
+func NewWithdrawApplicationPayload(uid string, applicationUID string, version string, bearerToken *string) *committeeservice.WithdrawApplicationPayload {
+	v := &committeeservice.WithdrawApplicationPayload{}
 	v.UID = uid
 	v.ApplicationUID = applicationUID
 	v.Version = version

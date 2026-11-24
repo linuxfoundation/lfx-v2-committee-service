@@ -62,6 +62,10 @@ type Client struct {
 	// get-committee-member endpoint.
 	GetCommitteeMemberDoer goahttp.Doer
 
+	// ListCommitteeMembers Doer is the HTTP client used to make requests to the
+	// list-committee-members endpoint.
+	ListCommitteeMembersDoer goahttp.Doer
+
 	// GetOrgCommitteeSeats Doer is the HTTP client used to make requests to the
 	// get-org-committee-seats endpoint.
 	GetOrgCommitteeSeatsDoer goahttp.Doer
@@ -113,6 +117,10 @@ type Client struct {
 	// RejectApplication Doer is the HTTP client used to make requests to the
 	// reject-application endpoint.
 	RejectApplicationDoer goahttp.Doer
+
+	// WithdrawApplication Doer is the HTTP client used to make requests to the
+	// withdraw-application endpoint.
+	WithdrawApplicationDoer goahttp.Doer
 
 	// JoinCommittee Doer is the HTTP client used to make requests to the
 	// join-committee endpoint.
@@ -235,6 +243,7 @@ func NewClient(
 		CreateCommitteeMemberDoer:      doer,
 		BulkCreateCommitteeMembersDoer: doer,
 		GetCommitteeMemberDoer:         doer,
+		ListCommitteeMembersDoer:       doer,
 		GetOrgCommitteeSeatsDoer:       doer,
 		ReassignOrgCommitteeSeatDoer:   doer,
 		UpdateCommitteeMemberDoer:      doer,
@@ -248,6 +257,7 @@ func NewClient(
 		SubmitApplicationDoer:          doer,
 		ApproveApplicationDoer:         doer,
 		RejectApplicationDoer:          doer,
+		WithdrawApplicationDoer:        doer,
 		JoinCommitteeDoer:              doer,
 		LeaveCommitteeDoer:             doer,
 		GetCommitteeLinkDoer:           doer,
@@ -526,6 +536,30 @@ func (c *Client) GetCommitteeMember() goa.Endpoint {
 		resp, err := c.GetCommitteeMemberDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "get-committee-member", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// ListCommitteeMembers returns an endpoint that makes HTTP requests to the
+// committee-service service list-committee-members server.
+func (c *Client) ListCommitteeMembers() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeListCommitteeMembersRequest(c.encoder)
+		decodeResponse = DecodeListCommitteeMembersResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildListCommitteeMembersRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.ListCommitteeMembersDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "list-committee-members", err)
 		}
 		return decodeResponse(resp)
 	}
@@ -838,6 +872,30 @@ func (c *Client) RejectApplication() goa.Endpoint {
 		resp, err := c.RejectApplicationDoer.Do(req)
 		if err != nil {
 			return nil, goahttp.ErrRequestError("committee-service", "reject-application", err)
+		}
+		return decodeResponse(resp)
+	}
+}
+
+// WithdrawApplication returns an endpoint that makes HTTP requests to the
+// committee-service service withdraw-application server.
+func (c *Client) WithdrawApplication() goa.Endpoint {
+	var (
+		encodeRequest  = EncodeWithdrawApplicationRequest(c.encoder)
+		decodeResponse = DecodeWithdrawApplicationResponse(c.decoder, c.RestoreResponseBody)
+	)
+	return func(ctx context.Context, v any) (any, error) {
+		req, err := c.BuildWithdrawApplicationRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		err = encodeRequest(req, v)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.WithdrawApplicationDoer.Do(req)
+		if err != nil {
+			return nil, goahttp.ErrRequestError("committee-service", "withdraw-application", err)
 		}
 		return decodeResponse(resp)
 	}

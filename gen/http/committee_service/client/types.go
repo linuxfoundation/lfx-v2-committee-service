@@ -78,6 +78,9 @@ type CreateCommitteeRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
 	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
@@ -158,6 +161,9 @@ type UpdateCommitteeSettingsRequestBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees bool `form:"show_meeting_attendees" json:"show_meeting_attendees" xml:"show_meeting_attendees"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening bool `form:"members_can_view_social_listening" json:"members_can_view_social_listening" xml:"members_can_view_social_listening"`
 	// Slack Incoming Webhook URL for sharing the weekly brief to a Slack channel.
 	// Write-only: never returned from GET. Only Slack Incoming Webhooks
 	// (https://hooks.slack.com/...) are currently accepted; other chat platforms
@@ -522,6 +528,9 @@ type CreateCommitteeResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -622,6 +631,9 @@ type UpdateCommitteeSettingsResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -713,6 +725,10 @@ type BulkCreateCommitteeMembersResponseBody struct {
 // GetCommitteeMemberResponseBody is the type of the "committee-service"
 // service "get-committee-member" endpoint HTTP response body.
 type GetCommitteeMemberResponseBody CommitteeMemberFullWithReadonlyAttributesResponseBody
+
+// ListCommitteeMembersResponseBody is the type of the "committee-service"
+// service "list-committee-members" endpoint HTTP response body.
+type ListCommitteeMembersResponseBody []*CommitteeMemberFullWithReadonlyAttributesResponse
 
 // GetOrgCommitteeSeatsResponseBody is the type of the "committee-service"
 // service "get-org-committee-seats" endpoint HTTP response body.
@@ -1110,6 +1126,34 @@ type ApproveApplicationResponseBody struct {
 // RejectApplicationResponseBody is the type of the "committee-service" service
 // "reject-application" endpoint HTTP response body.
 type RejectApplicationResponseBody struct {
+	// Application UID
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// Applicant email address
+	ApplicantEmail *string `form:"applicant_email,omitempty" json:"applicant_email,omitempty" xml:"applicant_email,omitempty"`
+	// Application message from the applicant
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+	// Application status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Notes from the reviewer
+	ReviewerNotes *string `form:"reviewer_notes,omitempty" json:"reviewer_notes,omitempty" xml:"reviewer_notes,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+}
+
+// WithdrawApplicationResponseBody is the type of the "committee-service"
+// service "withdraw-application" endpoint HTTP response body.
+type WithdrawApplicationResponseBody struct {
 	// Application UID
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID
@@ -1744,6 +1788,38 @@ type GetCommitteeMemberServiceUnavailableResponseBody struct {
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
 
+// ListCommitteeMembersBadRequestResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "BadRequest" error.
+type ListCommitteeMembersBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeMembersInternalServerErrorResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "InternalServerError" error.
+type ListCommitteeMembersInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeMembersNotFoundResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "NotFound" error.
+type ListCommitteeMembersNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// ListCommitteeMembersServiceUnavailableResponseBody is the type of the
+// "committee-service" service "list-committee-members" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type ListCommitteeMembersServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
 // GetOrgCommitteeSeatsBadRequestResponseBody is the type of the
 // "committee-service" service "get-org-committee-seats" endpoint HTTP response
 // body for the "BadRequest" error.
@@ -2237,6 +2313,54 @@ type RejectApplicationNotFoundResponseBody struct {
 // "committee-service" service "reject-application" endpoint HTTP response body
 // for the "ServiceUnavailable" error.
 type RejectApplicationServiceUnavailableResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationBadRequestResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "BadRequest" error.
+type WithdrawApplicationBadRequestResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationConflictResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Conflict" error.
+type WithdrawApplicationConflictResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationForbiddenResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "Forbidden" error.
+type WithdrawApplicationForbiddenResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationInternalServerErrorResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "InternalServerError" error.
+type WithdrawApplicationInternalServerErrorResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationNotFoundResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "NotFound" error.
+type WithdrawApplicationNotFoundResponseBody struct {
+	// Error message
+	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
+}
+
+// WithdrawApplicationServiceUnavailableResponseBody is the type of the
+// "committee-service" service "withdraw-application" endpoint HTTP response
+// body for the "ServiceUnavailable" error.
+type WithdrawApplicationServiceUnavailableResponseBody struct {
 	// Error message
 	Message *string `form:"message,omitempty" json:"message,omitempty" xml:"message,omitempty"`
 }
@@ -3236,6 +3360,9 @@ type CommitteeSettingsWithReadonlyAttributesResponseBody struct {
 	// Determines the default show_meeting_attendees setting on meetings this
 	// committee is connected to
 	ShowMeetingAttendees *bool `form:"show_meeting_attendees,omitempty" json:"show_meeting_attendees,omitempty" xml:"show_meeting_attendees,omitempty"`
+	// When true, members of this committee can view Social Listening for the
+	// committee's foundation
+	MembersCanViewSocialListening *bool `form:"members_can_view_social_listening,omitempty" json:"members_can_view_social_listening,omitempty" xml:"members_can_view_social_listening,omitempty"`
 	// Users who can edit/modify this committee
 	Writers []*CommitteeUserResponseBody `form:"writers,omitempty" json:"writers,omitempty" xml:"writers,omitempty"`
 	// Users who can audit this committee
@@ -3322,6 +3449,66 @@ type CommitteeMemberBulkCreateRowResultResponseBody struct {
 // CommitteeMemberFullWithReadonlyAttributesResponseBody is used to define
 // fields on response body types.
 type CommitteeMemberFullWithReadonlyAttributesResponseBody struct {
+	// Committee member UID -- v2 uid, not related to v1 id directly
+	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
+	// Committee UID -- v2 uid, not related to v1 id directly
+	CommitteeUID *string `form:"committee_uid,omitempty" json:"committee_uid,omitempty" xml:"committee_uid,omitempty"`
+	// The name of the committee this member belongs to
+	CommitteeName *string `form:"committee_name,omitempty" json:"committee_name,omitempty" xml:"committee_name,omitempty"`
+	// The category of the committee this member belongs to
+	CommitteeCategory *string `form:"committee_category,omitempty" json:"committee_category,omitempty" xml:"committee_category,omitempty"`
+	// User's LF ID
+	Username *string `form:"username,omitempty" json:"username,omitempty" xml:"username,omitempty"`
+	// Primary email address
+	Email *string `form:"email,omitempty" json:"email,omitempty" xml:"email,omitempty"`
+	// First name
+	FirstName *string `form:"first_name,omitempty" json:"first_name,omitempty" xml:"first_name,omitempty"`
+	// Last name
+	LastName *string `form:"last_name,omitempty" json:"last_name,omitempty" xml:"last_name,omitempty"`
+	// Job title at organization
+	JobTitle *string `form:"job_title,omitempty" json:"job_title,omitempty" xml:"job_title,omitempty"`
+	// LinkedIn profile URL
+	LinkedinProfile *string `form:"linkedin_profile,omitempty" json:"linkedin_profile,omitempty" xml:"linkedin_profile,omitempty"`
+	// Committee role information
+	Role *struct {
+		// Committee role name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Role start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Role end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"role,omitempty" json:"role,omitempty" xml:"role,omitempty"`
+	// How the member was appointed
+	AppointedBy *string `form:"appointed_by,omitempty" json:"appointed_by,omitempty" xml:"appointed_by,omitempty"`
+	// Member status
+	Status *string `form:"status,omitempty" json:"status,omitempty" xml:"status,omitempty"`
+	// Voting information for the committee member
+	Voting *struct {
+		// Voting status
+		Status *string `form:"status" json:"status" xml:"status"`
+		// Voting start date
+		StartDate *string `form:"start_date" json:"start_date" xml:"start_date"`
+		// Voting end date
+		EndDate *string `form:"end_date" json:"end_date" xml:"end_date"`
+	} `form:"voting,omitempty" json:"voting,omitempty" xml:"voting,omitempty"`
+	// Organization information for the committee member
+	Organization *struct {
+		// Organization ID
+		ID *string `form:"id" json:"id" xml:"id"`
+		// Organization name
+		Name *string `form:"name" json:"name" xml:"name"`
+		// Organization website URL
+		Website *string `form:"website" json:"website" xml:"website"`
+	} `form:"organization,omitempty" json:"organization,omitempty" xml:"organization,omitempty"`
+	// The timestamp when the resource was created (read-only)
+	CreatedAt *string `form:"created_at,omitempty" json:"created_at,omitempty" xml:"created_at,omitempty"`
+	// The timestamp when the resource was last updated (read-only)
+	UpdatedAt *string `form:"updated_at,omitempty" json:"updated_at,omitempty" xml:"updated_at,omitempty"`
+}
+
+// CommitteeMemberFullWithReadonlyAttributesResponse is used to define fields
+// on response body types.
+type CommitteeMemberFullWithReadonlyAttributesResponse struct {
 	// Committee member UID -- v2 uid, not related to v1 id directly
 	UID *string `form:"uid,omitempty" json:"uid,omitempty" xml:"uid,omitempty"`
 	// Committee UID -- v2 uid, not related to v1 id directly
@@ -3624,27 +3811,28 @@ type GroupWeeklyBriefThrottleResponseBody struct {
 // of the "create-committee" endpoint of the "committee-service" service.
 func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *CreateCommitteeRequestBody {
 	body := &CreateCommitteeRequestBody{
-		ProjectUID:            p.ProjectUID,
-		Name:                  p.Name,
-		Category:              p.Category,
-		Description:           p.Description,
-		Website:               p.Website,
-		MailingList:           p.MailingList,
-		ChatChannel:           p.ChatChannel,
-		EnableVoting:          p.EnableVoting,
-		SsoGroupEnabled:       p.SsoGroupEnabled,
-		RequiresReview:        p.RequiresReview,
-		Public:                p.Public,
-		DisplayName:           p.DisplayName,
-		ParentUID:             p.ParentUID,
-		JoinMode:              p.JoinMode,
-		Repository:            p.Repository,
-		BusinessEmailRequired: p.BusinessEmailRequired,
-		LastReviewedAt:        p.LastReviewedAt,
-		LastReviewedBy:        p.LastReviewedBy,
-		MemberVisibility:      p.MemberVisibility,
-		ShowMeetingAttendees:  p.ShowMeetingAttendees,
-		ChatWebhookURL:        p.ChatWebhookURL,
+		ProjectUID:                    p.ProjectUID,
+		Name:                          p.Name,
+		Category:                      p.Category,
+		Description:                   p.Description,
+		Website:                       p.Website,
+		MailingList:                   p.MailingList,
+		ChatChannel:                   p.ChatChannel,
+		EnableVoting:                  p.EnableVoting,
+		SsoGroupEnabled:               p.SsoGroupEnabled,
+		RequiresReview:                p.RequiresReview,
+		Public:                        p.Public,
+		DisplayName:                   p.DisplayName,
+		ParentUID:                     p.ParentUID,
+		JoinMode:                      p.JoinMode,
+		Repository:                    p.Repository,
+		BusinessEmailRequired:         p.BusinessEmailRequired,
+		LastReviewedAt:                p.LastReviewedAt,
+		LastReviewedBy:                p.LastReviewedBy,
+		MemberVisibility:              p.MemberVisibility,
+		ShowMeetingAttendees:          p.ShowMeetingAttendees,
+		MembersCanViewSocialListening: p.MembersCanViewSocialListening,
+		ChatWebhookURL:                p.ChatWebhookURL,
 	}
 	{
 		var zero bool
@@ -3733,6 +3921,12 @@ func NewCreateCommitteeRequestBody(p *committeeservice.CreateCommitteePayload) *
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if body.MembersCanViewSocialListening == zero {
+			body.MembersCanViewSocialListening = false
 		}
 	}
 	if p.Writers != nil {
@@ -3850,12 +4044,13 @@ func NewUpdateCommitteeBaseRequestBody(p *committeeservice.UpdateCommitteeBasePa
 // "committee-service" service.
 func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSettingsPayload) *UpdateCommitteeSettingsRequestBody {
 	body := &UpdateCommitteeSettingsRequestBody{
-		BusinessEmailRequired: p.BusinessEmailRequired,
-		LastReviewedAt:        p.LastReviewedAt,
-		LastReviewedBy:        p.LastReviewedBy,
-		MemberVisibility:      p.MemberVisibility,
-		ShowMeetingAttendees:  p.ShowMeetingAttendees,
-		ChatWebhookURL:        p.ChatWebhookURL,
+		BusinessEmailRequired:         p.BusinessEmailRequired,
+		LastReviewedAt:                p.LastReviewedAt,
+		LastReviewedBy:                p.LastReviewedBy,
+		MemberVisibility:              p.MemberVisibility,
+		ShowMeetingAttendees:          p.ShowMeetingAttendees,
+		MembersCanViewSocialListening: p.MembersCanViewSocialListening,
+		ChatWebhookURL:                p.ChatWebhookURL,
 	}
 	{
 		var zero string
@@ -3867,6 +4062,12 @@ func NewUpdateCommitteeSettingsRequestBody(p *committeeservice.UpdateCommitteeSe
 		var zero bool
 		if body.ShowMeetingAttendees == zero {
 			body.ShowMeetingAttendees = false
+		}
+	}
+	{
+		var zero bool
+		if body.MembersCanViewSocialListening == zero {
+			body.MembersCanViewSocialListening = false
 		}
 	}
 	if p.Writers != nil {
@@ -4356,6 +4557,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.HasMailingList != nil {
 		v.HasMailingList = *body.HasMailingList
 	}
@@ -4418,6 +4622,9 @@ func NewCreateCommitteeCommitteeFullWithReadonlyAttributesCreated(body *CreateCo
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
@@ -4843,6 +5050,9 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.HasChatWebhook != nil {
 		v.HasChatWebhook = *body.HasChatWebhook
 	}
@@ -4854,6 +5064,9 @@ func NewGetCommitteeSettingsResultOK(body *GetCommitteeSettingsResponseBody, eta
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
@@ -4928,6 +5141,9 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	if body.ShowMeetingAttendees != nil {
 		v.ShowMeetingAttendees = *body.ShowMeetingAttendees
 	}
+	if body.MembersCanViewSocialListening != nil {
+		v.MembersCanViewSocialListening = *body.MembersCanViewSocialListening
+	}
 	if body.HasChatWebhook != nil {
 		v.HasChatWebhook = *body.HasChatWebhook
 	}
@@ -4939,6 +5155,9 @@ func NewUpdateCommitteeSettingsCommitteeSettingsWithReadonlyAttributesOK(body *U
 	}
 	if body.ShowMeetingAttendees == nil {
 		v.ShowMeetingAttendees = false
+	}
+	if body.MembersCanViewSocialListening == nil {
+		v.MembersCanViewSocialListening = false
 	}
 	if body.Writers != nil {
 		v.Writers = make([]*committeeservice.CommitteeUser, len(body.Writers))
@@ -5334,6 +5553,58 @@ func NewGetCommitteeMemberNotFound(body *GetCommitteeMemberNotFoundResponseBody)
 // NewGetCommitteeMemberServiceUnavailable builds a committee-service service
 // get-committee-member endpoint ServiceUnavailable error.
 func NewGetCommitteeMemberServiceUnavailable(body *GetCommitteeMemberServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersCommitteeMemberFullWithReadonlyAttributesOK builds a
+// "committee-service" service "list-committee-members" endpoint result from a
+// HTTP "OK" response.
+func NewListCommitteeMembersCommitteeMemberFullWithReadonlyAttributesOK(body []*CommitteeMemberFullWithReadonlyAttributesResponse) []*committeeservice.CommitteeMemberFullWithReadonlyAttributes {
+	v := make([]*committeeservice.CommitteeMemberFullWithReadonlyAttributes, len(body))
+	for i, val := range body {
+		v[i] = unmarshalCommitteeMemberFullWithReadonlyAttributesResponseToCommitteeserviceCommitteeMemberFullWithReadonlyAttributes(val)
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersBadRequest builds a committee-service service
+// list-committee-members endpoint BadRequest error.
+func NewListCommitteeMembersBadRequest(body *ListCommitteeMembersBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersInternalServerError builds a committee-service
+// service list-committee-members endpoint InternalServerError error.
+func NewListCommitteeMembersInternalServerError(body *ListCommitteeMembersInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersNotFound builds a committee-service service
+// list-committee-members endpoint NotFound error.
+func NewListCommitteeMembersNotFound(body *ListCommitteeMembersNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewListCommitteeMembersServiceUnavailable builds a committee-service service
+// list-committee-members endpoint ServiceUnavailable error.
+func NewListCommitteeMembersServiceUnavailable(body *ListCommitteeMembersServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -6495,6 +6766,102 @@ func NewRejectApplicationNotFound(body *RejectApplicationNotFoundResponseBody) *
 // NewRejectApplicationServiceUnavailable builds a committee-service service
 // reject-application endpoint ServiceUnavailable error.
 func NewRejectApplicationServiceUnavailable(body *RejectApplicationServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
+	v := &committeeservice.ServiceUnavailableError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationCommitteeApplicationWithReadonlyAttributesOK builds a
+// "committee-service" service "withdraw-application" endpoint result from a
+// HTTP "OK" response.
+func NewWithdrawApplicationCommitteeApplicationWithReadonlyAttributesOK(body *WithdrawApplicationResponseBody) *committeeservice.CommitteeApplicationWithReadonlyAttributes {
+	v := &committeeservice.CommitteeApplicationWithReadonlyAttributes{
+		UID:            body.UID,
+		CommitteeUID:   body.CommitteeUID,
+		ApplicantEmail: body.ApplicantEmail,
+		Message:        body.Message,
+		ReviewerNotes:  body.ReviewerNotes,
+		CreatedAt:      body.CreatedAt,
+	}
+	if body.Status != nil {
+		v.Status = *body.Status
+	}
+	if body.Status == nil {
+		v.Status = "pending"
+	}
+	if body.Organization != nil {
+		v.Organization = &struct {
+			// Organization ID
+			ID *string
+			// Organization name
+			Name *string
+			// Organization website URL
+			Website *string
+		}{
+			ID:      body.Organization.ID,
+			Name:    body.Organization.Name,
+			Website: body.Organization.Website,
+		}
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationBadRequest builds a committee-service service
+// withdraw-application endpoint BadRequest error.
+func NewWithdrawApplicationBadRequest(body *WithdrawApplicationBadRequestResponseBody) *committeeservice.BadRequestError {
+	v := &committeeservice.BadRequestError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationConflict builds a committee-service service
+// withdraw-application endpoint Conflict error.
+func NewWithdrawApplicationConflict(body *WithdrawApplicationConflictResponseBody) *committeeservice.ConflictError {
+	v := &committeeservice.ConflictError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationForbidden builds a committee-service service
+// withdraw-application endpoint Forbidden error.
+func NewWithdrawApplicationForbidden(body *WithdrawApplicationForbiddenResponseBody) *committeeservice.ForbiddenError {
+	v := &committeeservice.ForbiddenError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationInternalServerError builds a committee-service service
+// withdraw-application endpoint InternalServerError error.
+func NewWithdrawApplicationInternalServerError(body *WithdrawApplicationInternalServerErrorResponseBody) *committeeservice.InternalServerError {
+	v := &committeeservice.InternalServerError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationNotFound builds a committee-service service
+// withdraw-application endpoint NotFound error.
+func NewWithdrawApplicationNotFound(body *WithdrawApplicationNotFoundResponseBody) *committeeservice.NotFoundError {
+	v := &committeeservice.NotFoundError{
+		Message: *body.Message,
+	}
+
+	return v
+}
+
+// NewWithdrawApplicationServiceUnavailable builds a committee-service service
+// withdraw-application endpoint ServiceUnavailable error.
+func NewWithdrawApplicationServiceUnavailable(body *WithdrawApplicationServiceUnavailableResponseBody) *committeeservice.ServiceUnavailableError {
 	v := &committeeservice.ServiceUnavailableError{
 		Message: *body.Message,
 	}
@@ -9039,8 +9406,8 @@ func ValidateGetApplicationResponseBody(body *GetApplicationResponseBody) (err e
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -9082,8 +9449,8 @@ func ValidateSubmitApplicationResponseBody(body *SubmitApplicationResponseBody) 
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -9231,8 +9598,51 @@ func ValidateRejectApplicationResponseBody(body *RejectApplicationResponseBody) 
 		}
 	}
 	if body.Status != nil {
-		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected") {
-			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected"}))
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
+		}
+	}
+	if body.ReviewerNotes != nil {
+		if utf8.RuneCountInString(*body.ReviewerNotes) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.reviewer_notes", *body.ReviewerNotes, utf8.RuneCountInString(*body.ReviewerNotes), 2000, false))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationResponseBody runs the validations defined on
+// Withdraw-ApplicationResponseBody
+func ValidateWithdrawApplicationResponseBody(body *WithdrawApplicationResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.Message != nil {
+		if utf8.RuneCountInString(*body.Message) > 2000 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.message", *body.Message, utf8.RuneCountInString(*body.Message), 2000, false))
+		}
+	}
+	if body.Status != nil {
+		if !(*body.Status == "pending" || *body.Status == "approved" || *body.Status == "rejected" || *body.Status == "withdrawn") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"pending", "approved", "rejected", "withdrawn"}))
 		}
 	}
 	if body.ReviewerNotes != nil {
@@ -10198,6 +10608,44 @@ func ValidateGetCommitteeMemberServiceUnavailableResponseBody(body *GetCommittee
 	return
 }
 
+// ValidateListCommitteeMembersBadRequestResponseBody runs the validations
+// defined on list-committee-members_BadRequest_response_body
+func ValidateListCommitteeMembersBadRequestResponseBody(body *ListCommitteeMembersBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeMembersInternalServerErrorResponseBody runs the
+// validations defined on
+// list-committee-members_InternalServerError_response_body
+func ValidateListCommitteeMembersInternalServerErrorResponseBody(body *ListCommitteeMembersInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeMembersNotFoundResponseBody runs the validations
+// defined on list-committee-members_NotFound_response_body
+func ValidateListCommitteeMembersNotFoundResponseBody(body *ListCommitteeMembersNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateListCommitteeMembersServiceUnavailableResponseBody runs the
+// validations defined on
+// list-committee-members_ServiceUnavailable_response_body
+func ValidateListCommitteeMembersServiceUnavailableResponseBody(body *ListCommitteeMembersServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
 // ValidateGetOrgCommitteeSeatsBadRequestResponseBody runs the validations
 // defined on get-org-committee-seats_BadRequest_response_body
 func ValidateGetOrgCommitteeSeatsBadRequestResponseBody(body *GetOrgCommitteeSeatsBadRequestResponseBody) (err error) {
@@ -10767,6 +11215,60 @@ func ValidateRejectApplicationNotFoundResponseBody(body *RejectApplicationNotFou
 // ValidateRejectApplicationServiceUnavailableResponseBody runs the validations
 // defined on reject-application_ServiceUnavailable_response_body
 func ValidateRejectApplicationServiceUnavailableResponseBody(body *RejectApplicationServiceUnavailableResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationBadRequestResponseBody runs the validations
+// defined on withdraw-application_BadRequest_response_body
+func ValidateWithdrawApplicationBadRequestResponseBody(body *WithdrawApplicationBadRequestResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationConflictResponseBody runs the validations defined
+// on withdraw-application_Conflict_response_body
+func ValidateWithdrawApplicationConflictResponseBody(body *WithdrawApplicationConflictResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationForbiddenResponseBody runs the validations
+// defined on withdraw-application_Forbidden_response_body
+func ValidateWithdrawApplicationForbiddenResponseBody(body *WithdrawApplicationForbiddenResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationInternalServerErrorResponseBody runs the
+// validations defined on withdraw-application_InternalServerError_response_body
+func ValidateWithdrawApplicationInternalServerErrorResponseBody(body *WithdrawApplicationInternalServerErrorResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationNotFoundResponseBody runs the validations defined
+// on withdraw-application_NotFound_response_body
+func ValidateWithdrawApplicationNotFoundResponseBody(body *WithdrawApplicationNotFoundResponseBody) (err error) {
+	if body.Message == nil {
+		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
+	}
+	return
+}
+
+// ValidateWithdrawApplicationServiceUnavailableResponseBody runs the
+// validations defined on withdraw-application_ServiceUnavailable_response_body
+func ValidateWithdrawApplicationServiceUnavailableResponseBody(body *WithdrawApplicationServiceUnavailableResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}
@@ -12237,6 +12739,112 @@ func ValidateCommitteeMemberBulkCreateRowResultResponseBody(body *CommitteeMembe
 // validations defined on
 // committee-member-full-with-readonly-attributesResponseBody
 func ValidateCommitteeMemberFullWithReadonlyAttributesResponseBody(body *CommitteeMemberFullWithReadonlyAttributesResponseBody) (err error) {
+	if body.UID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
+	}
+	if body.CommitteeUID != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.committee_uid", *body.CommitteeUID, goa.FormatUUID))
+	}
+	if body.CommitteeName != nil {
+		if utf8.RuneCountInString(*body.CommitteeName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_name", *body.CommitteeName, utf8.RuneCountInString(*body.CommitteeName), 100, false))
+		}
+	}
+	if body.CommitteeCategory != nil {
+		if utf8.RuneCountInString(*body.CommitteeCategory) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.committee_category", *body.CommitteeCategory, utf8.RuneCountInString(*body.CommitteeCategory), 100, false))
+		}
+	}
+	if body.Username != nil {
+		if utf8.RuneCountInString(*body.Username) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.username", *body.Username, utf8.RuneCountInString(*body.Username), 100, false))
+		}
+	}
+	if body.Email != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.email", *body.Email, goa.FormatEmail))
+	}
+	if body.FirstName != nil {
+		if utf8.RuneCountInString(*body.FirstName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.first_name", *body.FirstName, utf8.RuneCountInString(*body.FirstName), 100, false))
+		}
+	}
+	if body.LastName != nil {
+		if utf8.RuneCountInString(*body.LastName) > 100 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.last_name", *body.LastName, utf8.RuneCountInString(*body.LastName), 100, false))
+		}
+	}
+	if body.JobTitle != nil {
+		if utf8.RuneCountInString(*body.JobTitle) > 200 {
+			err = goa.MergeErrors(err, goa.InvalidLengthError("body.job_title", *body.JobTitle, utf8.RuneCountInString(*body.JobTitle), 200, false))
+		}
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.linkedin_profile", *body.LinkedinProfile, goa.FormatURI))
+	}
+	if body.LinkedinProfile != nil {
+		err = goa.MergeErrors(err, goa.ValidatePattern("body.linkedin_profile", *body.LinkedinProfile, "^(https?://)?([a-z]{2,3}\\.)?linkedin\\.com/.*$"))
+	}
+	if body.Role != nil {
+		if body.Role.Name != nil {
+			if !(*body.Role.Name == "Chair" || *body.Role.Name == "Developer Seat" || *body.Role.Name == "TAC/TOC Representative" || *body.Role.Name == "Director" || *body.Role.Name == "Lead" || *body.Role.Name == "None" || *body.Role.Name == "Secretary" || *body.Role.Name == "Technical Lead" || *body.Role.Name == "Treasurer" || *body.Role.Name == "Vice Chair" || *body.Role.Name == "LF Staff") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.role.name", *body.Role.Name, []any{"Chair", "Developer Seat", "TAC/TOC Representative", "Director", "Lead", "None", "Secretary", "Technical Lead", "Treasurer", "Vice Chair", "LF Staff"}))
+			}
+		}
+		if body.Role.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.start_date", *body.Role.StartDate, goa.FormatDate))
+		}
+		if body.Role.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.role.end_date", *body.Role.EndDate, goa.FormatDate))
+		}
+	}
+	if body.AppointedBy != nil {
+		if !(*body.AppointedBy == "Community" || *body.AppointedBy == "Membership Entitlement" || *body.AppointedBy == "Vote of End User Member Class" || *body.AppointedBy == "Vote of TSC Committee" || *body.AppointedBy == "Vote of TAC Committee" || *body.AppointedBy == "Vote of Academic Member Class" || *body.AppointedBy == "Vote of Lab Member Class" || *body.AppointedBy == "Vote of Marketing Committee" || *body.AppointedBy == "Vote of Governing Board" || *body.AppointedBy == "Vote of General Member Class" || *body.AppointedBy == "Vote of End User Committee" || *body.AppointedBy == "Vote of TOC Committee" || *body.AppointedBy == "Vote of Gold Member Class" || *body.AppointedBy == "Vote of Silver Member Class" || *body.AppointedBy == "Vote of Strategic Membership Class" || *body.AppointedBy == "None") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.appointed_by", *body.AppointedBy, []any{"Community", "Membership Entitlement", "Vote of End User Member Class", "Vote of TSC Committee", "Vote of TAC Committee", "Vote of Academic Member Class", "Vote of Lab Member Class", "Vote of Marketing Committee", "Vote of Governing Board", "Vote of General Member Class", "Vote of End User Committee", "Vote of TOC Committee", "Vote of Gold Member Class", "Vote of Silver Member Class", "Vote of Strategic Membership Class", "None"}))
+		}
+	}
+	if body.Status != nil {
+		if !(*body.Status == "Active" || *body.Status == "Inactive") {
+			err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.status", *body.Status, []any{"Active", "Inactive"}))
+		}
+	}
+	if body.Voting != nil {
+		if body.Voting.Status != nil {
+			if !(*body.Voting.Status == "Alternate Voting Rep" || *body.Voting.Status == "Observer" || *body.Voting.Status == "Voting Rep" || *body.Voting.Status == "Emeritus" || *body.Voting.Status == "None") {
+				err = goa.MergeErrors(err, goa.InvalidEnumValueError("body.voting.status", *body.Voting.Status, []any{"Alternate Voting Rep", "Observer", "Voting Rep", "Emeritus", "None"}))
+			}
+		}
+		if body.Voting.StartDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.start_date", *body.Voting.StartDate, goa.FormatDate))
+		}
+		if body.Voting.EndDate != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.voting.end_date", *body.Voting.EndDate, goa.FormatDate))
+		}
+	}
+	if body.Organization != nil {
+		if body.Organization.Name != nil {
+			if utf8.RuneCountInString(*body.Organization.Name) > 200 {
+				err = goa.MergeErrors(err, goa.InvalidLengthError("body.organization.name", *body.Organization.Name, utf8.RuneCountInString(*body.Organization.Name), 200, false))
+			}
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidateFormat("body.organization.website", *body.Organization.Website, goa.FormatURI))
+		}
+		if body.Organization.Website != nil {
+			err = goa.MergeErrors(err, goa.ValidatePattern("body.organization.website", *body.Organization.Website, "^https?://[^\\s/$.?#][^\\s]*$"))
+		}
+	}
+	if body.CreatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.created_at", *body.CreatedAt, goa.FormatDateTime))
+	}
+	if body.UpdatedAt != nil {
+		err = goa.MergeErrors(err, goa.ValidateFormat("body.updated_at", *body.UpdatedAt, goa.FormatDateTime))
+	}
+	return
+}
+
+// ValidateCommitteeMemberFullWithReadonlyAttributesResponse runs the
+// validations defined on committee-member-full-with-readonly-attributesResponse
+func ValidateCommitteeMemberFullWithReadonlyAttributesResponse(body *CommitteeMemberFullWithReadonlyAttributesResponse) (err error) {
 	if body.UID != nil {
 		err = goa.MergeErrors(err, goa.ValidateFormat("body.uid", *body.UID, goa.FormatUUID))
 	}

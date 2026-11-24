@@ -67,6 +67,11 @@ func GetCommitteeMemberCommitteeServicePath(uid string, memberUID string) string
 	return fmt.Sprintf("/committees/%v/members/%v", uid, memberUID)
 }
 
+// ListCommitteeMembersCommitteeServicePath returns the URL path to the committee-service service list-committee-members HTTP endpoint.
+func ListCommitteeMembersCommitteeServicePath(uid string) string {
+	return fmt.Sprintf("/committees/%v/members", uid)
+}
+
 // GetOrgCommitteeSeatsCommitteeServicePath returns the URL path to the committee-service service get-org-committee-seats HTTP endpoint.
 func GetOrgCommitteeSeatsCommitteeServicePath(uid string) string {
 	return fmt.Sprintf("/committees/b2b-org/%v/seats", uid)
@@ -130,6 +135,11 @@ func ApproveApplicationCommitteeServicePath(uid string, applicationUID string) s
 // RejectApplicationCommitteeServicePath returns the URL path to the committee-service service reject-application HTTP endpoint.
 func RejectApplicationCommitteeServicePath(uid string, applicationUID string) string {
 	return fmt.Sprintf("/committees/%v/applications/%v/reject", uid, applicationUID)
+}
+
+// WithdrawApplicationCommitteeServicePath returns the URL path to the committee-service service withdraw-application HTTP endpoint.
+func WithdrawApplicationCommitteeServicePath(uid string, applicationUID string) string {
+	return fmt.Sprintf("/committees/%v/applications/%v/withdraw", uid, applicationUID)
 }
 
 // JoinCommitteeCommitteeServicePath returns the URL path to the committee-service service join-committee HTTP endpoint.
