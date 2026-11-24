@@ -8,7 +8,7 @@ go 1.27.4
 require (
 	github.com/akamensky/base58 v0.0.0-20210829145138-ce8bf8802e8f
 	github.com/auth0/go-auth0 v1.38.0
-	github.com/auth0/go-jwt-middleware/v2 v2.3.0
+	github.com/auth0/go-jwt-middleware/v2 v2.3.1
 	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/uuid v1.6.0
@@ -16,18 +16,18 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/linuxfoundation/lfx-v2-email-service v0.1.0
 	github.com/linuxfoundation/lfx-v2-fga-sync v0.2.17
-	github.com/linuxfoundation/lfx-v2-indexer-service v0.4.16
+	github.com/linuxfoundation/lfx-v2-indexer-service v0.5.6-0.20261124232219-dd650b261397
 	github.com/linuxfoundation/lfx-v2-invite-service v0.2.1
-	github.com/nats-io/nats-server/v2 v2.12.12
-	github.com/nats-io/nats.go v1.51.0
+	github.com/nats-io/nats-server/v2 v2.14.6
+	github.com/nats-io/nats.go v1.53.1
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/pressly/goose/v3 v3.27.1
-	github.com/remychantenay/slog-otel v1.3.4
+	github.com/remychantenay/slog-otel v1.3.5
 	github.com/slack-go/slack v0.29.0
 	github.com/stretchr/testify v1.12.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
-	go.opentelemetry.io/contrib/propagators/jaeger v1.44.0
+	go.opentelemetry.io/contrib/propagators/jaeger v1.45.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.23.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.23.0
@@ -50,7 +50,7 @@ require (
 
 require (
 	github.com/PuerkitoBio/rehttp v1.4.0 // indirect
-	github.com/antithesishq/antithesis-sdk-go v0.7.0-default-no-op // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.7.2-default-no-op // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -91,7 +91,7 @@ require (
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/net v0.62.0 // indirect

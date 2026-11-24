@@ -8,12 +8,15 @@ This document is the authoritative reference for all data the committee service 
 
 ## Delivery
 
-The [V1 historical audit preview](v1-audit-history.md) defines separate,
-committee-owned `*.legacy.v1` draft snapshot schemas and an offline mapper. It
-does not publish indexer messages, change this delivery path or register a
-production audit policy. Its private draft plans are not wire envelopes. Future
-dispatch must use the generic indexer-owned historical-import contract and SDK
-preflight, never the projection-only `backfill` origin.
+The [V1 historical audit import](v1-audit-history.md) defines separate,
+committee-owned `*.legacy.v1` snapshot schemas and an offline planner. It builds
+frozen version 2 envelopes with `audit.origin: historical_import` under the
+dedicated `committee-v1-import` publisher, for `lfx.index.committee`,
+`lfx.index.committee_settings` and `lfx.index.committee_member`. These append
+history only and never use the projection-only `backfill` origin. The planner
+does not publish them yet and does not change this delivery path; dispatch is a
+separate, operator-run stage. `report v1-audit-history --print-indexer-policy`
+prints the indexer policy entry the import publisher needs.
 
 All indexer messages are published fire-and-forget via `conn.Publish` (core NATS, not JetStream publish).
 `lfx-v2-indexer-service#68` migrated the indexer from a core NATS queue subscription to a JetStream

@@ -1,26 +1,26 @@
 <!-- Copyright The Linux Foundation and each contributor to LFX. -->
 <!-- SPDX-License-Identifier: MIT -->
 
-# V1 committee audit history: offline preview
+# V1 committee audit history: offline preview and import events
 
 ## Status and safety boundary
 
-`committee-cli report v1-audit-history` implements the **offline schema/source
-mapping slice** of `linuxfoundation/lfx-self-serve-ops#1420`. It reads local
-NDJSON and an optional fixed mapping manifest. It runs before NATS, PostgreSQL,
-OpenSearch, directory or storage-mode initialization, including with invalid
-connection settings. It cannot publish, mutate resources, send notifications,
-change FGA, allocate revisions, bootstrap current search, or import history.
+`committee-cli report v1-audit-history` implements the **offline planning slice**
+of `linuxfoundation/lfx-self-serve-ops#1420`. It reads local NDJSON and an
+optional fixed mapping manifest. It runs before NATS, PostgreSQL, OpenSearch,
+directory or storage-mode initialization, including with invalid connection
+settings. It cannot publish, mutate resources, send notifications, change FGA,
+allocate live revisions, bootstrap current search, or import history.
 
-The optional output contains **private draft plans**, not indexer envelopes or
-outbox events. It has no transport credentials or actor JWTs. Do not send it to
-an indexing subject or treat a locally importable row as authorized for dispatch.
-Publishing, resumable execution, reconciliation, approved indexer policies,
-erasure-fence checks and generic SDK preflight remain subsequent work.
+The optional output contains **frozen indexer import events**: version 2
+`historical_import` messages built and validated with the indexer SDK, without
+transport headers or credentials (see [Import events](#import-events)). This
+command never sends them. Dispatch, resumable execution and reconciliation are
+the next stage of #1420; running the import in each environment is #1421.
 
-The native committee publisher and its complete-resource schemas are separate.
-This preview does not require the publisher's transactional outbox to be enabled,
-and it does not change any live publication path or upgrade the indexer SDK.
+The native committee publisher (live `mutation` events under `committee-service`)
+is separate. Imports use their own publisher, never touch its transactional
+outbox or revision lineage, and do not change any live publication path.
 
 ## Source requirements
 
@@ -55,10 +55,10 @@ The local closed schema definitions live in
 
 Each snapshot contains mapped `uid`, `committee_uid`, `project_uid` and a closed
 `fields` object. **Legacy field names and values are deliberate**, not guessed V2
-category, name, role or date conversions. The schema must be reviewed/registered
-for the eventual import publisher before any dispatch. Local validation is not
-production policy approval; once adopted, changing the allowed shape needs a new
-version rather than silently broadening it.
+category, name, role or date conversions. The same closed shapes are registered
+with the indexer for the import publisher (see [Import events](#import-events));
+once adopted, changing the allowed shape needs a new version rather than silently
+broadening it.
 
 | Resource | Allowed fields |
 | --- | --- |
@@ -94,8 +94,8 @@ completeness claim is made for skipped or absent data.
 
 ## Fixed offline mapping manifest
 
-Without `--mappings`, the command is an inventory: rows needing IDs/revisions are
-reported as skipped. It does not invent UUIDs or connect to live mapping stores.
+Without `--mappings`, the command is an inventory: rows needing IDs are reported
+as skipped. It does not invent UUIDs or connect to live mapping stores.
 For candidate plans, provide a reviewed export in this format (fake values):
 
 ```json
@@ -106,28 +106,30 @@ For candidate plans, provide a reviewed export in this format (fake values):
   "committees": {"committee-1": "00000000-0000-4000-8000-000000000001"},
   "members": {"member-record-1": "00000000-0000-4000-8000-000000000003"},
   "actors": {"actor-1": "user:first-last"},
-  "revisions": {
-    "00000000-0000-4000-8000-000000000010/committee": 1,
-    "00000000-0000-4000-8000-000000000010/committee_settings": 1
-  },
   "v2_origin_actors": ["v2-sync-actor-1"],
   "native_history_since": "2026-12-01T00:00:00Z"
 }
 ```
 
-The manifest source must match `--source`. Keep namespaces distinct across
-environments and freeze the export/manifest before comparing runs. Mapped targets
+The manifest source must match `--source`: 1 to 57 characters of lowercase
+letters, digits, `_` and `-`, starting with a letter and not ending in `_sha256`
+or `_event` (those suffixes name derived actor namespaces). Keep namespaces
+distinct across environments and freeze the export/manifest before comparing runs. Mapped targets
 must be nonzero canonical UUIDs. Use authoritative retained mappings for deleted
 members/resources; do not generate replacements, reinterpret tombstones as
 permission to recreate resources, or match a person by email alone.
 
-Revision keys are `<source-event-uuid>/<resource-type>`. Supply reviewed positive
-integers through MaxInt64 with an approved historical ordering meaning. The
-preview never derives a revision from line position, current time, broker order
-or an independent guessed live counter. Missing revisions skip the whole source
-row, including any split resource events. Conflicting revisions for one mapped
-resource are rejected within the bounded preview. Existing history/current
-lineage is not consulted; global reconciliation and approval remain prerequisites.
+Each event's `resource_revision` is its source occurrence time in microseconds
+since 1970 (UTC). That value is source-owned, identical on every rebuild and
+ordered in time; it never comes from line position, current time, broker order
+or the live revision sequence. Historical imports never consult or change live
+revision lineage, so they cannot collide with live revisions. A row before 1970
+has no positive revision and is invalid (`historical_time_before_epoch`). Two
+different source events for one resource at the same microsecond (for example,
+written in one v1 transaction) share a revision. Both are imported: the indexer
+keeps distinct event IDs with equal revisions, and history is read in
+`occurred_at`, publisher and `event_id` order. The summary counts them as
+`same_instant_events` for review.
 
 Source occurrence times are converted to UTC without loss of fractional
 precision. Captured resource-date strings are preserved. Equal source timestamps
@@ -183,10 +185,14 @@ these mappings before freezing a dispatch manifest. No current email/profile is
 looked up and no historical name/avatar capture is retained as actor identity.
 
 If unresolved, preserve `legacy:<source>/<created_by>`. IDs that cannot fit the
-bounded ref grammar use `legacy:<source>/sha256:<hash>`; their original value
+bounded ref grammar use `legacy:<source>_sha256/<hash>`; their original value
 remains in the protected source export. With no actor ID, use a source/event-derived
-`legacy:<source>/event:<hash>` reference, not one invented user for unrelated
-events. Recorded IDs never contain `:`, so these three forms cannot collide. No actor is replaced by the importer and no JWT evidence is manufactured.
+`legacy:<source>_event/<hash>` reference, not one invented user for unrelated
+events. The indexer forbids `:` inside a legacy actor ID, so derived refs use
+their own source namespaces; manifest sources may not end in `_sha256` or
+`_event`, so the three forms cannot collide. No actor is replaced by the importer
+and no JWT evidence is manufactured; legacy refs are accepted only for
+`historical_import` events.
 The compatible indexer/reader own null identity, false verification and current
 display enrichment. A delete's recorded actor may be the previous last modifier,
 not the deleter; this tool does not strengthen that source attribution claim.
@@ -208,7 +214,8 @@ committee-cli report v1-audit-history \
   --input ~/scratch/v1-committee-audit.ndjson --source dev-v1
 ```
 
-Bound a mapped preview and optionally write private draft events:
+Bound a mapped preview and optionally write the private file of frozen import
+events:
 
 ```bash
 committee-cli report v1-audit-history \
@@ -223,11 +230,12 @@ records read (including records outside the selected committee); maximum 100,000
 Input past the limit is only checked for remaining non-whitespace bytes, never read
 as a record, so an oversized or malformed record there cannot fail the preview.
 The manifest and individual source lines are bounded to 1 MiB, nesting to 64,
-captured strings to 64 KiB, and individual private drafts to 1 MiB. A draft fitting
-that local limit is not proof that a future wire envelope fits its own budget.
+captured strings to 64 KiB, and each frozen import event to 960 KiB, leaving
+64 KiB of the indexer's 1 MiB wire limit for the dispatch credential.
 
 Stdout contains aggregate counts and line-number/fixed-reason diagnostics only:
-`rows`, `importable`, `skipped`, `invalid`, `events`, `limited`, `reasons`, `issues`,
+`rows`, `importable`, `skipped`, `invalid`, `events`, `limited`,
+`same_instant_events`, `reasons`, `issues`,
 and `actor_candidates` counts (`mapped`, `recorded_user`, `recorded_service`,
 `legacy`) for unique in-scope parsed rows. Recorded identities are candidates,
 not evidence of a current-directory match or verification.
@@ -235,19 +243,63 @@ No names, emails, actor refs, snapshots, source values or private paths are logg
 Exit 0 means the bounded preview ran without invalid records, **not** that all
 rows were importable or audit history was persisted. Check skipped/limited counts.
 
-Only explicit `--plan-output` writes draft events with personal approved snapshot
-fields. Creation is exclusive, mode 0600; existing files are never overwritten,
+Only explicit `--plan-output` writes frozen import events with personal approved
+snapshot fields, one `{"object_type": ..., "event": ...}` line each. Creation is exclusive, mode 0600; existing files are never overwritten,
 including an input/manifest alias. Errors, cancellation (including SIGINT or
 SIGTERM, even while a FIFO input is waiting for data), a closed stdout or invalid
 records discard new draft output; cleanup failure is reported rather than claiming success.
 Keep the file outside Git/general logs, protect its directory/backups, and include
-it with source exports/manifests in erasure and retention handling. Drafts may be
-partial because of skipped or bounded input and are never publishable as-is.
+it with source exports/manifests in erasure and retention handling. The file may
+be partial because of skipped or bounded input; only a complete, reviewed run
+should be dispatched.
 
 To stop, terminate the preview; there is no remote state to roll back. Correct
 source/mapping gaps without rewriting original exports, and rerun into a new
 private filename. Do not relabel events, fabricate unknown values, bypass erased
 source IDs or enable a permissive schema validator to turn skips into imports.
-Live erasure/replay fences, immutable-content checks, source/publisher policy,
-credential handling and actual persistence reconciliation must be implemented
-and verified by the later historical-ingestion stage.
+Dispatch, credential handling, resumable execution and persistence reconciliation
+(including the indexer's erasure fences and immutable-content conflicts) belong
+to the next stage of #1420.
+
+## Import events
+
+Each planned event is frozen as an indexer version 2 envelope for
+`lfx.index.<object_type>` (`committee`, `committee_settings` or
+`committee_member`), built with the indexer SDK and re-validated on restore:
+
+- `audit.origin` is `historical_import`, so the indexer appends history only. It
+  does not update current documents, tombstones or revision lineage, and emits no
+  change events or notifications.
+- `audit.publisher` is the dedicated import publisher `committee-v1-import`,
+  separate from the live `committee-service` publisher.
+- `audit.event_id`, `occurred_at`, `resource_revision`, actor refs (both
+  `actor_ref` and `effective_actor_ref`), scope and `*.legacy.v1` snapshot content
+  come from the plan. No JWT evidence is attached.
+- `indexing_config` repeats the live anchors: access `committee:<uid>#viewer`
+  for committees and members and `committee:<uid>#auditor` for settings, and
+  history `committee:<uid>#auditor` for all three.
+- `data` is `{"uid": <resource uid>}` (the resource UID string for deletes) and
+  `tags` is empty. The indexer stores neither for imports, but both are part of
+  its immutable fingerprint, so they are fixed and rebuilding a plan gives
+  byte-identical events.
+
+The indexer admits these events only for a registered publisher. Print the
+policy entry to add to its audit policy manifest (`AUDIT_POLICY_FILE`) for the
+import publisher's machine client:
+
+```bash
+committee-cli report v1-audit-history --print-indexer-policy <client>@clients
+```
+
+The entry binds `committee-v1-import` to that principal, approves only the
+`historical_import` origin for the three resource types, and lists the closed
+`*.legacy.v1` snapshot schemas. It contains no credential. The indexer must also
+have audit enabled in that environment.
+
+Use a **dedicated machine client** for the import principal, used for nothing
+else and revoked once the environment's import (#1421) is complete. Never bind
+the live `committee-service` client: the indexer admits by publisher, and the
+import publisher may attest any historical actor. The policy's schemas check
+field names and JSON types only; string bounds and the URL credential rules are
+enforced by this tool's validator before an event is frozen, so only events
+built by this tool should be sent with that credential.
