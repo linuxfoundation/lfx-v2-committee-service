@@ -109,7 +109,9 @@ For candidate plans, provide a reviewed export in this format (fake values):
   "revisions": {
     "00000000-0000-4000-8000-000000000010/committee": 1,
     "00000000-0000-4000-8000-000000000010/committee_settings": 1
-  }
+  },
+  "v2_origin_actors": ["v2-sync-actor-1"],
+  "native_history_since": "2026-12-01T00:00:00Z"
 }
 ```
 
@@ -135,6 +137,41 @@ type, so split events are distinct and repeated previews are deterministic.
 Within a run, identical source UUID/content repeats are skipped and changed
 content under the same UUID is invalid. This applies across the whole run, even
 when `--committee-id` excludes one of the copies. No durable replay state is written.
+
+### Changes made in v2
+
+A change made in v2 is synced back to v1, and the v1 trigger records it as an
+ordinary audit row. Its `created_by` is the v2-to-v1 sync's actor ID, with no
+username or `user_source`, so v1 never recorded the human who made it. Once native
+v2 committee history is live in an environment, v2 already holds that change with
+its real actor, and importing the v1 row would record it twice.
+
+Both optional manifest fields are environment-specific and must be reviewed:
+
+- `v2_origin_actors`: the exact recorded `created_by` IDs the sync writes with.
+  Listing them never changes rows by other actors. Confirm each ID is used only
+  by the v2-to-v1 sync: every row it recorded after the cutover is skipped.
+- `native_history_since`: an RFC 3339 time in UTC (ending in `Z`), when native
+  committee history began in this environment (the deployment of the live
+  committee audit publisher). It requires `v2_origin_actors`.
+
+INSERT and UPDATE rows by a listed actor at or after the cutover are skipped as
+`recorded_natively_in_v2`. DELETE rows are never skipped: the trigger records the
+deleted row's previous last modifier, not the deleter, so a sync actor on a delete
+does not show the delete came from v2. A v2-originated delete may therefore be
+planned twice, which reconciliation can find. Earlier rows, and every row while
+no cutover is set, are the only record of those changes and are planned normally.
+Map their actor explicitly (for example `service:<sync client>`) rather than
+inventing a person.
+
+The cutover is compared with the v1 row's `created_at`, which is when the sync
+wrote the change to v1, not when it was made in v2. A change made in v2 just
+before native history started can reach v1 just after it, and would be skipped
+although v2 never recorded it. Set the cutover to when the publisher was fully
+rolled out, plus the worst-case v2-to-v1 sync delay. Erring late only plans a few
+duplicates, which reconciliation against native history can find; erring early
+loses those changes without a trace. Before importing, compare the dry-run
+`recorded_natively_in_v2` count with native v2 history for the same window.
 
 ## Attribution and authorization
 

@@ -14,7 +14,9 @@ import (
 	"maps"
 	"math"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -30,14 +32,24 @@ var v1AuditSourcePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
 // V1AuditMappings is a fixed offline mapping manifest. No current-resource or
 // directory lookup is performed. Revision keys are <source-event-uuid>/<type>.
+//
+// V2OriginActors lists the recorded v1 actor IDs that the v2-to-v1 sync writes
+// with, so changes made in v2 can be recognized. NativeHistorySince (RFC 3339 in
+// UTC, ending in "Z") is when native v2 committee history began in this
+// environment; INSERT and UPDATE rows by those actors at or after it are already
+// recorded in v2 and are skipped. DELETE rows never are: their recorded actor is
+// the previous last modifier, not the deleter. Without a cutover, native history
+// is not live and such rows remain the only record.
 type V1AuditMappings struct {
-	Version    int               `json:"version"`
-	Source     string            `json:"source"`
-	Projects   map[string]string `json:"projects"`
-	Committees map[string]string `json:"committees"`
-	Members    map[string]string `json:"members"`
-	Actors     map[string]string `json:"actors"`
-	Revisions  map[string]uint64 `json:"revisions"`
+	Version            int               `json:"version"`
+	Source             string            `json:"source"`
+	Projects           map[string]string `json:"projects"`
+	Committees         map[string]string `json:"committees"`
+	Members            map[string]string `json:"members"`
+	Actors             map[string]string `json:"actors"`
+	Revisions          map[string]uint64 `json:"revisions"`
+	V2OriginActors     []string          `json:"v2_origin_actors,omitempty"`
+	NativeHistorySince string            `json:"native_history_since,omitempty"`
 }
 
 // V1AuditOptions bounds and scopes an offline preview; zero MaxRecords means 10000.
@@ -78,7 +90,8 @@ func DecodeV1AuditMappings(input io.Reader) (*V1AuditMappings, error) {
 		return nil, errs.NewValidation("cannot read bounded audit mapping manifest")
 	}
 	var mappings V1AuditMappings
-	if !strictV1AuditJSON(data) || !v1AuditKnownKeys(data, "version", "source", "projects", "committees", "members", "actors", "revisions") ||
+	if !strictV1AuditJSON(data) || !v1AuditKnownKeys(data, "version", "source", "projects", "committees", "members", "actors", "revisions",
+		"v2_origin_actors", "native_history_since") ||
 		decodeV1AuditJSON(data, &mappings) != nil {
 		return nil, errs.NewValidation("invalid audit mapping manifest")
 	}
@@ -114,7 +127,34 @@ func validateV1AuditMappings(mappings *V1AuditMappings) error {
 			return errs.NewValidation("invalid audit revision mapping")
 		}
 	}
+	seenActors := make(map[string]bool, len(mappings.V2OriginActors))
+	for _, actor := range mappings.V2OriginActors {
+		if !v1AuditMappingKey(actor) || seenActors[actor] {
+			return errs.NewValidation("invalid audit v2-origin actor")
+		}
+		seenActors[actor] = true
+	}
+	if mappings.NativeHistorySince != "" {
+		// A cutover without actors to apply it to is a configuration mistake.
+		if _, err := v1AuditNativeHistorySince(mappings); err != nil || len(mappings.V2OriginActors) == 0 {
+			return errs.NewValidation("invalid audit native history cutover")
+		}
+	}
 	return nil
+}
+
+// v1AuditNativeHistorySince parses the manifest cutover; zero means native v2
+// history is not live. Only UTC ("Z") is accepted: time.Parse also accepts
+// offsets such as +24:00, which would silently move the cutover earlier.
+func v1AuditNativeHistorySince(mappings *V1AuditMappings) (time.Time, error) {
+	if mappings.NativeHistorySince == "" {
+		return time.Time{}, nil
+	}
+	since, err := time.Parse(time.RFC3339Nano, mappings.NativeHistorySince)
+	if err != nil || since.IsZero() || !strings.HasSuffix(mappings.NativeHistorySince, "Z") {
+		return time.Time{}, errs.NewValidation("invalid audit native history cutover")
+	}
+	return since.UTC(), nil
 }
 
 func v1AuditMappingKey(source string) bool {
@@ -140,12 +180,14 @@ func PlanV1AuditHistory(ctx context.Context, input io.Reader, options V1AuditOpt
 			Version: options.Mappings.Version, Source: options.Mappings.Source,
 			Projects: maps.Clone(options.Mappings.Projects), Committees: maps.Clone(options.Mappings.Committees),
 			Members: maps.Clone(options.Mappings.Members), Actors: maps.Clone(options.Mappings.Actors),
-			Revisions: maps.Clone(options.Mappings.Revisions),
+			Revisions: maps.Clone(options.Mappings.Revisions), V2OriginActors: slices.Clone(options.Mappings.V2OriginActors),
+			NativeHistorySince: options.Mappings.NativeHistorySince,
 		}
 	}
 	if err := validateV1AuditMappings(mappings); err != nil {
 		return nil, err
 	}
+	nativeHistorySince, _ := v1AuditNativeHistorySince(mappings)
 	if mappings.Source != options.Source {
 		return nil, errs.NewValidation("audit mapping source does not match preview source")
 	}
@@ -209,6 +251,18 @@ func PlanV1AuditHistory(ctx context.Context, input io.Reader, options V1AuditOpt
 			actorKind = "recorded_" + actorKind
 		}
 		report.ActorCandidates[actorKind]++
+		// A change made in v2 and synced back to v1 is already in native v2
+		// history once that is live; importing its v1 row would duplicate it.
+		// created_at is when the sync wrote the change to v1, not when it was
+		// made in v2, so the cutover must allow for the sync delay (see docs).
+		// A DELETE row records the previous last modifier rather than the
+		// deleter, so its actor cannot show the delete came from v2. Any other
+		// action falls through to planV1AuditRow's validation.
+		if !nativeHistorySince.IsZero() && (row.Action == "INSERT" || row.Action == "UPDATE") && !row.CreatedAt.Before(nativeHistorySince) &&
+			slices.Contains(mappings.V2OriginActors, row.CreatedBy) {
+			report.record(line, "skipped", "recorded_natively_in_v2")
+			continue
+		}
 		events, status, reason := planV1AuditRow(row, mappings)
 		if status != "importable" {
 			report.record(line, status, reason)
