@@ -57,6 +57,10 @@ spec:
             {{- end }}
           {{- $caConfigMap := .Values.database.caBundle.existingConfigMap | toString | trim }}
           {{- $caMountPath := .Values.database.caBundle.mountPath | toString | trim | trimSuffix "/" }}
+          {{- $caKey := .Values.database.caBundle.key | toString | trim }}
+          {{- if and $caConfigMap (or (eq $caKey "") (eq $caMountPath "")) }}
+          {{- fail "set database.caBundle.key and a mountPath other than / when database.caBundle.existingConfigMap is set" }}
+          {{- end }}
           {{- range $name, $config := .Values.app.environment }}
             {{- /* database.caBundle owns PGSSLROOTCERT when it mounts the bundle */}}
             {{- if not (and $caConfigMap (eq $name "PGSSLROOTCERT")) }}
@@ -78,7 +82,7 @@ spec:
           {{- end }}
             {{- if $caConfigMap }}
             - name: PGSSLROOTCERT
-              value: {{ printf "%s/%s" $caMountPath .Values.database.caBundle.key | quote }}
+              value: {{ printf "%s/%s" $caMountPath $caKey | quote }}
             {{- end }}
             {{- with .Values.app.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -220,8 +224,8 @@ spec:
           configMap:
             name: {{ $caConfigMap | quote }}
             items:
-              - key: {{ .Values.database.caBundle.key | quote }}
-                path: {{ .Values.database.caBundle.key | quote }}
+              - key: {{ $caKey | quote }}
+                path: {{ $caKey | quote }}
         {{- end }}
       {{- end }}
       {{- with .Values.topologySpreadConstraints }}
