@@ -32,6 +32,7 @@ func (c *command) Subcommands() map[string]commands.Subcommand {
 		"member-cdp-org-id":             &memberCDPOrgIDSubcommand{},
 		"backfill-weekly-brief-index":   &backfillWeeklyBriefIndexSubcommand{},
 		"committee-fields":              &committeeFieldsSubcommand{},
+		"v1-audit-history-import":       &v1AuditHistoryImportSubcommand{},
 	}
 }
 

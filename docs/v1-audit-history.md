@@ -1,7 +1,7 @@
 <!-- Copyright The Linux Foundation and each contributor to LFX. -->
 <!-- SPDX-License-Identifier: MIT -->
 
-# V1 committee audit history: offline preview and import events
+# V1 committee audit history: preview, import events and dispatch
 
 ## Status and safety boundary
 
@@ -15,8 +15,10 @@ allocate live revisions, bootstrap current search, or import history.
 The optional output contains **frozen indexer import events**: version 2
 `historical_import` messages built and validated with the indexer SDK, without
 transport headers or credentials (see [Import events](#import-events)). This
-command never sends them. Dispatch, resumable execution and reconciliation are
-the next stage of #1420; running the import in each environment is #1421.
+command never sends them. `sync v1-audit-history-import` sends them and
+`report v1-audit-history-reconcile` checks what the indexer stored (see
+[Dispatch and reconciliation](#dispatch-and-reconciliation)); running the import
+in each environment is #1421.
 
 The native committee publisher (live `mutation` events under `committee-service`)
 is separate. Imports use their own publisher, never touch its transactional
@@ -160,8 +162,10 @@ Both optional manifest fields are environment-specific and must be reviewed:
 INSERT and UPDATE rows by a listed actor at or after the cutover are skipped as
 `recorded_natively_in_v2`. DELETE rows are never skipped: the trigger records the
 deleted row's previous last modifier, not the deleter, so a sync actor on a delete
-does not show the delete came from v2. A v2-originated delete may therefore be
-planned twice, which reconciliation can find. Earlier rows, and every row while
+does not show the delete came from v2. A v2-originated delete after the cutover
+may therefore be planned although native history already records it, and it is
+imported under the separate import publisher, so reconciliation cannot detect
+the duplicate. Review DELETE events planned after the cutover before dispatch. Earlier rows, and every row while
 no cutover is set, are the only record of those changes and are planned normally.
 Map their actor explicitly (for example `service:<sync client>`) rather than
 inventing a person.
@@ -257,9 +261,8 @@ To stop, terminate the preview; there is no remote state to roll back. Correct
 source/mapping gaps without rewriting original exports, and rerun into a new
 private filename. Do not relabel events, fabricate unknown values, bypass erased
 source IDs or enable a permissive schema validator to turn skips into imports.
-Dispatch, credential handling, resumable execution and persistence reconciliation
-(including the indexer's erasure fences and immutable-content conflicts) belong
-to the next stage of #1420.
+Once a file has been dispatched, keep it: it is the only input its state journal
+accepts (see [Dispatch and reconciliation](#dispatch-and-reconciliation)).
 
 ## Import events
 
@@ -303,3 +306,112 @@ import publisher may attest any historical actor. The policy's schemas check
 field names and JSON types only; string bounds and the URL credential rules are
 enforced by this tool's validator before an event is frozen, so only events
 built by this tool should be sent with that credential.
+
+## Dispatch and reconciliation
+
+Two commands run an import from a reviewed frozen events file. Both re-validate
+every event before doing anything, never print event content, and track
+progress in one append-only **state journal** per events file.
+
+| Command | Reads | Writes |
+| --- | --- | --- |
+| `sync v1-audit-history-import` | events file, journal, token file | the `index-events` stream (only with `--apply`), the journal |
+| `report v1-audit-history-reconcile` | events file, journal, OpenSearch `resource-history-v1` | the journal |
+
+### State journal
+
+The journal (`--state`) is created, mode 0600, by the first `--apply` run. Its
+first line binds it to the SHA-256 of the events file, so it can never be applied
+to a different or edited file, and each later line records one event's status
+with its broker stream and sequence. It holds event IDs only, never content or
+credentials. Replay accepts only the sequences the commands write (a check
+outcome needs an earlier publish, and nothing follows a final status), and an
+append cut off by a crash is dropped on the next run.
+
+Only one run that writes may use a journal at a time. On Linux and macOS this is
+an OS lock on the journal file itself, so every path or link to it shares the
+lock, and it is released when the run ends, even if it is killed. Previews only
+read and can run together. Elsewhere a `<state>.lock` file is used instead: if a
+run is killed, check no other run is active, then delete the stale lock.
+
+Use one events file and one journal per environment. Event IDs include the
+manifest's source namespace, so each environment's events are distinct, but
+reconciling a journal against another environment's OpenSearch would record
+that environment's results.
+
+An event's status is one of:
+
+- **published**: the broker acknowledged it. That proves the stream stored it, not
+  that the indexer wrote history.
+- **missing**: reconciliation found no history record yet.
+- **persisted**: the history record exists and matches the event, including the
+  indexer's fingerprint of its immutable content. Final.
+- **erased**: the history slot is an erasure fence. Final: never re-sent or given a
+  new identity.
+- **conflict**: a record with this event ID exists with different content. The
+  indexer never overwrites it. Final: investigate, do not re-send.
+
+### Prerequisites
+
+1. The indexer in the environment runs a release with `historical_import` (indexer
+   `dd650b2` or later) on every consumer of the indexing subjects, with audit
+   enabled.
+2. An operator has added the `--print-indexer-policy` entry for a **dedicated**
+   import machine client (see [Import events](#import-events)) and restarted the
+   indexer so the policy loads.
+3. Committee native audit history is live in the environment, and the events file
+   was planned with that environment's `native_history_since` cutover, so
+   INSERT and UPDATE rows the v2 sync wrote after it are skipped. DELETE rows are
+   never skipped (see the cutover rules above): review any DELETE event planned
+   after the cutover, since native history may already record that delete.
+4. A reviewed, complete events file from `report v1-audit-history --plan-output`
+   with no invalid records.
+
+### Run
+
+```bash
+# Preview: validates the file and journal and counts what would be sent.
+committee-cli sync v1-audit-history-import --events events.ndjson --state state.ndjson
+
+# Send a bounded batch. The token file (mode 0600) holds the import client's
+# access token; replace it when it expires.
+committee-cli sync v1-audit-history-import --events events.ndjson --state state.ndjson \
+  --apply --authorization-file token --max-events 100
+
+# Check what was stored (realtime GETs, no index refresh needed).
+OPENSEARCH_URL=http://localhost:9200 \
+  committee-cli report v1-audit-history-reconcile --events events.ndjson --state state.ndjson
+```
+
+Start with a small `--max-events` batch, reconcile it, and check the imported
+history reads correctly before sending the rest. Each run gives its budget to
+never-sent events first, in file order, and uses what is left to retry events
+whose wait has passed (counted as `retried`), so events that stay missing never
+hold back the rest. Events first sent in a run are never retried in that run.
+Dispatch reports its counts as one JSON log line: `v1-audit-history-import
+complete`, or `v1-audit-history-import failed` (level `ERROR`, `failed: true`,
+partial counts) when the run stops on an error. Reconcile prints a JSON summary. Repeat dispatch and reconcile
+until reconciliation reports `complete: true`: every event persisted or erased.
+Only **missing** events change between rounds. A **conflict** is final and no
+rerun resolves it, so stop and investigate conflicts (listed by event ID in
+`conflict_events`) before continuing.
+
+Each publish carries `Nats-Msg-Id: committee-v1-import:<event_id>` and waits for
+the stream's acknowledgement. A failed or unacknowledged publish stops the run
+without recording it; rerunning sends the same bytes with the same identity. A
+redelivery is safe: the broker drops it inside its duplicate window (counted as
+`broker_duplicate`), and the indexer treats identical content as already written.
+
+A published event with no history yet is re-sent only after `--republish-after`
+(default 15 minutes, at least 5, so past the stream's 2 minute duplicate window).
+The indexer gives a message about five deliveries over about 15 seconds before it
+stops redelivering, so a transient failure (such as a user lookup) can leave an
+event **missing**; reconcile, then rerun dispatch to retry it. Events that stay
+missing after several retries point to an indexer-side problem (policy, schema,
+credential, user lookup): check the indexer logs before continuing.
+
+Neither command deletes or rewrites history. To stop, interrupt the run; the
+journal is consistent after every event. Imported history cannot be removed by
+this tool: removal is the indexer's erasure process. Keep the events file and
+journal with the source exports until the import is complete and any review is
+done, and include them in retention and erasure handling.
