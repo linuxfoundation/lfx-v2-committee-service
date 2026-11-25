@@ -26,12 +26,25 @@ type AuditAuthorizationSource struct {
 }
 
 // NewAuditAuthorizationSource configures a private, externally refreshed
-// Heimdall credential. It does not mint tokens or distribute signing keys.
+// Heimdall credential read from a file. It does not mint tokens.
 func NewAuditAuthorizationSource(path, principal, audience, jwksURL string) (*AuditAuthorizationSource, error) {
-	if strings.TrimSpace(path) == "" || strings.TrimSpace(audience) == "" ||
+	if strings.TrimSpace(path) == "" {
+		return nil, errs.NewValidation("audit dispatch requires a token file, service principal, audience and JWKS URL")
+	}
+	auth, err := newAuditVerifier(principal, audience, jwksURL)
+	if err != nil {
+		return nil, err
+	}
+	return &AuditAuthorizationSource{path: path, principal: principal, auth: auth}, nil
+}
+
+// newAuditVerifier validates the relay's static identity configuration and
+// builds the verifier every relay credential must pass.
+func newAuditVerifier(principal, audience, jwksURL string) (*JWTAuth, error) {
+	if strings.TrimSpace(audience) == "" ||
 		strings.TrimSpace(principal) != principal || strings.ContainsAny(principal, " \r\n\t") ||
 		!strings.HasSuffix(principal, "@clients") || strings.TrimSuffix(principal, "@clients") == "" {
-		return nil, errs.NewValidation("audit dispatch requires a token file, service principal, audience and JWKS URL")
+		return nil, errs.NewValidation("audit dispatch requires a service principal, audience and JWKS URL")
 	}
 	parsed, err := url.Parse(jwksURL)
 	if err != nil || parsed.Hostname() == "" || parsed.User != nil ||
@@ -42,7 +55,7 @@ func NewAuditAuthorizationSource(path, principal, audience, jwksURL string) (*Au
 	if err != nil {
 		return nil, errs.NewValidation("invalid audit token verification configuration")
 	}
-	return &AuditAuthorizationSource{path: path, principal: principal, auth: auth}, nil
+	return auth, nil
 }
 
 // Authorization reloads and validates the current credential without exposing

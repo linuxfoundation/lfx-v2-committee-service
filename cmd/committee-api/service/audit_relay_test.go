@@ -5,6 +5,10 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	"sync"
@@ -32,6 +36,8 @@ func TestStartCommitteeAuditRelay(t *testing.T) {
 	t.Setenv("JWKS_URL", "http://127.0.0.1:1/.well-known/jwks")
 	path := filepath.Join(t.TempDir(), "credential")
 	t.Setenv("COMMITTEE_AUDIT_TOKEN_FILE", path)
+	t.Setenv("COMMITTEE_AUDIT_SIGNER_KEY_FILE", "")
+	t.Setenv("COMMITTEE_AUDIT_SIGNER_KEY_ID", "")
 	// Canceled lifecycle prevents workers using these sentinel infrastructure
 	// pointers, while still exercising all synchronous startup validation.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -48,6 +54,34 @@ func TestStartCommitteeAuditRelay(t *testing.T) {
 			wg.Wait()
 		})
 	}
+	t.Run("signer mode", func(t *testing.T) {
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+		keyPath := filepath.Join(t.TempDir(), "key.pem")
+		require.NoError(t, os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}), 0600))
+		t.Setenv("COMMITTEE_AUDIT_TOKEN_FILE", "")
+		t.Setenv("COMMITTEE_AUDIT_SIGNER_KEY_FILE", keyPath)
+		var wg sync.WaitGroup
+		require.NoError(t, StartCommitteeAuditRelay(ctx, &wg), "the key ID is resolved at delivery; JWKS is not needed to start")
+		wg.Wait()
+
+		for name, env := range map[string][2]string{
+			"both credential sources": {"COMMITTEE_AUDIT_TOKEN_FILE", path},
+			"missing signing key":     {"COMMITTEE_AUDIT_SIGNER_KEY_FILE", filepath.Join(t.TempDir(), "missing.pem")},
+			"invalid signing key":     {"COMMITTEE_AUDIT_SIGNER_KEY_FILE", path},
+			"user principal":          {"COMMITTEE_AUDIT_PRINCIPAL", "first-last"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Setenv(env[0], env[1])
+				if name == "invalid signing key" {
+					require.NoError(t, os.WriteFile(path, []byte("not-a-key"), 0600))
+				}
+				var wg sync.WaitGroup
+				require.Error(t, StartCommitteeAuditRelay(ctx, &wg))
+				wg.Wait()
+			})
+		}
+	})
 	t.Run("dispatch drains retained events with capture disabled", func(t *testing.T) {
 		t.Setenv("COMMITTEE_AUDIT_ENABLED", "false")
 		var wg sync.WaitGroup

@@ -38,14 +38,39 @@ they do not borrow a relay token to manufacture original-actor evidence.
 Anonymous reads remain supported, but missing authentication never becomes a
 system identity for a source write. Read-only HTTP calls do not capture evidence.
 
-At dispatch the relay reloads and validates its own machine credential from
-`COMMITTEE_AUDIT_TOKEN_FILE`; `headers.authorization` identifies the publisher.
-The chart mounts that file from the Secret `audit.authorizationSecretName`, key
-`audit.authorizationSecretKey` (default `authorization`). Its verified expiry claim is required, and authorization is capped at 64 KiB
+At dispatch the relay obtains and validates its own machine credential;
+`headers.authorization` identifies the publisher. Exactly one source is configured:
+
+- **Token file** (`COMMITTEE_AUDIT_TOKEN_FILE`): an externally refreshed Heimdall
+  service bearer, reloaded for each delivery. The chart mounts it from the Secret
+  `audit.authorizationSecretName`, key `audit.authorizationSecretKey` (default
+  `authorization`).
+- **Signing key** (`COMMITTEE_AUDIT_SIGNER_KEY_FILE`, optional
+  `COMMITTEE_AUDIT_SIGNER_KEY_ID`): the relay mints its own 5-minute PS256 token
+  with the Heimdall signing key, as the v1 sync helper does, and reuses it until a
+  minute before expiry. The key ID is found by matching the key in Heimdall's JWKS.
+  Each mint rereads the key file and, after a verification failure, refreshes the
+  cached JWKS and the key ID, so a rotated key is picked up without a restart.
+  `COMMITTEE_AUDIT_AUDIENCE` must be an audience **only the indexer** accepts: the
+  bearer travels inside every audit message, so a shared audience would make it
+  replayable against other services. Set the signing key only together with
+  `COMMITTEE_AUDIT_DISPATCH_ENABLED=true`; nothing uses it otherwise.
+  The chart mounts the key (mode 0440, pod `fsGroup`) from `audit.signerSecretName`,
+  key `audit.signerSecretKey` (default `key.pem`). **Trust:** that key can sign a
+  token for any principal, including users, that every Heimdall-trusting service
+  accepts, so holding it widens committee-service's blast radius to platform-wide
+  identity forgery. The relay signs only `COMMITTEE_AUDIT_PRINCIPAL` (a
+  `<client>@clients` service principal), never a user, never actor evidence, and
+  never for any other purpose.
+
+Either way, every token passes the same signature, audience, expiry and principal
+checks before use. Its verified expiry claim is required, and authorization is capped at 64 KiB
 including the Bearer prefix. Capture and bootstrap preview reserve the same bound.
-Invalid static dispatch configuration fails startup, but credential availability
-is checked only at delivery. Missing/expired credentials and transient JWKS failures
-pause dispatch without preventing API startup. Events remain retained and retry
+Invalid static dispatch configuration fails startup. With the token file, credential
+availability is checked only at delivery. With the signing key, the key is a startup
+prerequisite: a missing, unreadable or non-RSA key fails startup. After startup, in
+either mode, missing/expired credentials, a key that cannot be reread, transient JWKS
+failures and failed renewals pause dispatch without stopping the API. Events remain retained and retry
 with refreshed credentials; delivery failure logs and pending-event age must be
 monitored. No unauthenticated publishing or user-token fallback is permitted.
 No audited `x-on-behalf-of` is used. Dispatch credentials/raw header maps are
