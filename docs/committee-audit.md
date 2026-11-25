@@ -40,7 +40,8 @@ system identity for a source write. Read-only HTTP calls do not capture evidence
 
 At dispatch the relay reloads and validates its own machine credential from
 `COMMITTEE_AUDIT_TOKEN_FILE`; `headers.authorization` identifies the publisher.
-Its verified expiry claim is required, and authorization is capped at 64 KiB
+The chart mounts that file from the Secret `audit.authorizationSecretName`, key
+`audit.authorizationSecretKey` (default `authorization`). Its verified expiry claim is required, and authorization is capped at 64 KiB
 including the Bearer prefix. Capture and bootstrap preview reserve the same bound.
 Invalid static dispatch configuration fails startup, but credential availability
 is checked only at delivery. Missing/expired credentials and transient JWKS failures

@@ -464,9 +464,12 @@ authelia:
 
 # Audited publisher credentials are provisioned/refreshed externally. This chart
 # never stores a user token or distributes Heimdall signing keys. The Secret's
-# authorization key must be a short-lived, refreshed Heimdall service bearer.
+# authorizationSecretKey must hold a short-lived, refreshed Heimdall service bearer.
 audit:
   authorizationSecretName: ""
+  # authorizationSecretKey is the key in authorizationSecretName holding the
+  # bearer, so a shared per-namespace Secret can be used.
+  authorizationSecretKey: authorization
 
 # app is the configuration for the application.
 #
