@@ -462,14 +462,29 @@ authelia:
   # Note: Disabling Authelia should only be used for local development
   enabled: true
 
-# Audited publisher credentials are provisioned/refreshed externally. This chart
-# never stores a user token or distributes Heimdall signing keys. The Secret's
-# authorizationSecretKey must hold a short-lived, refreshed Heimdall service bearer.
+# The audit relay authenticates to the indexer as COMMITTEE_AUDIT_PRINCIPAL with
+# a Heimdall service bearer, from exactly one of two sources. This chart never
+# stores a user token.
 audit:
+  # Externally refreshed bearer: the Secret's authorizationSecretKey must hold a
+  # short-lived Heimdall service bearer for COMMITTEE_AUDIT_PRINCIPAL.
   authorizationSecretName: ""
   # authorizationSecretKey is the key in authorizationSecretName holding the
   # bearer, so a shared per-namespace Secret can be used.
   authorizationSecretKey: authorization
+  # Self-signed bearer: the Secret holds the Heimdall signing key (RSA PEM), and
+  # the relay mints its own 5-minute token for COMMITTEE_AUDIT_PRINCIPAL, as the
+  # v1 sync helper does. The key can sign any identity Heimdall-trusting services
+  # accept, so the relay signs only that one service principal. Mutually
+  # exclusive with authorizationSecretName. COMMITTEE_AUDIT_SIGNER_KEY_ID may be
+  # set in app.environment; otherwise the key ID is found in the JWKS. Set this
+  # only with COMMITTEE_AUDIT_DISPATCH_ENABLED=true, and set
+  # COMMITTEE_AUDIT_AUDIENCE to an audience only the indexer accepts.
+  signerSecretName: ""
+  signerSecretKey: key.pem
+  # signerFSGroup is the pod fsGroup applied with signerSecretName so the
+  # container user (65532 in the image) can read the key mounted 0440.
+  signerFSGroup: 65532
 
 # app is the configuration for the application.
 #

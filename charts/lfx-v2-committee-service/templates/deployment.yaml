@@ -30,6 +30,13 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- if and .Values.audit.authorizationSecretName .Values.audit.signerSecretName }}
+      {{- fail "set only one of audit.authorizationSecretName and audit.signerSecretName" }}
+      {{- end }}
+      {{- if .Values.audit.signerSecretName }}
+      securityContext:
+        fsGroup: {{ .Values.audit.signerFSGroup }}
+      {{- end }}
       {{- if or .Values.serviceAccount.create .Values.serviceAccount.name }}
       serviceAccountName: {{ .Values.serviceAccount.name | default .Chart.Name }}
       {{- end }}
@@ -43,6 +50,10 @@ spec:
             {{- if .Values.audit.authorizationSecretName }}
             - name: COMMITTEE_AUDIT_TOKEN_FILE
               value: /var/run/committee-audit/authorization
+            {{- end }}
+            {{- if .Values.audit.signerSecretName }}
+            - name: COMMITTEE_AUDIT_SIGNER_KEY_FILE
+              value: /var/run/committee-audit-signer/key.pem
             {{- end }}
           {{- range $name, $config := .Values.app.environment }}
             - name: {{ $name }}
@@ -147,11 +158,16 @@ spec:
             periodSeconds: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName }}
+          {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName .Values.audit.signerSecretName }}
           volumeMounts:
             {{- if .Values.audit.authorizationSecretName }}
             - name: committee-audit-authorization
               mountPath: /var/run/committee-audit
+              readOnly: true
+            {{- end }}
+            {{- if .Values.audit.signerSecretName }}
+            - name: committee-audit-signer
+              mountPath: /var/run/committee-audit-signer
               readOnly: true
             {{- end }}
             {{- if ne $promptDir "" }}
@@ -160,7 +176,7 @@ spec:
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName }}
+      {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName .Values.audit.signerSecretName }}
       volumes:
         {{- if .Values.audit.authorizationSecretName }}
         - name: committee-audit-authorization
@@ -170,6 +186,15 @@ spec:
             items:
               - key: {{ default "authorization" .Values.audit.authorizationSecretKey | quote }}
                 path: authorization
+        {{- end }}
+        {{- if .Values.audit.signerSecretName }}
+        - name: committee-audit-signer
+          secret:
+            secretName: {{ .Values.audit.signerSecretName | quote }}
+            defaultMode: 0440
+            items:
+              - key: {{ default "key.pem" .Values.audit.signerSecretKey | quote }}
+                path: key.pem
         {{- end }}
         {{- if ne $promptDir "" }}
         - name: weekly-brief-prompts

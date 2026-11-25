@@ -45,8 +45,7 @@ func StartCommitteeAuditRelay(ctx context.Context, wg *sync.WaitGroup) error {
 		}()
 		return nil
 	}
-	source, err := auth.NewAuditAuthorizationSource(os.Getenv("COMMITTEE_AUDIT_TOKEN_FILE"),
-		os.Getenv("COMMITTEE_AUDIT_PRINCIPAL"), os.Getenv("COMMITTEE_AUDIT_AUDIENCE"), os.Getenv("JWKS_URL"))
+	source, err := committeeAuditCredentialSource(os.Getenv)
 	if err != nil {
 		return err
 	}
@@ -71,4 +70,27 @@ func StartCommitteeAuditRelay(ctx context.Context, wg *sync.WaitGroup) error {
 		usecase.CommitteeAuditRetention(ctx, postgres.NewStore(postgresPool), retention)
 	}()
 	return nil
+}
+
+// committeeAuditCredential supplies the relay's service bearer for each delivery.
+type committeeAuditCredential interface {
+	Authorization(ctx context.Context) (string, error)
+}
+
+// committeeAuditCredentialSource selects how the relay authenticates: a token
+// file refreshed externally (COMMITTEE_AUDIT_TOKEN_FILE), or tokens minted for
+// COMMITTEE_AUDIT_PRINCIPAL with the Heimdall signing key
+// (COMMITTEE_AUDIT_SIGNER_KEY_FILE, optional COMMITTEE_AUDIT_SIGNER_KEY_ID).
+// Exactly one must be configured.
+func committeeAuditCredentialSource(getenv func(string) string) (committeeAuditCredential, error) {
+	tokenFile, signerKeyFile := getenv("COMMITTEE_AUDIT_TOKEN_FILE"), getenv("COMMITTEE_AUDIT_SIGNER_KEY_FILE")
+	principal, audience, jwksURL := getenv("COMMITTEE_AUDIT_PRINCIPAL"), getenv("COMMITTEE_AUDIT_AUDIENCE"), getenv("JWKS_URL")
+	switch {
+	case tokenFile != "" && signerKeyFile != "":
+		return nil, errs.NewValidation("set only one of COMMITTEE_AUDIT_TOKEN_FILE and COMMITTEE_AUDIT_SIGNER_KEY_FILE")
+	case signerKeyFile != "":
+		return auth.NewAuditSigningSource(signerKeyFile, principal, audience, jwksURL, getenv("COMMITTEE_AUDIT_SIGNER_KEY_ID"))
+	default:
+		return auth.NewAuditAuthorizationSource(tokenFile, principal, audience, jwksURL)
+	}
 }
