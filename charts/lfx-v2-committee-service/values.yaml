@@ -33,6 +33,19 @@ podDisruptionBudget:
 #         app: lfx-v2-committee-service
 topologySpreadConstraints: []
 
+# database configures TLS trust for the PostgreSQL connection.
+database:
+  # caBundle mounts a ConfigMap holding the RDS CA bundle, so PGSSLMODE=verify-full can verify the
+  # server certificate. Leave existingConfigMap empty to mount nothing (the local database, or
+  # PGSSLMODE=require). When set, the chart mounts the ConfigMap read-only at mountPath and sets
+  # PGSSLROOTCERT to <mountPath>/<key>, replacing any app.environment.PGSSLROOTCERT. The ConfigMap
+  # must already exist in the release namespace: the aws-rds-ca trust-manager Bundle in
+  # lfx-v2-argocd (custom-resources/aws-rds-ca) publishes it as rds-ca-bundle.pem.
+  caBundle:
+    existingConfigMap: ""
+    key: rds-ca-bundle.pem
+    mountPath: /etc/ssl/rds-ca
+
 # image is the configuration for the container images
 image:
   # repository is the container image repository
@@ -739,14 +752,15 @@ app:
     # PGSSLMODE — TLS for the connection: the PG* variables above, and a POSTGRES_URL that
     # names no sslmode. `require` encrypts and refuses a server that does not offer TLS, but
     # does not verify the certificate; the driver default (prefer) would fall back to
-    # plaintext. verify-full needs the RDS CA bundle, which this chart does not mount yet, so
-    # it is not the default: with no root certificate it would refuse every connection.
-    # Before PostgreSQL is enabled in staging or prod, mount the bundle and set
-    # PGSSLMODE=verify-full with PGSSLROOTCERT pointing at it (tracked in
-    # linuxfoundation/lfx-self-serve-ops#1164); use disable only for a local database without
-    # TLS. A sslmode inside POSTGRES_URL takes precedence.
+    # plaintext. `verify-full` also verifies the certificate and the host name, and needs the
+    # RDS CA bundle: set database.caBundle.existingConfigMap (above), which mounts it and sets
+    # PGSSLROOTCERT. Without a root certificate verify-full refuses every connection, so
+    # `require` stays the default; use disable only for a local database without TLS. A
+    # sslmode inside POSTGRES_URL takes precedence.
     PGSSLMODE:
       value: "require"
+    # PGSSLROOTCERT — path of the root certificate file. Set it here only for a bundle the chart
+    # does not mount; database.caBundle sets it itself.
     PGSSLROOTCERT:
       value: ""
     # POSTGRES_MAX_CONNS — connection pool size per pod (default 10 when empty).
