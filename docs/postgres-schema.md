@@ -200,7 +200,7 @@ it is the primary store and does.
   with that secret: the ExternalSecret refreshes the Secret and Reloader restarts the pods, which read the new value at start.
   The variables change nothing by themselves: in `kv` with `POSTGRES_ENABLED` off they are never read, and `POSTGRES_ENABLED` and `STORAGE_MODE` decide
   whether the service connects. The URL it builds names no `sslmode`; the driver reads `PGSSLMODE` and `PGSSLROOTCERT`, which the chart defaults to `require` and empty. The driver also fills in from the `PG*` variables anything a `POSTGRES_URL` leaves out.
-- Use `sslmode=verify-full` (with `sslrootcert`; with the `PG*` variables, `PGSSLMODE=verify-full` and `PGSSLROOTCERT`) outside local development, and before PostgreSQL is enabled in staging or prod (the chart does not mount the RDS CA bundle yet, so it defaults to `require`): `require` encrypts but does not verify the
+- Use `sslmode=verify-full` (with `sslrootcert`; with the `PG*` variables, `PGSSLMODE=verify-full` and `PGSSLROOTCERT`) outside local development, and before PostgreSQL is enabled in staging or prod (the chart defaults to `require`; set `database.caBundle.existingConfigMap` to mount the RDS CA bundle and `PGSSLROOTCERT` is set for you): `require` encrypts but does not verify the
   server certificate, and the driver default `prefer` can fall back to plaintext.
 - The service applies the migrations itself at startup, so the role in `POSTGRES_URL` (or `PGUSER`) needs DDL rights. Before the
   service serves real traffic from this database, move the migrations to a separate role (a Job or init container) and

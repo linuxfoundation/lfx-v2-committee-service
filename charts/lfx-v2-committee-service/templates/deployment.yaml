@@ -55,7 +55,15 @@ spec:
             - name: COMMITTEE_AUDIT_SIGNER_KEY_FILE
               value: /var/run/committee-audit-signer/key.pem
             {{- end }}
+          {{- $caConfigMap := .Values.database.caBundle.existingConfigMap | toString | trim }}
+          {{- $caMountPath := .Values.database.caBundle.mountPath | toString | trim | trimSuffix "/" }}
+          {{- $caKey := .Values.database.caBundle.key | toString | trim }}
+          {{- if and $caConfigMap (or (eq $caKey "") (eq $caMountPath "")) }}
+          {{- fail "set database.caBundle.key and a mountPath other than / when database.caBundle.existingConfigMap is set" }}
+          {{- end }}
           {{- range $name, $config := .Values.app.environment }}
+            {{- /* database.caBundle owns PGSSLROOTCERT when it mounts the bundle */}}
+            {{- if not (and $caConfigMap (eq $name "PGSSLROOTCERT")) }}
             - name: {{ $name }}
               {{- /*
                   hasKey (not truthiness) so a deliberate `value: ""` renders as
@@ -70,7 +78,12 @@ spec:
               valueFrom:
                 {{- toYaml $config.valueFrom | nindent 16 }}
               {{- end }}
+            {{- end }}
           {{- end }}
+            {{- if $caConfigMap }}
+            - name: PGSSLROOTCERT
+              value: {{ printf "%s/%s" $caMountPath $caKey | quote }}
+            {{- end }}
             {{- with .Values.app.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -158,7 +171,7 @@ spec:
             periodSeconds: 1
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName .Values.audit.signerSecretName }}
+          {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName .Values.audit.signerSecretName $caConfigMap }}
           volumeMounts:
             {{- if .Values.audit.authorizationSecretName }}
             - name: committee-audit-authorization
@@ -175,8 +188,13 @@ spec:
               mountPath: {{ $promptDir | quote }}
               readOnly: true
             {{- end }}
+            {{- if $caConfigMap }}
+            - name: database-ca-bundle
+              mountPath: {{ $caMountPath | quote }}
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName .Values.audit.signerSecretName }}
+      {{- if or (ne $promptDir "") .Values.audit.authorizationSecretName .Values.audit.signerSecretName $caConfigMap }}
       volumes:
         {{- if .Values.audit.authorizationSecretName }}
         - name: committee-audit-authorization
@@ -200,6 +218,14 @@ spec:
         - name: weekly-brief-prompts
           configMap:
             name: {{ .Chart.Name }}-weekly-brief-prompts-{{ $promptHash }}
+        {{- end }}
+        {{- if $caConfigMap }}
+        - name: database-ca-bundle
+          configMap:
+            name: {{ $caConfigMap | quote }}
+            items:
+              - key: {{ $caKey | quote }}
+                path: {{ $caKey | quote }}
         {{- end }}
       {{- end }}
       {{- with .Values.topologySpreadConstraints }}
