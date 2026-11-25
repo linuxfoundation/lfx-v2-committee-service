@@ -69,6 +69,8 @@ func (h *committeeMemberHandler) HandleCommitteeListMembers(ctx context.Context,
 }
 
 func (h *committeeMemberHandler) HandleCommitteeUpdated(ctx context.Context, msg port.TransportMessenger) ([]byte, error) {
+	ctx = model.WithCommitteeSystemActor(ctx)
+	ctx = model.WithCommitteeProjection(ctx)
 	if h.committeeWriterOrchestrator == nil {
 		return nil, errors.NewValidation("committee writer orchestrator is required for handling committee_updated events")
 	}
@@ -152,6 +154,7 @@ func (h *committeeMemberHandler) HandleCommitteeUpdated(ctx context.Context, msg
 }
 
 func (h *committeeMemberHandler) HandleCommitteeTotalMembersSync(ctx context.Context, msg port.StreamMessenger) error {
+	ctx = model.WithCommitteeSystemActor(ctx)
 	if h.committeeWriter == nil || h.committeeReader == nil || h.committeePublisher == nil {
 		return errors.NewValidation("committee writer, reader, and publisher are required for handling total_members sync events")
 	}

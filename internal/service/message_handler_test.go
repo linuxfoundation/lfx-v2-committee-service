@@ -729,11 +729,13 @@ type spyCommitteeWriterOrchestrator struct {
 	updateErr        error
 	updatedCommittee *model.Committee
 
-	updateMemberCalls      int
-	updateMemberErr        error
-	updateMemberErrs       []error
-	updatedMembers         []*model.CommitteeMember
-	capturedSkipEnrichment []bool
+	updateMemberCalls           int
+	updateMemberErr             error
+	updateMemberErrs            []error
+	updatedMembers              []*model.CommitteeMember
+	capturedSkipEnrichment      []bool
+	capturedMemberProjections   []bool
+	capturedSettingsProjections []bool
 
 	updateSettingsCalls int
 	updateSettingsErr   error
@@ -753,10 +755,12 @@ func (s *spyCommitteeWriterOrchestrator) Update(_ context.Context, c *model.Comm
 	s.updatedCommittee = c
 	return c, s.updateErr
 }
-func (s *spyCommitteeWriterOrchestrator) UpdateSettings(_ context.Context, settings *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
+func (s *spyCommitteeWriterOrchestrator) UpdateSettings(ctx context.Context, settings *model.CommitteeSettings, _ uint64, _ bool) (*model.CommitteeSettings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateSettingsCalls++
+	projection, _ := ctx.Value(constants.AuditProjectionContextID).(bool)
+	s.capturedSettingsProjections = append(s.capturedSettingsProjections, projection)
 	// Deep-copy the snapshot so later in-place mutations by the handler don't overwrite it.
 	snap := *settings
 	snap.Writers = append([]model.CommitteeUser(nil), settings.Writers...)
@@ -776,10 +780,12 @@ func (s *spyCommitteeWriterOrchestrator) Delete(_ context.Context, _ string, _ u
 func (s *spyCommitteeWriterOrchestrator) CreateMember(_ context.Context, _ *model.CommitteeMember, _ bool, _ bool) (*model.CommitteeMember, error) {
 	return nil, nil
 }
-func (s *spyCommitteeWriterOrchestrator) UpdateMember(_ context.Context, member *model.CommitteeMember, _ uint64, _ bool, skipEnrichment bool) (*model.CommitteeMember, error) {
+func (s *spyCommitteeWriterOrchestrator) UpdateMember(ctx context.Context, member *model.CommitteeMember, _ uint64, _ bool, skipEnrichment bool) (*model.CommitteeMember, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateMemberCalls++
+	projection, _ := ctx.Value(constants.AuditProjectionContextID).(bool)
+	s.capturedMemberProjections = append(s.capturedMemberProjections, projection)
 	memberCopy := *member
 	s.updatedMembers = append(s.updatedMembers, &memberCopy)
 	s.capturedSkipEnrichment = append(s.capturedSkipEnrichment, skipEnrichment)
@@ -3055,6 +3061,12 @@ func TestHandleInviteAccepted(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantUpdateCalls, spy.updateSettingsCalls, "UpdateSettings call count")
 			assert.Equal(t, tt.wantUpdateMemberCalls, spy.updateMemberCalls, "UpdateMember call count")
+			for _, projection := range spy.capturedMemberProjections {
+				require.True(t, projection, "existing-seat enrichment is derived")
+			}
+			for _, projection := range spy.capturedSettingsProjections {
+				require.False(t, projection, "settings grants remain authoritative")
+			}
 
 			if tt.validateSettings != nil && len(spy.capturedSettings) > 0 {
 				tt.validateSettings(t, spy.capturedSettings)

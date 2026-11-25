@@ -59,48 +59,7 @@ func (uc *committeeWriterOrchestrator) stampCharter(ctx context.Context, url str
 
 // buildCommitteeIndexingConfig constructs an IndexingConfig for a CommitteeBase document.
 func buildCommitteeIndexingConfig(committee *model.Committee) *indexerTypes.IndexingConfig {
-	var nameAndAliases []string
-	if committee.Name != "" {
-		nameAndAliases = append(nameAndAliases, committee.Name)
-	}
-	if committee.DisplayName != "" && committee.DisplayName != committee.Name {
-		nameAndAliases = append(nameAndAliases, committee.DisplayName)
-	}
-
-	var parentRefs []string
-	if committee.ProjectUID != "" {
-		parentRefs = append(parentRefs, fmt.Sprintf("project:%s", committee.ProjectUID))
-	}
-	if committee.ParentUID != nil && *committee.ParentUID != "" {
-		parentRefs = append(parentRefs, fmt.Sprintf("committee:%s", *committee.ParentUID))
-	}
-
-	var fulltextParts []string
-	seen := make(map[string]bool)
-	for _, part := range nameAndAliases {
-		if !seen[part] {
-			fulltextParts = append(fulltextParts, part)
-			seen[part] = true
-		}
-	}
-	if committee.Description != "" && !seen[committee.Description] {
-		fulltextParts = append(fulltextParts, committee.Description)
-	}
-
-	public := committee.Public
-	return &indexerTypes.IndexingConfig{
-		ObjectID:             committee.CommitteeBase.UID,
-		AccessCheckObject:    fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
-		AccessCheckRelation:  "viewer",
-		HistoryCheckObject:   fmt.Sprintf("committee:%s", committee.CommitteeBase.UID),
-		HistoryCheckRelation: "auditor",
-		SortName:             committee.Name,
-		NameAndAliases:       nameAndAliases,
-		ParentRefs:           parentRefs,
-		Tags:                 committee.Tags(),
-		Fulltext:             strings.Join(fulltextParts, " "),
-		Public:               &public,
-	}
+	return committee.CommitteeBase.IndexingConfig()
 }
 
 // CommitteeWriter defines the interface for committee write operations
@@ -437,6 +396,11 @@ func (uc *committeeWriterOrchestrator) mergeCommitteeData(ctx context.Context, e
 
 // Execute orchestrates the committee creation process
 func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *model.Committee, sync bool) (result *model.Committee, err error) {
+	if committee.Charter != nil {
+		if err := model.ValidateCharterURL(committee.Charter.URL); err != nil {
+			return nil, err
+		}
+	}
 
 	slog.DebugContext(ctx, "executing create committee use case",
 		"project_uid", committee.ProjectUID,
@@ -607,7 +571,6 @@ func (uc *committeeWriterOrchestrator) Create(ctx context.Context, committee *mo
 
 // Update orchestrates the committee update process
 func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *model.Committee, revision uint64, sync bool) (*model.Committee, error) {
-
 	slog.DebugContext(ctx, "executing update committee use case",
 		"committee_uid", committee.CommitteeBase.UID,
 		"project_uid", committee.ProjectUID,
@@ -635,6 +598,20 @@ func (uc *committeeWriterOrchestrator) Update(ctx context.Context, committee *mo
 			"committee_uid", committee.CommitteeBase.UID,
 		)
 		return nil, errs.NewConflict("committee has been modified by another process")
+	}
+
+	// Only a changed charter URL is validated: echoing a stored legacy URL back keeps it
+	// unchanged in mergeCommitteeData, so it must not block unrelated edits.
+	if committee.Charter != nil {
+		existingCharterURL := ""
+		if existing.Charter != nil {
+			existingCharterURL = existing.Charter.URL
+		}
+		if committee.Charter.URL != existingCharterURL {
+			if err := model.ValidateCharterURL(committee.Charter.URL); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	slog.DebugContext(ctx, "existing committee retrieved",

@@ -56,6 +56,47 @@ this command.
 that admits the import publisher (`committee-v1-import`) for that machine client,
 approved only for `historical_import`, and exits.
 
+#### `audit status`, `audit bootstrap`, `audit replay`, `audit retire`, `audit prune`
+
+All `audit` operations connect only to PostgreSQL and do not require NATS to be reachable.
+The commands use the revised principal/JWT attribution SDK. Profile-bearing
+old payloads are rejected, not converted. See the [publisher contract](../../docs/committee-audit.md)
+for evidence, reindex semantics, retention and compatibility prerequisites.
+
+Operational commands for the private retained outbox (PostgreSQL required):
+
+```text
+committee-cli audit status
+committee-cli audit bootstrap --committee <uid> --dry-run
+committee-cli audit bootstrap --committee <uid>
+committee-cli audit replay --event-id <original-event-id> --dry-run
+committee-cli audit replay --event-id <original-event-id>
+committee-cli audit status --event-id <original-event-id>
+committee-cli audit retire --event-id <original-event-id> --delivery-attempt <verified-attempt> --confirmed-persisted
+committee-cli audit prune
+```
+
+Bootstrap requires PostgreSQL-primary `STORAGE_MODE`, retains current committee,
+settings and member projections with their authoritative revisions, and creates
+**no historical mutation**. Dry-run validates the complete selection without
+inserting outbox rows. Replay reschedules the original immutable retained bytes;
+it never invents refreshed actor evidence or bypasses indexer erasure fences. Each
+explicit bootstrap is a fresh projection operation; stored-event retries retain
+the original identity/time. Retirement requires operator-confirmed indexer persistence,
+not just PubAck, and matches the independently verified delivery attempt from
+`audit status --event-id`. Retirement dry-run checks the same eligibility; replay
+invalidates old confirmations. Prune uses bounded 1,000-row committed batches and
+`COMMITTEE_AUDIT_OUTBOX_RETENTION`, and leaves pending,
+unretired and revision-lineage records intact. Status emits
+retained/pending counts and oldest pending age, not personal audit payloads.
+The API's separately enabled relay performs delivery.
+
+With `COMMITTEE_AUDIT_ENABLED=true`, source repair commands select the audited
+store and explicit service attribution. Legacy storage-changing operations and
+`sync reindex*`/`sync backfill*`/`sync repair-settings-index` commands are refused while auditing is active;
+complete storage cutover before enabling audit capture. See the
+[audit contract and runbook](../../docs/committee-audit.md).
+
 #### `sync total-members-attribute`
 
 Reconciles `CommitteeBase.TotalMembers` against the actual member count in the KV store. Drift can occur when a member event is missed or a consumer is lagged.
@@ -606,6 +647,12 @@ OPENSEARCH_URL=http://localhost:9200 \
 ```
 
 #### `sync committee-fields`
+
+With `COMMITTEE_AUDIT_ENABLED=true`, live `--from=v2 --dry-run=false` republishes
+are rejected: re-saving unchanged V2 data would fabricate an audit edit and can
+also generate an SSO group name. Dry-run remains available, and real `--from=v1`
+changes still use normal mutation auditing. Schedule legacy V2-to-V1 repair in a
+controlled pre-adoption maintenance window rather than suppressing its history.
 
 Reconciles chosen fields of chosen committees between LFX v1 and v2, in the direction you pick with `--from`. It is one command for all committee field drift, so there is no per-field command. Dry-run by default.
 

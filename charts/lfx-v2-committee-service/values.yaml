@@ -462,6 +462,12 @@ authelia:
   # Note: Disabling Authelia should only be used for local development
   enabled: true
 
+# Audited publisher credentials are provisioned/refreshed externally. This chart
+# never stores a user token or distributes Heimdall signing keys. The Secret's
+# authorization key must be a short-lived, refreshed Heimdall service bearer.
+audit:
+  authorizationSecretName: ""
+
 # app is the configuration for the application.
 #
 # Container env vars are defined as a single map under `app.environment`; each
@@ -610,6 +616,23 @@ app:
     # dual-pg modes can be tuned with the three variables below (see
     # docs/postgres-schema.md, "Selecting a storage mode").
     STORAGE_MODE:
+      value: ""
+    # Capture requires PostgreSQL-primary storage and real verified authentication.
+    # Enable only after source/indexer bootstrap and publisher policy approval.
+    COMMITTEE_AUDIT_ENABLED:
+      value: "false"
+    # Explicit policy duration, required when capture is enabled. Only explicitly
+    # retired records are pruned; pending/PubAck-only records remain repair sources.
+    COMMITTEE_AUDIT_OUTBOX_RETENTION:
+      value: ""
+    # Dispatch is a separate gate. Pending/PubAck-only records remain repair
+    # sources while paused, but expired explicitly retired rows are still pruned.
+    COMMITTEE_AUDIT_DISPATCH_ENABLED:
+      value: "false"
+    # Must match the indexer's approved publisher policy and accepted audience.
+    COMMITTEE_AUDIT_PRINCIPAL:
+      value: ""
+    COMMITTEE_AUDIT_AUDIENCE:
       value: ""
     # STORAGE_READ_COMPARE_RATE — the fraction of reads, from 0 to 1, that dual and
     # dual-pg also make against the secondary store and compare. Empty keeps the

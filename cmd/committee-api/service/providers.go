@@ -66,6 +66,9 @@ func initStorageMode(ctx context.Context, getenv func(string) string) (composite
 func natsInit(ctx context.Context) {
 
 	natsDoOnce.Do(func() {
+		if _, err := postgres.AuditEnabled(os.Getenv); err != nil {
+			log.Fatal(err)
+		}
 		// Checked before NATS is connected: with STORAGE_MODE unset the mode is kv and nothing else changes; a mode
 		// set on purpose that cannot be used stops the service here instead of running in another mode.
 		mode, errMode := initStorageMode(ctx, os.Getenv)
@@ -123,6 +126,9 @@ func natsInit(ctx context.Context) {
 		natsB2BOrgResolver = nats.NewB2BOrgResolver(client)
 		natsB2BOrgFallbackResolver = nats.NewB2BOrgFallbackResolver(client)
 		natsPublisher = nats.NewMessagePublisher(client)
+		if enabled, _ := postgres.AuditEnabled(os.Getenv); enabled {
+			natsPublisher = usecaseSvc.NewAuditedCommitteePublisher(natsPublisher)
+		}
 	})
 }
 
@@ -144,6 +150,9 @@ func buildStores(ctx context.Context, mode composite.Mode, client *nats.NATSClie
 			log.Fatalf("storage mode %s needs PostgreSQL, which could not be set up", mode)
 		}
 		pg = postgres.NewStore(postgresPool)
+		if enabled, _ := postgres.AuditEnabled(os.Getenv); enabled {
+			pg = pg.WithAuditCapture()
+		}
 	}
 	built, err := stores.Build(mode, client, pg, opts...)
 	if err != nil {

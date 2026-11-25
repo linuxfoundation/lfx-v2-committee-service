@@ -57,7 +57,16 @@ func selectStores(ctx context.Context, mode composite.Mode, client *nats.NATSCli
 	if err != nil {
 		return nil, fmt.Errorf("%s=%s needs PostgreSQL: %w", composite.EnvStorageMode, mode, err)
 	}
-	built, err := stores.Build(mode, client, pg, append(opts, composite.WithMetrics(composite.NewMetrics()))...)
+	capture, err := postgres.AuditEnabled(os.Getenv)
+	if err != nil {
+		closePostgres()
+		return nil, err
+	}
+	source := pg
+	if capture {
+		source = pg.WithAuditCapture()
+	}
+	built, err := stores.Build(mode, client, source, append(opts, composite.WithMetrics(composite.NewMetrics()))...)
 	if err != nil {
 		closePostgres()
 		return nil, fmt.Errorf("building the stores for %s=%s: %w", composite.EnvStorageMode, mode, err)

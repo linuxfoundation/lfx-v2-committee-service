@@ -299,6 +299,12 @@ func (s *committeeFieldsSubcommand) Run(ctx context.Context, rc commands.RunCont
 	if err != nil {
 		return err
 	}
+	// A V2 republish is a legacy synchronization trigger, not a source edit.
+	// The normal writer refreshes timestamps and may reserve an SSO group name,
+	// so it cannot safely be relabeled as a derived projection under audit.
+	if os.Getenv("COMMITTEE_AUDIT_ENABLED") == "true" && *from == sourceV2 && !*dryRun {
+		return errors.NewValidation("live V2-to-V1 committee republishes are disabled during audited operation; use --dry-run or perform the repair in a controlled pre-adoption maintenance window")
+	}
 	if rc.CommitteeReader == nil {
 		return errors.NewUnexpected("CommitteeReader is not wired in RunContext")
 	}

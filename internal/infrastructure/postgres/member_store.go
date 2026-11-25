@@ -92,10 +92,13 @@ func (s *Store) CreateMember(ctx context.Context, member *model.CommitteeMember)
 	if member == nil {
 		return errs.NewValidation("committee member cannot be nil")
 	}
+	if s.capturesAudit() {
+		return s.captureAudit(ctx, auditTarget{kind: model.ResourceCommitteeMember, uid: member.UID, parentUID: member.CommitteeUID}, func(tx *Store) error { return tx.CreateMember(ctx, member) })
+	}
 	if member.CommitteeUID == "" || member.UID == "" {
 		return errs.NewValidation("committee member CommitteeUID and UID must be non-empty")
 	}
-	if _, err := s.pool.Exec(ctx, insertMember, withRevisionArg(ctx, primaryRevision, memberValues(member))...); err != nil {
+	if _, err := s.db().Exec(ctx, insertMember, withRevisionArg(ctx, primaryRevision, memberValues(member))...); err != nil {
 		if conflict := memberConflict(err); conflict != nil {
 			return conflict
 		}
@@ -110,6 +113,18 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	if member == nil {
 		return nil, errs.NewValidation("committee member cannot be nil")
 	}
+	if s.capturesAudit() {
+		var result *model.CommitteeMember
+		err := s.captureAudit(ctx, auditTarget{kind: model.ResourceCommitteeMember, uid: member.UID, parentUID: member.CommitteeUID}, func(tx *Store) error {
+			var err error
+			result, err = tx.UpdateMember(ctx, member, revision)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
 	if member.UID == "" {
 		return nil, errs.NewValidation("committee member UID cannot be empty")
 	}
@@ -119,7 +134,7 @@ func (s *Store) UpdateMember(ctx context.Context, member *model.CommitteeMember,
 	}
 	args := append([]any{values[0], revisionArg(revision)}, values[1:]...)
 
-	tag, err := s.pool.Exec(ctx, updateMember, withRevisionArg(ctx, primaryRevision, args)...)
+	tag, err := s.db().Exec(ctx, updateMember, withRevisionArg(ctx, primaryRevision, args)...)
 	if err != nil {
 		if conflict := memberConflict(err); conflict != nil {
 			return nil, conflict
@@ -138,7 +153,10 @@ func (s *Store) DeleteMember(ctx context.Context, uid string, revision uint64) e
 	if uid == "" {
 		return errs.NewValidation("committee member UID cannot be empty")
 	}
-	tag, err := s.pool.Exec(ctx, "DELETE FROM committee_members WHERE uid = $1 AND revision = $2", uid, revisionArg(revision))
+	if s.capturesAudit() {
+		return s.captureAudit(ctx, auditTarget{kind: model.ResourceCommitteeMember, uid: uid}, func(tx *Store) error { return tx.DeleteMember(ctx, uid, revision) })
+	}
+	tag, err := s.db().Exec(ctx, "DELETE FROM committee_members WHERE uid = $1 AND revision = $2", uid, revisionArg(revision))
 	if err != nil {
 		return unexpected("failed to delete committee member", err)
 	}
@@ -153,7 +171,7 @@ func (s *Store) GetMember(ctx context.Context, uid string) (*model.CommitteeMemb
 	if uid == "" {
 		return nil, 0, errs.NewValidation("committee member UID cannot be empty")
 	}
-	member, revision, err := scanMember(s.pool.QueryRow(ctx, selectMember+" WHERE uid = $1", uid))
+	member, revision, err := scanMember(s.db().QueryRow(ctx, selectMember+" WHERE uid = $1", uid))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", uid))
 	}
@@ -169,7 +187,7 @@ func (s *Store) GetMemberRevision(ctx context.Context, uid string) (uint64, erro
 		return 0, errs.NewValidation("committee member UID cannot be empty")
 	}
 	var revision int64
-	err := s.pool.QueryRow(ctx, "SELECT revision FROM committee_members WHERE uid = $1", uid).Scan(&revision)
+	err := s.db().QueryRow(ctx, "SELECT revision FROM committee_members WHERE uid = $1", uid).Scan(&revision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, errs.NewNotFound("committee member not found", fmt.Errorf("member UID: %s", uid))
 	}
@@ -181,7 +199,7 @@ func (s *Store) GetMemberRevision(ctx context.Context, uid string) (uint64, erro
 
 // listMembers runs a member query and collects the rows, ordered by uid so the result is stable.
 func (s *Store) listMembers(ctx context.Context, failure, where string, args ...any) ([]*model.CommitteeMember, error) {
-	rows, err := s.pool.Query(ctx, selectMember+where+" ORDER BY uid", args...)
+	rows, err := s.db().Query(ctx, selectMember+where+" ORDER BY uid", args...)
 	if err != nil {
 		return nil, unexpected(failure, err)
 	}
@@ -246,7 +264,7 @@ func (s *Store) ListAllMembers(ctx context.Context) ([]*model.CommitteeMember, e
 // error fn returns. fn runs while the query is open, so a call back into the store from fn uses a
 // second connection from the pool.
 func (s *Store) EachMember(ctx context.Context, fn func(*model.CommitteeMember) error) error {
-	rows, err := s.pool.Query(ctx, selectMember+" ORDER BY uid")
+	rows, err := s.db().Query(ctx, selectMember+" ORDER BY uid")
 	if err != nil {
 		return unexpected("failed to stream committee members", err)
 	}

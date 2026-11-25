@@ -19,6 +19,8 @@ func AuthorizationMiddleware() func(http.Handler) http.Handler {
 
 			// Add authorization to context
 			ctx := context.WithValue(r.Context(), constants.AuthorizationContextID, authorization)
+			readOnly := r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions
+			ctx = context.WithValue(ctx, constants.ReadOnlyRequestContextID, readOnly)
 
 			// Create a new request with the updated context
 			r = r.WithContext(ctx)
