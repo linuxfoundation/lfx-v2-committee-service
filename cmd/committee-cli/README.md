@@ -49,8 +49,7 @@ Use `--mappings <file>` for explicit IDs, `--committee-id` for legacy committee
 scope, and `--max-records` for a bounded preview. Missing mappings are reported,
 never invented; each event's revision is its source time in microseconds. Exit 1
 indicates invalid input or a processing/output failure; exit 0 does not mean all
-source rows were importable. Dispatch, resume and reconciliation are not part of
-this command.
+source rows were importable. Sending is `sync v1-audit-history-import`.
 
 `--print-indexer-policy <client>@clients` prints the indexer audit policy entry
 that admits the import publisher (`committee-v1-import`) for that machine client,
@@ -96,6 +95,42 @@ store and explicit service attribution. Legacy storage-changing operations and
 `sync reindex*`/`sync backfill*`/`sync repair-settings-index` commands are refused while auditing is active;
 complete storage cutover before enabling audit capture. See the
 [audit contract and runbook](../../docs/committee-audit.md).
+
+#### `report v1-audit-history-reconcile`
+
+Checks each sent import event against the indexer's stored history
+(`resource-history-v1` in OpenSearch) and records it in the state journal as
+persisted, missing, erased or conflict. It runs without NATS and writes only the
+journal. `complete: true` means every event is persisted or erased. See
+[Dispatch and reconciliation](../../docs/v1-audit-history.md#dispatch-and-reconciliation).
+
+| Flag | Default | Description |
+|---|---|---|
+| `--events` | | The frozen events file that was sent |
+| `--state` | | The import's state journal |
+| `--opensearch-url` | `$OPENSEARCH_URL`, else `http://localhost:9200` | OpenSearch base URL, without credentials |
+
+#### `sync v1-audit-history-import`
+
+Sends a reviewed frozen events file from `report v1-audit-history --plan-output`
+to the indexer, recording each broker acknowledgement in the state journal.
+Without `--apply` it only reports what it would send. Never-sent events go first,
+in file order; a published event without history is re-sent, with the same bytes
+and identity, after `--republish-after`, from what is left of `--max-events`.
+Persisted, erased and conflicting events are never sent again. See
+[Dispatch and reconciliation](../../docs/v1-audit-history.md#dispatch-and-reconciliation).
+
+| Flag | Default | Description |
+|---|---|---|
+| `--events` | | Frozen events file |
+| `--state` | | State journal, created (0600) by the first `--apply` run and bound to the events file |
+| `--apply` | `false` | Publish |
+| `--authorization-file` | | Required with `--apply`: a 0600 file holding the dedicated import client's bearer token |
+| `--max-events` | `100` | Maximum events published in this run (1..10000) |
+| `--republish-after` | `15m` | Wait before re-sending a published event with no history (at least `5m`) |
+| `--sleep` | `200ms` | Pause between publishes |
+
+**Output:** Structured JSON log line at the end of the run (`... complete`, or `... failed` at `ERROR` with partial counts) with fields `failed`, `apply`, `events`, `sent`, `would_send`, `retried`, `broker_duplicate`, `awaiting_history`, `persisted`, `erased`, `conflicts`, `limited`.
 
 #### `sync total-members-attribute`
 

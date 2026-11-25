@@ -86,6 +86,12 @@ func (c *NATSClient) KeyValueStore(ctx context.Context, bucketName string) error
 	return nil
 }
 
+// JetStream returns a JetStream context on the client's connection, for the
+// CLI commands that publish to a stream directly.
+func (c *NATSClient) JetStream() (jetstream.JetStream, error) {
+	return jetstream.New(c.conn)
+}
+
 // GetOrBindKVStore returns the KV handle for bucketName. If the bucket was
 // absent at startup (e.g. a pod that booted before the bucket was provisioned),
 // it attempts to bind on first access so the pod self-heals without a restart.

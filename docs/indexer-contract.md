@@ -13,10 +13,12 @@ committee-owned `*.legacy.v1` snapshot schemas and an offline planner. It builds
 frozen version 2 envelopes with `audit.origin: historical_import` under the
 dedicated `committee-v1-import` publisher, for `lfx.index.committee`,
 `lfx.index.committee_settings` and `lfx.index.committee_member`. These append
-history only and never use the projection-only `backfill` origin. The planner
-does not publish them yet and does not change this delivery path; dispatch is a
-separate, operator-run stage. `report v1-audit-history --print-indexer-policy`
-prints the indexer policy entry the import publisher needs.
+history only and never use the projection-only `backfill` origin. They are sent
+only by the operator-run `sync v1-audit-history-import` command, to the
+`index-events` JetStream stream with `Nats-Msg-Id: committee-v1-import:<event_id>`
+and the import client's credential; the service's own delivery path is
+unchanged. `report v1-audit-history --print-indexer-policy` prints the indexer
+policy entry the import publisher needs.
 
 The principal/JWT attribution revision from indexer PR #93 is implemented using
 SDK commit `dd650b261397706082c0a40564f093884eee7bbd`. Publisher profiles and
@@ -38,6 +40,7 @@ Default deployments and all other resource types keep the legacy behavior below.
 No actual history start date or deployed coverage is implied by these defaults.
 
 Legacy indexer messages are published fire-and-forget via `conn.Publish` (core NATS, not JetStream publish).
+The audit relay above and the operator-run historical import are the exceptions: both publish with JetStream and wait for the PubAck.
 `lfx-v2-indexer-service#68` migrated the indexer from a core NATS queue subscription to a JetStream
 durable consumer. Under JetStream with `AckExplicitPolicy`, `msg.Ack()` sends to the internal
 `$JS.ACK...` address — not the original publisher reply inbox — so `conn.Request()` callers would never

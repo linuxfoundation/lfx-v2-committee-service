@@ -203,6 +203,7 @@ func run() error {
 		CommitteeBaseWriter:         selected.committees,
 		StorageMode:                 string(storageMode),
 		KVStore:                     client.GetOrBindKVStore,
+		JetStream:                   client.JetStream,
 		KVExport:                    storage,
 		KVRepair:                    nats.NewKVRepairStore(client),
 		PostgresStore:               selected.postgres,

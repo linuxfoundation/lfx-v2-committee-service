@@ -81,6 +81,9 @@ type RunContext struct {
 	// service (e.g. committee-fields reading the v1 sync helper's mirror) use it, so that
 	// knowledge stays in the subcommand and out of the storage ports.
 	KVStore func(ctx context.Context, bucket string) (jetstream.KeyValue, error)
+	// JetStream returns a JetStream context on the CLI's NATS connection, for the subcommands that publish to a
+	// stream with broker acknowledgements and de-duplication (the v1 audit history import).
+	JetStream func() (jetstream.JetStream, error)
 	// KVExport streams the KV records with their revisions, for the storage subcommands that copy or compare data.
 	KVExport port.KVExportReader
 	// KVRepair reads and writes the KV records, for the storage subcommand that copies the data back from PostgreSQL.
